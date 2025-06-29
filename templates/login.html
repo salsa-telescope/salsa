@@ -1,5 +1,12 @@
 <div class="section light">
-  {% for provider in provider_names %}
-    <div><a href="/auth/redirect/{{ provider }}">{{ provider }}</a></div>
-  {% endfor %}
+  <div class="w-full flex-row justify-items-center">
+    <div class="inline-flex flex-col">
+      {% for provider in provider_names %}
+      <a href="/auth/redirect/{{ provider }}" class="bg-gray-300 hover:bg-gray-400 hover:no-underline text-gray-800 font-bold text-lg py-4 px-8 rounded inline-flex items-center cursor-pointer">
+        <img src="/oauth-{{ provider }}.svg" class="size-6 mr-2"/>
+        <span>{{ provider | title }}</span>
+      </a>
+      {% endfor %}
+    </div>
+  </div>
 </div>
