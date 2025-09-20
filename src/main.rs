@@ -20,7 +20,6 @@ struct Args {
 
     #[arg(short, long, env = "CERT_FILE_PATH")]
     cert_file_path: Option<String>,
-    s: Option<String>,
 }
 
 #[tokio::main]
