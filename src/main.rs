@@ -1,6 +1,7 @@
 use axum_server::tls_rustls::RustlsConfig;
 use clap::Parser;
 use std::net::SocketAddr;
+use std::net::TcpListener;
 
 mod app;
 mod coords;
@@ -20,7 +21,9 @@ struct Args {
 
     #[arg(short, long, env = "CERT_FILE_PATH")]
     cert_file_path: Option<String>,
-    s: Option<String>,
+
+    #[arg(short, long)]
+    port: Option<u16>,
 }
 
 #[tokio::main]
@@ -29,11 +32,24 @@ async fn main() {
 
     let args = Args::parse();
 
-    let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
+    let addr = if let Some(port) = args.port {
+        SocketAddr::from(([0, 0, 0, 0], port))
+    } else {
+        SocketAddr::from(([0, 0, 0, 0], 3000))
+    };
 
     let app = app::create_app().await;
 
-    log::info!("listening on {}", addr);
+    let listener = TcpListener::bind(addr).unwrap();
+
+    log::info!("listening on {}", listener.local_addr().unwrap());
+    if let Some(port) = args.port
+        && port == 0
+    {
+        // Tests need to know which port to connect to.
+        println!("port:{}", listener.local_addr().unwrap().port());
+    }
+
     if let Some(key_file_path) = args.key_file_path {
         let cert_file_path = args.cert_file_path.unwrap();
         log::info!(
@@ -41,15 +57,15 @@ async fn main() {
             key_file_path,
             cert_file_path
         );
-        let tls = RustlsConfig::from_pem_file(cert_file_path, key_file_path)
+        let tls_config = RustlsConfig::from_pem_file(cert_file_path, key_file_path)
             .await
             .unwrap();
-        axum_server::bind_rustls(addr, tls)
+        axum_server::from_tcp_rustls(listener, tls_config)
             .serve(app.into_make_service())
             .await
             .unwrap();
     } else {
-        axum_server::bind(addr)
+        axum_server::from_tcp(listener)
             .serve(app.into_make_service())
             .await
             .unwrap();
