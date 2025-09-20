@@ -112,10 +112,7 @@ impl Session {
         })
     }
 
-    pub async fn delete(
-        self: Self,
-        connection: Arc<Mutex<Connection>>,
-    ) -> Result<(), InternalError> {
+    pub async fn delete(self, connection: Arc<Mutex<Connection>>) -> Result<(), InternalError> {
         let conn = connection.lock().await;
 
         conn.execute("DELETE FROM session WHERE token = (?1)", (self.token,))

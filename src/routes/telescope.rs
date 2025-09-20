@@ -45,31 +45,31 @@ async fn spectrum_handle_websocket(mut socket: WebSocket, telescope: TelescopeHa
     loop {
         let info = telescope.get_info().await;
         // Somehow signal the error ...
-        if let Ok(info) = info {
-            if let Some(observation) = info.latest_observation {
-                // Needed this temporary vector to convince Bytes::from that it
-                // could convert. The underlying buffer is maybe just moved?
-                //
-                // The data is interleaved (freq, spectrum) into one big array
-                // and then sent over the socket.
-                let byte_vec: Vec<u8> = observation
-                    .frequencies
-                    .iter()
-                    .zip(observation.spectra.iter())
-                    .flat_map(|(f, v)| {
-                        // Pack frequency and amplitude into 16-byte array.
-                        // This is one value sent over the socket.
-                        let mut res = [0; 16];
-                        res[..8].copy_from_slice(&f.to_le_bytes());
-                        res[8..].copy_from_slice(&v.to_le_bytes());
-                        res
-                    })
-                    .collect();
-                match socket.send(Message::Binary(Bytes::from(byte_vec))).await {
-                    Ok(_) => (),
-                    // No-one is listening anymore.
-                    Err(_) => return,
-                }
+        if let Ok(info) = info
+            && let Some(observation) = info.latest_observation
+        {
+            // Needed this temporary vector to convince Bytes::from that it
+            // could convert. The underlying buffer is maybe just moved?
+            //
+            // The data is interleaved (freq, spectrum) into one big array
+            // and then sent over the socket.
+            let byte_vec: Vec<u8> = observation
+                .frequencies
+                .iter()
+                .zip(observation.spectra.iter())
+                .flat_map(|(f, v)| {
+                    // Pack frequency and amplitude into 16-byte array.
+                    // This is one value sent over the socket.
+                    let mut res = [0; 16];
+                    res[..8].copy_from_slice(&f.to_le_bytes());
+                    res[8..].copy_from_slice(&v.to_le_bytes());
+                    res
+                })
+                .collect();
+            match socket.send(Message::Binary(Bytes::from(byte_vec))).await {
+                Ok(_) => (),
+                // No-one is listening anymore.
+                Err(_) => return,
             }
         }
         tokio::time::sleep(Duration::from_secs(1)).await;
