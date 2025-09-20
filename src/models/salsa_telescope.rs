@@ -278,7 +278,7 @@ fn median(mut xs: Vec<f64>) -> f64 {
     // sort in ascending order, panic on f64::NaN
     xs.sort_by(|x, y| x.partial_cmp(y).unwrap());
     let n = xs.len();
-    if n % 2 == 0 {
+    if n.is_multiple_of(2) {
         (xs[n / 2] + xs[n / 2 - 1]) / 2.0
     } else {
         xs[n / 2]
