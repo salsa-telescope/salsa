@@ -21,7 +21,7 @@ impl SalsaTestServer {
             .spawn()
             .expect("Could not start backend");
         let mut stdout_reader =
-            BufReader::new(process.stdout.take().expect("Failed to fetch stderr"));
+            BufReader::new(process.stdout.take().expect("Should be able to get stdout"));
         let mut buf = String::new();
         let res = stdout_reader.read_line(&mut buf);
         match res {
@@ -32,11 +32,11 @@ impl SalsaTestServer {
         }
         let port = buf
             .split_once(":")
-            .expect("Unexpected port string from backend")
+            .expect("Backend should print something with \":\"")
             .1
             .trim()
             .parse::<u16>()
-            .expect("Failed to parse port number");
+            .expect("Backend should print a number");
         while let Err(_) = get(format!("http://127.0.0.1:{port}/")) {
             thread::sleep(Duration::from_millis(1));
             print!(".")
@@ -62,10 +62,10 @@ impl SalsaTestServer {
 
 impl Drop for SalsaTestServer {
     fn drop(&mut self) {
+        self.process.kill().expect("Should be able to kill backend");
         self.process
-            .kill()
-            .expect("Failed to send kill signal to backend");
-        self.process.wait().expect("Backend failed to stop");
+            .wait()
+            .expect("Backend should stop on kill signal");
     }
 }
 
