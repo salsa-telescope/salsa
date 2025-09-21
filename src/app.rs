@@ -7,6 +7,7 @@ use tower_http::services::ServeDir;
 use tower_http::trace::TraceLayer;
 
 use crate::database::create_sqlite_database_on_disk;
+use crate::middleware::cookies::cookies_middleware;
 use crate::models::telescope::{TelescopeCollectionHandle, create_telescope_collection};
 use crate::routes;
 use crate::routes::authentication::extract_session;
@@ -42,7 +43,9 @@ pub async fn create_app() -> Router {
         .route_layer(middleware::from_fn_with_state(
             state.clone(),
             extract_session,
-        ));
+        ))
+        .route_layer(middleware::from_fn(cookies_middleware))
+        ;
 
     let assets_path = "assets";
     log::debug!("serving asserts from {}", assets_path);
