@@ -53,7 +53,6 @@ fn parse_cookies(cookie_header: &str) -> Result<HashMap<String, String>, ParseEr
         if cookie_string.is_empty() {
             continue;
         }
-        println!("cookie string: '{cookie_string}'");
         let (name, value) = cookie_string.split_once('=').ok_or(ParseError {})?;
         res.insert(name.to_string(), value.to_string());
     }

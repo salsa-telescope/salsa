@@ -1,5 +1,4 @@
 use base64::{Engine, prelude::BASE64_STANDARD};
-use log::trace;
 use oauth2::CsrfToken;
 use rand::Rng;
 use rusqlite::Connection;
@@ -74,24 +73,39 @@ impl Session {
     pub async fn fetch(
         connection: Arc<Mutex<Connection>>,
         token: &str,
-    ) -> Result<Session, InternalError> {
+    ) -> Result<Option<Session>, InternalError> {
         let conn = connection.lock().await;
-        match conn.query_row("SELECT token, user.id, username, provider FROM session INNER JOIN user ON session.user_id = user.id WHERE session.token = (?1)", ((token),), |row| { 
-            Ok((
-                row.get::<usize, String>(0).expect("Table 'session' has known layout"),
-                row.get::<usize, i64>(1).expect("Table 'user' has known layout"),
-                row.get::<usize, String>(2).expect("Table 'user' has known layout"),
-                row.get::<usize, String>(3).expect("Table 'user' has known layout"),
-            ))
-            }) {
-                Ok((token, user_id, username, provider)) => Ok (Session{token: token.to_string(), user: User {id: user_id, name: username, provider}}),
-                Err(err) => {
-                trace!("Error running fetch session query");
-                Err(InternalError::new(format!(
-                    "Failed to fetch session from db: {err}"
-                )))
-                }
-            }
+        match conn.query_row(
+            "SELECT token, user.id, username, provider FROM session \
+             INNER JOIN user ON session.user_id = user.id \
+             WHERE session.token = (?1)",
+            ((token),),
+            |row| {
+                Ok((
+                    row.get::<usize, String>(0)
+                        .expect("Table 'session' has known layout"),
+                    row.get::<usize, i64>(1)
+                        .expect("Table 'user' has known layout"),
+                    row.get::<usize, String>(2)
+                        .expect("Table 'user' has known layout"),
+                    row.get::<usize, String>(3)
+                        .expect("Table 'user' has known layout"),
+                ))
+            },
+        ) {
+            Ok((token, user_id, username, provider)) => Ok(Some(Session {
+                token: token.to_string(),
+                user: User {
+                    id: user_id,
+                    name: username,
+                    provider,
+                },
+            })),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(err) => Err(InternalError::new(format!(
+                "Failed to fetch session from db: {err}"
+            ))),
+        }
     }
 
     pub async fn create(
@@ -187,6 +201,7 @@ mod test {
         let created_session = Session::create(connection.clone(), &user).await.unwrap();
         let fetched_sesssion = Session::fetch(connection.clone(), &created_session.token)
             .await
+            .unwrap()
             .unwrap();
         assert_eq!(created_session.token, fetched_sesssion.token);
     }

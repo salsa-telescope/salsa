@@ -15,12 +15,18 @@ impl InternalError {
 
 impl IntoResponse for InternalError {
     fn into_response(self) -> Response {
+        StatusCode::from(self).into_response()
+    }
+}
+
+impl From<InternalError> for StatusCode {
+    fn from(value: InternalError) -> Self {
         // (thak): I find it somewhat dubious to log here in the conversion
         // function ... but I can't deny it's convenient.
         error!(
             "Error encountered while processiong request: {}",
-            self.message
+            value.message
         );
-        StatusCode::INTERNAL_SERVER_ERROR.into_response()
+        StatusCode::INTERNAL_SERVER_ERROR
     }
 }

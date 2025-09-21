@@ -4,10 +4,7 @@ use askama::Template;
 use axum::{
     Extension, Router,
     extract::{Path, Query, Request, State},
-    http::{
-        HeaderMap, HeaderValue, StatusCode,
-        header::SET_COOKIE,
-    },
+    http::{HeaderMap, HeaderValue, StatusCode, header::SET_COOKIE},
     middleware::Next,
     response::{Html, IntoResponse, Redirect, Response},
     routing::get,
@@ -43,19 +40,36 @@ pub async fn extract_session(
     next: Next,
 ) -> Result<Response, StatusCode> {
     debug!("Authenticating user session");
-    if let Some(session_token) = get_session_token(&cookies) {
-        let Ok(session) = Session::fetch(state.database_connection.clone(), &session_token).await
-        else {
-            return Err(StatusCode::UNAUTHORIZED);
-        };
-        request.extensions_mut().insert(Some(session.user));
-        debug!("User authenticated.");
+    let mut should_reset_cookie = false;
+    let user = if let Some(session_token) = get_session_token(&cookies) {
+        if let Some(session) =
+            Session::fetch(state.database_connection.clone(), &session_token).await?
+        {
+            Some(session.user)
+        } else {
+            should_reset_cookie = true;
+            None
+        }
     } else {
-        request.extensions_mut().insert::<Option<User>>(None);
-        debug!("No user logged in.");
+        None
     };
 
-    Ok(next.run(request).await)
+    request.extensions_mut().insert(user);
+
+    let mut response = next.run(request).await;
+
+    // Assumes we only set cookies for the user session!
+    if should_reset_cookie && !response.headers().get(SET_COOKIE).is_some() {
+        response.headers_mut().insert(
+            SET_COOKIE,
+            HeaderValue::from_str(&format!(
+                "{SESSION_COOKIE_NAME}=deleted; expires=Thu, 01 Jan 1970 00:00:00 GMT"
+            ))
+            .expect("Hardcoded header value should always work"),
+        );
+    }
+
+    Ok(response)
 }
 
 pub fn routes(state: AppState) -> Router {
@@ -109,7 +123,9 @@ async fn logout(
 ) -> Result<impl IntoResponse, InternalError> {
     if let Some(session_token) = get_session_token(&cookies) {
         let session = Session::fetch(state.database_connection.clone(), &session_token).await?;
-        session.delete(state.database_connection.clone()).await?;
+        if let Some(session) = session {
+            session.delete(state.database_connection.clone()).await?;
+        }
     }
     let cookie = format!(
         "{SESSION_COOKIE_NAME}=deleted; SameSite=Lax; HttpOnly; Secure; Path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT"

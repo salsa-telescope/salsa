@@ -44,8 +44,7 @@ pub async fn create_app() -> Router {
             state.clone(),
             extract_session,
         ))
-        .route_layer(middleware::from_fn(cookies_middleware))
-        ;
+        .route_layer(middleware::from_fn(cookies_middleware));
 
     let assets_path = "assets";
     log::debug!("serving asserts from {}", assets_path);

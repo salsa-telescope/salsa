@@ -1,5 +1,6 @@
 use reqwest::StatusCode;
 use reqwest::blocking::{Client, get};
+use reqwest::header::{COOKIE, SET_COOKIE};
 use std::io::{BufRead, BufReader};
 use std::process::{Child, Command, Stdio};
 use std::thread;
@@ -15,6 +16,7 @@ impl SalsaTestServer {
         let backend_executable = env!("CARGO_BIN_EXE_backend");
         let mut process = Command::new(backend_executable)
             .args(["-p", "0"]) // Let the OS decide the port
+            // .env("RUST_LOG", "trace")
             .stdout(Stdio::piped())
             .spawn()
             .expect("Could not start backend");
@@ -39,11 +41,22 @@ impl SalsaTestServer {
             thread::sleep(Duration::from_millis(1));
             print!(".")
         }
+
+        // Let the thread detach.
+        thread::spawn(|| {
+            for line in stdout_reader.lines() {
+                match line {
+                    Ok(line) => print!("{line}"),
+                    Err(_) => return,
+                }
+            }
+        });
+
         SalsaTestServer { process, port }
     }
 
     fn addr(&self) -> String {
-        format!("http://127.0.0.1:{}/bookings", self.port)
+        format!("http://127.0.0.1:{}", self.port)
     }
 }
 
@@ -67,7 +80,7 @@ fn create_booking_not_logged_in_isnt_allowed() {
 
     let client = Client::new();
     let res = client
-        .post(server.addr())
+        .post(server.addr() + "/bookings")
         .form(&[
             ("start_date", "2025-07-01"),
             ("start_time", "02:00:00"),
@@ -75,7 +88,39 @@ fn create_booking_not_logged_in_isnt_allowed() {
             ("duration", "1"),
         ])
         .send()
-        .expect("Could not send request");
+        .expect("Should be able to send request");
 
-    assert_eq!(res.status(), StatusCode::UNAUTHORIZED);
+    assert_eq!(StatusCode::UNAUTHORIZED, res.status());
+}
+
+#[test]
+fn invalid_cookie_header_gives_bad_request() {
+    let server = SalsaTestServer::spawn();
+
+    let client = Client::new();
+    let res = client
+        .get(server.addr())
+        .header(COOKIE, "a_cookie:thisisnthowitsdone")
+        .send()
+        .expect("Requst should complete");
+
+    assert_eq!(StatusCode::BAD_REQUEST, res.status())
+}
+
+#[test]
+fn invalid_session_is_200_ok_and_resets_cookie() {
+    let server = SalsaTestServer::spawn();
+
+    let client = Client::new();
+    let res = client
+        .get(server.addr())
+        .header(COOKIE, "session=notavaildsession")
+        .send()
+        .expect("Request should complete");
+
+    assert_eq!(StatusCode::OK, res.status());
+    assert_eq!(
+        "session=deleted; expires=Thu, 01 Jan 1970 00:00:00 GMT",
+        res.headers()[SET_COOKIE]
+    );
 }
