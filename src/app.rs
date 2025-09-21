@@ -8,9 +8,9 @@ use tower_http::trace::TraceLayer;
 
 use crate::database::create_sqlite_database_on_disk;
 use crate::middleware::cookies::cookies_middleware;
+use crate::middleware::session::session_middleware;
 use crate::models::telescope::{TelescopeCollectionHandle, create_telescope_collection};
 use crate::routes;
-use crate::routes::authentication::extract_session;
 
 // Anything that goes in here must be a handle or pointer that can be cloned.
 // The underlying state itself should be shared.
@@ -42,7 +42,7 @@ pub async fn create_app() -> Router {
         .layer(TraceLayer::new_for_http())
         .route_layer(middleware::from_fn_with_state(
             state.clone(),
-            extract_session,
+            session_middleware,
         ))
         .route_layer(middleware::from_fn(cookies_middleware));
 

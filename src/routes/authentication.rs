@@ -3,9 +3,8 @@ use std::{collections::HashMap, fs::read_to_string};
 use askama::Template;
 use axum::{
     Extension, Router,
-    extract::{Path, Query, Request, State},
+    extract::{Path, Query, State},
     http::{HeaderMap, HeaderValue, StatusCode, header::SET_COOKIE},
-    middleware::Next,
     response::{Html, IntoResponse, Redirect, Response},
     routing::get,
 };
@@ -19,58 +18,16 @@ use rusqlite::Result;
 use serde::Deserialize;
 use serde_json::{Map, Value};
 
-use crate::models::user::User;
 use crate::routes::index::render_main;
 use crate::{app::AppState, error::InternalError};
 use crate::{
     middleware::cookies::Cookies,
     models::session::{Session, complete_oauth2_login, start_oauth2_login},
 };
-
-const SESSION_COOKIE_NAME: &str = "session";
-
-fn get_session_token(Cookies(cookies_map): &Cookies) -> Option<String> {
-    cookies_map.get(SESSION_COOKIE_NAME).cloned()
-}
-
-pub async fn extract_session(
-    State(state): State<AppState>,
-    Extension(cookies): Extension<Cookies>,
-    mut request: Request,
-    next: Next,
-) -> Result<Response, StatusCode> {
-    debug!("Authenticating user session");
-    let mut should_reset_cookie = false;
-    let user = if let Some(session_token) = get_session_token(&cookies) {
-        if let Some(session) =
-            Session::fetch(state.database_connection.clone(), &session_token).await?
-        {
-            Some(session.user)
-        } else {
-            should_reset_cookie = true;
-            None
-        }
-    } else {
-        None
-    };
-
-    request.extensions_mut().insert(user);
-
-    let mut response = next.run(request).await;
-
-    // Assumes we only set cookies for the user session!
-    if should_reset_cookie && !response.headers().get(SET_COOKIE).is_some() {
-        response.headers_mut().insert(
-            SET_COOKIE,
-            HeaderValue::from_str(&format!(
-                "{SESSION_COOKIE_NAME}=deleted; expires=Thu, 01 Jan 1970 00:00:00 GMT"
-            ))
-            .expect("Hardcoded header value should always work"),
-        );
-    }
-
-    Ok(response)
-}
+use crate::{
+    middleware::session::{SESSION_COOKIE_NAME, get_session_token},
+    models::user::User,
+};
 
 pub fn routes(state: AppState) -> Router {
     Router::new()
@@ -121,6 +78,7 @@ async fn logout(
     State(state): State<AppState>,
     Extension(cookies): Extension<Cookies>,
 ) -> Result<impl IntoResponse, InternalError> {
+    // TODO: We shouln't need to extract the session again here.
     if let Some(session_token) = get_session_token(&cookies) {
         let session = Session::fetch(state.database_connection.clone(), &session_token).await?;
         if let Some(session) = session {
