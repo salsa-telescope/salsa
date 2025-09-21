@@ -81,12 +81,6 @@ impl Booking {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
-pub enum AddBookingError {
-    ServiceUnavailable,
-    Conflict,
-}
-
 #[cfg(test)]
 mod test {
     use super::*;

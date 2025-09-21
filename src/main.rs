@@ -12,7 +12,6 @@ mod models;
 mod routes;
 mod telescope_controller;
 mod telescope_tracker;
-mod template;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
