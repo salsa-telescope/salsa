@@ -7,6 +7,7 @@ mod app;
 mod coords;
 mod database;
 mod error;
+mod middleware;
 mod models;
 mod routes;
 mod telescope_controller;
