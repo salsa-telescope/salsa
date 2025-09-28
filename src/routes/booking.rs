@@ -1,5 +1,4 @@
 use crate::app::AppState;
-use crate::error::InternalError;
 use crate::models::booking::Booking;
 use crate::models::user::User;
 use crate::routes::index::render_main;
@@ -17,43 +16,33 @@ pub fn routes(state: AppState) -> Router {
         .with_state(state)
 }
 
-struct MyBooking {
-    inner: Booking,
-    active: bool,
-}
-
 #[derive(Template)]
 #[template(path = "bookings.html")]
 struct BookingsTemplate {
-    my_bookings: Vec<MyBooking>,
+    my_bookings: Vec<Booking>,
     bookings: Vec<Booking>,
     telescope_names: Vec<String>,
+    error: Option<String>,
+    now: DateTime<Utc>,
 }
 
 async fn get_bookings(
     Extension(user): Extension<Option<User>>,
     headers: HeaderMap,
     State(state): State<AppState>,
-) -> Result<Response, InternalError> {
-    let bookings = Booking::fetch_all(state.database_connection).await?;
-    let now = Utc::now();
-    let my_bookings = match user {
-        Some(ref user) => bookings
-            .iter()
-            .filter(|b| b.user_name == user.name && b.user_provider == user.provider)
-            .cloned()
-            .map(|b| MyBooking {
-                inner: b.clone(),
-                active: now > b.start_time && now < b.end_time,
-            })
-            .collect(),
-        None => Vec::new(),
-    };
+) -> Result<Response, StatusCode> {
+    let bookings = Booking::fetch_all(state.database_connection.clone()).await?;
+    let my_bookings = Booking::fetch_for_user(
+        state.database_connection,
+        user.clone().ok_or(StatusCode::NOT_FOUND)?)
+        .await?;
 
     let content = BookingsTemplate {
         my_bookings,
         bookings,
         telescope_names: state.telescopes.get_names(),
+        error: None,
+        now: Utc::now(),
     }
     .render()
     .expect("Template rendering should always succeed");
@@ -78,7 +67,7 @@ async fn create_booking(
     headers: HeaderMap,
     State(state): State<AppState>,
     Form(booking_form): Form<BookingForm>,
-) -> Result<Response, InternalError> {
+) -> Result<Response, StatusCode> {
     if user.is_none() {
         return Ok(StatusCode::UNAUTHORIZED.into_response());
     }
