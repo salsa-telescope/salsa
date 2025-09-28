@@ -56,8 +56,8 @@ impl Booking {
     ) -> Result<(), InternalError> {
         let conn = connection.lock().await;
         conn.execute(
-            "insert into booking (user_id, telescope_id, start_timestamp, end_timestamp)
-                 values ((?1), (?2), (?3), (?4))",
+            "INSERT INTO booking (user_id, telescope_id, start_timestamp, end_timestamp)
+                 VALUES ((?1), (?2), (?3), (?4))",
             (&user.id, &telescope_id, start.timestamp(), end.timestamp()),
         )
         .map_err(|err| InternalError::new(format!("Failed to insert booking in db: {err}")))?;
@@ -70,10 +70,11 @@ impl Booking {
     ) -> Result<Vec<Booking>, InternalError> {
         let conn = connection.lock().await;
         let query = String::from(
-            "select booking.id, start_timestamp, end_timestamp, telescope_id, username, provider
-                        from booking, user
-                        where booking.user_id = user.id",
-        ) + &where_cond.map_or(String::new(), |c| format!(" and {c}"));
+            "SELECT booking.id, start_timestamp, end_timestamp, telescope_id, username, provider
+                FROM booking, user
+                WHERE booking.user_id = user.id",
+        ) + &where_cond.map_or(String::new(), |c| format!(" and {c}"))
+            + " ORDER BY start_timestamp ASC";
         let mut stmt = conn
             .prepare(&query)
             .map_err(|err| InternalError::new(format!("Failed to prepare statement: {err}")))?;
