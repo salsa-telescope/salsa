@@ -5,6 +5,7 @@
     {% for booking in my_bookings %}
     <div>
       {{ booking.start_time.naive_local() }}: {{ booking.telescope_name }}
+      <button hx-delete="bookings/{{ booking.id }}" hx-target="#page">Delete</button>
       {% if booking.active_at(now) %}
       <a href="observe/{{ booking.telescope_name }}" class="action">Observe now!</a>
       {% endif %}

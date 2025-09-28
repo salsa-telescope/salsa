@@ -3,16 +3,23 @@ use crate::models::booking::Booking;
 use crate::models::user::User;
 use crate::routes::index::render_main;
 use askama::Template;
+use axum::extract::Path;
 use axum::http::HeaderMap;
 use axum::response::{Html, IntoResponse, Response};
 use axum::{Extension, Form};
-use axum::{Router, extract::State, http::StatusCode, routing::get};
+use axum::{
+    Router,
+    extract::State,
+    http::StatusCode,
+    routing::{delete, get},
+};
 use chrono::{DateTime, Duration, NaiveDate, NaiveDateTime, NaiveTime, TimeZone, Utc};
 use serde::Deserialize;
 
 pub fn routes(state: AppState) -> Router {
     Router::new()
         .route("/", get(get_bookings).post(create_booking))
+        .route("/{booking_id}", delete(delete_booking))
         .with_state(state)
 }
 
@@ -31,12 +38,12 @@ async fn get_bookings(
     headers: HeaderMap,
     State(state): State<AppState>,
 ) -> Result<Response, StatusCode> {
+    let Some(user) = user else {
+        return Ok(StatusCode::UNAUTHORIZED.into_response());
+    };
     let content = BookingsTemplate {
-        my_bookings: Booking::fetch_for_user(
-            state.database_connection.clone(),
-            user.clone().ok_or(StatusCode::NOT_FOUND)?,
-        )
-        .await?,
+        my_bookings: Booking::fetch_for_user(state.database_connection.clone(), user.clone())
+            .await?,
         bookings: Booking::fetch_all(state.database_connection).await?,
         telescope_names: state.telescopes.get_names(),
         error: None,
@@ -47,7 +54,7 @@ async fn get_bookings(
     let content = if headers.get("hx-request").is_some() {
         content
     } else {
-        render_main(user, content)
+        render_main(Some(user), content)
     };
     Ok(Html(content).into_response())
 }
@@ -78,6 +85,7 @@ async fn create_booking(
         return Ok(StatusCode::BAD_REQUEST.into_response());
     }
     let booking = Booking {
+        id: -1, // not used.
         start_time,
         end_time,
         user_name: user.name.clone(),
@@ -115,6 +123,43 @@ async fn create_booking(
         bookings: Booking::fetch_all(state.database_connection).await?,
         telescope_names: state.telescopes.get_names(),
         error,
+        now: Utc::now(),
+    }
+    .render()
+    .expect("Template rendering should always succeed");
+    let content = if headers.get("hx-request").is_some() {
+        content
+    } else {
+        render_main(Some(user), content)
+    };
+    Ok(Html(content).into_response())
+}
+
+async fn delete_booking(
+    Extension(user): Extension<Option<User>>,
+    headers: HeaderMap,
+    Path(booking_id): Path<i64>,
+    State(state): State<AppState>,
+) -> Result<Response, StatusCode> {
+    let Some(user) = user else {
+        return Err(StatusCode::UNAUTHORIZED);
+    };
+    let booking = Booking::fetch_one(state.database_connection.clone(), booking_id)
+        .await?
+        .ok_or(StatusCode::NOT_FOUND)?;
+    let success = booking
+        .delete(state.database_connection.clone(), &user)
+        .await?;
+    if !success {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+
+    let content = BookingsTemplate {
+        my_bookings: Booking::fetch_for_user(state.database_connection.clone(), user.clone())
+            .await?,
+        bookings: Booking::fetch_all(state.database_connection).await?,
+        telescope_names: state.telescopes.get_names(),
+        error: None,
         now: Utc::now(),
     }
     .render()
