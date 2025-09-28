@@ -22,9 +22,8 @@ impl Booking {
         self.start_time < other.end_time && self.end_time > other.start_time
     }
 
-    pub fn active_at(&self, instant: &DateTime<Utc>) -> bool
-    {
-         *instant > self.start_time && *instant < self.end_time
+    pub fn active_at(&self, instant: &DateTime<Utc>) -> bool {
+        *instant > self.start_time && *instant < self.end_time
     }
 
     pub async fn create(
@@ -50,20 +49,18 @@ impl Booking {
         })
     }
 
-    async fn fetch (
+    async fn fetch(
         connection: Arc<Mutex<Connection>>,
         where_cond: Option<String>,
     ) -> Result<Vec<Booking>, InternalError> {
         let conn = connection.lock().await;
-        let query =
-            String::from("select start_timestamp, end_timestamp, telescope_id, username, provider
+        let query = String::from(
+            "select start_timestamp, end_timestamp, telescope_id, username, provider
                         from booking, user
-                        where booking.user_id = user.id") +
-                &where_cond.map_or(String::new(), |c| format!(" and {c}"));
+                        where booking.user_id = user.id",
+        ) + &where_cond.map_or(String::new(), |c| format!(" and {c}"));
         let mut stmt = conn
-            .prepare(
-                &query
-            )
+            .prepare(&query)
             .map_err(|err| InternalError::new(format!("Failed to prepare statement: {err}")))?;
         let bookings = stmt
             .query_map([], |row| {

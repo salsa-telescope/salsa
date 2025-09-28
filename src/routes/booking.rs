@@ -34,7 +34,8 @@ async fn get_bookings(
     let content = BookingsTemplate {
         my_bookings: Booking::fetch_for_user(
             state.database_connection.clone(),
-        user.clone().ok_or(StatusCode::NOT_FOUND)?)
+            user.clone().ok_or(StatusCode::NOT_FOUND)?,
+        )
         .await?,
         bookings: Booking::fetch_all(state.database_connection).await?,
         telescope_names: state.telescopes.get_names(),
@@ -100,7 +101,8 @@ async fn create_booking(
         .await?;
         None
     } else {
-        Some(format!("It's not possible to book {} at {} for {} minutes. It is already booked.",
+        Some(format!(
+            "It's not possible to book {} at {} for {} minutes. It is already booked.",
             booking.telescope_name,
             booking.start_time,
             (booking.end_time - booking.start_time).num_minutes()
@@ -109,10 +111,10 @@ async fn create_booking(
 
     let content = BookingsTemplate {
         my_bookings: Booking::fetch_for_user(state.database_connection.clone(), user.clone())
-        .await?,
+            .await?,
         bookings: Booking::fetch_all(state.database_connection).await?,
         telescope_names: state.telescopes.get_names(),
-        error: error,
+        error,
         now: Utc::now(),
     }
     .render()
