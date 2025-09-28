@@ -4,10 +4,10 @@
   <div class="bookings">
     {% for booking in my_bookings %}
     <div>
-      {{ booking.inner.start_time.naive_local() }}: {{ booking.inner.telescope_name }}
-      booked by {{ booking.inner.user_name }} ({{ booking.inner.user_provider }})
-      {% if booking.active %}
-      <a href="observe/{{ booking.inner.telescope_name }}" class="action">Observe now!</a>
+      {{ booking.start_time.naive_local() }}: {{ booking.telescope_name }}
+      booked by {{ booking.user_name }} ({{ booking.user_provider }})
+      {% if booking.active_at(now) %}
+      <a href="observe/{{ booking.telescope_name }}" class="action">Observe now!</a>
       {% endif %}
     </div>
     {% endfor %}
@@ -23,6 +23,11 @@
     {% endfor %}
   </div>
   <h2>Book telescope</h2>
+  {% for e in error %}
+  <div class="notification-area error">
+    {{ e }}
+  </div>
+  {% endfor %}
   <div class="form">
     <form hx-post="/bookings" hx-target="#page">
       <label for="start_date">Date</label>
