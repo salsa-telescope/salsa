@@ -5,7 +5,6 @@
     {% for booking in my_bookings %}
     <div>
       {{ booking.start_time.naive_local() }}: {{ booking.telescope_name }}
-      booked by {{ booking.user_name }} ({{ booking.user_provider }})
       {% if booking.active_at(now) %}
       <a href="observe/{{ booking.telescope_name }}" class="action">Observe now!</a>
       {% endif %}
@@ -18,7 +17,6 @@
     {% for booking in bookings %}
     <div>
       {{ booking.start_time.naive_local() }}: {{ booking.telescope_name }}
-      booked by {{ booking.user_name }} ({{ booking.user_provider }})
     </div>
     {% endfor %}
   </div>
