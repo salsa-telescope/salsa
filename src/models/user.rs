@@ -21,7 +21,7 @@ impl User {
     ) -> Result<User, InternalError> {
         let conn = connection.lock().await;
         conn.execute(
-            "insert into user (username, provider, external_id) values ((?1), (?2), (?3))",
+            "INSERT INTO user (username, provider, external_id) values ((?1), (?2), (?3))",
             (&name, &provider, external_id),
         )
         .map_err(|err| InternalError::new(format!("Failed to insert user in db: {err}")))?;
@@ -39,7 +39,7 @@ impl User {
     ) -> Result<Option<User>, InternalError> {
         let conn = connection.lock().await;
         match conn.query_row(
-            "select * from user where provider = (?1) and external_id = (?2)",
+            "SELECT * FROM user WHERE provider = (?1) AND external_id = (?2)",
             ((&provider), (discord_id)),
             |row| {
                 Ok((

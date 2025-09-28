@@ -24,7 +24,7 @@ pub async fn start_oauth2_login(
 ) -> Result<(), InternalError> {
     let conn = connection.lock().await;
     conn.execute(
-        "insert into pending_oauth2 (csrf_token, provider) values ((?1), (?2))",
+        "INSERT INTO pending_oauth2 (csrf_token, provider) VALUES ((?1), (?2))",
         (csrf_token.secret(), provider),
     )
     .map_err(|err| {
@@ -115,7 +115,7 @@ impl Session {
         let conn = connection.lock().await;
         let token = create_session_token();
         conn.execute(
-            "insert into session (token, user_id) values ((?1), (?2))",
+            "INSERT INTO session (token, user_id) VALUES ((?1), (?2))",
             (&token, &user.id),
         )
         .map_err(|err| InternalError::new(format!("Failed to insert session in db: {err}")))?;
