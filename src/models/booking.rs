@@ -10,6 +10,7 @@ use crate::models::user::User;
 
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub struct Booking {
+    pub id: i64,
     pub start_time: DateTime<Utc>,
     pub end_time: DateTime<Utc>,
     pub telescope_name: String,
@@ -26,27 +27,41 @@ impl Booking {
         *instant > self.start_time && *instant < self.end_time
     }
 
+    pub async fn delete(
+        self,
+        connection: Arc<Mutex<Connection>>,
+        user: &User,
+    ) -> Result<bool, InternalError> {
+        let conn = connection.lock().await;
+        let rows_deleted = conn
+            .execute(
+                "DELETE FROM booking
+                WHERE id = (?1)
+                AND user_id = (?2)",
+                (&self.id, &user.id),
+            )
+            .map_err(|err| {
+                InternalError::new(format!("Failed to delete booking from db: {err}"))
+            })?;
+        assert!(rows_deleted < 2);
+        Ok(rows_deleted > 0)
+    }
+
     pub async fn create(
         connection: Arc<Mutex<Connection>>,
         user: User,
         telescope_id: String,
         start: DateTime<Utc>,
         end: DateTime<Utc>,
-    ) -> Result<Booking, InternalError> {
+    ) -> Result<(), InternalError> {
         let conn = connection.lock().await;
         conn.execute(
             "insert into booking (user_id, telescope_id, start_timestamp, end_timestamp)
                  values ((?1), (?2), (?3), (?4))",
             (&user.id, &telescope_id, start.timestamp(), end.timestamp()),
         )
-        .map_err(|err| InternalError::new(format!("Failed to insert user in db: {err}")))?;
-        Ok(Booking {
-            start_time: start,
-            end_time: end,
-            telescope_name: telescope_id,
-            user_name: user.name,
-            user_provider: user.provider,
-        })
+        .map_err(|err| InternalError::new(format!("Failed to insert booking in db: {err}")))?;
+        Ok(())
     }
 
     async fn fetch(
@@ -55,7 +70,7 @@ impl Booking {
     ) -> Result<Vec<Booking>, InternalError> {
         let conn = connection.lock().await;
         let query = String::from(
-            "select start_timestamp, end_timestamp, telescope_id, username, provider
+            "select booking.id, start_timestamp, end_timestamp, telescope_id, username, provider
                         from booking, user
                         where booking.user_id = user.id",
         ) + &where_cond.map_or(String::new(), |c| format!(" and {c}"));
@@ -65,11 +80,12 @@ impl Booking {
         let bookings = stmt
             .query_map([], |row| {
                 Ok(Booking {
-                    start_time: DateTime::<Utc>::from_timestamp(row.get(0)?, 0).unwrap(),
-                    end_time: DateTime::<Utc>::from_timestamp(row.get(1)?, 0).unwrap(),
-                    telescope_name: row.get(2)?,
-                    user_name: row.get(3)?,
-                    user_provider: row.get(4)?,
+                    id: row.get(0)?,
+                    start_time: DateTime::<Utc>::from_timestamp(row.get(1)?, 0).unwrap(),
+                    end_time: DateTime::<Utc>::from_timestamp(row.get(2)?, 0).unwrap(),
+                    telescope_name: row.get(3)?,
+                    user_name: row.get(4)?,
+                    user_provider: row.get(5)?,
                 })
             })
             .map_err(|err| InternalError::new(format!("Failed to query_map: {err}")))?;
@@ -96,7 +112,21 @@ impl Booking {
         connection: Arc<Mutex<Connection>>,
         user: User,
     ) -> Result<Vec<Booking>, InternalError> {
+        // FIXME: Even though user.id can be trusted not to be a random string,
+        // use a prepared statement to avoid injection.
         Self::fetch(connection, Some(format!("user.id == {}", user.id))).await
+    }
+
+    pub async fn fetch_one(
+        connection: Arc<Mutex<Connection>>,
+        id: i64,
+    ) -> Result<Option<Booking>, InternalError> {
+        // FIXME: Even though id can be trusted not to be a random string,
+        // use a prepared statement to avoid injection.
+        let booking = Self::fetch(connection, Some(format!("booking.id == {}", id)))
+            .await?
+            .pop();
+        Ok(booking)
     }
 }
 
@@ -106,6 +136,7 @@ mod test {
 
     fn create_booking(start_time_ts: i64, end_time_ts: i64) -> Booking {
         Booking {
+            id: 0,
             start_time: DateTime::from_timestamp(start_time_ts, 0).unwrap(),
             end_time: DateTime::from_timestamp(end_time_ts, 0).unwrap(),
             telescope_name: String::new(),
