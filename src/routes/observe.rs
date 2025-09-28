@@ -132,7 +132,7 @@ async fn set_target(
         .telescopes
         .get(&telescope_id)
         .await
-        .ok_or(ObserveError::TelescopeNotFound("fake".to_string()))?;
+        .ok_or(ObserveError::TelescopeNotFound(telescope_id))?;
     telescope.set_target(target).await?;
     let content = observe(telescope.clone()).await?;
     Ok(Html(content))
@@ -146,7 +146,7 @@ async fn start_observe(
         .telescopes
         .get(&telescope_id)
         .await
-        .ok_or(ObserveError::TelescopeNotFound("fake".to_string()))?;
+        .ok_or(ObserveError::TelescopeNotFound(telescope_id))?;
     telescope
         .set_receiver_configuration(ReceiverConfiguration { integrate: true })
         .await?;
@@ -189,7 +189,7 @@ async fn get_observe(
         .telescopes
         .get(&telescope_id)
         .await
-        .ok_or(ObserveError::TelescopeNotFound("fake".to_string()))?;
+        .ok_or(ObserveError::TelescopeNotFound(telescope_id))?;
     let content = observe(telescope.clone()).await?;
     let content = if headers.get("hx-request").is_some() {
         content
