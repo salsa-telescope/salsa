@@ -31,15 +31,12 @@ async fn get_bookings(
     headers: HeaderMap,
     State(state): State<AppState>,
 ) -> Result<Response, StatusCode> {
-    let bookings = Booking::fetch_all(state.database_connection.clone()).await?;
-    let my_bookings = Booking::fetch_for_user(
-        state.database_connection,
-        user.clone().ok_or(StatusCode::NOT_FOUND)?)
-        .await?;
-
     let content = BookingsTemplate {
-        my_bookings,
-        bookings,
+        my_bookings: Booking::fetch_for_user(
+            state.database_connection.clone(),
+        user.clone().ok_or(StatusCode::NOT_FOUND)?)
+        .await?,
+        bookings: Booking::fetch_all(state.database_connection).await?,
         telescope_names: state.telescopes.get_names(),
         error: None,
         now: Utc::now(),
@@ -68,10 +65,9 @@ async fn create_booking(
     State(state): State<AppState>,
     Form(booking_form): Form<BookingForm>,
 ) -> Result<Response, StatusCode> {
-    if user.is_none() {
+    let Some(user) = user else {
         return Ok(StatusCode::UNAUTHORIZED.into_response());
-    }
-    let user = user.unwrap();
+    };
 
     let naive_datetime = NaiveDateTime::new(booking_form.start_date, booking_form.start_time);
     let start_time: DateTime<Utc> = Utc.from_utc_datetime(&naive_datetime);
@@ -89,7 +85,7 @@ async fn create_booking(
     };
     // TODO: Do the overlap check in the database instead.
     let bookings = Booking::fetch_all(state.database_connection.clone()).await?;
-    if !bookings
+    let error = if !bookings
         .iter()
         .filter(|b| b.telescope_name == booking.telescope_name && b.overlaps(&booking))
         .any(|_| true)
@@ -102,7 +98,29 @@ async fn create_booking(
             booking.end_time,
         )
         .await?;
-    }
+        None
+    } else {
+        Some(format!("It's not possible to book {} at {} for {} minutes. It is already booked.",
+            booking.telescope_name,
+            booking.start_time,
+            (booking.end_time - booking.start_time).num_minutes()
+        ))
+    };
 
-    get_bookings(Extension(Some(user)), headers, State(state)).await
+    let content = BookingsTemplate {
+        my_bookings: Booking::fetch_for_user(state.database_connection.clone(), user.clone())
+        .await?,
+        bookings: Booking::fetch_all(state.database_connection).await?,
+        telescope_names: state.telescopes.get_names(),
+        error: error,
+        now: Utc::now(),
+    }
+    .render()
+    .expect("Template rendering should always succeed");
+    let content = if headers.get("hx-request").is_some() {
+        content
+    } else {
+        render_main(Some(user), content)
+    };
+    Ok(Html(content).into_response())
 }

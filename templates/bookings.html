@@ -23,6 +23,11 @@
     {% endfor %}
   </div>
   <h2>Book telescope</h2>
+  {% for e in error %}
+  <div class="notification-area error">
+    {{ e }}
+  </div>
+  {% endfor %}
   <div class="form">
     <form hx-post="/bookings" hx-target="#page">
       <label for="start_date">Date</label>
