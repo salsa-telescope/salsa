@@ -1,9 +1,12 @@
 use crate::app::AppState;
 use crate::coords::Direction;
+use crate::models::booking::booking_is_active;
 use crate::models::telescope::TelescopeHandle;
 use crate::models::telescope_types::TelescopeStatus;
 use crate::models::telescope_types::{TelescopeError, TelescopeInfo};
+use crate::models::user::User;
 use askama::Template;
+use axum::Extension;
 use axum::extract::ws::Message;
 use axum::{
     Router,
@@ -27,14 +30,19 @@ pub fn routes(state: AppState) -> Router {
 
 async fn spectrum_handle_upgrade(
     upgrade: WebSocketUpgrade,
-    State(state): State<AppState>,
     Path(telescope_id): Path<String>,
-) -> Result<impl IntoResponse, TelescopeNotFound> {
+    Extension(user): Extension<Option<User>>,
+    State(state): State<AppState>,
+) -> Result<impl IntoResponse, StatusCode> {
+    let user = user.ok_or(StatusCode::UNAUTHORIZED)?;
+    if !booking_is_active(state.database_connection, &user, &telescope_id).await? {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
     let telescope = state
         .telescopes
         .get(&telescope_id)
         .await
-        .ok_or(TelescopeNotFound)?;
+        .ok_or(StatusCode::NOT_FOUND)?;
     // WebSockets come in as a regular HTTP request, that connection is then
     // upgraded to a socket.
     log::debug!("Setting up measurement websocket for {}", telescope_id);

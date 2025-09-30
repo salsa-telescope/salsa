@@ -124,3 +124,23 @@ fn invalid_session_is_200_ok_and_resets_cookie() {
         res.headers()[SET_COOKIE]
     );
 }
+
+#[test]
+fn cant_open_websocket_for_spectrum_if_not_logged_in() {
+    let server = SalsaTestServer::spawn();
+
+    let client = Client::new();
+    let res = client
+        .get(server.addr() + "/telescope/fake1/spectrum")
+        .header("Connection", "upgrade")
+        .header("Upgrade", "websocket")
+        .header("Sec-WebSocket-Key", "test")
+        .header("Sec-WebSocket-Version", "13")
+        .send()
+        .expect("Request should complete");
+
+    assert_eq!(StatusCode::UNAUTHORIZED, res.status());
+}
+
+// TODO: Test for websocket upgrade without active booking. Requires better db
+// support in these tests.
