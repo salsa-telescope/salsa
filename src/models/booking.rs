@@ -111,7 +111,7 @@ impl Booking {
 
     pub async fn fetch_for_user(
         connection: Arc<Mutex<Connection>>,
-        user: User,
+        user: &User,
     ) -> Result<Vec<Booking>, InternalError> {
         // FIXME: Even though user.id can be trusted not to be a random string,
         // use a prepared statement to avoid injection.
@@ -129,6 +129,17 @@ impl Booking {
             .pop();
         Ok(booking)
     }
+}
+
+pub async fn booking_is_active(
+    connection: Arc<Mutex<Connection>>,
+    user: &User,
+    telescope_id: &str,
+) -> Result<bool, InternalError> {
+    Ok(Booking::fetch_for_user(connection, user)
+        .await?
+        .iter()
+        .any(|b| b.active_at(&Utc::now()) && b.telescope_name == telescope_id))
 }
 
 #[cfg(test)]

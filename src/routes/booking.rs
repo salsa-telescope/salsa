@@ -42,8 +42,7 @@ async fn get_bookings(
         return Ok(StatusCode::UNAUTHORIZED.into_response());
     };
     let content = BookingsTemplate {
-        my_bookings: Booking::fetch_for_user(state.database_connection.clone(), user.clone())
-            .await?,
+        my_bookings: Booking::fetch_for_user(state.database_connection.clone(), &user).await?,
         bookings: Booking::fetch_all(state.database_connection).await?,
         telescope_names: state.telescopes.get_names(),
         error: None,
@@ -118,8 +117,7 @@ async fn create_booking(
     };
 
     let content = BookingsTemplate {
-        my_bookings: Booking::fetch_for_user(state.database_connection.clone(), user.clone())
-            .await?,
+        my_bookings: Booking::fetch_for_user(state.database_connection.clone(), &user).await?,
         bookings: Booking::fetch_all(state.database_connection).await?,
         telescope_names: state.telescopes.get_names(),
         error,
@@ -155,8 +153,7 @@ async fn delete_booking(
     }
 
     let content = BookingsTemplate {
-        my_bookings: Booking::fetch_for_user(state.database_connection.clone(), user.clone())
-            .await?,
+        my_bookings: Booking::fetch_for_user(state.database_connection.clone(), &user).await?,
         bookings: Booking::fetch_all(state.database_connection).await?,
         telescope_names: state.telescopes.get_names(),
         error: None,
