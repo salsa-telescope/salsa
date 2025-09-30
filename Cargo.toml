@@ -32,3 +32,6 @@ tokio-util = "0.7.*"
 toml = "0.8.*"
 tower-http = { version = "0.6.*", features = ["full"] }
 uhd = "0.3.*"
+
+[dev-dependencies]
+tempdir = "*"

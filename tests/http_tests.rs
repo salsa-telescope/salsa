@@ -1,21 +1,39 @@
 use reqwest::StatusCode;
 use reqwest::blocking::{Client, get};
 use reqwest::header::{COOKIE, SET_COOKIE};
+use std::fs::copy;
 use std::io::{BufRead, BufReader};
 use std::process::{Child, Command, Stdio};
 use std::thread;
 use std::time::Duration;
+use tempdir::TempDir;
 
 struct SalsaTestServer {
     process: Child,
     port: u16,
+    _database_dir: TempDir,
 }
 
 impl SalsaTestServer {
     fn spawn() -> Self {
+        let database_dir =
+            TempDir::new("database_dir").expect("Need to be able to create tempdir in test");
+        copy(
+            "telescopes.toml",
+            database_dir.path().join("telescopes.toml"),
+        )
+        .expect("Need to be able to copy telescopes.toml in test");
         let backend_executable = env!("CARGO_BIN_EXE_backend");
         let mut process = Command::new(backend_executable)
-            .args(["-p", "0"]) // Let the OS decide the port
+            .args([
+                "-p",
+                "0",
+                "--database-dir",
+                database_dir
+                    .path()
+                    .to_str()
+                    .expect("TempDir path should convert to str"),
+            ]) // Let the OS decide the port
             // .env("RUST_LOG", "trace")
             .stdout(Stdio::piped())
             .spawn()
@@ -52,7 +70,11 @@ impl SalsaTestServer {
             }
         });
 
-        SalsaTestServer { process, port }
+        SalsaTestServer {
+            process,
+            port,
+            _database_dir: database_dir,
+        }
     }
 
     fn addr(&self) -> String {

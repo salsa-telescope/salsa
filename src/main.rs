@@ -2,6 +2,7 @@ use axum_server::tls_rustls::RustlsConfig;
 use clap::Parser;
 use std::net::SocketAddr;
 use std::net::TcpListener;
+use std::path::PathBuf;
 
 mod app;
 mod coords;
@@ -24,6 +25,9 @@ struct Args {
 
     #[arg(short, long)]
     port: Option<u16>,
+
+    #[arg(long, default_value = ".")]
+    database_dir: PathBuf,
 }
 
 #[tokio::main]
@@ -38,7 +42,7 @@ async fn main() {
         SocketAddr::from(([0, 0, 0, 0], 3000))
     };
 
-    let app = app::create_app().await;
+    let app = app::create_app(&args.database_dir).await;
 
     let listener = TcpListener::bind(addr).unwrap();
 

@@ -1,6 +1,7 @@
 use axum::middleware;
 use axum::{Router, routing::get};
 use rusqlite::Connection;
+use std::path::Path;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tower_http::services::ServeDir;
@@ -20,9 +21,9 @@ pub struct AppState {
     pub telescopes: TelescopeCollectionHandle,
 }
 
-pub async fn create_app() -> Router {
+pub async fn create_app(database_dir: &Path) -> Router {
     let database_connection = Arc::new(Mutex::new(
-        create_sqlite_database_on_disk("database.sqlite3")
+        create_sqlite_database_on_disk(database_dir.join("database.sqlite3"))
             .expect("failed to create sqlite database"),
     ));
 
