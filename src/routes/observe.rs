@@ -1,9 +1,8 @@
 use crate::app::AppState;
-use crate::error::InternalError;
 use crate::models::booking::Booking;
 use crate::models::telescope::TelescopeHandle;
 use crate::models::telescope_types::{
-    ReceiverConfiguration, ReceiverError, TelescopeError, TelescopeInfo, TelescopeTarget,
+    ReceiverConfiguration, ReceiverError, TelescopeInfo, TelescopeTarget,
 };
 use crate::models::user::User;
 use crate::routes::index::render_main;
@@ -20,6 +19,7 @@ use axum::{
     routing::{get, post},
 };
 use chrono::Utc;
+use log::{debug, error};
 use serde::Deserialize;
 
 pub fn routes(state: AppState) -> Router {
@@ -37,52 +37,6 @@ struct Target {
     x: f64, // Degrees
     y: f64, // Degrees
     coordinate_system: String,
-}
-
-enum ObserveError {
-    BadQuery(String),
-    TelescopeError(TelescopeError),
-    ReceiverError(ReceiverError),
-    InternalError(InternalError),
-    TelescopeNotFound(String),
-}
-
-impl IntoResponse for ObserveError {
-    fn into_response(self) -> axum::response::Response {
-        match self {
-            ObserveError::BadQuery(message) => error_response(message),
-            ObserveError::TelescopeError(telescope_error) => telescope_error.into_response(),
-            ObserveError::TelescopeNotFound(id) => {
-                error_response(format!("Could not find telescope {}", id))
-            }
-            ObserveError::ReceiverError(receiver_error) => receiver_error.into_response(),
-            ObserveError::InternalError(internal_error) => internal_error.into_response(),
-        }
-    }
-}
-
-impl From<TelescopeError> for ObserveError {
-    fn from(telescope_error: TelescopeError) -> Self {
-        ObserveError::TelescopeError(telescope_error)
-    }
-}
-
-impl IntoResponse for TelescopeError {
-    fn into_response(self) -> Response {
-        error_response(format!("{self}"))
-    }
-}
-
-impl From<ReceiverError> for ObserveError {
-    fn from(receiver_error: ReceiverError) -> Self {
-        ObserveError::ReceiverError(receiver_error)
-    }
-}
-
-impl From<InternalError> for ObserveError {
-    fn from(internal_error: InternalError) -> Self {
-        ObserveError::InternalError(internal_error)
-    }
 }
 
 impl IntoResponse for ReceiverError {
@@ -104,7 +58,7 @@ async fn set_target(
     State(state): State<AppState>,
     Path(telescope_id): Path<String>,
     Form(target): Form<Target>,
-) -> Result<impl IntoResponse, ObserveError> {
+) -> Result<impl IntoResponse, StatusCode> {
     let x_rad = target.x.to_radians();
     let y_rad = target.y.to_radians();
     let target = match target.coordinate_system.as_str() {
@@ -121,10 +75,8 @@ async fn set_target(
             elevation: y_rad,
         },
         coordinate_system => {
-            return Err(ObserveError::BadQuery(format!(
-                "Unkown coordinate system {}",
-                coordinate_system
-            )));
+            debug!("Unkown coordinate system {coordinate_system}");
+            return Err(StatusCode::BAD_REQUEST);
         }
     };
 
@@ -132,8 +84,11 @@ async fn set_target(
         .telescopes
         .get(&telescope_id)
         .await
-        .ok_or(ObserveError::TelescopeNotFound(telescope_id))?;
-    telescope.set_target(target).await?;
+        .ok_or(StatusCode::NOT_FOUND)?;
+    telescope.set_target(target).await.map_err(|err| {
+        error!("Failed to set target {err}.");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
     let content = observe(telescope.clone()).await?;
     Ok(Html(content))
 }
@@ -141,15 +96,19 @@ async fn set_target(
 async fn start_observe(
     State(state): State<AppState>,
     Path(telescope_id): Path<String>,
-) -> Result<impl IntoResponse, ObserveError> {
+) -> Result<impl IntoResponse, StatusCode> {
     let mut telescope = state
         .telescopes
         .get(&telescope_id)
         .await
-        .ok_or(ObserveError::TelescopeNotFound(telescope_id))?;
+        .ok_or(StatusCode::NOT_FOUND)?;
     telescope
         .set_receiver_configuration(ReceiverConfiguration { integrate: true })
-        .await?;
+        .await
+        .map_err(|err| {
+            error!("Failed to set target {err}.");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
     let content = observe(telescope.clone()).await?;
     Ok(Html(content))
 }
@@ -172,7 +131,7 @@ async fn get_observe(
     State(state): State<AppState>,
     Path(telescope_id): Path<String>,
     headers: HeaderMap,
-) -> Result<impl IntoResponse, ObserveError> {
+) -> Result<impl IntoResponse, StatusCode> {
     let bookings = Booking::fetch_all(state.database_connection).await?;
     if user.is_none() || !has_active_booking(user.as_ref().unwrap(), &bookings) {
         let content = DontObserveTemplate {}
@@ -189,7 +148,7 @@ async fn get_observe(
         .telescopes
         .get(&telescope_id)
         .await
-        .ok_or(ObserveError::TelescopeNotFound(telescope_id))?;
+        .ok_or(StatusCode::NOT_FOUND)?;
     let content = observe(telescope.clone()).await?;
     let content = if headers.get("hx-request").is_some() {
         content
@@ -209,8 +168,11 @@ struct ObserveTemplate {
     state_html: String,
 }
 
-async fn observe(telescope: TelescopeHandle) -> Result<String, TelescopeError> {
-    let info = telescope.get_info().await?;
+async fn observe(telescope: TelescopeHandle) -> Result<String, StatusCode> {
+    let info = telescope.get_info().await.map_err(|err| {
+        error!("Failed to get info {err}");
+        StatusCode::NOT_FOUND
+    })?;
     let target_mode = match &info.current_target {
         TelescopeTarget::Equatorial { .. } => "equatorial",
         TelescopeTarget::Galactic { .. } => "galactic",
@@ -239,7 +201,10 @@ async fn observe(telescope: TelescopeHandle) -> Result<String, TelescopeError> {
         ),
         TelescopeTarget::Parked => (String::new(), String::new()),
     };
-    let state_html = telescope_state(telescope.clone()).await?;
+    let state_html = telescope_state(telescope.clone()).await.map_err(|err| {
+        error!("Failed to get telescope state {err}");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
     Ok(ObserveTemplate {
         info,
         target_mode,
