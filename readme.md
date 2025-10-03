@@ -17,6 +17,11 @@ or
 cargo run --bin backend
 ```
 
+## Issues with Safari and non-HTTPS
+If running via 127.0.0.1 with the cookies including "secure", then there might be issues to login
+using Safari. Should work when running properly via HTTPS, but workaround is to not doing dev work with Safari,
+use e.g. Chrome instead.
+
 # Documentation
 
 Note that the following documentation links are for the current Salsa observation system. This
