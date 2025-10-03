@@ -85,16 +85,8 @@ async fn logout(
             session.delete(state.database_connection.clone()).await?;
         }
     }
-    let cookie = format!(
-        "{SESSION_COOKIE_NAME}=deleted; SameSite=Lax; HttpOnly; Secure; Path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT"
-    );
-
-    let mut headers = HeaderMap::new();
-    headers.insert(
-        SET_COOKIE,
-        cookie.parse().expect("Cookie should be parseable always."),
-    );
-    Ok((headers, Redirect::to("/")).into_response())
+    // Session cookie will be cleared on redirect by session middleware.
+    Ok(Redirect::to("/"))
 }
 
 // Basic Oath2 flow

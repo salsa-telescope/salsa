@@ -137,8 +137,6 @@ impl Session {
             })?;
         Ok(())
     }
-
-    // TODO (add logout function)
 }
 
 #[cfg(test)]
