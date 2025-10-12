@@ -1,11 +1,5 @@
-<h2>{{ info.id }}</h2>
-<p>
-  Status: {{ status }}
-</p>
+<h2 class="mt-4 mb-3">{{ info.id }}</h2>
+<p>Status: {{ status }}</p>
 <h3>Current horizontal coordinates</h3>
-<p>
-  Azimuth: {{ "{:.3}"|format(direction.azimuth.to_degrees()) }}
-</p>
-<p>
-  Elevation: {{ "{:.3}"|format(direction.elevation.to_degrees()) }}
-</p>
+<p>Azimuth: {{ "{:.3}"|format(direction.azimuth.to_degrees()) }}</p>
+<p>Elevation: {{ "{:.3}"|format(direction.elevation.to_degrees()) }}</p>

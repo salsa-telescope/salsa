@@ -1,30 +1,23 @@
-
 <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
 <div class="section light">
-  <h1> Please observe!</h1>
-  <p>
-    Telescope: {{ info.id }}
-  </p>
-  <div id="errors">
-  </div>
+  <h1>Please observe!</h1>
+  <p>Telescope: {{ info.id }}</p>
+  <div id="errors"></div>
   <div id="chart">
     <!-- FIXME: maybe don't reload this javascript on each htmx fetch of this page? -->
     <script src="/observe_chart.js"></script>
   </div>
-  <h2>Target</h2>
-  <form>
+  <h2 class="mt-4 mb-3">Target</h2>
+  <form class="space-y-2">
     <p>
-      <select name="coordinate_system">
-        <option value="galactic"
-          {% if target_mode == "galactic" %}selected="selected"{% endif %}>
+      <select name="coordinate_system" class="border rounded px-1 bg-white">
+        <option value="galactic" {% if target_mode=="galactic" %} selected="selected"{% endif %}>
           Galactic
         </option>
-        <option value="equatorial"
-          {% if target_mode == "equatorial" %}selected="selected"{% endif %}>
+        <option value="equatorial" {% if target_mode=="equatorial" %}selected="selected"{% endif %}>
           Equatorial
         </option>
-        <option value="horizontal"
-          {% if target_mode == "horizontal" %}selected="selected"{% endif %}>
+        <option value="horizontal" {% if target_mode=="horizontal" %}selected="selected"{% endif %}>
           Horizontal
         </option>
       </select>
@@ -32,37 +25,39 @@
 
     <p>
       <label for="x">
-        {% if target_mode == "galactic" %}
-        Longitude [deg]
-        {% else if target_mode == "equatorial" %}
-        Right ascension [deg]
-        {% else %}
-        Azimuth [deg]
-        {% endif %}
+        {% if target_mode == "galactic" %} Longitude [deg] {% else if target_mode == "equatorial" %} Right ascension
+        [deg] {% else %} Azimuth [deg] {% endif %}
       </label>
-      <input type="text" id="x" name="x" value="{{ commanded_x }}">
+      <input type="text" id="x" name="x" value="{{ commanded_x }}" class="border rounded px-1 bg-white" />
     </p>
     <p>
       <label for="y">
-        {% if target_mode == "galactic" %}
-        Latitude [deg]
-        {% else if target_mode == "equatorial" %}
-        Declination [deg]
-        {% else %}
-        Elevation [deg]
-        {% endif %}
+        {% if target_mode == "galactic" %} Latitude [deg] {% else if target_mode == "equatorial" %} Declination [deg] {%
+        else %} Elevation [deg] {% endif %}
       </label>
-      <input type="text" id="y" name="y" value="{{ commanded_y }}">
+      <input type="text" id="y" name="y" value="{{ commanded_y }}" class="border rounded px-1 bg-white" />
     </p>
 
     <p>
-      <button hx-post="/observe/{{ info.id }}/set-target" hx-target="#page">Track</button>
+      <button
+        hx-post="/observe/{{ info.id }}/set-target"
+        hx-target="#page"
+        class="px-2 py-1 bg-indigo-600 text-white rounded-md hover:bg-indigo-500"
+      >
+        Track target
+      </button>
     </p>
   </form>
-  <p>
-    <button hx-post="/observe/{{ info.id }}/observe" hx-target="#page">observe</button>
-  </p>
-  <div id="state" hx-get="/telescope/{{ info.id }}/state" hx-trigger="every 1s">
-    {{ state_html }}
+  <div class="my-3">
+    <button
+      hx-post="/observe/{{ info.id }}/observe"
+      hx-target="#page"
+      class="px-2 py-1 bg-indigo-600 text-white rounded-md hover:bg-indigo-500"
+    >
+      Start observation
+    </button>
+    <div>
+      <div id="state" hx-get="/telescope/{{ info.id }}/state" hx-trigger="every 1s">{{ state_html }}</div>
+    </div>
   </div>
 </div>
