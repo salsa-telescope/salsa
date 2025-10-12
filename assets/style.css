@@ -31,7 +31,6 @@ h1 {
 
 h2 {
     font-size: 130%;
-    margin-top: 0;
 }
 
 h3 {
@@ -189,64 +188,6 @@ footer {
     border-color: #E57373;
     background-color: #FFEBEE;
     display: block;
-}
-
-.bookings {
-    margin-bottom: 20px;
-}
-
-.bookings > div {
-    margin: .3em;
-}
-
-.new-booking #new-booking-cols {
-    display: flex;
-    justify-content: center;
-}
-.new-booking .new-booking-col {
-    margin: 0 30px;
-}
-/* .new-booking .new-booking-col * { */
-/*     margin: 10px 0; */
-/* } */
-#new-booking-form {
-    width: auto;
-}
-.new-booking .submit {
-    display: flex;
-    justify-content: flex-end;
-}
-.calendar .month {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-.calendar .change-month {
-    /* TODO: At least some of this should be moved to a general button class */
-    border: 1px solid var(--gray900);
-    border-radius: 5px;
-    background-color: var(--gray300);
-    padding: 3px 5px;
-    text-align: center;
-    text-decoration: none;
-    display: inline-block;
-    margin: 4px 2px;
-    cursor: pointer;
-}
-.calendar .date {
-    font-size: 90%;
-    padding: 6px;
-    text-align: center;
-}
-.calendar a {
-    text-decoration: none;
-}
-.calendar .cur-date {
-    border-radius: 6px;
-    background-color: #c0d0ee;
-}
-.calendar .other-month a {
-    color: #999999;
 }
 
 a.action:link,

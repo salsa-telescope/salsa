@@ -1,48 +1,58 @@
 <div class="section light">
   {% if my_bookings.len() > 0 %}
-  <h2>My bookings</h2>
-  <div class="bookings">
+  <h2 class="mt4 mb-3">My bookings</h2>
+  <div class="space-y-2">
     {% for booking in my_bookings %}
-    <div>
-      {{ booking.start_time.naive_local() }}: {{ booking.telescope_name }}
-      <button hx-delete="bookings/{{ booking.id }}" hx-target="#page">Delete</button>
-      {% if booking.active_at(now) %}
-      <a href="observe/{{ booking.telescope_name }}" class="action">Observe now!</a>
-      {% endif %}
+    <div class="flex items-center justify-between max-w-xl">
+      <div>
+        {{ booking.start_time.naive_local() }}: {{ booking.telescope_name }} {% if booking.active_at(now) %}
+        <a href="observe/{{ booking.telescope_name }}" class="action">Observe now!</a>
+        {% endif %}
+      </div>
+
+      <button
+        hx-delete="bookings/{{ booking.id }}"
+        hx-target="#page"
+        class="px-1 bg-red-900 text-semi-bold text-red-100 rounded-md hover:bg-red-700"
+      >
+        Delete
+      </button>
     </div>
     {% endfor %}
   </div>
   {% endif %}
-  <h2>Bookings</h2>
-  <div class="bookings">
+  <h2 class="mt-4 mb-3">Bookings</h2>
+  <div class="space-y-2">
     {% for booking in bookings %}
-    <div>
-      {{ booking.start_time.naive_local() }}: {{ booking.telescope_name }}
-    </div>
+    <div>{{ booking.start_time.naive_local() }}: {{ booking.telescope_name }}</div>
     {% endfor %}
   </div>
-  <h2>Book telescope</h2>
+  <h2 class="mb-3 mt-4">Book telescope</h2>
   {% for e in error %}
-  <div class="notification-area error">
-    {{ e }}
-  </div>
+  <div class="notification-area error">{{ e }}</div>
   {% endfor %}
-  <div class="form">
-    <form hx-post="/bookings" hx-target="#page">
+  <form hx-post="/bookings" hx-target="#page" class="space-y-2">
+    <div>
       <label for="start_date">Date</label>
-      <input type="date" id="start_date" name="start_date">
+      <input type="date" id="start_date" name="start_date" class="border rounded px-1 bg-white mx-1" />
+    </div>
+    <div>
       <label for="start_time">Time</label>
-      <input type="time" id="start_time" name="start_time">
+      <input type="time" id="start_time" name="start_time" class="border rounded px-1 bg-white mx-1" />
+    </div>
+    <div>
       <label for="duration">Duration</label>
-      <input type="text" id="duration" name="duration">
+      <input type="text" id="duration" name="duration" class="border rounded px-1 bg-white mx-1" />
+    </div>
+    <div>
       <label for="telescope">Telescope</label>
-      <select name="telescope" id="telescope">
+      <select name="telescope" id="telescope" class="border rounded px-1 bg-white mx-1">
         <option value="">Select telescope</option>
         {% for name in telescope_names %}
         <option value="{{ name }}">{{ name }}</option>
         {% endfor %}
       </select>
-      <button type="submit">Book</button>
-    </form>
-  </div>
+    </div>
+    <button type="submit" class="px-2 py-1 bg-indigo-600 text-white rounded-md hover:bg-indigo-500">Book</button>
+  </form>
 </div>
