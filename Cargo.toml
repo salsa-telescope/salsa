@@ -31,6 +31,7 @@ tokio = { version = "1.*", features = ["macros", "rt-multi-thread"] }
 tokio-util = "0.7.*"
 toml = "0.8.*"
 tower-http = { version = "0.6.*", features = ["full"] }
+tracing = "0.1"
 uhd = "0.3.*"
 
 [dev-dependencies]

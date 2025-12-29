@@ -1,3 +1,5 @@
+use axum::extract::MatchedPath;
+use axum::http::Request;
 use axum::middleware;
 use axum::{Router, routing::get};
 use rusqlite::Connection;
@@ -6,6 +8,7 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use tower_http::services::ServeDir;
 use tower_http::trace::TraceLayer;
+use tracing::debug_span;
 
 use crate::database::create_sqlite_database_on_disk;
 use crate::middleware::cookies::cookies_middleware;
@@ -40,7 +43,21 @@ pub async fn create_app(database_dir: &Path) -> Router {
         .nest("/observe", routes::observe::routes(state.clone()))
         .nest("/bookings", routes::booking::routes(state.clone()))
         .nest("/telescope", routes::telescope::routes(state.clone()))
-        .layer(TraceLayer::new_for_http())
+        .layer(
+            TraceLayer::new_for_http().make_span_with(|request: &Request<_>| {
+                let matched_path = request
+                    .extensions()
+                    .get::<MatchedPath>()
+                    .map(MatchedPath::as_str);
+                let requested_path = request.uri().to_string();
+                debug_span!(
+                    "http_request",
+                    method = ?request.method(),
+                    matched_path,
+                    requested_path,
+                )
+            }),
+        )
         .route_layer(middleware::from_fn_with_state(
             state.clone(),
             session_middleware,
