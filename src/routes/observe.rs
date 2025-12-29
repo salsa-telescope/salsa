@@ -1,5 +1,5 @@
 use crate::app::AppState;
-use crate::models::booking::Booking;
+use crate::models::booking::{Booking, booking_is_active};
 use crate::models::telescope::TelescopeHandle;
 use crate::models::telescope_types::{
     ReceiverConfiguration, ReceiverError, TelescopeInfo, TelescopeTarget,
@@ -57,8 +57,14 @@ fn error_response(message: String) -> Response {
 async fn set_target(
     State(state): State<AppState>,
     Path(telescope_id): Path<String>,
+    Extension(user): Extension<Option<User>>,
     Form(target): Form<Target>,
 ) -> Result<impl IntoResponse, StatusCode> {
+    let user = user.ok_or(StatusCode::UNAUTHORIZED)?;
+    if !booking_is_active(state.database_connection, &user, &telescope_id).await? {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+
     let x_rad = target.x.to_radians();
     let y_rad = target.y.to_radians();
     let target = match target.coordinate_system.as_str() {
