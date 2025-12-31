@@ -60,7 +60,7 @@
       Start observation
     </button>
     <div>
-      <div id="state" hx-get="/telescope/{{ info.id }}/state" hx-trigger="every 1s">{{ state_html }}</div>
+      <div hx-get="/telescope/{{ info.id }}/state" hx-trigger="every 1s">{{ state_html }}</div>
     </div>
   </div>
 </div>
