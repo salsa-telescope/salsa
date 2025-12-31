@@ -25,15 +25,19 @@
 
     <p>
       <label for="x">
-        {% if target_mode == "galactic" %} Longitude [deg] {% else if target_mode == "equatorial" %} Right ascension
-        [deg] {% else %} Azimuth [deg] {% endif %}
+        {% if target_mode == "galactic" %}Longitude [deg]
+        {% else if target_mode == "equatorial" %}Right ascension [deg]
+        {% else %}Azimuth [deg]
+        {% endif %}
       </label>
       <input type="text" id="x" name="x" value="{{ commanded_x }}" class="border rounded px-1 bg-white" />
     </p>
     <p>
       <label for="y">
-        {% if target_mode == "galactic" %} Latitude [deg] {% else if target_mode == "equatorial" %} Declination [deg] {%
-        else %} Elevation [deg] {% endif %}
+        {% if target_mode == "galactic" %}Latitude [deg]
+        {% else if target_mode == "equatorial" %}Declination [deg]
+        {% else %}Elevation [deg]
+        {% endif %}
       </label>
       <input type="text" id="y" name="y" value="{{ commanded_y }}" class="border rounded px-1 bg-white" />
     </p>
