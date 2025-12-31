@@ -34,8 +34,6 @@ impl SalsaTestServer {
                     .to_str()
                     .expect("TempDir path should convert to str"),
             ]) // Let the OS decide the port
-            // Uncomment to add more tracing
-            // .env("RUST_LOG", "trace")
             .stdout(Stdio::piped())
             .spawn()
             .expect("Could not start backend");
