@@ -10,7 +10,9 @@ use chrono::{DateTime, Utc};
 use rand::Rng;
 use rand_distr::StandardNormal;
 use std::f64::consts::PI;
+use std::sync::Arc;
 use std::time::Duration;
+use tokio::sync::Mutex;
 
 const FAKE_TELESCOPE_PARKING_HORIZONTAL: Direction = Direction {
     azimuth: 0.0,
@@ -24,96 +26,123 @@ pub const FAKE_TELESCOPE_CHANNEL_WIDTH: f64 = 2e6f64 / FAKE_TELESCOPE_CHANNELS a
 pub const FAKE_TELESCOPE_FIRST_CHANNEL: f64 =
     1.420e9f64 - FAKE_TELESCOPE_CHANNEL_WIDTH * FAKE_TELESCOPE_CHANNELS as f64 / 2f64;
 pub const FAKE_TELESCOPE_NOISE: f64 = 2f64;
+pub const TELESCOPE_UPDATE_INTERVAL: Duration = Duration::from_secs(1);
+
+struct Inner {
+    target: TelescopeTarget,
+    horizontal: Direction,
+    location: Location,
+    most_recent_error: Option<TelescopeError>,
+    receiver_configuration: ReceiverConfiguration,
+    current_spectra: Vec<ObservedSpectra>,
+    name: String,
+}
 
 pub struct FakeTelescope {
-    pub target: TelescopeTarget,
-    pub horizontal: Direction,
-    pub location: Location,
-    pub most_recent_error: Option<TelescopeError>,
-    pub receiver_configuration: ReceiverConfiguration,
-    pub current_spectra: Vec<ObservedSpectra>,
-    pub name: String,
+    inner: Arc<Mutex<Inner>>,
 }
 
 pub fn create(name: String) -> FakeTelescope {
-    FakeTelescope {
+    let inner = Arc::new(Mutex::new(Inner {
         target: TelescopeTarget::Parked,
         horizontal: FAKE_TELESCOPE_PARKING_HORIZONTAL,
         location: Location {
-            longitude: 0.20802143022, //(11.0+55.0/60.0+7.5/3600.0) * PI / 180.0. Sign positive, handled in gmst calc
-            latitude: 1.00170457462,  //(57.0+23.0/60.0+36.4/3600.0) * PI / 180.0
+            //(11.0+55.0/60.0+7.5/3600.0) * PI / 180.0. Sign positive, handled in gmst calc
+            longitude: 0.20802143022,
+            //(57.0+23.0/60.0+36.4/3600.0) * PI / 180.0
+            latitude: 1.00170457462,
         },
         most_recent_error: None,
         receiver_configuration: ReceiverConfiguration { integrate: false },
         current_spectra: vec![],
         name,
-    }
+    }));
+
+    let task_inner = inner.clone();
+    tokio::spawn(async move {
+        loop {
+            {
+                let mut inner = task_inner.lock().await;
+                if let Err(error) = inner.update(TELESCOPE_UPDATE_INTERVAL) {
+                    log::error!("Failed to update telescope: {}", error);
+                }
+            }
+            tokio::time::sleep(TELESCOPE_UPDATE_INTERVAL).await;
+        }
+    });
+
+    FakeTelescope { inner }
 }
 
 #[async_trait]
 impl Telescope for FakeTelescope {
     async fn get_direction(&self) -> Result<Direction, TelescopeError> {
-        Ok(self.horizontal)
+        let inner = self.inner.lock().await;
+        Ok(inner.horizontal)
     }
 
-    async fn set_target(
-        &mut self,
-        target: TelescopeTarget,
-    ) -> Result<TelescopeTarget, TelescopeError> {
-        self.most_recent_error = None;
-        self.receiver_configuration.integrate = false;
-        self.current_spectra.clear();
+    async fn set_target(&self, target: TelescopeTarget) -> Result<TelescopeTarget, TelescopeError> {
+        let mut inner = self.inner.lock().await;
 
-        let target_horizontal = calculate_target_horizontal(self.location, Utc::now(), target);
+        inner.most_recent_error = None;
+        inner.receiver_configuration.integrate = false;
+        inner.current_spectra.clear();
+
+        let target_horizontal = calculate_target_horizontal(inner.location, Utc::now(), target);
         if target_horizontal.elevation < LOWEST_ALLOWED_ELEVATION {
             log::info!(
                 "Refusing to set target for telescope {} to {:?}. Target is below horizon",
-                &self.name,
+                &inner.name,
                 &target
             );
             Err(TelescopeError::TargetBelowHorizon)
         } else {
             log::info!(
                 "Setting target for telescope {} to {:?}",
-                &self.name,
+                &inner.name,
                 &target
             );
-            self.target = target;
+            inner.target = target;
             Ok(target)
         }
     }
 
     async fn set_receiver_configuration(
-        &mut self,
+        &self,
         receiver_configuration: ReceiverConfiguration,
     ) -> Result<ReceiverConfiguration, ReceiverError> {
-        if receiver_configuration.integrate && !self.receiver_configuration.integrate {
+        let mut inner = self.inner.lock().await;
+
+        if receiver_configuration.integrate && !inner.receiver_configuration.integrate {
             log::info!("Starting integration");
-            self.receiver_configuration.integrate = true;
-        } else if !receiver_configuration.integrate && self.receiver_configuration.integrate {
+            inner.receiver_configuration.integrate = true;
+        } else if !receiver_configuration.integrate && inner.receiver_configuration.integrate {
             log::info!("Stopping integration");
-            self.receiver_configuration.integrate = false;
+            inner.receiver_configuration.integrate = false;
         }
-        Ok(self.receiver_configuration)
+        Ok(inner.receiver_configuration)
     }
 
     async fn get_info(&self) -> Result<TelescopeInfo, TelescopeError> {
-        let target_horizontal = calculate_target_horizontal(self.location, Utc::now(), self.target);
+        let inner = self.inner.lock().await;
 
-        let horizontal_offset_squared = (target_horizontal.azimuth - self.horizontal.azimuth)
+        let target_horizontal =
+            calculate_target_horizontal(inner.location, Utc::now(), inner.target);
+
+        let horizontal_offset_squared = (target_horizontal.azimuth - inner.horizontal.azimuth)
             .powi(2)
-            + (target_horizontal.elevation - self.horizontal.elevation).powi(2);
+            + (target_horizontal.elevation - inner.horizontal.elevation).powi(2);
         let status = {
             if horizontal_offset_squared > 0.2f64.to_radians().powi(2) {
                 TelescopeStatus::Slewing
-            } else if self.target == TelescopeTarget::Parked {
+            } else if inner.target == TelescopeTarget::Parked {
                 TelescopeStatus::Idle
             } else {
                 TelescopeStatus::Tracking
             }
         };
 
-        let latest_observation = if self.current_spectra.is_empty() {
+        let latest_observation = if inner.current_spectra.is_empty() {
             None
         } else {
             let mut latest_observation = ObservedSpectra {
@@ -121,7 +150,7 @@ impl Telescope for FakeTelescope {
                 spectra: vec![0f64; FAKE_TELESCOPE_CHANNELS],
                 observation_time: Duration::from_secs(0),
             };
-            for integration in &self.current_spectra {
+            for integration in &inner.current_spectra {
                 latest_observation.spectra = latest_observation
                     .spectra
                     .into_iter()
@@ -130,27 +159,29 @@ impl Telescope for FakeTelescope {
                     .collect();
                 latest_observation.observation_time += integration.observation_time;
             }
-            latest_observation.frequencies = self.current_spectra[0].frequencies.clone();
+            latest_observation.frequencies = inner.current_spectra[0].frequencies.clone();
             latest_observation.spectra = latest_observation
                 .spectra
                 .into_iter()
-                .map(|value| value / self.current_spectra.len() as f64)
+                .map(|value| value / inner.current_spectra.len() as f64)
                 .collect();
             Some(latest_observation)
         };
         Ok(TelescopeInfo {
-            id: self.name.clone(),
+            id: inner.name.clone(),
             status,
-            current_horizontal: self.horizontal,
+            current_horizontal: inner.horizontal,
             commanded_horizontal: Some(target_horizontal),
-            current_target: self.target,
-            most_recent_error: self.most_recent_error.clone(),
-            measurement_in_progress: self.receiver_configuration.integrate,
+            current_target: inner.target,
+            most_recent_error: inner.most_recent_error.clone(),
+            measurement_in_progress: inner.receiver_configuration.integrate,
             latest_observation,
         })
     }
+}
 
-    async fn update(&mut self, delta_time: Duration) -> Result<(), TelescopeError> {
+impl Inner {
+    fn update(&mut self, delta_time: Duration) -> Result<(), TelescopeError> {
         let now = Utc::now();
         let current_horizontal = self.horizontal;
         let target_horizontal = calculate_target_horizontal(self.location, now, self.target);
