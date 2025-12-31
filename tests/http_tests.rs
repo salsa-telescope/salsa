@@ -169,14 +169,12 @@ fn cant_open_websocket_for_spectrum_if_not_logged_in() {
 fn cant_set_target_if_not_logged_in() {
     let server = SalsaTestServer::spawn();
 
-    eprintln!("Sending request");
     let client = Client::new();
     let res = client
         .post(server.addr() + "/observe/fake1/set-target")
         .form(&[("x", "42"), ("y", "90"), ("coordinate_system", "galactic")])
         .send()
         .expect("Should be able to send request");
-    eprintln!("Request finished");
 
     assert_eq!(StatusCode::UNAUTHORIZED, res.status());
 }
