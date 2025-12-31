@@ -1,5 +1,5 @@
 use crate::app::AppState;
-use crate::models::booking::{Booking, booking_is_active};
+use crate::models::booking::booking_is_active;
 use crate::models::telescope::TelescopeHandle;
 use crate::models::telescope_types::{
     ReceiverConfiguration, ReceiverError, TelescopeInfo, TelescopeTarget,
@@ -18,7 +18,6 @@ use axum::{
     Router,
     routing::{get, post},
 };
-use chrono::Utc;
 use log::{debug, error};
 use serde::Deserialize;
 
@@ -119,37 +118,17 @@ async fn start_observe(
     Ok(Html(content))
 }
 
-fn has_active_booking(user: &User, bookings: &[Booking]) -> bool {
-    let now = Utc::now();
-    for booking in bookings {
-        if booking.user_name != user.name {
-            continue;
-        }
-        if now > booking.start_time && now < booking.end_time {
-            return true;
-        }
-    }
-    false
-}
-
 async fn get_observe(
     Extension(user): Extension<Option<User>>,
     State(state): State<AppState>,
     Path(telescope_id): Path<String>,
     headers: HeaderMap,
 ) -> Result<impl IntoResponse, StatusCode> {
-    let bookings = Booking::fetch_all(state.database_connection).await?;
-    if user.is_none() || !has_active_booking(user.as_ref().unwrap(), &bookings) {
-        let content = DontObserveTemplate {}
-            .render()
-            .expect("Template rendering should always succeed");
-        let content = if headers.get("hx-request").is_some() {
-            content
-        } else {
-            render_main(user.clone(), content)
-        };
-        return Ok(Html(content));
+    let user = user.ok_or(StatusCode::UNAUTHORIZED)?;
+    if !booking_is_active(state.database_connection, &user, &telescope_id).await? {
+        return Err(StatusCode::UNAUTHORIZED);
     }
+
     let telescope = state
         .telescopes
         .get(&telescope_id)
@@ -159,7 +138,7 @@ async fn get_observe(
     let content = if headers.get("hx-request").is_some() {
         content
     } else {
-        render_main(user, content)
+        render_main(Some(user), content)
     };
     Ok(Html(content))
 }
@@ -221,7 +200,3 @@ async fn observe(telescope: TelescopeHandle) -> Result<String, StatusCode> {
     .render()
     .expect("Template rendering should always succeed"))
 }
-
-#[derive(Template)]
-#[template(path = "dont_observe.html", escape = "none")]
-struct DontObserveTemplate {}

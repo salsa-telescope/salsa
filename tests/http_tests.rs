@@ -166,6 +166,19 @@ fn cant_open_websocket_for_spectrum_if_not_logged_in() {
 }
 
 #[test]
+fn cant_observe_if_not_logged_in() {
+    let server = SalsaTestServer::spawn();
+
+    let client = Client::new();
+    let res = client
+        .get(server.addr() + "/observe/fake1")
+        .send()
+        .expect("Should be able to send request");
+
+    assert_eq!(StatusCode::UNAUTHORIZED, res.status());
+}
+
+#[test]
 fn cant_set_target_if_not_logged_in() {
     let server = SalsaTestServer::spawn();
 
