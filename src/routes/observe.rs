@@ -1,6 +1,6 @@
 use crate::app::AppState;
 use crate::models::booking::booking_is_active;
-use crate::models::telescope::TelescopeHandle;
+use crate::models::telescope::Telescope;
 use crate::models::telescope_types::{
     ReceiverConfiguration, ReceiverError, TelescopeInfo, TelescopeTarget,
 };
@@ -85,7 +85,7 @@ async fn set_target(
         }
     };
 
-    let mut telescope = state
+    let telescope = state
         .telescopes
         .get(&telescope_id)
         .await
@@ -94,7 +94,7 @@ async fn set_target(
         error!("Failed to set target {err}.");
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
-    let content = observe(telescope.clone()).await?;
+    let content = observe(telescope.as_ref()).await?;
     Ok(Html(content))
 }
 
@@ -108,7 +108,7 @@ async fn start_observe(
         return Err(StatusCode::UNAUTHORIZED);
     }
 
-    let mut telescope = state
+    let telescope = state
         .telescopes
         .get(&telescope_id)
         .await
@@ -120,7 +120,7 @@ async fn start_observe(
             error!("Failed to set target {err}.");
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
-    let content = observe(telescope.clone()).await?;
+    let content = observe(telescope.as_ref()).await?;
     Ok(Html(content))
 }
 
@@ -140,7 +140,7 @@ async fn get_observe(
         .get(&telescope_id)
         .await
         .ok_or(StatusCode::NOT_FOUND)?;
-    let content = observe(telescope.clone()).await?;
+    let content = observe(telescope.as_ref()).await?;
     let content = if headers.get("hx-request").is_some() {
         content
     } else {
@@ -159,7 +159,7 @@ struct ObserveTemplate {
     state_html: String,
 }
 
-async fn observe(telescope: TelescopeHandle) -> Result<String, StatusCode> {
+async fn observe(telescope: &dyn Telescope) -> Result<String, StatusCode> {
     let info = telescope.get_info().await.map_err(|err| {
         error!("Failed to get info {err}");
         StatusCode::NOT_FOUND
@@ -192,7 +192,7 @@ async fn observe(telescope: TelescopeHandle) -> Result<String, StatusCode> {
         ),
         TelescopeTarget::Parked => (String::new(), String::new()),
     };
-    let state_html = telescope_state(telescope.clone()).await.map_err(|err| {
+    let state_html = telescope_state(telescope).await.map_err(|err| {
         error!("Failed to get telescope state {err}");
         StatusCode::INTERNAL_SERVER_ERROR
     })?;

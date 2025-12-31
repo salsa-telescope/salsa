@@ -1,7 +1,9 @@
+use std::sync::Arc;
+
 use crate::app::AppState;
 use crate::coords::Direction;
 use crate::models::booking::booking_is_active;
-use crate::models::telescope::TelescopeHandle;
+use crate::models::telescope::Telescope;
 use crate::models::telescope_types::TelescopeStatus;
 use crate::models::telescope_types::{TelescopeError, TelescopeInfo};
 use crate::models::user::User;
@@ -49,7 +51,7 @@ async fn spectrum_handle_upgrade(
     Ok(upgrade.on_upgrade(move |socket| spectrum_handle_websocket(socket, telescope)))
 }
 
-async fn spectrum_handle_websocket(mut socket: WebSocket, telescope: TelescopeHandle) {
+async fn spectrum_handle_websocket(mut socket: WebSocket, telescope: Arc<dyn Telescope>) {
     loop {
         let info = telescope.get_info().await;
         // Somehow signal the error ...
@@ -109,7 +111,7 @@ pub async fn get_state(
         .get(&telescope_id)
         .await
         .ok_or(TelescopeNotFound)?;
-    Ok(Html(telescope_state(telescope).await?))
+    Ok(Html(telescope_state(telescope.as_ref()).await?))
 }
 
 #[derive(Template)]
@@ -120,7 +122,7 @@ struct TelescopeStateTemplate {
     direction: Direction,
 }
 
-pub async fn telescope_state(telescope: TelescopeHandle) -> Result<String, TelescopeError> {
+pub async fn telescope_state(telescope: &dyn Telescope) -> Result<String, TelescopeError> {
     let info = telescope.get_info().await?;
     Ok(TelescopeStateTemplate {
         info: info.clone(),
