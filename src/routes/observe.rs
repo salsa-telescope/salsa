@@ -99,9 +99,15 @@ async fn set_target(
 }
 
 async fn start_observe(
+    Extension(user): Extension<Option<User>>,
     State(state): State<AppState>,
     Path(telescope_id): Path<String>,
 ) -> Result<impl IntoResponse, StatusCode> {
+    let user = user.ok_or(StatusCode::UNAUTHORIZED)?;
+    if !booking_is_active(state.database_connection, &user, &telescope_id).await? {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+
     let mut telescope = state
         .telescopes
         .get(&telescope_id)

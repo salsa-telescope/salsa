@@ -190,5 +190,18 @@ fn cant_set_target_if_not_logged_in() {
     assert_eq!(StatusCode::UNAUTHORIZED, res.status());
 }
 
+#[test]
+fn cant_start_observation_if_not_logged_in() {
+    let server = SalsaTestServer::spawn();
+
+    let client = Client::new();
+    let res = client
+        .post(server.addr() + "/observe/fake1/observe")
+        .send()
+        .expect("Should be able to send request");
+
+    assert_eq!(StatusCode::UNAUTHORIZED, res.status());
+}
+
 // TODO: Test for websocket upgrade without active booking. Requires better db
 // support in these tests.
