@@ -29,7 +29,7 @@
         {% else %}Azimuth [deg]
         {% endif %}
       </label>
-      <input type="text" id="x" name="x" value="{{ commanded_x }}" class="border rounded px-1 bg-white" />
+      <input type="text" name="x" value="{{ commanded_x }}" class="border rounded px-1 bg-white" />
     </p>
     <p>
       <label for="y">
@@ -38,7 +38,7 @@
         {% else %}Elevation [deg]
         {% endif %}
       </label>
-      <input type="text" id="y" name="y" value="{{ commanded_y }}" class="border rounded px-1 bg-white" />
+      <input type="text" name="y" value="{{ commanded_y }}" class="border rounded px-1 bg-white" />
     </p>
 
     <p>
@@ -64,3 +64,34 @@
     </div>
   </div>
 </div>
+
+<script>
+  function coordinateSystemChanged(e) {
+      console.log("changed!");
+      console.log();
+      const x_label = document.querySelector("form label[for='x']");
+      const y_label = document.querySelector("form label[for='y']");
+      switch (e.target.value) {
+      case "galactic":
+          x_label.textContent = "Longitude [deg]"
+          y_label.textContent = "Latitude [deg]"
+          break;
+      case "equatorial":
+          x_label.textContent = "Right ascension [deg]"
+          y_label.textContent = "Declination [deg]"
+          break;
+      case "horizontal":
+          x_label.textContent = "Azimuth [deg]"
+          y_label.textContent = "Elevation [deg]"
+          break;
+      }
+  }
+
+  function pageLoad() {
+      const coordinateSystemDropdown = document.querySelector("form select[name='coordinate_system']");
+      coordinateSystemDropdown.addEventListener("change", coordinateSystemChanged);
+
+  }
+
+  pageLoad();
+</script>
