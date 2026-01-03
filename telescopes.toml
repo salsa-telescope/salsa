@@ -39,11 +39,12 @@ telescope_type = "Salsa"
 controller_address = "192.168.5.11:23"
 receiver_address = "192.168.5.31"
 
-[[telescopes]]
-name = "torre"
-enabled = false
-location = [ 0.20802143022, 1.00170457462 ]
-min_elevation = 0.087
-telescope_type = "Salsa"
-controller_address = "192.168.5.12:23"
-receiver_address = "192.168.5.32"
+# Do not use torre, it will be used by stand-alone system
+#[[telescopes]]
+#name = "torre"
+#enabled = false
+#location = [ 0.20802143022, 1.00170457462 ]
+#min_elevation = 0.087
+#telescope_type = "Salsa"
+#controller_address = "192.168.5.12:23"
+#receiver_address = "192.168.5.32"
