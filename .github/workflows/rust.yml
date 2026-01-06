@@ -44,7 +44,7 @@ jobs:
       - name: Change permissions
         run: |
           chgrp -R salsaowners /home/salsa/bin/
-          chmod -R g+r /home/salsa/bin/
+          chmod -R g+r /home/salsa/bin/*
           chmod g+rx /home/salsa/bin/target/release/backend
       - name: Display structure of downloaded files
         run: ls -R /home/salsa/bin
