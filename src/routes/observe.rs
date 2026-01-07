@@ -25,7 +25,8 @@ pub fn routes(state: AppState) -> Router {
     let observe_routes = Router::new()
         .route("/", get(get_observe))
         .route("/set-target", post(set_target))
-        .route("/observe", post(start_observe));
+        .route("/observe", post(start_observe))
+        .route("/stop", post(stop_observe));
     Router::new()
         .nest("/{telescope_id}", observe_routes)
         .with_state(state)
@@ -115,6 +116,32 @@ async fn start_observe(
         .ok_or(StatusCode::NOT_FOUND)?;
     telescope
         .set_receiver_configuration(ReceiverConfiguration { integrate: true })
+        .await
+        .map_err(|err| {
+            error!("Failed to set target {err}.");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+    let content = observe(telescope.as_ref()).await?;
+    Ok(Html(content))
+}
+
+async fn stop_observe(
+    Extension(user): Extension<Option<User>>,
+    State(state): State<AppState>,
+    Path(telescope_id): Path<String>,
+) -> Result<impl IntoResponse, StatusCode> {
+    let user = user.ok_or(StatusCode::UNAUTHORIZED)?;
+    if !booking_is_active(state.database_connection, &user, &telescope_id).await? {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+
+    let telescope = state
+        .telescopes
+        .get(&telescope_id)
+        .await
+        .ok_or(StatusCode::NOT_FOUND)?;
+    telescope
+        .set_receiver_configuration(ReceiverConfiguration { integrate: false })
         .await
         .map_err(|err| {
             error!("Failed to set target {err}.");

@@ -59,6 +59,13 @@
     >
       Start observation
     </button>
+    <button
+      hx-post="/observe/{{ info.id }}/stop"
+      hx-target="#page"
+      class="px-2 py-1 bg-indigo-600 text-white rounded-md hover:bg-indigo-500"
+    >
+      Stop observation
+    </button>
     <div>
       <div hx-get="/telescope/{{ info.id }}/state" hx-trigger="every 1s">{{ state_html }}</div>
     </div>
