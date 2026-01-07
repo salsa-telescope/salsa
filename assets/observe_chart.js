@@ -42,7 +42,7 @@ function get_telescope_from_location() {
         .tickSizeOuter(0),
     );
   // y-axis
-  svg
+  const yAxis = svg
     .append("g")
     .attr("transform", `translate(${margin},0)`)
     .call(d3.axisLeft(y).ticks(height / 80))
@@ -104,8 +104,12 @@ function get_telescope_from_location() {
         y: dataView.getFloat64(i + 8, true),
       });
     }
-    const frequency_range = d3.extent(data, (d) => d.x);
-    x.domain(frequency_range);
+    const yRange = d3.extent(data, (d) => d.y);
+    const padding = (yRange[1] - yRange[0]) * 0.05;
+    y.domain([yRange[0] - padding, yRange[1] + padding]).nice();
+    yAxis.call(d3.axisLeft(y).ticks(height / 80));
+    const xRange = d3.extent(data, (d) => d.x);
+    x.domain(xRange);
     xAxis.call(d3.axisBottom(x));
     const line = d3
       .line()
