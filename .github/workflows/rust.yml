@@ -15,12 +15,36 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
-    - name: Install libuhd
-      run: sudo apt-get update && sudo apt-get install -y libuhd-dev
-    - name: Build
-      run: cargo build --verbose
-    - name: Run tests
-      run: cargo test --verbose
-    - name: Check format
-      run: cargo fmt --check --verbose
+      - uses: actions/checkout@v3
+      - name: Install libuhd
+        run: sudo apt-get update && sudo apt-get install -y libuhd-dev
+      - name: Build
+        run: cargo build --verbose --release
+      - uses: actions/upload-artifact@v6
+        with:
+          name: salsa
+          path: |
+            target/release/backend
+            sql_migrations/**
+            assets/**
+      - name: Run tests
+        run: cargo test --verbose
+      - name: Check format
+        run: cargo fmt --check --verbose
+
+  deploy:
+    needs: build
+    runs-on: salsa
+
+    steps:
+      - uses: actions/download-artifact@v5
+        with:
+          name: salsa
+          path: /home/salsa/bin
+      - name: Change permissions
+        run: |
+          chgrp -R salsaowners /home/salsa/bin/*
+          chmod -R g+r /home/salsa/bin/*
+          chmod g+rx /home/salsa/bin/target/release/backend
+      - name: Display structure of downloaded files
+        run: ls -R /home/salsa/bin
