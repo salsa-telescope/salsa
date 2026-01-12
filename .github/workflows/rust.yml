@@ -37,6 +37,10 @@ jobs:
     runs-on: salsa
     if: github.ref == 'refs/heads/main'
 
+    concurrency:
+      group: deploy-main
+      cancel-in-progress: false
+
     steps:
       - uses: actions/download-artifact@v5
         with:
