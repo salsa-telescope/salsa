@@ -55,6 +55,11 @@ async fn main() {
     }
 
     if let Some(key_file_path) = args.key_file_path {
+        // This is needed because rustls tries to magically figure out which provider
+        // to use. Our deps require multiple providers so we must pick one.
+        rustls::crypto::aws_lc_rs::default_provider()
+            .install_default()
+            .expect("Should succeed in setting default crypto provider");
         let cert_file_path = args.cert_file_path.unwrap();
         log::info!(
             "using tls with key file {} and cert file {}",
