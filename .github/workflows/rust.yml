@@ -35,6 +35,7 @@ jobs:
   deploy:
     needs: build
     runs-on: salsa
+    if: github.ref == 'refs/heads/main'
 
     steps:
       - uses: actions/download-artifact@v5
