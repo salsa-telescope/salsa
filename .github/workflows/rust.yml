@@ -42,7 +42,7 @@ jobs:
       cancel-in-progress: false
 
     steps:
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@v7
         with:
           name: salsa
           path: /home/salsa/bin
