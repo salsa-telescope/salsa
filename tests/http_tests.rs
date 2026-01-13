@@ -33,6 +33,8 @@ impl SalsaTestServer {
                     .path()
                     .to_str()
                     .expect("TempDir path should convert to str"),
+                "--config-dir",
+                "tests/test_config",
             ]) // Let the OS decide the port
             .stdout(Stdio::piped())
             .spawn()

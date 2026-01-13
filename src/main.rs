@@ -29,6 +29,9 @@ struct Args {
 
     #[arg(long, default_value = ".")]
     database_dir: PathBuf,
+
+    #[arg(long, default_value = ".")]
+    config_dir: PathBuf,
 }
 
 #[tokio::main]
@@ -43,7 +46,7 @@ async fn main() {
         SocketAddr::from(([0, 0, 0, 0], 3000))
     };
 
-    let app = app::create_app(&args.database_dir).await;
+    let app = app::create_app(&args.config_dir, &args.database_dir).await;
 
     let listener = TcpListener::bind(addr).unwrap();
 

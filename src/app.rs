@@ -26,14 +26,25 @@ pub struct AppState {
     pub secrets: Arc<Secrets>,
 }
 
-pub async fn create_app(database_dir: &Path) -> Router {
+pub async fn create_app(config_dir: &Path, database_dir: &Path) -> Router {
     let database_connection = Arc::new(Mutex::new(
         create_sqlite_database_on_disk(database_dir.join("database.sqlite3"))
             .expect("failed to create sqlite database"),
     ));
-    let telescopes = create_telescope_collection("telescopes.toml");
+    let telescopes_path = config_dir.join("telescopes.toml");
+    let telescopes = create_telescope_collection(
+        telescopes_path
+            .to_str()
+            .expect("Telescopes path should be convertible to string"),
+    );
+    let secrets_path = config_dir.join(".secrets.toml");
     let secrets = Arc::new(
-        Secrets::read(".secrets.toml").expect("Reading .secrets.toml should always succeed"),
+        Secrets::read(
+            secrets_path
+                .to_str()
+                .expect("Secret path should be convertible to string"),
+        )
+        .expect("Reading .secrets.toml should always succeed"),
     );
     let state = AppState {
         database_connection,

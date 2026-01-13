@@ -1,0 +1,13 @@
+[[telescopes]]
+name = "fake1"
+enabled = true
+location = [ 0.20802143022, 1.00170457462 ]
+min_elevation = 0.087
+telescope_type = "Fake"
+
+[[telescopes]]
+name = "fake2"
+enabled = true
+location = [ 0.20802143022, 1.00170457462 ]
+min_elevation = 0.087
+telescope_type = "Fake"
