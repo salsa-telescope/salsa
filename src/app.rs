@@ -15,6 +15,7 @@ use crate::middleware::cookies::cookies_middleware;
 use crate::middleware::session::session_middleware;
 use crate::models::telescope::{TelescopeCollectionHandle, create_telescope_collection};
 use crate::routes;
+use crate::secrets::Secrets;
 
 // Anything that goes in here must be a handle or pointer that can be cloned.
 // The underlying state itself should be shared.
@@ -22,6 +23,7 @@ use crate::routes;
 pub struct AppState {
     pub database_connection: Arc<Mutex<Connection>>,
     pub telescopes: TelescopeCollectionHandle,
+    pub secrets: Arc<Secrets>,
 }
 
 pub async fn create_app(database_dir: &Path) -> Router {
@@ -29,12 +31,14 @@ pub async fn create_app(database_dir: &Path) -> Router {
         create_sqlite_database_on_disk(database_dir.join("database.sqlite3"))
             .expect("failed to create sqlite database"),
     ));
-
     let telescopes = create_telescope_collection("telescopes.toml");
-
+    let secrets = Arc::new(
+        Secrets::read(".secrets.toml").expect("Reading .secrets.toml should always succeed"),
+    );
     let state = AppState {
         database_connection,
         telescopes,
+        secrets,
     };
 
     let mut app = Router::new()

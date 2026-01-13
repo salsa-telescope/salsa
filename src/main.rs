@@ -11,6 +11,7 @@ mod error;
 mod middleware;
 mod models;
 mod routes;
+mod secrets;
 mod telescope_controller;
 mod telescope_tracker;
 

@@ -1,4 +1,3 @@
-use std::{collections::HashMap, fs::read_to_string};
 
 use askama::Template;
 use axum::{
@@ -38,42 +37,6 @@ pub fn routes(state: AppState) -> Router {
         .with_state(state)
 }
 
-#[derive(Deserialize)]
-struct Secrets {
-    auth_provider: HashMap<String, Provider>,
-}
-
-#[derive(Deserialize, Clone)]
-struct Provider {
-    auth_uri: String,
-    token_uri: String,
-    redirect_uri: String,
-    user_uri: String,
-    display_name_field: String,
-    client_id: String,
-    client_secret: String,
-}
-
-fn read_auth_providers() -> Result<HashMap<String, Provider>, InternalError> {
-    let filename = ".secrets.toml";
-    let contents = read_to_string(filename)
-        .map_err(|err| InternalError::new(format!("Failed to read from '{filename}': {err}")))?;
-    let secrets: Secrets = toml::from_str(&contents).map_err(|err| {
-        InternalError::new(format!("Failed to parse toml from {filename}: {err}"))
-    })?;
-    Ok(secrets.auth_provider)
-}
-
-fn read_auth_provider(provider_name: &str) -> Result<Provider, InternalError> {
-    let auth_providers = read_auth_providers()?;
-    let Some(auth_provider) = auth_providers.get(provider_name) else {
-        return Err(InternalError::new(format!(
-            "No provider with name {provider_name} configured"
-        )));
-    };
-    Ok(auth_provider.clone())
-}
-
 async fn logout(
     State(state): State<AppState>,
     Extension(cookies): Extension<Cookies>,
@@ -104,10 +67,8 @@ struct SelectAuthProvider {
 }
 
 // 1. User is prompted to select oauth2 provider.
-async fn login() -> Result<impl IntoResponse, InternalError> {
-    let auth_providers = read_auth_providers()?;
-    let mut provider_names: Vec<_> = auth_providers.keys().cloned().collect();
-    provider_names.sort();
+async fn login(State(state): State<AppState>) -> Result<impl IntoResponse, InternalError> {
+    let provider_names = state.secrets.get_auth_provider_names();
     let content = SelectAuthProvider { provider_names }
         .render()
         .expect("Template rendering should always succeed");
@@ -121,7 +82,7 @@ async fn redirect_to_auth_provider(
 ) -> Result<impl IntoResponse, InternalError> {
     // To know that we're the originator of the request when the user comes back from OAuth2 provider
 
-    let auth_provider = read_auth_provider(&provider)?;
+    let auth_provider = state.secrets.get_auth_provider(&provider)?;
     let client = BasicClient::new(ClientId::new(auth_provider.client_id.clone()))
         .set_auth_uri(
             AuthUrl::new(auth_provider.auth_uri.clone()).expect("Hardcoded URL should always work"),
@@ -183,7 +144,7 @@ async fn authenticate_from_oauth2(
         .build()
         .expect("Hardcoded client should always build.");
 
-    let provider = read_auth_provider(&provider_name)?;
+    let provider = state.secrets.get_auth_provider(&provider_name)?;
     let client = BasicClient::new(ClientId::new(provider.client_id.clone()))
         .set_client_secret(ClientSecret::new(provider.client_secret.clone()))
         // TODO: This url should be retrieved from where we are deployed.
