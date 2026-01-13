@@ -7,14 +7,10 @@ To build the backend the following dependencies are needed:
 * `libuhd`
 
 ## Running
-Start the backend
+Just run the server with `cargo`. Probably you want some logging
 
 ```shell
-./development/run-backend.sh
-```
-or
-```shell
-cargo run --bin backend
+RUST_LOG=info cargo run
 ```
 
 ## Issues with Safari and non-HTTPS
