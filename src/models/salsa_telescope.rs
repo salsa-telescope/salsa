@@ -277,19 +277,19 @@ fn measure_single(
     }
 
     // median window filter data
-    let mwkernel = 32; //median window filter size, power of 2
-    let threshold = 0.1; // threshold where to cut data and replace with median
-    let nchunks = fft_pts / mwkernel;
-    for i in 0..nchunks {
-        let chunk = &mut fft_abs[i * mwkernel..(i + 1) * mwkernel];
-        let m = median(chunk.to_vec());
-        for val in chunk.iter_mut() {
-            let diff = (*val - m).abs();
-            if diff > threshold * m {
-                *val = m;
-            }
-        }
-    }
+    // let mwkernel = 32; //median window filter size, power of 2
+    // let threshold = 0.1; // threshold where to cut data and replace with median
+    // let nchunks = fft_pts / mwkernel;
+    // for i in 0..nchunks {
+    //     let chunk = &mut fft_abs[i * mwkernel..(i + 1) * mwkernel];
+    //     let m = median(chunk.to_vec());
+    //     for val in chunk.iter_mut() {
+    //         let diff = (*val - m).abs();
+    //         if diff > threshold * m {
+    //             *val = m;
+    //         }
+    //     }
+    // }
 
     // Average spectrum to save data
     for i in 0..avg_pts {
