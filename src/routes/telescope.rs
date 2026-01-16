@@ -119,6 +119,7 @@ pub async fn get_state(
 struct TelescopeStateTemplate {
     info: TelescopeInfo,
     status: String,
+    error: String,
     direction: Direction,
 }
 
@@ -130,6 +131,16 @@ pub async fn telescope_state(telescope: &dyn Telescope) -> Result<String, Telesc
             TelescopeStatus::Idle => "Idle".to_string(),
             TelescopeStatus::Slewing => "Slewing".to_string(),
             TelescopeStatus::Tracking => "Tracking".to_string(),
+        },
+        error: match &info.most_recent_error {
+            Some(err) => match err {
+                TelescopeError::TargetBelowHorizon => "target is below horizon".to_string(),
+                TelescopeError::TelescopeIOError(_) => {
+                    "io error in communication with telescope".to_string()
+                }
+                TelescopeError::TelescopeNotConnected => "telescope is not connected".to_string(),
+            },
+            None => "".to_string(),
         },
         direction: telescope.get_direction().await?,
     }
