@@ -47,6 +47,9 @@ jobs:
       cancel-in-progress: false
 
     steps:
+      - name: Stop salsa
+        run: |
+          sudo systemctl stop salsa.service
       - uses: actions/download-artifact@v7
         with:
           name: salsa
@@ -56,5 +59,6 @@ jobs:
           chgrp -R salsaowners /home/salsa/bin/target /home/salsa/bin/sql_migrations /home/salsa/bin/assets
           chmod -R g+r /home/salsa/bin/target /home/salsa/bin/sql_migrations /home/salsa/bin/assets
           chmod g+rx /home/salsa/bin/target/release/backend
-      - name: Display structure of downloaded files
-        run: ls -R /home/salsa/bin
+      - name: Start salsa
+        run: |
+          sudo systemctl start salsa.service
