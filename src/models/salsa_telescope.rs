@@ -321,7 +321,7 @@ async fn measure(
     let rfreq: f64 = 1.4179e9;
     let avg_pts: usize = 512; // ^2 Number of points after average, setting spectral resolution
     let fft_pts: usize = 8192; // ^2 Number of points in FFT, setting spectral resolution
-    let gain: f64 = 60.0;
+    let gain: f64 = 80.0;
 
     // Setup usrp for taking data
     let args = format!("addr={}", address);
