@@ -6,7 +6,7 @@ edition = "2024"
 default-run = "backend"
 
 [dependencies]
-askama = "0.14.*"
+askama = "0.15"
 async-trait = "0.1.*"
 axum = { version = "0.8.*", features = ["json", "ws"] }
 axum-server = { version = "0.7.*", features = ["tls-rustls"] }
