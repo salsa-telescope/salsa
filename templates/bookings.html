@@ -5,7 +5,9 @@
     {% for booking in my_bookings %}
     <div class="flex items-center justify-between max-w-xl">
       <div>
-        {{ booking.start_time.naive_local() }}: {{ booking.telescope_name }} {% if booking.active_at(now) %}
+        {{ booking.start_time.naive_local() }} to {{ booking.end_time.naive_local() }}:
+        {{ booking.telescope_name }}
+        {% if booking.active_at(now) %}
         <a href="observe/{{ booking.telescope_name }}" class="action">Observe now!</a>
         {% endif %}
       </div>
@@ -24,7 +26,10 @@
   <h2 class="mt-4 mb-3">Bookings</h2>
   <div class="space-y-2">
     {% for booking in bookings %}
-    <div>{{ booking.start_time.naive_local() }}: {{ booking.telescope_name }}</div>
+    <div>
+        {{ booking.start_time.naive_local() }} to {{ booking.end_time.naive_local() }}:
+        {{ booking.telescope_name }}
+    </div>
     {% endfor %}
   </div>
   <h2 class="mb-3 mt-4">Book telescope</h2>
