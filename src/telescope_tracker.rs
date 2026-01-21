@@ -115,8 +115,8 @@ async fn tracker_task_function(
     let mut connection_established = false;
 
     loop {
-        // 10 Hz update freq
-        sleep_until(Instant::now() + Duration::from_millis(100)).await;
+        // 1 Hz update freq
+        sleep_until(Instant::now() + Duration::from_millis(1000)).await;
 
         let mut controller = match TelescopeController::connect(&controller_address) {
             Ok(controller) => controller,
