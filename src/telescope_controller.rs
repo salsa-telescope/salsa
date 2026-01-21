@@ -35,11 +35,15 @@ impl TelescopeController {
         &mut self,
         command: TelescopeCommand,
     ) -> Result<TelescopeResponse, TelescopeError> {
-        // FIXME: Handle connection failure.
-        self.stream.write_all(&command.to_bytes()).unwrap();
+        self.stream
+            .write_all(&command.to_bytes())
+            .map_err(|err| TelescopeError::TelescopeIOError(err.to_string()))?;
         let mut result = vec![0; 128];
         // FIXME: Handle connection failure.
-        let response_length = self.stream.read(&mut result).unwrap();
+        let response_length = self
+            .stream
+            .read(&mut result)
+            .map_err(|err| TelescopeError::TelescopeIOError(err.to_string()))?;
         result.truncate(response_length);
         command.parse_response(&result)
     }
