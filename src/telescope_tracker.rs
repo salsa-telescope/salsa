@@ -2,7 +2,8 @@ use crate::coords::{Direction, Location};
 use crate::coords::{horizontal_from_equatorial, horizontal_from_galactic};
 use crate::models::telescope_types::{TelescopeError, TelescopeStatus, TelescopeTarget};
 use crate::telescope_controller::{TelescopeCommand, TelescopeController, TelescopeResponse};
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, TimeDelta, Utc};
+use log::warn;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::time::{Instant, sleep_until};
@@ -31,6 +32,7 @@ impl TelescopeTracker {
                 latitude: 0.0,
             },
             commanded_horizontal: None,
+            stop_tracking_time: None,
             current_direction: None,
             most_recent_error: None,
             should_restart: false,
@@ -103,6 +105,7 @@ impl TelescopeTracker {
 struct TelescopeTrackerState {
     target: TelescopeTarget,
     commanded_horizontal: Option<Direction>,
+    stop_tracking_time: Option<DateTime<Utc>>,
     current_direction: Option<Direction>,
     most_recent_error: Option<TelescopeError>,
     should_restart: bool,
@@ -116,7 +119,7 @@ async fn tracker_task_function(
 
     loop {
         // 1 Hz update freq
-        sleep_until(Instant::now() + Duration::from_millis(1000)).await;
+        sleep_until(Instant::now() + Duration::from_secs(1)).await;
 
         let mut controller = match TelescopeController::connect(&controller_address) {
             Ok(controller) => controller,
@@ -133,6 +136,14 @@ async fn tracker_task_function(
             connection_established = true;
         }
 
+        if let Some(stop_telescope_time) = state.lock().unwrap().stop_tracking_time
+            && stop_telescope_time < Utc::now()
+        {
+            let mut state_guard = state.lock().unwrap();
+            state_guard.commanded_horizontal = None;
+            state_guard.stop_tracking_time = None;
+        }
+
         if state.lock().unwrap().should_restart {
             state.lock().unwrap().most_recent_error =
                 controller.execute(TelescopeCommand::Restart).err();
@@ -144,6 +155,9 @@ async fn tracker_task_function(
 
         let res = update_direction(&mut state.lock().unwrap(), Utc::now(), &mut controller);
         state.lock().unwrap().most_recent_error = res.err();
+        if let Err(err) = controller.shutdown() {
+            warn!("Failed to close connection to controller: {}", err);
+        }
     }
 }
 
@@ -176,6 +190,7 @@ fn update_direction(
             }
 
             state.commanded_horizontal = Some(target_horizontal);
+            state.stop_tracking_time = Some(Utc::now() + TimeDelta::seconds(60));
 
             // Check if more than 1 tolerance off, if so we need to send track command
             if !directions_are_close(target_horizontal, current_horizontal, 1.0) {
