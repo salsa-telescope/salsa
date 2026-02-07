@@ -33,7 +33,6 @@ type TelescopeCollection = Arc<RwLock<HashMap<String, Arc<dyn Telescope>>>>;
 #[derive(Clone)]
 pub struct TelescopeCollectionHandle {
     telescopes: TelescopeCollection,
-    names: Vec<String>,
 }
 
 impl TelescopeCollectionHandle {
@@ -52,8 +51,11 @@ impl TelescopeCollectionHandle {
         telescopes_read_lock.contains_key(id)
     }
 
-    pub fn get_names(&self) -> Vec<String> {
-        self.names.clone()
+    pub async fn get_names(&self) -> Vec<String> {
+        let telescopes_read_lock = self.telescopes.read().await;
+        let mut res: Vec<_> = telescopes_read_lock.keys().cloned().collect();
+        res.sort();
+        res
     }
 }
 
@@ -81,11 +83,6 @@ pub fn create_telescope_collection(
             .expect("telescopes config file should exist and be readable."),
     )
     .expect("telescope config file should be valid toml.");
-    let names = config
-        .telescopes
-        .iter()
-        .map(|def| def.name.clone())
-        .collect();
     let telescopes: HashMap<_, _> = config
         .telescopes
         .into_iter()
@@ -99,6 +96,5 @@ pub fn create_telescope_collection(
 
     TelescopeCollectionHandle {
         telescopes: Arc::new(RwLock::new(telescopes)),
-        names,
     }
 }

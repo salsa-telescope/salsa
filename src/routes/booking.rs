@@ -44,7 +44,7 @@ async fn get_bookings(
     let content = BookingsTemplate {
         my_bookings: Booking::fetch_for_user(state.database_connection.clone(), &user).await?,
         bookings: Booking::fetch_all(state.database_connection).await?,
-        telescope_names: state.telescopes.get_names(),
+        telescope_names: state.telescopes.get_names().await,
         error: None,
         now: Utc::now(),
     }
@@ -119,7 +119,7 @@ async fn create_booking(
     let content = BookingsTemplate {
         my_bookings: Booking::fetch_for_user(state.database_connection.clone(), &user).await?,
         bookings: Booking::fetch_all(state.database_connection).await?,
-        telescope_names: state.telescopes.get_names(),
+        telescope_names: state.telescopes.get_names().await,
         error,
         now: Utc::now(),
     }
@@ -155,7 +155,7 @@ async fn delete_booking(
     let content = BookingsTemplate {
         my_bookings: Booking::fetch_for_user(state.database_connection.clone(), &user).await?,
         bookings: Booking::fetch_all(state.database_connection).await?,
-        telescope_names: state.telescopes.get_names(),
+        telescope_names: state.telescopes.get_names().await,
         error: None,
         now: Utc::now(),
     }
