@@ -37,23 +37,23 @@ pub struct TelescopeCollectionHandle {
 
 impl TelescopeCollectionHandle {
     pub async fn get(&self, id: &str) -> Option<Arc<dyn Telescope>> {
-        let telescopes_read_lock = self.telescopes.read().await;
-        telescopes_read_lock.get(id).cloned()
+        let telescopes = self.telescopes.read().await;
+        telescopes.get(id).cloned()
     }
 
     pub async fn get_all(&self) -> Vec<Arc<dyn Telescope>> {
-        let telescopes_read_lock = self.telescopes.read().await;
-        telescopes_read_lock.values().cloned().collect()
+        let telescopes = self.telescopes.read().await;
+        telescopes.values().cloned().collect()
     }
 
     pub async fn contains_key(&self, id: &str) -> bool {
-        let telescopes_read_lock = self.telescopes.read().await;
-        telescopes_read_lock.contains_key(id)
+        let telescopes = self.telescopes.read().await;
+        telescopes.contains_key(id)
     }
 
     pub async fn get_names(&self) -> Vec<String> {
-        let telescopes_read_lock = self.telescopes.read().await;
-        let mut res: Vec<_> = telescopes_read_lock.keys().cloned().collect();
+        let telescopes = self.telescopes.read().await;
+        let mut res: Vec<_> = telescopes.keys().cloned().collect();
         res.sort();
         res
     }
