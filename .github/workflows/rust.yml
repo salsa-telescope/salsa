@@ -66,4 +66,4 @@ jobs:
           chmod g+rx /home/salsa/bin/target/release/backend
       - name: Start salsa
         run: |
-          sudo systemctl start salsa.service
+          systemctl is-enabld -q salsa && sudo systemctl start salsa.service
