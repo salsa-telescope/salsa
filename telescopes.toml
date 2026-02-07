@@ -12,14 +12,14 @@ location = [ 0.20802143022, 1.00170457462 ]
 min_elevation = 0.087
 telescope_type = "Fake"
 
-[[telescopes]]
-name = "fakesalsa"
-enabled = true
-location = [ 0.20802143022, 1.00170457462 ]
-min_elevation = 0.087
-telescope_type = "Salsa"
-controller_address = "127.0.0.1:3001"
-receiver_address = "127.0.0.1:3002"
+# [[telescopes]]
+# name = "fakesalsa"
+# enabled = true
+# location = [ 0.20802143022, 1.00170457462 ]
+# min_elevation = 0.087
+# telescope_type = "Salsa"
+# controller_address = "127.0.0.1:3001"
+# receiver_address = "127.0.0.1:3002"
 
 #[[telescopes]]
 #name = "brage"
