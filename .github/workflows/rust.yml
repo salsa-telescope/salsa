@@ -65,7 +65,7 @@ jobs:
           chmod -R g+r /home/salsa/bin/target /home/salsa/bin/sql_migrations /home/salsa/bin/assets
           chmod g+rx /home/salsa/bin/target/release/backend
       - name: Start salsa if enabled
-        if: |
-          systemctl is-enabled -q salsa
         run: |
-          sudo systemctl start salsa.service
+          if systemctl is-enabled -q salsa.service; then
+            sudo systemctl start salsa.service
+          fi
