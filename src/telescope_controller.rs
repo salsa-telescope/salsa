@@ -1,6 +1,5 @@
 use crate::coords::Direction;
 use crate::models::telescope_types::TelescopeError;
-use hex_literal::hex;
 use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpStream};
 use std::str::FromStr;
@@ -51,15 +50,24 @@ impl TelescopeController {
 impl TelescopeCommand {
     fn to_bytes(self) -> Vec<u8> {
         match self {
-            TelescopeCommand::Stop => hex!("57000000000000000000000F20").into(),
-            TelescopeCommand::Restart => hex!("57EFBEADDE000000000000EE20").into(),
-            TelescopeCommand::GetDirection => hex!("57000000000000000000006F20").into(),
+            TelescopeCommand::Stop => [
+                0x57, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0F, 0x20,
+            ]
+            .into(),
+            TelescopeCommand::Restart => [
+                0x57, 0xEF, 0xBE, 0xAD, 0xDE, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xEE, 0x20,
+            ]
+            .into(),
+            TelescopeCommand::GetDirection => [
+                0x57, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x6F, 0x20,
+            ]
+            .into(),
             TelescopeCommand::SetDirection(direction) => {
                 let mut bytes = Vec::with_capacity(13);
-                bytes.extend(hex!("57"));
+                bytes.extend([0x57]);
                 bytes.extend(rot2prog_angle_to_bytes(direction.azimuth).as_slice());
                 bytes.extend(rot2prog_angle_to_bytes(direction.elevation).as_slice());
-                bytes.extend(hex!("5F20"));
+                bytes.extend([0x5F, 0x20]);
                 bytes
             }
         }

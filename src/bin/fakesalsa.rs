@@ -1,35 +1,34 @@
-use hex_literal::hex;
 use std::io::prelude::*;
 use std::net::{TcpListener, TcpStream};
 use std::process;
 
 fn handle(request: &[u8]) -> [u8; 12] {
     if request
-        == hex!("57 00 00 00"
-                "00 00 00 00"
-                "00 00 00 6F")
+        == [
+            0x57, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x6F,
+        ]
     {
         println!("Got direction request");
         // ACK
-        hex!("58 00 00 00"
-             "00 00 00 00"
-             "00 00 00 20")
+        [
+            0x58, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x20,
+        ]
     } else if request
-        == hex!("57 00 00 00"
-                "00 00 00 00"
-                "00 00 00 0F")
+        == [
+            0x57, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0F,
+        ]
     {
         println!("Got stop request");
         // ACK
-        hex!("57 00 00 00"
-             "00 00 00 00"
-             "00 00 00 20")
+        [
+            0x57, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x20,
+        ]
     } else {
         println!("Unknown request. Data: {:02X?}", request);
         // FIXME: Is this a proper error
-        hex!("57 00 00 00"
-             "00 00 00 00"
-             "00 00 00 00")
+        [
+            0x57, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        ]
     }
 }
 
