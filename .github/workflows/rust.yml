@@ -5,7 +5,12 @@ on:
     branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
-
+  workflow_dispatch:
+    inputs:
+      deploy:
+        description: 'Deploy to sala telecope'
+        type: boolean
+        default: false
 env:
   CARGO_TERM_COLOR: always
 
@@ -40,7 +45,7 @@ jobs:
   deploy:
     needs: build
     runs-on: salsa
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' || inputs.deploy
 
     concurrency:
       group: deploy-main
