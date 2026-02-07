@@ -3,7 +3,7 @@ use crate::coords::{horizontal_from_equatorial, horizontal_from_galactic};
 use crate::models::telescope_types::{TelescopeError, TelescopeStatus, TelescopeTarget};
 use crate::telescope_controller::{TelescopeCommand, TelescopeController, TelescopeResponse};
 use chrono::{DateTime, TimeDelta, Utc};
-use log::debug;
+use log::{debug, error, info};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::time::{Instant, sleep_until};
@@ -153,6 +153,7 @@ async fn tracker_task_function(
         let mut controller = match TelescopeController::connect(&controller_address) {
             Ok(controller) => controller,
             Err(err) => {
+                error!("Failed to connect to contoller for {}", err);
                 state.lock().unwrap().most_recent_error = Some(err);
                 continue;
             }
@@ -177,6 +178,7 @@ async fn tracker_task_function(
         debug!("done checking");
 
         if state.lock().unwrap().should_restart {
+            info!("Controller for restarting");
             state.lock().unwrap().most_recent_error =
                 controller.execute(TelescopeCommand::Restart).err();
             connection_established = false;
