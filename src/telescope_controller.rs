@@ -39,7 +39,6 @@ impl TelescopeController {
             .write_all(&command.to_bytes())
             .map_err(|err| TelescopeError::TelescopeIOError(err.to_string()))?;
         let mut result = vec![0; 128];
-        // FIXME: Handle connection failure.
         let response_length = self
             .stream
             .read(&mut result)
