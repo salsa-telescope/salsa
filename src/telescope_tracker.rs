@@ -146,7 +146,6 @@ async fn tracker_task_function(
     let mut connection_established = false;
 
     while !state.lock().unwrap().quit {
-        debug!("tick");
         // 1 Hz update freq
         sleep_until(Instant::now() + Duration::from_secs(1)).await;
 
@@ -166,16 +165,14 @@ async fn tracker_task_function(
             connection_established = true;
         }
 
-        debug!("checking if should stop tracking");
         if let Some(stop_telescope_time) = state.lock().unwrap().stop_tracking_time
             && stop_telescope_time < Utc::now()
         {
             let mut state_guard = state.lock().unwrap();
             state_guard.commanded_horizontal = None;
             state_guard.stop_tracking_time = None;
-            debug!("stopped tracking");
+            debug!("Stopped tracking due to timeout");
         }
-        debug!("done checking");
 
         if state.lock().unwrap().should_restart {
             info!("Controller for restarting");
