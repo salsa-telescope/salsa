@@ -46,6 +46,7 @@ impl TelescopeTracker {
         target: TelescopeTarget,
     ) -> Result<TelescopeTarget, TelescopeError> {
         self.state.lock().unwrap().target = target;
+        self.state.lock().unwrap().stop_tracking_time = Some(Utc::now() + TimeDelta::seconds(10));
         Ok(target)
     }
 
@@ -186,7 +187,6 @@ fn update_direction(
             }
 
             state.commanded_horizontal = Some(target_horizontal);
-            state.stop_tracking_time = Some(Utc::now() + TimeDelta::seconds(60));
 
             // Check if more than 1 tolerance off, if so we need to send track command
             if !directions_are_close(target_horizontal, current_horizontal, 1.0) {
