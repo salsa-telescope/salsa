@@ -3,7 +3,6 @@ use crate::coords::{horizontal_from_equatorial, horizontal_from_galactic};
 use crate::models::telescope_types::{TelescopeError, TelescopeStatus, TelescopeTarget};
 use crate::telescope_controller::{TelescopeCommand, TelescopeController, TelescopeResponse};
 use chrono::{DateTime, TimeDelta, Utc};
-use log::warn;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::time::{Instant, sleep_until};
@@ -155,9 +154,6 @@ async fn tracker_task_function(
 
         let res = update_direction(&mut state.lock().unwrap(), Utc::now(), &mut controller);
         state.lock().unwrap().most_recent_error = res.err();
-        if let Err(err) = controller.shutdown() {
-            warn!("Failed to close connection to controller: {}", err);
-        }
     }
 }
 

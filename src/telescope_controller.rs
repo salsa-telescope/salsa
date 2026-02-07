@@ -31,11 +31,6 @@ impl TelescopeController {
         Ok(TelescopeController { stream })
     }
 
-    pub fn shutdown(self) -> Result<(), TelescopeError> {
-        self.stream.shutdown(std::net::Shutdown::Both)?;
-        Ok(())
-    }
-
     pub fn execute(
         &mut self,
         command: TelescopeCommand,
