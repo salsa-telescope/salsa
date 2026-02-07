@@ -64,6 +64,8 @@ jobs:
           chgrp -R salsaowners /home/salsa/bin/target /home/salsa/bin/sql_migrations /home/salsa/bin/assets
           chmod -R g+r /home/salsa/bin/target /home/salsa/bin/sql_migrations /home/salsa/bin/assets
           chmod g+rx /home/salsa/bin/target/release/backend
-      - name: Start salsa
+      - name: Start salsa if enabled
+        if: |
+          systemctl is-enabled -q salsa
         run: |
-          systemctl is-enabled -q salsa && sudo systemctl start salsa.service
+          sudo systemctl start salsa.service
