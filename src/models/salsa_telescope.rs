@@ -7,6 +7,7 @@ use crate::models::telescope_types::{
 use crate::telescope_tracker::TelescopeTracker;
 use async_trait::async_trait;
 use chrono::Utc;
+use log::debug;
 use std::iter::zip;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -144,6 +145,11 @@ impl Telescope for SalsaTelescope {
             measurement_in_progress: inner.active_integration.is_some(),
             latest_observation,
         })
+    }
+    async fn shutdown(&self) {
+        let inner = self.inner.lock().await;
+        debug!("Shutting down {}", inner.name);
+        inner.controller.shutdown().await;
     }
 }
 

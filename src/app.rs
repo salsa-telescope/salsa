@@ -26,7 +26,7 @@ pub struct AppState {
     pub secrets: Arc<Secrets>,
 }
 
-pub async fn create_app(config_dir: &Path, database_dir: &Path) -> Router {
+pub async fn create_app(config_dir: &Path, database_dir: &Path) -> (Router, AppState) {
     let database_connection = Arc::new(Mutex::new(
         create_sqlite_database_on_disk(database_dir.join("database.sqlite3"))
             .expect("failed to create sqlite database"),
@@ -83,5 +83,11 @@ pub async fn create_app(config_dir: &Path, database_dir: &Path) -> Router {
     log::debug!("serving asserts from {}", assets_path);
     let assets_service = ServeDir::new(assets_path);
     app = app.fallback_service(assets_service);
-    app
+    (app, state)
+}
+
+pub async fn teardown_app(app: AppState) {
+    for telescope in app.telescopes.get_all().await {
+        telescope.shutdown().await;
+    }
 }

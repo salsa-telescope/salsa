@@ -1,8 +1,11 @@
+use app::teardown_app;
 use axum_server::tls_rustls::RustlsConfig;
 use clap::Parser;
+use log::info;
 use std::net::SocketAddr;
 use std::net::TcpListener;
 use std::path::PathBuf;
+use tokio::signal;
 
 mod app;
 mod coords;
@@ -46,10 +49,9 @@ async fn main() {
         SocketAddr::from(([0, 0, 0, 0], 3000))
     };
 
-    let app = app::create_app(&args.config_dir, &args.database_dir).await;
+    let (app, state) = app::create_app(&args.config_dir, &args.database_dir).await;
 
     let listener = TcpListener::bind(addr).unwrap();
-
     log::info!("listening on {}", listener.local_addr().unwrap());
     if let Some(port) = args.port
         && port == 0
@@ -57,6 +59,9 @@ async fn main() {
         // Tests need to know which port to connect to.
         println!("port:{}", listener.local_addr().unwrap().port());
     }
+
+    let handle = axum_server::Handle::new();
+    tokio::spawn(handle_shutdown_signal(handle.clone()));
 
     if let Some(key_file_path) = args.key_file_path {
         // This is needed because rustls tries to magically figure out which provider
@@ -74,13 +79,44 @@ async fn main() {
             .await
             .unwrap();
         axum_server::from_tcp_rustls(listener, tls_config)
+            .handle(handle)
             .serve(app.into_make_service())
             .await
             .unwrap();
     } else {
         axum_server::from_tcp(listener)
+            .handle(handle)
             .serve(app.into_make_service())
             .await
             .unwrap();
     }
+
+    teardown_app(state).await;
+}
+
+async fn handle_shutdown_signal(handle: axum_server::Handle) {
+    let interrupt = async {
+        signal::unix::signal(signal::unix::SignalKind::interrupt())
+            .expect("Should succeed installing interrupt signal handler.")
+            .recv()
+            .await
+    };
+
+    let terminate = async {
+        signal::unix::signal(signal::unix::SignalKind::terminate())
+            .expect("Should succeed installing terminate signal handler")
+            .recv()
+            .await;
+    };
+    tokio::select! {
+        _ = interrupt => {
+            info!("Received interrupt")
+        },
+        _ = terminate => {
+            info!("Received terminate signal")
+        },
+    }
+
+    info!("Shutting down");
+    handle.graceful_shutdown(None);
 }

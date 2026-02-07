@@ -18,8 +18,8 @@ pub struct TelescopeTrackerInfo {
 }
 
 pub struct TelescopeTracker {
-    // FIXME: Do we need to lock the whole state at a time?
     state: Arc<Mutex<TelescopeTrackerState>>,
+    task: Arc<tokio::sync::Mutex<Option<tokio::task::JoinHandle<()>>>>,
 }
 
 impl TelescopeTracker {
@@ -35,28 +35,51 @@ impl TelescopeTracker {
             current_direction: None,
             most_recent_error: None,
             should_restart: false,
+            quit: false,
         }));
-        // FIXME: Keep track of this task and do a proper shutdown.
-        tokio::spawn(tracker_task_function(state.clone(), controller_address));
-        TelescopeTracker { state }
+        let task = tokio::spawn(tracker_task_function(state.clone(), controller_address));
+        TelescopeTracker {
+            state,
+            task: Arc::new(tokio::sync::Mutex::new(Some(task))),
+        }
+    }
+
+    pub async fn shutdown(&self) {
+        {
+            let mut state = self.state.lock().unwrap();
+            state.quit = true;
+        }
+        self.task
+            .lock()
+            .await
+            .take()
+            .expect("Should be an active task")
+            .await
+            .expect("Joining task should work");
     }
 
     pub fn set_target(
         &mut self,
         target: TelescopeTarget,
     ) -> Result<TelescopeTarget, TelescopeError> {
-        self.state.lock().unwrap().target = target;
-        self.state.lock().unwrap().stop_tracking_time = Some(Utc::now() + TimeDelta::seconds(10));
+        let mut state = self.state.lock().unwrap();
+        assert!(!state.quit);
+        state.target = target;
+        state.stop_tracking_time = Some(Utc::now() + TimeDelta::seconds(10));
         Ok(target)
     }
 
     #[allow(dead_code)]
     pub fn restart(&self) {
-        self.state.lock().unwrap().should_restart = true;
+        let mut state = self.state.lock().unwrap();
+        assert!(!state.quit);
+        state.should_restart = true;
     }
 
     pub fn info(&self) -> Result<TelescopeTrackerInfo, TelescopeError> {
-        let current_horizontal = match self.state.lock().unwrap().current_direction {
+        let state = self.state.lock().unwrap();
+        assert!(!state.quit);
+        let current_horizontal = match state.current_direction {
             Some(current_horizontal) => current_horizontal,
             None => return Err(TelescopeError::TelescopeNotConnected),
         };
@@ -72,10 +95,7 @@ impl TelescopeTracker {
             }
             None => TelescopeStatus::Idle,
         };
-        let (target, most_recent_error) = {
-            let lock = self.state.lock().unwrap();
-            (lock.target, lock.most_recent_error.clone())
-        };
+        let (target, most_recent_error) = { (state.target, state.most_recent_error.clone()) };
         Ok(TelescopeTrackerInfo {
             target,
             current_horizontal,
@@ -86,7 +106,9 @@ impl TelescopeTracker {
     }
 
     pub fn direction(&self) -> Result<Direction, TelescopeError> {
-        match self.state.lock().unwrap().current_direction {
+        let state = self.state.lock().unwrap();
+        assert!(!state.quit);
+        match state.current_direction {
             Some(current_direction) => Ok(current_direction),
             None => Err(TelescopeError::TelescopeNotConnected),
         }
@@ -94,11 +116,15 @@ impl TelescopeTracker {
 
     #[allow(dead_code)]
     pub fn target(&self) -> Result<TelescopeTarget, TelescopeError> {
-        Ok(self.state.lock().unwrap().target)
+        let state = self.state.lock().unwrap();
+        assert!(!state.quit);
+        Ok(state.target)
     }
 
     fn commanded_horizontal(&self) -> Option<Direction> {
-        self.state.lock().unwrap().commanded_horizontal
+        let state = self.state.lock().unwrap();
+        assert!(!state.quit);
+        state.commanded_horizontal
     }
 }
 
@@ -109,6 +135,7 @@ struct TelescopeTrackerState {
     current_direction: Option<Direction>,
     most_recent_error: Option<TelescopeError>,
     should_restart: bool,
+    quit: bool,
 }
 
 async fn tracker_task_function(
@@ -117,7 +144,7 @@ async fn tracker_task_function(
 ) {
     let mut connection_established = false;
 
-    loop {
+    while !state.lock().unwrap().quit {
         // 1 Hz update freq
         sleep_until(Instant::now() + Duration::from_secs(1)).await;
 

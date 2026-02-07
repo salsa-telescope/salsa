@@ -7,6 +7,7 @@ use crate::models::telescope_types::{
 };
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
+use log::debug;
 use rand::Rng;
 use rand_distr::StandardNormal;
 use std::f64::consts::PI;
@@ -36,6 +37,7 @@ struct Inner {
     receiver_configuration: ReceiverConfiguration,
     current_spectra: Vec<ObservedSpectra>,
     name: String,
+    alive: bool,
 }
 
 pub struct FakeTelescope {
@@ -56,6 +58,7 @@ pub fn create(name: String) -> FakeTelescope {
         receiver_configuration: ReceiverConfiguration { integrate: false },
         current_spectra: vec![],
         name,
+        alive: true,
     }));
 
     let task_inner = inner.clone();
@@ -178,10 +181,16 @@ impl Telescope for FakeTelescope {
             latest_observation,
         })
     }
+    async fn shutdown(&self) {
+        let mut inner = self.inner.lock().await;
+        inner.alive = false;
+        debug!("Shutting down {}", inner.name);
+    }
 }
 
 impl Inner {
     fn update(&mut self, delta_time: Duration) -> Result<(), TelescopeError> {
+        assert!(self.alive);
         let now = Utc::now();
         let current_horizontal = self.horizontal;
         let target_horizontal = calculate_target_horizontal(self.location, now, self.target);
