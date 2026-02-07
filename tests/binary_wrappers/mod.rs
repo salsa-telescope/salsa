@@ -1,6 +1,4 @@
-use reqwest::StatusCode;
-use reqwest::blocking::{Client, get};
-use reqwest::header::{COOKIE, SET_COOKIE};
+use reqwest::blocking::get;
 use std::fs::copy;
 use std::io::{BufRead, BufReader};
 use std::process::{Child, Command, Stdio};

@@ -1,5 +1,5 @@
 use reqwest::StatusCode;
-use reqwest::blocking::{Client, get};
+use reqwest::blocking::Client;
 use reqwest::header::{COOKIE, SET_COOKIE};
 
 mod binary_wrappers;
