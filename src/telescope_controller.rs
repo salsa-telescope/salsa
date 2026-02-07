@@ -158,9 +158,20 @@ mod test {
 
     #[test]
     fn test_parse_ack_response() {
-        let res = parse_ack_response(&hex!("570000000000000000000020"), "test").unwrap();
+        let res = parse_ack_response(
+            &[
+                0x57, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x20,
+            ],
+            "test",
+        )
+        .unwrap();
         assert_eq!(res, TelescopeResponse::Ack);
-        let res = parse_ack_response(&hex!("560000000000000000000020"), "test");
+        let res = parse_ack_response(
+            &[
+                0x56, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x20,
+            ],
+            "test",
+        );
         assert_eq!(
             res,
             Err(TelescopeError::TelescopeIOError(
@@ -168,7 +179,12 @@ mod test {
                     .to_string()
             ))
         );
-        let res = parse_ack_response(&hex!("5700000000000000000020"), "test");
+        let res = parse_ack_response(
+            &[
+                0x57, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x20,
+            ],
+            "test",
+        );
         assert_eq!(
             res,
             Err(TelescopeError::TelescopeIOError(
@@ -180,8 +196,13 @@ mod test {
 
     #[test]
     fn test_parse_direction_response() {
-        let res =
-            parse_direction_response(&hex!("58 03 06 00 00 00 03 06 00 00 00 20"), "test").unwrap();
+        let res = parse_direction_response(
+            &[
+                0x58, 0x03, 0x06, 0x00, 0x00, 0x00, 0x03, 0x06, 0x00, 0x00, 0x00, 0x20,
+            ],
+            "test",
+        )
+        .unwrap();
         assert_eq!(
             res,
             TelescopeResponse::CurrentDirection(Direction {
@@ -192,29 +213,29 @@ mod test {
     }
     #[test]
     fn test_rot2prog_bytes_to_int() {
-        assert_eq!(rot2prog_bytes_to_int(&hex!("00")), 0);
-        assert_eq!(rot2prog_bytes_to_int(&hex!("01")), 1);
-        assert_eq!(rot2prog_bytes_to_int(&hex!("00 01")), 1);
-        assert_eq!(rot2prog_bytes_to_int(&hex!("01 02")), 12);
-        assert_eq!(rot2prog_bytes_to_int(&hex!("09 09 09")), 999);
+        assert_eq!(rot2prog_bytes_to_int(&[0x00]), 0);
+        assert_eq!(rot2prog_bytes_to_int(&[0x01]), 1);
+        assert_eq!(rot2prog_bytes_to_int(&[0x00, 0x01]), 1);
+        assert_eq!(rot2prog_bytes_to_int(&[0x01, 0x02]), 12);
+        assert_eq!(rot2prog_bytes_to_int(&[0x09, 0x09, 0x09]), 999);
     }
 
     #[test]
     fn test_rot2prog_angle_to_bytes() {
         assert_eq!(
             rot2prog_angle_to_bytes(0.0),
-            hex!("3336303030"),
+            [0x33, 0x36, 0x30, 0x30, 0x30,],
             "0.0 should be 0x3336303030 (telescope expects angle + 360)"
         );
         assert_eq!(
             rot2prog_angle_to_bytes(5.54_f64.to_radians()),
-            hex!("3336353534"),
+            [0x33, 0x36, 0x35, 0x35, 0x34],
             "5.54 should be 0x3336353534 (example from documentation)"
         );
     }
 
     #[test]
     fn test_rot2prog_bytes_to_angle() {
-        assert!((rot2prog_bytes_to_angle(&hex!("0306000000")) - 0.0).abs() < 0.01,);
+        assert!((rot2prog_bytes_to_angle(&[0x03, 0x06, 0x00, 0x00, 0x00,]) - 0.0).abs() < 0.01,);
     }
 }

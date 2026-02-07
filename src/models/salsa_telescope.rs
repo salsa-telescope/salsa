@@ -377,19 +377,21 @@ async fn measure(
 
 #[cfg(test)]
 mod test {
-    use hex_literal::hex;
-
     use super::*;
 
     #[test]
     fn test_rot2prog_bytes_to_angle_documented() {
         // This behavior is what I expect reading the documentation, but the telescope seems to work with returned bytes
         // directly instead of ascii encoded numbers. E.g. 0x03 instead of 0x33 which is '3' in ascii.
-        assert!((rot2prog_bytes_to_angle_documented(&hex!("3336303030")) - 0.0).abs() < 0.01,);
+        assert!(
+            (rot2prog_bytes_to_angle_documented(&[0x33, 0x36, 0x30, 0x30, 0x30]) - 0.0).abs()
+                < 0.01,
+        );
         // Example from documentation
         assert!(
-            (rot2prog_bytes_to_angle_documented(&hex!("3338323333")) - 22.33_f64.to_radians())
-                .abs()
+            (rot2prog_bytes_to_angle_documented(&[0x33, 0x38, 0x32, 0x33, 0x33,])
+                - 22.33_f64.to_radians())
+            .abs()
                 < 0.01,
         );
     }
