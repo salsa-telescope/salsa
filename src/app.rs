@@ -58,6 +58,7 @@ pub async fn create_app(config_dir: &Path, database_dir: &Path) -> (Router, AppS
         .nest("/observe", routes::observe::routes(state.clone()))
         .nest("/bookings", routes::booking::routes(state.clone()))
         .nest("/telescope", routes::telescope::routes(state.clone()))
+        .nest("/observations", routes::observations::routes(state.clone()))
         .layer(
             TraceLayer::new_for_http().make_span_with(|request: &Request<_>| {
                 let matched_path = request

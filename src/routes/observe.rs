@@ -1,5 +1,6 @@
 use crate::app::AppState;
 use crate::models::booking::booking_is_active;
+use crate::models::observation::Observation;
 use crate::models::telescope::Telescope;
 use crate::models::telescope_types::{
     ReceiverConfiguration, ReceiverError, TelescopeInfo, TelescopeTarget,
@@ -18,8 +19,12 @@ use axum::{
     Router,
     routing::{get, post},
 };
+use chrono::{Duration, Utc};
 use log::{debug, error};
+use rusqlite::Connection;
 use serde::Deserialize;
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 pub fn routes(state: AppState) -> Router {
     let observe_routes = Router::new()
@@ -99,13 +104,82 @@ async fn set_target(
     Ok(Html(content))
 }
 
+async fn save_latest_observation(
+    connection: Arc<Mutex<Connection>>,
+    user: &User,
+    telescope: &dyn Telescope,
+) {
+    let info = match telescope.get_info().await {
+        Ok(info) => info,
+        Err(err) => {
+            error!("Failed to get telescope info for saving observation: {err}");
+            return;
+        }
+    };
+
+    let Some(spectra) = &info.latest_observation else {
+        return;
+    };
+
+    let (coordinate_system, target_x, target_y) = match info.current_target {
+        TelescopeTarget::Equatorial {
+            right_ascension,
+            declination,
+        } => ("equatorial", right_ascension.to_degrees(), declination.to_degrees()),
+        TelescopeTarget::Galactic {
+            longitude,
+            latitude,
+        } => ("galactic", longitude.to_degrees(), latitude.to_degrees()),
+        TelescopeTarget::Horizontal { azimuth, elevation } => {
+            ("horizontal", azimuth.to_degrees(), elevation.to_degrees())
+        }
+        TelescopeTarget::Parked => ("horizontal", 0.0, 0.0),
+    };
+
+    let integration_time_secs = spectra.observation_time.as_secs_f64();
+    let start_time =
+        Utc::now() - Duration::milliseconds(spectra.observation_time.as_millis() as i64);
+
+    let frequencies_json = match serde_json::to_string(&spectra.frequencies) {
+        Ok(json) => json,
+        Err(err) => {
+            error!("Failed to serialize frequencies: {err}");
+            return;
+        }
+    };
+    let amplitudes_json = match serde_json::to_string(&spectra.spectra) {
+        Ok(json) => json,
+        Err(err) => {
+            error!("Failed to serialize amplitudes: {err}");
+            return;
+        }
+    };
+
+    if let Err(err) = Observation::create(
+        connection,
+        user,
+        &info.id,
+        start_time,
+        coordinate_system,
+        target_x,
+        target_y,
+        integration_time_secs,
+        &frequencies_json,
+        &amplitudes_json,
+    )
+    .await
+    {
+        error!("Failed to save observation: {err:?}");
+    }
+}
+
 async fn start_observe(
     Extension(user): Extension<Option<User>>,
     State(state): State<AppState>,
     Path(telescope_id): Path<String>,
 ) -> Result<impl IntoResponse, StatusCode> {
     let user = user.ok_or(StatusCode::UNAUTHORIZED)?;
-    if !booking_is_active(state.database_connection, &user, &telescope_id).await? {
+    if !booking_is_active(state.database_connection.clone(), &user, &telescope_id).await? {
         return Err(StatusCode::UNAUTHORIZED);
     }
 
@@ -114,6 +188,9 @@ async fn start_observe(
         .get(&telescope_id)
         .await
         .ok_or(StatusCode::NOT_FOUND)?;
+
+    save_latest_observation(state.database_connection, &user, telescope.as_ref()).await;
+
     telescope
         .set_receiver_configuration(ReceiverConfiguration { integrate: true })
         .await
@@ -131,7 +208,7 @@ async fn stop_observe(
     Path(telescope_id): Path<String>,
 ) -> Result<impl IntoResponse, StatusCode> {
     let user = user.ok_or(StatusCode::UNAUTHORIZED)?;
-    if !booking_is_active(state.database_connection, &user, &telescope_id).await? {
+    if !booking_is_active(state.database_connection.clone(), &user, &telescope_id).await? {
         return Err(StatusCode::UNAUTHORIZED);
     }
 
@@ -140,6 +217,9 @@ async fn stop_observe(
         .get(&telescope_id)
         .await
         .ok_or(StatusCode::NOT_FOUND)?;
+
+    save_latest_observation(state.database_connection, &user, telescope.as_ref()).await;
+
     telescope
         .set_receiver_configuration(ReceiverConfiguration { integrate: false })
         .await

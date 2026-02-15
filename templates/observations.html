@@ -1,0 +1,27 @@
+<div class="section light">
+  <h2 class="mt-4 mb-3">My observations</h2>
+  {% if observations.is_empty() %}
+  <p>No observations yet.</p>
+  {% else %}
+  <div class="space-y-2">
+    {% for obs in observations %}
+    <div
+      class="flex items-center justify-between max-w-xl cursor-pointer hover:bg-gray-100 p-1 rounded"
+      onclick="loadObservation({{ obs.id }})"
+    >
+      <div>
+        {{ obs.start_time.naive_local() }} &mdash;
+        {{ obs.telescope_id }},
+        {{ obs.coordinate_system }} ({{ obs.target_x|fmt("{:.1}") }}, {{ obs.target_y|fmt("{:.1}") }}),
+        {{ obs.integration_time_secs|fmt("{:.0}") }}s
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+  <div id="observation-chart" class="mt-4" style="display: none;">
+    <h3 class="mb-2">Spectrum</h3>
+    <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+    <script src="/observation_chart.js"></script>
+  </div>
+</div>
