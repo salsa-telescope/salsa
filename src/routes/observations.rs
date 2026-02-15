@@ -59,19 +59,14 @@ async fn get_observation_data(
     State(state): State<AppState>,
 ) -> Result<Response, StatusCode> {
     let user = user.ok_or(StatusCode::UNAUTHORIZED)?;
-    let observation =
-        Observation::fetch_one(state.database_connection, observation_id, &user)
-            .await?
-            .ok_or(StatusCode::NOT_FOUND)?;
+    let observation = Observation::fetch_one(state.database_connection, observation_id, &user)
+        .await?
+        .ok_or(StatusCode::NOT_FOUND)?;
 
-    let frequencies: Vec<f64> =
-        serde_json::from_str(&observation.frequencies_json).map_err(|_| {
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
-    let amplitudes: Vec<f64> =
-        serde_json::from_str(&observation.amplitudes_json).map_err(|_| {
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
+    let frequencies: Vec<f64> = serde_json::from_str(&observation.frequencies_json)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let amplitudes: Vec<f64> = serde_json::from_str(&observation.amplitudes_json)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     Ok(Json(ObservationData {
         frequencies,

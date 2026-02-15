@@ -125,7 +125,11 @@ async fn save_latest_observation(
         TelescopeTarget::Equatorial {
             right_ascension,
             declination,
-        } => ("equatorial", right_ascension.to_degrees(), declination.to_degrees()),
+        } => (
+            "equatorial",
+            right_ascension.to_degrees(),
+            declination.to_degrees(),
+        ),
         TelescopeTarget::Galactic {
             longitude,
             latitude,
