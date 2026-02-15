@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       deploy:
-        description: 'Deploy to sala telecope'
+        description: 'Deploy to salsa telecope'
         type: boolean
         default: false
 env:

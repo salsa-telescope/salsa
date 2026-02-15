@@ -84,7 +84,7 @@ impl TelescopeTracker {
             Some(current_horizontal) => current_horizontal,
             None => return Err(TelescopeError::TelescopeNotConnected),
         };
-        let commanded_horizontal = self.commanded_horizontal();
+        let commanded_horizontal = state.commanded_horizontal;
         let status = match commanded_horizontal {
             Some(commanded_horizontal) => {
                 // Check if more than 2 tolerances off, if so we are not tracking anymore
@@ -152,7 +152,10 @@ async fn tracker_task_function(
         let mut controller = match TelescopeController::connect(&controller_address) {
             Ok(controller) => controller,
             Err(err) => {
-                error!("Failed to connect to contoller for {}", err);
+                error!(
+                    "Failed to connect to contoller at {}: {}",
+                    &controller_address, err
+                );
                 state.lock().unwrap().most_recent_error = Some(err);
                 continue;
             }
