@@ -193,8 +193,6 @@ async fn start_observe(
         .await
         .ok_or(StatusCode::NOT_FOUND)?;
 
-    save_latest_observation(state.database_connection, &user, telescope.as_ref()).await;
-
     telescope
         .set_receiver_configuration(ReceiverConfiguration { integrate: true })
         .await
