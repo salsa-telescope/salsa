@@ -208,7 +208,6 @@ fn update_direction(
 
     let target_horizontal = calculate_target_horizontal(target, location, when);
 
-    // Controller I/O without holding the lock
     let current_horizontal = match controller.execute(TelescopeCommand::GetDirection)? {
         TelescopeResponse::CurrentDirection(direction) => Ok(direction),
         _ => Err(TelescopeError::TelescopeIOError(
@@ -227,7 +226,6 @@ fn update_direction(
                 return Err(TelescopeError::TargetBelowHorizon);
             }
 
-            // Controller I/O without holding the lock
             // Check if more than 1 tolerance off, if so we need to send track command
             if !directions_are_close(target_horizontal, current_horizontal, 1.0) {
                 controller.execute(TelescopeCommand::SetDirection(target_horizontal))?;
@@ -240,7 +238,6 @@ fn update_direction(
             Ok(())
         }
         None => {
-            // Controller I/O without holding the lock
             if prev_commanded.is_some() {
                 controller.execute(TelescopeCommand::Stop)?;
             }
