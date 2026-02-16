@@ -1,5 +1,6 @@
+use clap::Parser;
 use std::io::prelude::*;
-use std::net::{TcpListener, TcpStream};
+use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::process;
 
 fn handle(request: &[u8]) -> [u8; 12] {
@@ -41,7 +42,7 @@ fn controller_connection(mut stream: TcpStream) {
                 break;
             }
             Ok(13) => {
-                println!("Client sent: {:02X?}", command_buffer);
+                eprintln!("Client sent: {:02X?}", command_buffer);
                 let response = handle(&command_buffer[0..12]);
                 // FIXME: Error handling
                 stream.write_all(&response).unwrap();
@@ -60,15 +61,33 @@ fn controller_connection(mut stream: TcpStream) {
     }
 }
 
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
+struct Args {
+    #[arg(short, long)]
+    port: Option<u16>,
+}
+
 fn main() {
-    let address = "127.0.0.1:3001";
-    let listener = match TcpListener::bind(address) {
+    let args = Args::parse();
+    let addr = if let Some(port) = args.port {
+        SocketAddr::from(([0, 0, 0, 0], port))
+    } else {
+        SocketAddr::from(([0, 0, 0, 0], 3001))
+    };
+    let listener = match TcpListener::bind(addr) {
         Ok(listener) => listener,
         Err(err) => {
-            println!("Failed to bind to address {} ({})", address, err);
+            println!("Failed to bind to address {} ({})", addr, err);
             process::exit(1);
         }
     };
+    if let Some(port) = args.port
+        && port == 0
+    {
+        // Tests need to know which port to connect to.
+        println!("port:{}", listener.local_addr().unwrap().port());
+    }
     for stream in listener.incoming() {
         match stream {
             Ok(stream) => controller_connection(stream),
