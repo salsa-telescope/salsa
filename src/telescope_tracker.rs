@@ -121,12 +121,6 @@ impl TelescopeTracker {
         assert!(!state.quit);
         Ok(state.target)
     }
-
-    fn commanded_horizontal(&self) -> Option<Direction> {
-        let state = self.state.lock().unwrap();
-        assert!(!state.quit);
-        state.commanded_horizontal
-    }
 }
 
 struct TelescopeTrackerState {
@@ -162,38 +156,41 @@ async fn tracker_task_function(
         };
 
         if !connection_established {
+            let err = controller.execute(TelescopeCommand::Stop).err();
             let mut state_guard = state.lock().unwrap();
-            state_guard.most_recent_error = controller.execute(TelescopeCommand::Stop).err();
+            state_guard.most_recent_error = err;
             state_guard.commanded_horizontal = None;
             connection_established = true;
         }
 
-        if let Some(stop_telescope_time) = state.lock().unwrap().stop_tracking_time
-            && stop_telescope_time < Utc::now()
         {
             let mut state_guard = state.lock().unwrap();
-            state_guard.commanded_horizontal = None;
-            state_guard.stop_tracking_time = None;
-            debug!("Stopped tracking due to timeout");
+            if let Some(stop_telescope_time) = state_guard.stop_tracking_time
+                && stop_telescope_time < Utc::now()
+            {
+                state_guard.commanded_horizontal = None;
+                state_guard.stop_tracking_time = None;
+                debug!("Stopped tracking due to timeout");
+            }
         }
 
         if state.lock().unwrap().should_restart {
             info!("Controller for restarting");
-            state.lock().unwrap().most_recent_error =
-                controller.execute(TelescopeCommand::Restart).err();
+            let err = controller.execute(TelescopeCommand::Restart).err();
+            state.lock().unwrap().most_recent_error = err;
             connection_established = false;
             sleep_until(Instant::now() + Duration::from_secs(10)).await;
             state.lock().unwrap().should_restart = false;
             continue;
         }
 
-        let res = update_direction(&mut state.lock().unwrap(), Utc::now(), &mut controller);
+        let res = update_direction(&state, Utc::now(), &mut controller);
         state.lock().unwrap().most_recent_error = res.err();
     }
 }
 
 fn update_direction(
-    state: &mut TelescopeTrackerState,
+    state: &Arc<Mutex<TelescopeTrackerState>>,
     when: DateTime<Utc>,
     controller: &mut TelescopeController,
 ) -> Result<(), TelescopeError> {
@@ -202,38 +199,58 @@ fn update_direction(
         longitude: 0.20802143022, //(11.0+55.0/60.0+7.5/3600.0) * PI / 180.0. Sign positive, handled in gmst calc
         latitude: 1.00170457462,  //(57.0+23.0/60.0+36.4/3600.0) * PI / 180.0
     };
-    let target_horizontal = calculate_target_horizontal(state.target, location, when);
+
+    // Read target and commanded_horizontal from state, then release the lock
+    let (target, prev_commanded) = {
+        let state_guard = state.lock().unwrap();
+        (state_guard.target, state_guard.commanded_horizontal)
+    };
+
+    let target_horizontal = calculate_target_horizontal(target, location, when);
+
+    // Controller I/O without holding the lock
     let current_horizontal = match controller.execute(TelescopeCommand::GetDirection)? {
         TelescopeResponse::CurrentDirection(direction) => Ok(direction),
         _ => Err(TelescopeError::TelescopeIOError(
             "Telescope did not respond with current direction".to_string(),
         )),
     }?;
-    state.current_direction = Some(current_horizontal);
 
     match target_horizontal {
         Some(target_horizontal) => {
             // FIXME: How to handle static configuration like this?
             if target_horizontal.elevation < LOWEST_ALLOWED_ELEVATION {
-                state.most_recent_error = Some(TelescopeError::TargetBelowHorizon);
-                state.commanded_horizontal = None;
+                let mut state_guard = state.lock().unwrap();
+                state_guard.current_direction = Some(current_horizontal);
+                state_guard.most_recent_error = Some(TelescopeError::TargetBelowHorizon);
+                state_guard.commanded_horizontal = None;
                 return Err(TelescopeError::TargetBelowHorizon);
             }
 
-            state.commanded_horizontal = Some(target_horizontal);
-
+            // Controller I/O without holding the lock
             // Check if more than 1 tolerance off, if so we need to send track command
             if !directions_are_close(target_horizontal, current_horizontal, 1.0) {
                 controller.execute(TelescopeCommand::SetDirection(target_horizontal))?;
             }
 
+            let mut state_guard = state.lock().unwrap();
+            state_guard.current_direction = Some(current_horizontal);
+            state_guard.commanded_horizontal = Some(target_horizontal);
+
             Ok(())
         }
         None => {
-            if state.commanded_horizontal.is_some() {
+            // Controller I/O without holding the lock
+            if prev_commanded.is_some() {
                 controller.execute(TelescopeCommand::Stop)?;
-                state.commanded_horizontal = None;
             }
+
+            let mut state_guard = state.lock().unwrap();
+            state_guard.current_direction = Some(current_horizontal);
+            if prev_commanded.is_some() {
+                state_guard.commanded_horizontal = None;
+            }
+
             Ok(())
         }
     }
