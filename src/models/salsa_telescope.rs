@@ -70,7 +70,7 @@ pub fn create(
 
 #[async_trait]
 impl Telescope for SalsaTelescope {
-    async fn get_direction(&self) -> Result<Direction, TelescopeError> {
+    async fn get_direction(&self) -> Option<Direction> {
         let inner = self.inner.lock().await;
         inner.controller.direction()
     }

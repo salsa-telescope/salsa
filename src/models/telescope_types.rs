@@ -40,7 +40,7 @@ pub struct TelescopeInfo {
     pub id: String,
     pub status: TelescopeStatus,
     pub commanded_horizontal: Option<Direction>,
-    pub current_horizontal: Direction,
+    pub current_horizontal: Option<Direction>,
     pub current_target: TelescopeTarget,
     pub most_recent_error: Option<TelescopeError>,
     pub measurement_in_progress: bool,

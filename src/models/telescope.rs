@@ -15,7 +15,7 @@ use tokio::sync::RwLock;
 
 #[async_trait]
 pub trait Telescope: Send + Sync {
-    async fn get_direction(&self) -> Result<Direction, TelescopeError>;
+    async fn get_direction(&self) -> Option<Direction>;
     async fn set_target(&self, target: TelescopeTarget) -> Result<TelescopeTarget, TelescopeError>;
     async fn set_receiver_configuration(
         &self,

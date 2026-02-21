@@ -13,7 +13,7 @@ pub const LOWEST_ALLOWED_ELEVATION: f64 = 5.0f64 / 180.0f64 * std::f64::consts::
 pub struct TelescopeTrackerInfo {
     pub target: TelescopeTarget,
     pub commanded_horizontal: Option<Direction>,
-    pub current_horizontal: Direction,
+    pub current_horizontal: Option<Direction>,
     pub status: TelescopeStatus,
     pub most_recent_error: Option<TelescopeError>,
 }
@@ -26,11 +26,7 @@ pub struct TelescopeTracker {
 impl TelescopeTracker {
     pub fn new(controller_address: String) -> TelescopeTracker {
         let state = Arc::new(Mutex::new(TelescopeTrackerState {
-            // TODO: This should be configurable, probably per telescope
-            target: TelescopeTarget::Galactic {
-                longitude: 140_f64.to_radians(),
-                latitude: 0.0,
-            },
+            target: TelescopeTarget::Parked,
             commanded_horizontal: None,
             stop_tracking_time: None,
             current_direction: None,
@@ -80,13 +76,14 @@ impl TelescopeTracker {
     pub fn info(&self) -> Result<TelescopeTrackerInfo, TelescopeError> {
         let state = self.state.lock().unwrap();
         assert!(!state.quit);
-        let current_horizontal = match state.current_direction {
-            Some(current_horizontal) => current_horizontal,
-            None => return Err(TelescopeError::TelescopeNotConnected),
-        };
+        let current_horizontal = state.current_direction;
         let commanded_horizontal = state.commanded_horizontal;
         let status = match commanded_horizontal {
             Some(commanded_horizontal) => {
+                let Some(current_horizontal) = current_horizontal else {
+                    return Err(TelescopeError::TelescopeNotConnected);
+                };
+
                 // Check if more than 2 tolerances off, if so we are not tracking anymore
                 if directions_are_close(commanded_horizontal, current_horizontal, 2.0) {
                     TelescopeStatus::Tracking
@@ -106,13 +103,10 @@ impl TelescopeTracker {
         })
     }
 
-    pub fn direction(&self) -> Result<Direction, TelescopeError> {
+    pub fn direction(&self) -> Option<Direction> {
         let state = self.state.lock().unwrap();
         assert!(!state.quit);
-        match state.current_direction {
-            Some(current_direction) => Ok(current_direction),
-            None => Err(TelescopeError::TelescopeNotConnected),
-        }
+        state.current_direction
     }
 
     #[allow(dead_code)]
@@ -142,6 +136,14 @@ async fn tracker_task_function(
     while !state.lock().unwrap().quit {
         // 1 Hz update freq
         sleep_until(Instant::now() + Duration::from_secs(1)).await;
+
+        {
+            // If the telscope is parked we don't need to update the position
+            let state_guard = state.lock().unwrap();
+            if state_guard.target == TelescopeTarget::Parked {
+                continue;
+            }
+        }
 
         let mut controller = match TelescopeController::connect(&controller_address) {
             Ok(controller) => controller,

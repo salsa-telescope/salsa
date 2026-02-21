@@ -1,6 +1,8 @@
 <h2 class="mt-4 mb-3">{{ info.id }}</h2>
 <p>Status: {{ status }}</p>
 <p>{{ error }}</p>
+{% if direction.is_some() %}
 <h3>Current horizontal coordinates</h3>
-<p>Azimuth: {{ "{:.3}"|format(direction.azimuth.to_degrees()) }}</p>
-<p>Elevation: {{ "{:.3}"|format(direction.elevation.to_degrees()) }}</p>
+<p>Azimuth: {{ "{:.3}"|format(direction.unwrap().azimuth.to_degrees()) }}</p>
+<p>Elevation: {{ "{:.3}"|format(direction.unwrap().elevation.to_degrees()) }}</p>
+{% endif %}

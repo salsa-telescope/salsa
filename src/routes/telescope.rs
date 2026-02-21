@@ -120,7 +120,7 @@ struct TelescopeStateTemplate {
     info: TelescopeInfo,
     status: String,
     error: String,
-    direction: Direction,
+    direction: Option<Direction>,
 }
 
 pub async fn telescope_state(telescope: &dyn Telescope) -> Result<String, TelescopeError> {
@@ -142,7 +142,7 @@ pub async fn telescope_state(telescope: &dyn Telescope) -> Result<String, Telesc
             },
             None => "".to_string(),
         },
-        direction: telescope.get_direction().await?,
+        direction: telescope.get_direction().await,
     }
     .render()
     .expect("Template rendering should always succeed"))

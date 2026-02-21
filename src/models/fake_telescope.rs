@@ -79,9 +79,9 @@ pub fn create(name: String) -> FakeTelescope {
 
 #[async_trait]
 impl Telescope for FakeTelescope {
-    async fn get_direction(&self) -> Result<Direction, TelescopeError> {
+    async fn get_direction(&self) -> Option<Direction> {
         let inner = self.inner.lock().await;
-        Ok(inner.horizontal)
+        Some(inner.horizontal)
     }
 
     async fn set_target(&self, target: TelescopeTarget) -> Result<TelescopeTarget, TelescopeError> {
@@ -173,7 +173,7 @@ impl Telescope for FakeTelescope {
         Ok(TelescopeInfo {
             id: inner.name.clone(),
             status,
-            current_horizontal: inner.horizontal,
+            current_horizontal: Some(inner.horizontal),
             commanded_horizontal: Some(target_horizontal),
             current_target: inner.target,
             most_recent_error: inner.most_recent_error.clone(),
