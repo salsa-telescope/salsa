@@ -7,7 +7,7 @@ use axum::{
     middleware::Next,
     response::Response,
 };
-use log::debug;
+use tracing::debug;
 
 pub const SESSION_COOKIE_NAME: &str = "session";
 

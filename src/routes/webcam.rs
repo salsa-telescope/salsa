@@ -9,6 +9,7 @@ use axum::{
     routing::get,
 };
 use tokio::sync::Mutex;
+use tracing::error;
 
 use crate::models::user::User;
 use crate::routes::index::render_main;
@@ -46,9 +47,9 @@ pub fn routes(snapshot_url: String) -> Router {
                 match http_client().get(&url_clone).send().await {
                     Ok(resp) => match resp.bytes().await {
                         Ok(bytes) => *cache_clone.lock().await = Some(bytes),
-                        Err(e) => log::error!("Failed to read webcam snapshot body: {e}"),
+                        Err(e) => error!("Failed to read webcam snapshot body: {e}"),
                     },
-                    Err(e) => log::error!("Failed to fetch webcam snapshot: {e}"),
+                    Err(e) => error!("Failed to fetch webcam snapshot: {e}"),
                 }
             }
         });

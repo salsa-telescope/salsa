@@ -1,11 +1,11 @@
 use app::teardown_app;
 use axum_server::tls_rustls::RustlsConfig;
 use clap::Parser;
-use log::info;
 use std::net::SocketAddr;
 use std::net::TcpListener;
 use std::path::PathBuf;
 use tokio::signal;
+use tracing::{error, info};
 
 mod app;
 mod booking_monitor;
@@ -13,6 +13,7 @@ mod coords;
 mod database;
 mod error;
 mod fits;
+mod logging;
 mod middleware;
 mod models;
 mod routes;
@@ -38,13 +39,15 @@ struct Args {
 
     #[arg(long, default_value = ".")]
     config_dir: PathBuf,
+
+    #[arg(long)]
+    log_to_journald: bool,
 }
 
 #[tokio::main]
 async fn main() {
-    env_logger::init();
-
     let args = Args::parse();
+    logging::setup_logging(args.log_to_journald);
 
     let addr = if let Some(port) = args.port {
         SocketAddr::from(([0, 0, 0, 0], port))
@@ -56,7 +59,7 @@ async fn main() {
     booking_monitor::start(state.clone());
 
     let listener = TcpListener::bind(addr).unwrap();
-    log::info!("listening on {}", listener.local_addr().unwrap());
+    info!("listening on {}", listener.local_addr().unwrap());
     if let Some(port) = args.port
         && port == 0
     {
@@ -74,10 +77,9 @@ async fn main() {
             .install_default()
             .expect("Should succeed in setting default crypto provider");
         let cert_file_path = args.cert_file_path.unwrap();
-        log::info!(
+        info!(
             "using tls with key file {} and cert file {}",
-            key_file_path,
-            cert_file_path
+            key_file_path, cert_file_path
         );
         let tls_config = RustlsConfig::from_pem_file(cert_file_path, key_file_path)
             .await
@@ -85,7 +87,7 @@ async fn main() {
 
         let https_port = addr.port();
         let redirect_listener = TcpListener::bind(SocketAddr::from(([0, 0, 0, 0], 80))).unwrap();
-        log::info!("listening for HTTP->HTTPS redirect on port 80");
+        info!("listening for HTTP->HTTPS redirect on port 80");
         let redirect_app = app::create_redirect_app(https_port);
         let redirect_handle = handle.clone();
         tokio::spawn(async move {
@@ -94,7 +96,7 @@ async fn main() {
                 .serve(redirect_app.into_make_service())
                 .await
             {
-                log::error!("HTTP redirect server error: {e}");
+                error!("HTTP redirect server error: {e}");
             }
         });
 

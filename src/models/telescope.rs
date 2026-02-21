@@ -13,6 +13,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::RwLock;
+use tracing::info;
 
 #[async_trait]
 pub trait Telescope: Send + Sync {
@@ -66,7 +67,7 @@ impl TelescopeCollectionHandle {
 }
 
 fn create_telescope(def: TelescopeDefinition, tle_cache: TleCacheHandle) -> Arc<dyn Telescope> {
-    log::info!("Creating telescope {}", def.name);
+    info!("Creating telescope {}", def.name);
     let location = Location {
         longitude: def.location[0].to_radians(),
         latitude: def.location[1].to_radians(),

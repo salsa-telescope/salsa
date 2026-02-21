@@ -4,10 +4,10 @@ use crate::models::telescope_types::{TelescopeError, TelescopeStatus, TelescopeT
 use crate::telescope_controller::{TelescopeCommand, TelescopeController, TelescopeResponse};
 use crate::tle_cache::TleCacheHandle;
 use chrono::{DateTime, Utc};
-use log::{debug, error, info};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::time::{Instant, sleep_until};
+use tracing::{debug, error, info};
 
 pub struct TelescopeTrackerInfo {
     pub target: Option<TelescopeTarget>,
