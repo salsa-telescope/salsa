@@ -47,7 +47,7 @@
             {{ content }}
         </div>
         <footer>
-            Made by weirdos 🦆
+            Made by weirdos 🦆 ({% if build_url == "" %} {{version_description}} {% else %} <a href={{build_url}}>build</a> {% endif %})
         </footer>
     </body>
 </html>

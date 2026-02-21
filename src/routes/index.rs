@@ -13,6 +13,8 @@ use crate::models::user::User;
 struct IndexTemplate {
     name: String,
     content: String,
+    build_url: String,
+    version_description: String,
 }
 
 pub async fn get_index(Extension(user): Extension<Option<User>>) -> Response {
@@ -35,6 +37,8 @@ pub fn render_main(user: Option<User>, content: String) -> String {
             None => String::new(),
         },
         content,
+        build_url: option_env!("BUILD_URL").unwrap_or_default().to_string(),
+        version_description: format!("local build on branch {}", env!("GIT_BRANCH_NAME")),
     }
     .render()
     .expect("Template should always succeed")

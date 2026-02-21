@@ -23,7 +23,7 @@ pub struct Observation {
 }
 
 impl Observation {
-#[allow(clippy::too_many_arguments)]
+    #[allow(clippy::too_many_arguments)]
     pub async fn create(
         connection: Arc<Mutex<Connection>>,
         user: &User,

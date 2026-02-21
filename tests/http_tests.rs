@@ -3,7 +3,7 @@ use reqwest::blocking::Client;
 use reqwest::header::{COOKIE, SET_COOKIE};
 
 mod binary_wrappers;
-pub use binary_wrappers::*;  // Silences any dead code warnings
+pub use binary_wrappers::*; // Silences any dead code warnings
 
 #[test]
 fn can_start_and_stop_backend() {

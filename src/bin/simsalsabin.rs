@@ -1,4 +1,5 @@
 use clap::Parser;
+use log::info;
 use std::io::prelude::*;
 use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::process;
@@ -62,19 +63,22 @@ fn controller_connection(mut stream: TcpStream) {
 }
 
 #[derive(Parser, Debug)]
-#[command(author, version, about, long_about = None)]
+#[command(name = "simsalsabin", author, version, about, long_about = None)]
+#[command(version = "1.0.0")]
 struct Args {
     #[arg(short, long)]
     port: Option<u16>,
 }
 
 fn main() {
+    env_logger::init();
     let args = Args::parse();
     let addr = if let Some(port) = args.port {
         SocketAddr::from(([0, 0, 0, 0], port))
     } else {
         SocketAddr::from(([0, 0, 0, 0], 3001))
     };
+    info!("Starting tcp listener at address {}", addr);
     let listener = match TcpListener::bind(addr) {
         Ok(listener) => listener,
         Err(err) => {
@@ -88,6 +92,7 @@ fn main() {
         // Tests need to know which port to connect to.
         println!("port:{}", listener.local_addr().unwrap().port());
     }
+
     for stream in listener.incoming() {
         match stream {
             Ok(stream) => controller_connection(stream),
