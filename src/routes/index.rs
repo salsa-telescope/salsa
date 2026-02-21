@@ -26,7 +26,17 @@ pub async fn get_index(Extension(user): Extension<Option<User>>) -> Response {
     .into_response()
 }
 
+const GITHUB_SERVER_URL: Option<&'static str> = option_env!("GITHUB_SERVER_URL");
+const GITHUB_REPOSITORY: Option<&'static str> = option_env!("GITHUB_REPOSITORY");
+const GITHUB_RUN_ID: Option<&'static str> = option_env!("GITHUB_RUN_ID");
+
 pub fn render_main(user: Option<User>, content: String) -> String {
+    let build_url = match (GITHUB_SERVER_URL, GITHUB_REPOSITORY, GITHUB_RUN_ID) {
+        (Some(server_url), Some(repository), Some(run_id)) => {
+            format!("{}/{}/actions/runs/{}", server_url, repository, run_id)
+        }
+        _ => String::new(),
+    };
     IndexTemplate {
         name: match user {
             Some(User {
@@ -37,7 +47,7 @@ pub fn render_main(user: Option<User>, content: String) -> String {
             None => String::new(),
         },
         content,
-        build_url: option_env!("BUILD_URL").unwrap_or_default().to_string(),
+        build_url,
         version_description: format!("local build on branch {}", env!("GIT_BRANCH_NAME")),
     }
     .render()
