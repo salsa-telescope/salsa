@@ -14,8 +14,6 @@ base64 = { version = "0.22.*" }
 chrono = { version = "0.4.*", features = ["serde"] }
 clap = { version = "4.*", features = ["derive", "env"] }
 deadpool-sqlite = { version = "0.10", features = ["rt_tokio_1"] }
-env_logger = "0.11.*"
-log = "0.4"
 oauth2 = "5.*"
 rand = "0.9.*"
 rand_distr = "0.5.*"
@@ -31,7 +29,9 @@ tokio = { version = "1.*", features = ["macros", "rt-multi-thread", "signal"] }
 tokio-util = "0.7.*"
 toml = "0.8.*"
 tower-http = { version = "0.6.*", features = ["full"] }
-tracing = "0.1"
+tracing = "0.1.44"
+tracing-journald = "0.3.2"
+tracing-subscriber = {version = "0.3.22", features = ["env-filter"]}
 uhd = "0.3.*"
 
 [dev-dependencies]

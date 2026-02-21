@@ -6,7 +6,6 @@ use axum::{
     response::{Html, IntoResponse, Redirect, Response},
     routing::get,
 };
-use log::{debug, info};
 use oauth2::{
     AuthUrl, AuthorizationCode, ClientId, ClientSecret, CsrfToken, RedirectUrl, Scope,
     TokenResponse, TokenUrl, basic::BasicClient,
@@ -15,6 +14,7 @@ use reqwest::header::USER_AGENT;
 use rusqlite::Result;
 use serde::Deserialize;
 use serde_json::{Map, Value};
+use tracing::{debug, info};
 
 use crate::routes::index::render_main;
 use crate::{app::AppState, error::InternalError};

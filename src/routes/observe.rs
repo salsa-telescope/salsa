@@ -20,11 +20,11 @@ use axum::{
     routing::{get, post},
 };
 use chrono::{Duration, Utc};
-use log::{debug, error};
 use rusqlite::Connection;
 use serde::Deserialize;
 use std::sync::Arc;
 use tokio::sync::Mutex;
+use tracing::{debug, error};
 
 pub fn routes(state: AppState) -> Router {
     let observe_routes = Router::new()

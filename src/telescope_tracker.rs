@@ -3,10 +3,10 @@ use crate::coords::{horizontal_from_equatorial, horizontal_from_galactic};
 use crate::models::telescope_types::{TelescopeError, TelescopeStatus, TelescopeTarget};
 use crate::telescope_controller::{TelescopeCommand, TelescopeController, TelescopeResponse};
 use chrono::{DateTime, TimeDelta, Utc};
-use log::{debug, error, info};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::time::{Instant, sleep_until};
+use tracing::{debug, error, info};
 
 pub const LOWEST_ALLOWED_ELEVATION: f64 = 5.0f64 / 180.0f64 * std::f64::consts::PI;
 

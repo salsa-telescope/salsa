@@ -12,6 +12,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::RwLock;
+use tracing::info;
 
 #[async_trait]
 pub trait Telescope: Send + Sync {
@@ -60,7 +61,7 @@ impl TelescopeCollectionHandle {
 }
 
 fn create_telescope(def: TelescopeDefinition) -> Arc<dyn Telescope> {
-    log::info!("Creating telescope {}", def.name);
+    info!("Creating telescope {}", def.name);
     match def.telescope_type {
         TelescopeType::Salsa => Arc::new(salsa_telescope::create(
             def.name.clone(),

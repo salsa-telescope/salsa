@@ -1,16 +1,17 @@
 use app::teardown_app;
 use axum_server::tls_rustls::RustlsConfig;
 use clap::Parser;
-use log::info;
 use std::net::SocketAddr;
 use std::net::TcpListener;
 use std::path::PathBuf;
 use tokio::signal;
+use tracing::info;
 
 mod app;
 mod coords;
 mod database;
 mod error;
+mod logging;
 mod middleware;
 mod models;
 mod routes;
@@ -35,13 +36,15 @@ struct Args {
 
     #[arg(long, default_value = ".")]
     config_dir: PathBuf,
+
+    #[arg(long)]
+    log_to_journald: bool,
 }
 
 #[tokio::main]
 async fn main() {
-    env_logger::init();
-
     let args = Args::parse();
+    logging::setup_logging(args.log_to_journald);
 
     let addr = if let Some(port) = args.port {
         SocketAddr::from(([0, 0, 0, 0], port))
@@ -52,7 +55,7 @@ async fn main() {
     let (app, state) = app::create_app(&args.config_dir, &args.database_dir).await;
 
     let listener = TcpListener::bind(addr).unwrap();
-    log::info!("listening on {}", listener.local_addr().unwrap());
+    info!("listening on {}", listener.local_addr().unwrap());
     if let Some(port) = args.port
         && port == 0
     {
@@ -70,10 +73,9 @@ async fn main() {
             .install_default()
             .expect("Should succeed in setting default crypto provider");
         let cert_file_path = args.cert_file_path.unwrap();
-        log::info!(
+        info!(
             "using tls with key file {} and cert file {}",
-            key_file_path,
-            cert_file_path
+            key_file_path, cert_file_path
         );
         let tls_config = RustlsConfig::from_pem_file(cert_file_path, key_file_path)
             .await

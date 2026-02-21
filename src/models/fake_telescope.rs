@@ -7,13 +7,13 @@ use crate::models::telescope_types::{
 };
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use log::debug;
 use rand::Rng;
 use rand_distr::StandardNormal;
 use std::f64::consts::PI;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Mutex;
+use tracing::{debug, error, info, trace};
 
 const FAKE_TELESCOPE_PARKING_HORIZONTAL: Direction = Direction {
     azimuth: 0.0,
@@ -67,7 +67,7 @@ pub fn create(name: String) -> FakeTelescope {
             {
                 let mut inner = task_inner.lock().await;
                 if let Err(error) = inner.update(TELESCOPE_UPDATE_INTERVAL) {
-                    log::error!("Failed to update telescope: {}", error);
+                    error!("Failed to update telescope: {}", error);
                 }
             }
             tokio::time::sleep(TELESCOPE_UPDATE_INTERVAL).await;
@@ -93,17 +93,15 @@ impl Telescope for FakeTelescope {
 
         let target_horizontal = calculate_target_horizontal(inner.location, Utc::now(), target);
         if target_horizontal.elevation < LOWEST_ALLOWED_ELEVATION {
-            log::info!(
+            info!(
                 "Refusing to set target for telescope {} to {:?}. Target is below horizon",
-                &inner.name,
-                &target
+                &inner.name, &target
             );
             Err(TelescopeError::TargetBelowHorizon)
         } else {
-            log::info!(
+            info!(
                 "Setting target for telescope {} to {:?}",
-                &inner.name,
-                &target
+                &inner.name, &target
             );
             inner.target = target;
             Ok(target)
@@ -117,10 +115,10 @@ impl Telescope for FakeTelescope {
         let mut inner = self.inner.lock().await;
 
         if receiver_configuration.integrate && !inner.receiver_configuration.integrate {
-            log::info!("Starting integration");
+            info!("Starting integration");
             inner.receiver_configuration.integrate = true;
         } else if !receiver_configuration.integrate && inner.receiver_configuration.integrate {
-            log::info!("Stopping integration");
+            info!("Stopping integration");
             inner.receiver_configuration.integrate = false;
         }
         Ok(inner.receiver_configuration)
@@ -196,7 +194,7 @@ impl Inner {
         let target_horizontal = calculate_target_horizontal(self.location, now, self.target);
 
         if target_horizontal.elevation < LOWEST_ALLOWED_ELEVATION {
-            log::info!(
+            info!(
                 "Stopping telescope since target {:?} set below horizon.",
                 &self.target
             );
@@ -211,7 +209,7 @@ impl Inner {
         }
 
         if self.receiver_configuration.integrate {
-            log::trace!("Pushing spectum...");
+            trace!("Pushing spectum...");
             self.current_spectra.push(create_fake_spectra(delta_time))
         }
 

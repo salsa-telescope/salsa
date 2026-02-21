@@ -1,8 +1,8 @@
 use deadpool_sqlite::{CreatePoolError, PoolError};
-use log::debug;
 use rusqlite::Connection;
 use std::path::PathBuf;
 use thiserror::Error;
+use tracing::debug;
 
 #[derive(Debug, Error)]
 pub enum SqliteDatabaseError {

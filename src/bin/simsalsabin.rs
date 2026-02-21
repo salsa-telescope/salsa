@@ -1,8 +1,8 @@
 use clap::Parser;
-use log::info;
 use std::io::prelude::*;
 use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::process;
+use tracing::info;
 
 fn handle(request: &[u8]) -> [u8; 12] {
     if request
@@ -71,7 +71,6 @@ struct Args {
 }
 
 fn main() {
-    env_logger::init();
     let args = Args::parse();
     let addr = if let Some(port) = args.port {
         SocketAddr::from(([0, 0, 0, 0], port))
