@@ -170,7 +170,7 @@ async fn tracker_task_function(
             if let Some(stop_telescope_time) = state_guard.stop_tracking_time
                 && stop_telescope_time < Utc::now()
             {
-                state_guard.commanded_horizontal = None;
+                state_guard.target = TelescopeTarget::Parked;
                 state_guard.stop_tracking_time = None;
                 debug!("Stopped tracking due to timeout");
             }
