@@ -62,7 +62,7 @@ impl TelescopeTracker {
         let mut state = self.state.lock().unwrap();
         assert!(!state.quit);
         state.target = target;
-        state.stop_tracking_time = Some(Utc::now() + TimeDelta::seconds(10));
+        state.stop_tracking_time = Some(Utc::now() + TimeDelta::hours(1));
         Ok(target)
     }
 
