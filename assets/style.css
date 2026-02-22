@@ -194,3 +194,139 @@ a.action:link,
 a.action:visited {
     color: #ce54c4;
 }
+
+/* Calendar navigation */
+.calendar-nav {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    margin-bottom: 12px;
+}
+.calendar-nav-btn {
+    padding: 4px 12px;
+    border: 1px solid var(--gray300);
+    border-radius: 4px;
+    background: white;
+    cursor: pointer;
+    font-size: 14px;
+}
+.calendar-nav-btn:hover {
+    background: var(--gray300);
+}
+.calendar-nav-label {
+    font-weight: 600;
+    font-size: 15px;
+}
+
+/* Calendar legend */
+.calendar-legend {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 16px;
+    font-size: 13px;
+}
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+.legend-swatch {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border-radius: 2px;
+    border: 1px solid #ccc;
+}
+
+/* Calendar grid */
+.calendar-grid-wrapper {
+    overflow-x: auto;
+    margin-bottom: 24px;
+}
+.calendar-grid {
+    width: 100%;
+    table-layout: fixed;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+.calendar-header-cell {
+    position: sticky;
+    top: 0;
+    background: var(--primary-color);
+    color: white;
+    padding: 6px 4px;
+    text-align: center;
+    font-weight: 500;
+    font-size: 12px;
+    min-width: 80px;
+}
+.calendar-hour-label {
+    width: 56px;
+    min-width: 56px;
+    max-width: 56px;
+    text-align: right;
+    padding-right: 6px;
+    font-size: 11px;
+    color: #666;
+    white-space: nowrap;
+}
+
+/* Slot base */
+.calendar-slot {
+    height: 22px;
+    min-width: 80px;
+    border: 1px solid #e0e0e0;
+    cursor: default;
+}
+
+/* Free — clickable green */
+.calendar-slot-free {
+    background: #c8e6c9;
+    cursor: pointer;
+}
+.calendar-slot-free:hover {
+    background: #81c784;
+}
+
+/* Mine — blue */
+.calendar-slot-mine {
+    background: #90caf9;
+    cursor: pointer;
+}
+.calendar-slot-mine:hover {
+    background: #64b5f6;
+}
+
+/* Mine active — indigo with pulse */
+.calendar-slot-mine-active {
+    background: #7986cb;
+    cursor: pointer;
+    animation: slot-pulse 2s ease-in-out infinite;
+}
+@keyframes slot-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+}
+
+/* Other user — red */
+.calendar-slot-other {
+    background: #ef9a9a;
+}
+
+/* Past — gray */
+.calendar-slot-past {
+    background: #e0e0e0;
+}
+
+/* Current hour highlight */
+.calendar-slot-current {
+    outline: 2px solid var(--primary-color);
+    outline-offset: -2px;
+}
+
+/* HTMX loading feedback */
+.htmx-request .calendar-grid {
+    opacity: 0.5;
+    pointer-events: none;
+}
