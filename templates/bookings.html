@@ -60,7 +60,6 @@
   <div class="calendar-legend">
     <span class="legend-item"><span class="legend-swatch calendar-slot-free"></span> Free</span>
     <span class="legend-item"><span class="legend-swatch calendar-slot-mine"></span> My booking</span>
-    <span class="legend-item"><span class="legend-swatch calendar-slot-mine-active"></span> Active now</span>
     <span class="legend-item"><span class="legend-swatch calendar-slot-other"></span> Booked</span>
     <span class="legend-item"><span class="legend-swatch calendar-slot-past"></span> Past</span>
   </div>
@@ -106,9 +105,11 @@
               title="My booking — click to cancel">
           </td>
           {% when SlotStatus::MineActive %}
-          <td class="calendar-slot calendar-slot-mine-active"
-              title="Active now — click to observe"
-              onclick="window.location='/observe/{{ slot.telescope_name }}'">
+          <td class="calendar-slot calendar-slot-mine{% if slot.is_current_hour %} calendar-slot-current{% endif %}"
+              hx-delete="/bookings/{{ slot.booking_id.unwrap() }}?week={{ week_start }}"
+              hx-target="#page"
+              hx-confirm="Cancel this booking?"
+              title="My booking (active now) — click to cancel">
           </td>
           {% when SlotStatus::OtherUser %}
           <td class="calendar-slot calendar-slot-other"

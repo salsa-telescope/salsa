@@ -310,17 +310,6 @@ a.action:visited {
     background: #64b5f6;
 }
 
-/* Mine active — indigo with pulse */
-.calendar-slot-mine-active {
-    background: #7986cb;
-    cursor: pointer;
-    animation: slot-pulse 2s ease-in-out infinite;
-}
-@keyframes slot-pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.6; }
-}
-
 /* Other user — red */
 .calendar-slot-other {
     background: #ef9a9a;
