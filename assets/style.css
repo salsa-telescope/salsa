@@ -195,13 +195,79 @@ a.action:visited {
     color: #ce54c4;
 }
 
+/* My bookings list */
+.my-bookings-list {
+    border: 1px solid var(--gray300);
+    border-radius: 6px;
+    overflow: hidden;
+    max-width: 540px;
+}
+.my-booking-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 14px;
+    background: white;
+}
+.my-booking-row + .my-booking-row {
+    border-top: 1px solid var(--gray300);
+}
+.my-booking-info {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+}
+.my-booking-telescope {
+    font-weight: 600;
+    font-size: 14px;
+}
+.my-booking-time {
+    font-size: 13px;
+    color: #555;
+}
+.my-booking-actions {
+    display: flex;
+    gap: 8px;
+}
+.my-booking-btn {
+    padding: 3px 10px;
+    border: 1px solid var(--gray300);
+    border-radius: 4px;
+    background: white;
+    font-size: 13px;
+    cursor: pointer;
+    text-decoration: none;
+    color: inherit;
+}
+.my-booking-btn:hover {
+    background: var(--gray300);
+}
+.my-booking-observe {
+    color: #7b1fa2;
+    border-color: #ce93d8;
+}
+.my-booking-observe:hover {
+    background: #f3e5f5;
+}
+.my-booking-delete {
+    color: #c62828;
+    border-color: #ef9a9a;
+}
+.my-booking-delete:hover {
+    background: #ffebee;
+}
+
 /* Calendar navigation */
 .calendar-nav {
     display: flex;
     align-items: center;
-    justify-content: center;
     gap: 16px;
     margin-bottom: 12px;
+}
+.calendar-nav-title {
+    font-weight: 600;
+    font-size: 130%;
+    margin-right: auto;
 }
 .calendar-nav-btn {
     padding: 4px 12px;

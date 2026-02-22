@@ -1,24 +1,24 @@
 <div class="section light">
   {% if !my_bookings.is_empty() %}
   <h2 class="mt-4 mb-3">My upcoming bookings</h2>
-  <div class="space-y-2">
+  <div class="my-bookings-list">
     {% for booking in my_bookings %}
-    <div class="flex items-center justify-between max-w-xl">
-      <div>
-        {{ booking.start_time.format("%Y-%m-%d %H:%M") }} to {{ booking.end_time.format("%H:%M") }} UTC:
-        {{ booking.telescope_name }}
-        {% if booking.active_at(now) %}
-        <a href="observe/{{ booking.telescope_name }}" class="action">Observe now!</a>
-        {% endif %}
+    <div class="my-booking-row">
+      <div class="my-booking-info">
+        <span class="my-booking-telescope">{{ booking.telescope_name }}</span>
+        <span class="my-booking-time">{{ booking.start_time.format("%Y-%m-%d %H:%M") }}&ndash;{{ booking.end_time.format("%H:%M") }} UTC</span>
       </div>
-
-      <button
-        hx-delete="bookings/{{ booking.id }}?week={{ week_start }}"
-        hx-target="#page"
-        class="px-1 bg-red-900 text-semi-bold text-red-100 rounded-md hover:bg-red-700"
-      >
-        Delete
-      </button>
+      <div class="my-booking-actions">
+        {% if booking.active_at(now) %}
+        <a href="observe/{{ booking.telescope_name }}" class="my-booking-btn my-booking-observe">Observe</a>
+        {% endif %}
+        <button
+          hx-delete="bookings/{{ booking.id }}?week={{ week_start }}"
+          hx-target="#page"
+          hx-confirm="Delete this booking?"
+          class="my-booking-btn my-booking-delete"
+        >Delete</button>
+      </div>
     </div>
     {% endfor %}
   </div>
@@ -28,13 +28,12 @@
   <div class="notification-area error">{{ e }}</div>
   {% endfor %}
 
-  <h2 class="mb-3 mt-4">Book telescope</h2>
-
-  <div class="calendar-nav">
-    <button hx-get="/bookings?week={{ prev_week }}" hx-target="#page" class="calendar-nav-btn">&larr; Previous week</button>
+  <div class="calendar-nav mt-4">
+    <span class="calendar-nav-title">Book telescope &mdash; weekly view</span>
+    <button hx-get="/bookings?week={{ prev_week }}" hx-target="#page" class="calendar-nav-btn">&larr; Prev</button>
     <button hx-get="/bookings" hx-target="#page" class="calendar-nav-btn calendar-today-btn">Today</button>
     <span class="calendar-nav-label">{{ week_start.format("%b %d") }} &ndash; {{ week_end.format("%b %d, %Y") }}</span>
-    <button hx-get="/bookings?week={{ next_week }}" hx-target="#page" class="calendar-nav-btn">Next week &rarr;</button>
+    <button hx-get="/bookings?week={{ next_week }}" hx-target="#page" class="calendar-nav-btn">Next &rarr;</button>
   </div>
 
   <div class="calendar-info">
@@ -49,7 +48,7 @@
       <span class="legend-item"><span class="legend-swatch calendar-slot-other"></span> Booked</span>
       <span class="legend-item"><span class="legend-swatch calendar-slot-past"></span> Past</span>
     </div>
-    <p class="calendar-help">All times are in UTC. Click a green slot to book it. Click a blue slot to cancel.</p>
+    <p class="calendar-help">All times are in UTC. Click a green slot to book it. Click a blue slot to cancel. Scroll down for more telescopes.</p>
   </div>
 
   <script>
@@ -68,7 +67,7 @@
   </script>
 
   {% for tel_idx in 0..telescope_names.len() %}
-  <h3 class="mt-4 mb-2">{{ telescope_names[tel_idx] }}</h3>
+  <h3 class="mt-4 mb-2">Telescope: {{ telescope_names[tel_idx] }}</h3>
   <div class="calendar-grid-wrapper">
     <table class="calendar-grid">
       <thead>
