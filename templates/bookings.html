@@ -30,16 +30,26 @@
 
   <h2 class="mb-3 mt-4">Book telescope</h2>
 
-  <p class="booking-slots-info">
-    {{ upcoming_count }} of {{ max_upcoming_bookings }} booking slots used
-    &nbsp;&middot;&nbsp; Current time: <span id="utc-clock" class="utc-clock"></span>
-  </p>
-
   <div class="calendar-nav">
     <button hx-get="/bookings?week={{ prev_week }}" hx-target="#page" class="calendar-nav-btn">&larr; Previous week</button>
     <button hx-get="/bookings" hx-target="#page" class="calendar-nav-btn calendar-today-btn">Today</button>
     <span class="calendar-nav-label">{{ week_start.format("%b %d") }} &ndash; {{ week_end.format("%b %d, %Y") }}</span>
     <button hx-get="/bookings?week={{ next_week }}" hx-target="#page" class="calendar-nav-btn">Next week &rarr;</button>
+  </div>
+
+  <div class="calendar-info">
+    <div class="calendar-info-row">
+      <span>{{ upcoming_count }} of {{ max_upcoming_bookings }} booking slots used</span>
+      <span>&middot;</span>
+      <span>Current time: <span id="utc-clock" class="utc-clock"></span></span>
+    </div>
+    <div class="calendar-legend">
+      <span class="legend-item"><span class="legend-swatch calendar-slot-free"></span> Free</span>
+      <span class="legend-item"><span class="legend-swatch calendar-slot-mine"></span> My booking</span>
+      <span class="legend-item"><span class="legend-swatch calendar-slot-other"></span> Booked</span>
+      <span class="legend-item"><span class="legend-swatch calendar-slot-past"></span> Past</span>
+    </div>
+    <p class="calendar-help">All times are in UTC. Click a green slot to book it. Click a blue slot to cancel.</p>
   </div>
 
   <script>
@@ -56,14 +66,6 @@
     setInterval(updateClock, 1000);
   })();
   </script>
-
-  <div class="calendar-legend">
-    <span class="legend-item"><span class="legend-swatch calendar-slot-free"></span> Free</span>
-    <span class="legend-item"><span class="legend-swatch calendar-slot-mine"></span> My booking</span>
-    <span class="legend-item"><span class="legend-swatch calendar-slot-other"></span> Booked</span>
-    <span class="legend-item"><span class="legend-swatch calendar-slot-past"></span> Past</span>
-  </div>
-  <p class="calendar-help">All times are in UTC. Click a green slot to book it. Click a blue slot to cancel.</p>
 
   {% for tel_idx in 0..telescope_names.len() %}
   <h3 class="mt-4 mb-2">{{ telescope_names[tel_idx] }}</h3>
