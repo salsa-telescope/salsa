@@ -329,6 +329,12 @@ a.action:visited {
     background: #ef9a9a;
 }
 
+/* Disabled — at booking limit */
+.calendar-slot-disabled {
+    background: #e8e8e8;
+    cursor: not-allowed;
+}
+
 /* Past — gray */
 .calendar-slot-past {
     background: #e0e0e0;

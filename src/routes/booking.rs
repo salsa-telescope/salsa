@@ -128,6 +128,7 @@ struct BookingsTemplate {
     slots: Vec<Vec<Vec<CalendarSlot>>>,
     upcoming_count: usize,
     max_upcoming_bookings: u32,
+    at_limit: bool,
 }
 
 async fn get_bookings(
@@ -295,6 +296,7 @@ async fn build_bookings_page(
 
     let upcoming_count = my_bookings.len();
     let max_upcoming_bookings = state.booking_config.max_upcoming_bookings;
+    let at_limit = upcoming_count as u32 >= max_upcoming_bookings;
 
     let content = BookingsTemplate {
         my_bookings,
@@ -310,6 +312,7 @@ async fn build_bookings_page(
         slots,
         upcoming_count,
         max_upcoming_bookings,
+        at_limit,
     }
     .render()
     .expect("Template rendering should always succeed");

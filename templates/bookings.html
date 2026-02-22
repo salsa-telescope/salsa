@@ -58,6 +58,7 @@
   <div class="calendar-legend">
     <span class="legend-item"><span class="legend-swatch calendar-slot-free"></span> Free</span>
     <span class="legend-item"><span class="legend-swatch calendar-slot-mine"></span> My booking</span>
+    <span class="legend-item"><span class="legend-swatch calendar-slot-mine-active"></span> Active now</span>
     <span class="legend-item"><span class="legend-swatch calendar-slot-other"></span> Booked</span>
     <span class="legend-item"><span class="legend-swatch calendar-slot-past"></span> Past</span>
   </div>
@@ -82,12 +83,19 @@
           {% let slot = slots[tel_idx][day_idx][hour as usize] %}
           {% match slot.status %}
           {% when SlotStatus::Free %}
+          {% if at_limit %}
+          <td class="calendar-slot calendar-slot-disabled{% if slot.is_current_hour %} calendar-slot-current{% endif %}"
+              title="Booking limit reached">
+          </td>
+          {% else %}
           <td class="calendar-slot calendar-slot-free{% if slot.is_current_hour %} calendar-slot-current{% endif %}"
               hx-post="/bookings"
               hx-target="#page"
+              hx-confirm="Book {{ slot.telescope_name }} at {{ slot.start_time.format("%H:%M") }} UTC on {{ slot.start_time.format("%a %b %d") }}?"
               hx-vals='{"start_timestamp": {{ slot.start_time.timestamp() }}, "telescope": "{{ slot.telescope_name }}", "week": "{{ week_start }}"}'
               title="Book {{ slot.telescope_name }} at {{ slot.start_time.format("%Y-%m-%d %H:%M") }} UTC">
           </td>
+          {% endif %}
           {% when SlotStatus::Mine %}
           <td class="calendar-slot calendar-slot-mine{% if slot.is_current_hour %} calendar-slot-current{% endif %}"
               hx-delete="/bookings/{{ slot.booking_id.unwrap() }}?week={{ week_start }}"
