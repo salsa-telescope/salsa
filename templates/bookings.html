@@ -30,11 +30,30 @@
 
   <h2 class="mb-3 mt-4">Book telescope</h2>
 
+  <p class="booking-slots-info">{{ upcoming_count }} of {{ max_upcoming_bookings }} booking slots used</p>
+
   <div class="calendar-nav">
     <button hx-get="/bookings?week={{ prev_week }}" hx-target="#page" class="calendar-nav-btn">&larr; Previous week</button>
-    <span class="calendar-nav-label">{{ week_start.format("%b %d") }} &ndash; {{ week_end.format("%b %d, %Y") }} (UTC)</span>
+    <button hx-get="/bookings" hx-target="#page" class="calendar-nav-btn calendar-today-btn">Today</button>
+    <span class="calendar-nav-label">{{ week_start.format("%b %d") }} &ndash; {{ week_end.format("%b %d, %Y") }}</span>
+    <span id="utc-clock" class="utc-clock"></span>
     <button hx-get="/bookings?week={{ next_week }}" hx-target="#page" class="calendar-nav-btn">Next week &rarr;</button>
   </div>
+
+  <script>
+  (function() {
+    function updateClock() {
+      var now = new Date();
+      var h = String(now.getUTCHours()).padStart(2, '0');
+      var m = String(now.getUTCMinutes()).padStart(2, '0');
+      var s = String(now.getUTCSeconds()).padStart(2, '0');
+      var el = document.getElementById('utc-clock');
+      if (el) el.textContent = h + ':' + m + ':' + s + ' UTC';
+    }
+    updateClock();
+    setInterval(updateClock, 1000);
+  })();
+  </script>
 
   <div class="calendar-legend">
     <span class="legend-item"><span class="legend-swatch calendar-slot-free"></span> Free</span>

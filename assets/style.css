@@ -214,9 +214,24 @@ a.action:visited {
 .calendar-nav-btn:hover {
     background: var(--gray300);
 }
+.calendar-today-btn {
+    font-weight: 600;
+}
 .calendar-nav-label {
     font-weight: 600;
     font-size: 15px;
+}
+.utc-clock {
+    font-family: 'Roboto Mono', monospace;
+    font-size: 13px;
+    background: var(--gray300);
+    padding: 4px 8px;
+    border-radius: 4px;
+}
+.booking-slots-info {
+    font-size: 14px;
+    color: #555;
+    margin-bottom: 8px;
 }
 
 /* Calendar legend */

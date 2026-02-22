@@ -17,10 +17,10 @@ impl SalsaTestServer {
         let database_dir =
             TempDir::new("database_dir").expect("Need to be able to create tempdir in test");
         copy(
-            "telescopes.toml",
-            database_dir.path().join("telescopes.toml"),
+            "config.toml",
+            database_dir.path().join("config.toml"),
         )
-        .expect("Need to be able to copy telescopes.toml in test");
+        .expect("Need to be able to copy config.toml in test");
         let backend_executable = env!("CARGO_BIN_EXE_backend");
         let mut process = Command::new(backend_executable)
             .args([

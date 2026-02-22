@@ -35,7 +35,6 @@ pub enum SlotStatus {
 #[derive(Debug, Clone)]
 pub struct CalendarSlot {
     pub start_time: DateTime<Utc>,
-    pub end_time: DateTime<Utc>,
     pub telescope_name: String,
     pub status: SlotStatus,
     pub booking_id: Option<i64>,
@@ -90,7 +89,6 @@ fn build_calendar_slots(
 
                 day_slots.push(CalendarSlot {
                     start_time,
-                    end_time,
                     telescope_name: telescope.clone(),
                     status,
                     booking_id,
@@ -128,6 +126,8 @@ struct BookingsTemplate {
     days: Vec<NaiveDate>,
     hours: Vec<u32>,
     slots: Vec<Vec<Vec<CalendarSlot>>>,
+    upcoming_count: usize,
+    max_upcoming_bookings: u32,
 }
 
 async fn get_bookings(
@@ -188,7 +188,19 @@ async fn create_booking(
     };
 
     let bookings = Booking::fetch_all(state.database_connection.clone()).await?;
-    let error = if !bookings
+    let max_upcoming = state.booking_config.max_upcoming_bookings;
+    let upcoming_count = Booking::fetch_for_user(state.database_connection.clone(), &user)
+        .await?
+        .into_iter()
+        .filter(|b| b.end_time > now)
+        .count();
+
+    let error = if upcoming_count as u32 >= max_upcoming {
+        Some(format!(
+            "You have reached the maximum of {} upcoming bookings.",
+            max_upcoming,
+        ))
+    } else if !bookings
         .iter()
         .filter(|b| b.telescope_name == booking.telescope_name && b.overlaps(&booking))
         .any(|_| true)
@@ -281,6 +293,9 @@ async fn build_bookings_page(
 
     let slots = build_calendar_slots(week_start, &telescope_names, &all_bookings, user, now);
 
+    let upcoming_count = my_bookings.len();
+    let max_upcoming_bookings = state.booking_config.max_upcoming_bookings;
+
     let content = BookingsTemplate {
         my_bookings,
         telescope_names,
@@ -293,6 +308,8 @@ async fn build_bookings_page(
         days,
         hours,
         slots,
+        upcoming_count,
+        max_upcoming_bookings,
     }
     .render()
     .expect("Template rendering should always succeed");
