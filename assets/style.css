@@ -232,10 +232,15 @@ a.action:visited {
 }
 
 /* Calendar legend */
+.calendar-help {
+    font-size: 13px;
+    color: #777;
+    margin-bottom: 16px;
+}
 .calendar-legend {
     display: flex;
     gap: 16px;
-    margin-bottom: 16px;
+    margin-bottom: 4px;
     font-size: 13px;
 }
 .legend-item {
