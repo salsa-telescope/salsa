@@ -30,13 +30,15 @@
 
   <h2 class="mb-3 mt-4">Book telescope</h2>
 
-  <p class="booking-slots-info">{{ upcoming_count }} of {{ max_upcoming_bookings }} booking slots used</p>
+  <p class="booking-slots-info">
+    {{ upcoming_count }} of {{ max_upcoming_bookings }} booking slots used
+    &nbsp;&middot;&nbsp; Current time: <span id="utc-clock" class="utc-clock"></span>
+  </p>
 
   <div class="calendar-nav">
     <button hx-get="/bookings?week={{ prev_week }}" hx-target="#page" class="calendar-nav-btn">&larr; Previous week</button>
     <button hx-get="/bookings" hx-target="#page" class="calendar-nav-btn calendar-today-btn">Today</button>
     <span class="calendar-nav-label">{{ week_start.format("%b %d") }} &ndash; {{ week_end.format("%b %d, %Y") }}</span>
-    <span id="utc-clock" class="utc-clock"></span>
     <button hx-get="/bookings?week={{ next_week }}" hx-target="#page" class="calendar-nav-btn">Next week &rarr;</button>
   </div>
 

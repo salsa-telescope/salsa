@@ -223,10 +223,7 @@ a.action:visited {
 }
 .utc-clock {
     font-family: 'Roboto Mono', monospace;
-    font-size: 13px;
-    background: var(--gray300);
-    padding: 4px 8px;
-    border-radius: 4px;
+    font-size: 14px;
 }
 .booking-slots-info {
     font-size: 14px;
