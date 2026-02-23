@@ -56,10 +56,7 @@ fn build_calendar_slots(
             let day = week_start + Duration::days(day_offset);
             let mut day_slots = Vec::new();
             for hour in 0..24 {
-                let start_time = day
-                    .and_hms_opt(hour, 0, 0)
-                    .unwrap()
-                    .and_utc();
+                let start_time = day.and_hms_opt(hour, 0, 0).unwrap().and_utc();
                 let end_time = start_time + Duration::hours(1);
 
                 let is_current_hour = now >= start_time && now < end_time;
@@ -171,8 +168,8 @@ async fn create_booking(
     };
 
     let now = Utc::now();
-    let start_time = DateTime::<Utc>::from_timestamp(form.start_timestamp, 0)
-        .ok_or(StatusCode::BAD_REQUEST)?;
+    let start_time =
+        DateTime::<Utc>::from_timestamp(form.start_timestamp, 0).ok_or(StatusCode::BAD_REQUEST)?;
     let end_time = start_time + Duration::hours(1);
 
     if !state.telescopes.contains_key(&form.telescope).await {
@@ -279,18 +276,23 @@ async fn build_bookings_page(
     error: Option<String>,
 ) -> Result<String, StatusCode> {
     let week_end = week_start + Duration::days(6);
-    let prev_week = (week_start - Duration::weeks(1)).format("%Y-%m-%d").to_string();
-    let next_week = (week_start + Duration::weeks(1)).format("%Y-%m-%d").to_string();
+    let prev_week = (week_start - Duration::weeks(1))
+        .format("%Y-%m-%d")
+        .to_string();
+    let next_week = (week_start + Duration::weeks(1))
+        .format("%Y-%m-%d")
+        .to_string();
     let days: Vec<NaiveDate> = (0..7).map(|d| week_start + Duration::days(d)).collect();
     let hours: Vec<u32> = (0..24).collect();
 
     let telescope_names = state.telescopes.get_names().await;
     let all_bookings = Booking::fetch_all(state.database_connection.clone()).await?;
-    let my_bookings: Vec<Booking> = Booking::fetch_for_user(state.database_connection.clone(), user)
-        .await?
-        .into_iter()
-        .filter(|b| b.end_time > now)
-        .collect();
+    let my_bookings: Vec<Booking> =
+        Booking::fetch_for_user(state.database_connection.clone(), user)
+            .await?
+            .into_iter()
+            .filter(|b| b.end_time > now)
+            .collect();
 
     let slots = build_calendar_slots(week_start, &telescope_names, &all_bookings, user, now);
 

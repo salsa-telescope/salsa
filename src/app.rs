@@ -59,8 +59,8 @@ pub async fn create_app(config_dir: &Path, database_dir: &Path) -> (Router, AppS
             .expect("failed to create sqlite database"),
     ));
     let config_path = config_dir.join("config.toml");
-    let config_str = std::fs::read_to_string(&config_path)
-        .expect("config.toml should exist and be readable");
+    let config_str =
+        std::fs::read_to_string(&config_path).expect("config.toml should exist and be readable");
     let salsa_config: SalsaConfig =
         toml::from_str(&config_str).expect("config.toml should be valid toml");
     let booking_config = Arc::new(salsa_config.bookings);
