@@ -1,4 +1,5 @@
 use crate::app::AppState;
+use crate::coords::vlsrcorr_from_galactic;
 use crate::models::booking::booking_is_active;
 use crate::models::observation::Observation;
 use crate::models::telescope::Telescope;
@@ -7,7 +8,6 @@ use crate::models::telescope_types::{
 };
 use crate::models::user::User;
 use crate::routes::index::render_main;
-use crate::coords::vlsrcorr_from_galactic;
 use crate::routes::telescope::telescope_state;
 
 use askama::Template;
@@ -145,9 +145,12 @@ async fn save_latest_observation(
             latitude.to_degrees(),
             Some(vlsrcorr_from_galactic(longitude, latitude, start_time)),
         ),
-        TelescopeTarget::Horizontal { azimuth, elevation } => {
-            ("horizontal", azimuth.to_degrees(), elevation.to_degrees(), None)
-        }
+        TelescopeTarget::Horizontal { azimuth, elevation } => (
+            "horizontal",
+            azimuth.to_degrees(),
+            elevation.to_degrees(),
+            None,
+        ),
         TelescopeTarget::Parked => ("horizontal", 0.0, 0.0, None),
     };
 

@@ -8,16 +8,35 @@ function loadObservation(id) {
       return res.json();
     })
     .then((data) => {
+      // Highlight selected observation row
+      document.querySelectorAll("[id^='obs-row-']").forEach((el) => {
+        el.classList.remove("bg-indigo-50", "border-indigo-300");
+        el.classList.add("border-transparent");
+      });
+      const selectedRow = document.getElementById(`obs-row-${id}`);
+      if (selectedRow) {
+        selectedRow.classList.remove("border-transparent");
+        selectedRow.classList.add("bg-indigo-50", "border-indigo-300");
+      }
+
       const container = document.getElementById("observation-chart");
       container.style.display = "block";
+
+      // Update title with observation summary
+      const title = document.getElementById("observation-title");
+      if (title) {
+        const startTime = new Date(data.start_time).toUTCString();
+        const intTime = Math.round(data.integration_time_secs);
+        title.textContent = `${data.telescope_id} — ${data.coordinate_system} (${data.target_x.toFixed(1)}, ${data.target_y.toFixed(1)}) — ${intTime}s — ${startTime}`;
+      }
 
       // Remove any previous SVG
       const existing = container.querySelector("svg");
       if (existing) existing.remove();
 
-      const width = 800;
-      const height = 600;
-      const margin = 50;
+      const width = 640;
+      const height = 420;
+      const margin = 60;
 
       const vlsrCorrection = data.vlsr_correction_mps;
       let showVlsr = vlsrCorrection !== null && vlsrCorrection !== undefined;
@@ -69,15 +88,16 @@ function loadObservation(id) {
       const xAxisG = svg
         .append("g")
         .attr("transform", `translate(0,${height - margin})`)
-        .call(d3.axisBottom(x).ticks(width / 160).tickSizeOuter(0));
+        .call(d3.axisBottom(x).ticks(width / 160).tickSizeOuter(0))
+        .call((g) => g.selectAll("text").attr("font-size", "13px"));
 
       // x-axis label
       const xLabel = svg
         .append("text")
         .attr("x", width / 2)
-        .attr("y", height - 10)
+        .attr("y", height - 8)
         .attr("text-anchor", "middle")
-        .attr("font-size", "13px")
+        .attr("font-size", "15px")
         .text(showVlsr ? "VLSR (km/s)" : "Frequency (MHz)");
 
       // y-axis
@@ -85,14 +105,18 @@ function loadObservation(id) {
         .append("g")
         .attr("transform", `translate(${margin},0)`)
         .call(d3.axisLeft(y).ticks(height / 80))
-        .call((g) =>
-          g
-            .append("text")
-            .attr("x", -margin)
-            .attr("y", 10)
-            .attr("text-anchor", "start")
-            .text("Amplitude"),
-        );
+        .call((g) => g.selectAll("text").attr("font-size", "13px"));
+
+      // y-axis label
+      svg
+        .append("text")
+        .attr("transform", `rotate(-90)`)
+        .attr("x", -(height / 2))
+        .attr("y", 15)
+        .attr("text-anchor", "middle")
+        .attr("font-size", "15px")
+        .attr("fill", "black")
+        .text("Amplitude");
 
       // Line
       const lineFn = d3
@@ -156,7 +180,8 @@ function loadObservation(id) {
             const newData = getDisplayData();
             const newXExtent = d3.extent(newData, (d) => d.x);
             x.domain(newXExtent);
-            xAxisG.call(d3.axisBottom(x).ticks(width / 160).tickSizeOuter(0));
+            xAxisG.call(d3.axisBottom(x).ticks(width / 160).tickSizeOuter(0))
+              .call((g) => g.selectAll("text").attr("font-size", "13px"));
             xLabel.text(showVlsr ? "VLSR (km/s)" : "Frequency (MHz)");
             path.datum(newData).attr("d", lineFn);
           };

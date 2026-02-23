@@ -64,15 +64,18 @@ function get_telescope_from_location() {
   const yAxis = svg
     .append("g")
     .attr("transform", `translate(${margin},0)`)
-    .call(d3.axisLeft(y).ticks(height / 80))
-    .call((g) =>
-      g
-        .append("text")
-        .attr("x", -margin)
-        .attr("y", 10)
-        .attr("text-anchor", "start")
-        .text("Amplitude"),
-    );
+    .call(d3.axisLeft(y).ticks(height / 80));
+
+  // y-axis label
+  svg
+    .append("text")
+    .attr("transform", `rotate(-90)`)
+    .attr("x", -(height / 2))
+    .attr("y", 15)
+    .attr("text-anchor", "middle")
+    .attr("font-size", "15px")
+    .attr("fill", "black")
+    .text("Amplitude");
   svg
     .append("path")
     .attr("class", "line")
