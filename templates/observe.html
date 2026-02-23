@@ -3,13 +3,13 @@
   <h1>Observing using {{ info.id }}</h1>
   <div id="errors"></div>
   <div id="chart">
-    <button id="observe-axis-toggle" style="display: none;"
-      onclick="toggleObserveAxis()"
-      class="px-2 py-1 mb-2 bg-gray-200 text-sm rounded hover:bg-gray-300">
-      Show frequency
-    </button>
     <!-- FIXME: maybe don't reload this javascript on each htmx fetch of this page? -->
     <script src="/observe_chart.js"></script>
+    <button id="observe-axis-toggle" style="display: none;"
+      onclick="toggleObserveAxis()"
+      class="px-2 py-1 mt-1 bg-gray-200 text-sm rounded hover:bg-gray-300">
+      Show frequency
+    </button>
   </div>
   <h2 class="mt-4 mb-3">Target</h2>
   <form class="space-y-2">

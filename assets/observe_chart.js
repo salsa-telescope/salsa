@@ -79,7 +79,14 @@ function get_telescope_from_location() {
     .attr("fill", "none")
     .attr("stroke", "steelblue")
     .attr("stroke-width", 1.5);
-  document.currentScript.parentElement.appendChild(svg.node());
+  // Insert SVG before the toggle button so the button appears below the chart
+  const chartContainer = document.currentScript.parentElement;
+  const toggleBtn = document.getElementById("observe-axis-toggle");
+  if (toggleBtn) {
+    chartContainer.insertBefore(svg.node(), toggleBtn);
+  } else {
+    chartContainer.appendChild(svg.node());
+  }
   // Tooltip for displaying coordinates
   const tooltip = svg.append("text")
         .attr("id", "tooltip")

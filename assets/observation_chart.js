@@ -137,10 +137,15 @@ function loadObservation(id) {
           tooltip.text("");
         });
 
-      container.appendChild(svg.node());
+      // Insert SVG before the toggle button so the button appears below the chart
+      const btn = document.getElementById("observation-axis-toggle");
+      if (btn) {
+        container.insertBefore(svg.node(), btn);
+      } else {
+        container.appendChild(svg.node());
+      }
 
       // Toggle button
-      const btn = document.getElementById("observation-axis-toggle");
       if (btn) {
         if (vlsrCorrection !== null && vlsrCorrection !== undefined) {
           btn.style.display = "";
