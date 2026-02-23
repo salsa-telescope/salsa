@@ -1,63 +1,131 @@
 <div class="section light">
-  {% if my_bookings.len() > 0 %}
-  <h2 class="mt-4 mb-3">My bookings</h2>
-  <div class="space-y-2">
+  {% if !my_bookings.is_empty() %}
+  <h2 class="mt-4 mb-3">My upcoming bookings</h2>
+  <div class="my-bookings-list">
     {% for booking in my_bookings %}
-    <div class="flex items-center justify-between max-w-xl">
-      <div>
-        {{ booking.start_time.naive_local() }} to {{ booking.end_time.naive_local() }}:
-        {{ booking.telescope_name }}
-        {% if booking.active_at(now) %}
-        <a href="observe/{{ booking.telescope_name }}" class="action">Observe now!</a>
-        {% endif %}
+    <div class="my-booking-row">
+      <div class="my-booking-info">
+        <span class="my-booking-telescope">{{ booking.telescope_name }}</span>
+        <span class="my-booking-time">{{ booking.start_time.format("%Y-%m-%d %H:%M") }}&ndash;{{ booking.end_time.format("%H:%M") }} UTC</span>
       </div>
-
-      <button
-        hx-delete="bookings/{{ booking.id }}"
-        hx-target="#page"
-        class="px-1 bg-red-900 text-semi-bold text-red-100 rounded-md hover:bg-red-700"
-      >
-        Delete
-      </button>
+      <div class="my-booking-actions">
+        {% if booking.active_at(now) %}
+        <a href="observe/{{ booking.telescope_name }}" class="my-booking-btn my-booking-observe">Observe</a>
+        {% endif %}
+        <button
+          hx-delete="bookings/{{ booking.id }}?week={{ week_start }}"
+          hx-target="#page"
+          hx-confirm="Delete this booking?"
+          class="my-booking-btn my-booking-delete"
+        >Delete</button>
+      </div>
     </div>
     {% endfor %}
   </div>
   {% endif %}
-  <h2 class="mt-4 mb-3">Bookings</h2>
-  <div class="space-y-2">
-    {% for booking in bookings %}
-    <div>
-        {{ booking.start_time.naive_local() }} to {{ booking.end_time.naive_local() }}:
-        {{ booking.telescope_name }}
-    </div>
-    {% endfor %}
-  </div>
-  <h2 class="mb-3 mt-4">Book telescope</h2>
+
   {% for e in error %}
   <div class="notification-area error">{{ e }}</div>
   {% endfor %}
-  <form hx-post="/bookings" hx-target="#page" class="space-y-2">
-    <div>
-      <label for="start_date">Date</label>
-      <input type="date" id="start_date" name="start_date" class="border rounded px-1 bg-white mx-1" />
+
+  <div class="calendar-nav mt-4">
+    <span class="calendar-nav-title">Book telescope &mdash; weekly view</span>
+    <button hx-get="/bookings?week={{ prev_week }}" hx-target="#page" class="calendar-nav-btn">&larr; Prev</button>
+    <button hx-get="/bookings" hx-target="#page" class="calendar-nav-btn calendar-today-btn">Today</button>
+    <span class="calendar-nav-label">{{ week_start.format("%b %d") }} &ndash; {{ week_end.format("%b %d, %Y") }}</span>
+    <button hx-get="/bookings?week={{ next_week }}" hx-target="#page" class="calendar-nav-btn">Next &rarr;</button>
+  </div>
+
+  <div class="calendar-info">
+    <div class="calendar-info-row">
+      <span>{{ upcoming_count }} of {{ max_upcoming_bookings }} booking slots used</span>
+      <span>&middot;</span>
+      <span>Current time: <span id="utc-clock" class="utc-clock"></span></span>
     </div>
-    <div>
-      <label for="start_time">Time</label>
-      <input type="time" id="start_time" name="start_time" class="border rounded px-1 bg-white mx-1" />
+    <div class="calendar-legend">
+      <span class="legend-item"><span class="legend-swatch calendar-slot-free"></span> Free</span>
+      <span class="legend-item"><span class="legend-swatch calendar-slot-mine"></span> My booking</span>
+      <span class="legend-item"><span class="legend-swatch calendar-slot-other"></span> Booked</span>
+      <span class="legend-item"><span class="legend-swatch calendar-slot-past"></span> Past</span>
     </div>
-    <div>
-      <label for="duration">Duration</label>
-      <input type="text" id="duration" name="duration" class="border rounded px-1 bg-white mx-1" />
-    </div>
-    <div>
-      <label for="telescope">Telescope</label>
-      <select name="telescope" id="telescope" class="border rounded px-1 bg-white mx-1">
-        <option value="">Select telescope</option>
-        {% for name in telescope_names %}
-        <option value="{{ name }}">{{ name }}</option>
+    <p class="calendar-help">All times are in UTC. Click a green slot to book it. Click a blue slot to cancel. Scroll down for more telescopes.</p>
+  </div>
+
+  <script>
+  (function() {
+    function updateClock() {
+      var now = new Date();
+      var h = String(now.getUTCHours()).padStart(2, '0');
+      var m = String(now.getUTCMinutes()).padStart(2, '0');
+      var s = String(now.getUTCSeconds()).padStart(2, '0');
+      var el = document.getElementById('utc-clock');
+      if (el) el.textContent = h + ':' + m + ':' + s + ' UTC';
+    }
+    updateClock();
+    setInterval(updateClock, 1000);
+  })();
+  </script>
+
+  {% for tel_idx in 0..telescope_names.len() %}
+  <h3 class="mt-4 mb-2">Telescope: {{ telescope_names[tel_idx] }}</h3>
+  <div class="calendar-grid-wrapper">
+    <table class="calendar-grid">
+      <thead>
+        <tr>
+          <th class="calendar-hour-label">UTC</th>
+          {% for day in days %}
+          <th class="calendar-header-cell">{{ day.format("%a %d") }}</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for hour in hours %}
+        <tr>
+          <td class="calendar-hour-label">{{ hour }}:00</td>
+          {% for day_idx in 0..7 %}
+          {% let slot = slots[tel_idx][day_idx][hour as usize] %}
+          {% match slot.status %}
+          {% when SlotStatus::Free %}
+          {% if at_limit %}
+          <td class="calendar-slot calendar-slot-disabled{% if slot.is_current_hour %} calendar-slot-current{% endif %}"
+              title="Booking limit reached">
+          </td>
+          {% else %}
+          <td class="calendar-slot calendar-slot-free{% if slot.is_current_hour %} calendar-slot-current{% endif %}"
+              hx-post="/bookings"
+              hx-target="#page"
+              hx-confirm="Book {{ slot.telescope_name }} at {{ slot.start_time.format("%H:%M") }} UTC on {{ slot.start_time.format("%a %b %d") }}?"
+              hx-vals='{"start_timestamp": {{ slot.start_time.timestamp() }}, "telescope": "{{ slot.telescope_name }}", "week": "{{ week_start }}"}'
+              title="Book {{ slot.telescope_name }} at {{ slot.start_time.format("%Y-%m-%d %H:%M") }} UTC">
+          </td>
+          {% endif %}
+          {% when SlotStatus::Mine %}
+          <td class="calendar-slot calendar-slot-mine{% if slot.is_current_hour %} calendar-slot-current{% endif %}"
+              hx-delete="/bookings/{{ slot.booking_id.unwrap() }}?week={{ week_start }}"
+              hx-target="#page"
+              hx-confirm="Cancel this booking?"
+              title="My booking — click to cancel">
+          </td>
+          {% when SlotStatus::MineActive %}
+          <td class="calendar-slot calendar-slot-mine{% if slot.is_current_hour %} calendar-slot-current{% endif %}"
+              hx-delete="/bookings/{{ slot.booking_id.unwrap() }}?week={{ week_start }}"
+              hx-target="#page"
+              hx-confirm="Cancel this booking?"
+              title="My booking (active now) — click to cancel">
+          </td>
+          {% when SlotStatus::OtherUser %}
+          <td class="calendar-slot calendar-slot-other"
+              title="Booked by another user">
+          </td>
+          {% when SlotStatus::Past %}
+          <td class="calendar-slot calendar-slot-past">
+          </td>
+          {% endmatch %}
+          {% endfor %}
+        </tr>
         {% endfor %}
-      </select>
-    </div>
-    <button type="submit" class="px-2 py-1 bg-indigo-600 text-white rounded-md hover:bg-indigo-500">Book</button>
-  </form>
+      </tbody>
+    </table>
+  </div>
+  {% endfor %}
 </div>

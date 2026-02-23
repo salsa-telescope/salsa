@@ -17,12 +17,7 @@ fn create_booking_not_logged_in_isnt_allowed() {
     let client = Client::new();
     let res = client
         .post(server.addr() + "/bookings")
-        .form(&[
-            ("start_date", "2025-07-01"),
-            ("start_time", "02:00:00"),
-            ("telescope", "fake1"),
-            ("duration", "1"),
-        ])
+        .form(&[("start_timestamp", "1751331600"), ("telescope", "fake1")])
         .send()
         .expect("Should be able to send request");
 

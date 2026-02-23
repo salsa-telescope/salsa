@@ -194,3 +194,223 @@ a.action:link,
 a.action:visited {
     color: #ce54c4;
 }
+
+/* My bookings list */
+.my-bookings-list {
+    border: 1px solid var(--gray300);
+    border-radius: 6px;
+    overflow: hidden;
+    max-width: 540px;
+}
+.my-booking-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 14px;
+    background: white;
+}
+.my-booking-row + .my-booking-row {
+    border-top: 1px solid var(--gray300);
+}
+.my-booking-info {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+}
+.my-booking-telescope {
+    font-weight: 600;
+    font-size: 14px;
+}
+.my-booking-time {
+    font-size: 13px;
+    color: #555;
+}
+.my-booking-actions {
+    display: flex;
+    gap: 8px;
+}
+.my-booking-btn {
+    padding: 3px 10px;
+    border: 1px solid var(--gray300);
+    border-radius: 4px;
+    background: white;
+    font-size: 13px;
+    cursor: pointer;
+    text-decoration: none;
+    color: inherit;
+}
+.my-booking-btn:hover {
+    background: var(--gray300);
+}
+.my-booking-observe {
+    color: #7b1fa2;
+    border-color: #ce93d8;
+}
+.my-booking-observe:hover {
+    background: #f3e5f5;
+}
+.my-booking-delete {
+    color: #c62828;
+    border-color: #ef9a9a;
+}
+.my-booking-delete:hover {
+    background: #ffebee;
+}
+
+/* Calendar navigation */
+.calendar-nav {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 12px;
+}
+.calendar-nav-title {
+    font-weight: 600;
+    font-size: 130%;
+    margin-right: auto;
+}
+.calendar-nav-btn {
+    padding: 4px 12px;
+    border: 1px solid var(--gray300);
+    border-radius: 4px;
+    background: white;
+    cursor: pointer;
+    font-size: 14px;
+}
+.calendar-nav-btn:hover {
+    background: var(--gray300);
+}
+.calendar-today-btn {
+    font-weight: 600;
+}
+.calendar-nav-label {
+    font-weight: 600;
+    font-size: 15px;
+}
+/* Calendar info box */
+.calendar-info {
+    background: white;
+    border: 1px solid var(--gray300);
+    border-radius: 6px;
+    padding: 10px 14px;
+    margin-bottom: 16px;
+    font-size: 13px;
+    color: #555;
+}
+.calendar-info-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 6px;
+}
+.utc-clock {
+    font-family: 'Roboto Mono', monospace;
+}
+.calendar-help {
+    color: #777;
+    margin: 4px 0 0;
+}
+.calendar-legend {
+    display: flex;
+    gap: 16px;
+    font-size: 13px;
+}
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+.legend-swatch {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border-radius: 2px;
+    border: 1px solid #ccc;
+}
+
+/* Calendar grid */
+.calendar-grid-wrapper {
+    overflow-x: auto;
+    margin-bottom: 24px;
+}
+.calendar-grid {
+    width: 100%;
+    table-layout: fixed;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+.calendar-header-cell {
+    position: sticky;
+    top: 0;
+    background: var(--primary-color);
+    color: white;
+    padding: 6px 4px;
+    text-align: center;
+    font-weight: 500;
+    font-size: 12px;
+    min-width: 80px;
+}
+.calendar-hour-label {
+    width: 56px;
+    min-width: 56px;
+    max-width: 56px;
+    text-align: right;
+    padding-right: 6px;
+    font-size: 11px;
+    color: #666;
+    white-space: nowrap;
+}
+
+/* Slot base */
+.calendar-slot {
+    height: 22px;
+    min-width: 80px;
+    border: 1px solid #e0e0e0;
+    cursor: default;
+}
+
+/* Free — clickable green */
+.calendar-slot-free {
+    background: #c8e6c9;
+    cursor: pointer;
+}
+.calendar-slot-free:hover {
+    background: #81c784;
+}
+
+/* Mine — blue */
+.calendar-slot-mine {
+    background: #90caf9;
+    cursor: pointer;
+}
+.calendar-slot-mine:hover {
+    background: #64b5f6;
+}
+
+/* Other user — red */
+.calendar-slot-other {
+    background: #ef9a9a;
+}
+
+/* Disabled — at booking limit */
+.calendar-slot-disabled {
+    background: #e8e8e8;
+    cursor: not-allowed;
+}
+
+/* Past — gray */
+.calendar-slot-past {
+    background: #e0e0e0;
+}
+
+/* Current hour highlight */
+.calendar-slot-current {
+    outline: 2px solid var(--primary-color);
+    outline-offset: -2px;
+}
+
+/* HTMX loading feedback */
+.htmx-request .calendar-grid {
+    opacity: 0.5;
+    pointer-events: none;
+}

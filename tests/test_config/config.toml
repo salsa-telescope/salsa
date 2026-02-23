@@ -1,3 +1,6 @@
+[bookings]
+max_upcoming_bookings = 6
+
 [[telescopes]]
 name = "fake1"
 enabled = true
