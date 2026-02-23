@@ -94,7 +94,6 @@
           <td class="calendar-slot calendar-slot-free{% if slot.is_current_hour %} calendar-slot-current{% endif %}"
               hx-post="/bookings"
               hx-target="#page"
-              hx-confirm="Book {{ slot.telescope_name }} at {{ slot.start_time.format("%H:%M") }} UTC on {{ slot.start_time.format("%a %b %d") }}?"
               hx-vals='{"start_timestamp": {{ slot.start_time.timestamp() }}, "telescope": "{{ slot.telescope_name }}", "week": "{{ week_start }}"}'
               title="Book {{ slot.telescope_name }} at {{ slot.start_time.format("%Y-%m-%d %H:%M") }} UTC">
           </td>
