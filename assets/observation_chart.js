@@ -1,3 +1,15 @@
+function autoLoadFirstObservation() {
+  const chart = document.getElementById("observation-chart");
+  const firstRow = document.querySelector("[id^='obs-row-']");
+  if (firstRow && chart && chart.style.display === "none") {
+    const id = parseInt(firstRow.id.replace("obs-row-", ""));
+    loadObservation(id);
+  }
+}
+
+document.addEventListener("htmx:afterSettle", autoLoadFirstObservation);
+document.addEventListener("DOMContentLoaded", autoLoadFirstObservation);
+
 function loadObservation(id) {
   const C = 299792458; // m/s
   const F_REST = 1420.405751e6; // Hz
@@ -70,10 +82,13 @@ function loadObservation(id) {
       const yExtent = d3.extent(points, (d) => d.y);
       const yPadding = (yExtent[1] - yExtent[0]) * 0.05;
 
-      const x = d3.scaleLinear().domain(xExtent).range([margin, width - margin]);
+      let fullXDomain = xExtent.slice();
+      let fullYDomain = [yExtent[0] - yPadding, yExtent[1] + yPadding];
+
+      const x = d3.scaleLinear().domain(fullXDomain).range([margin, width - margin]);
       const y = d3
         .scaleLinear()
-        .domain([yExtent[0] - yPadding, yExtent[1] + yPadding])
+        .domain(fullYDomain)
         .nice()
         .range([height - margin, margin]);
 
@@ -83,6 +98,16 @@ function loadObservation(id) {
         .attr("height", height)
         .attr("viewBox", [0, 0, width, height])
         .attr("style", "max-width: 100%; height: auto;");
+
+      // Clip path to keep line inside plot area when zoomed
+      svg.append("defs")
+        .append("clipPath")
+        .attr("id", "plot-clip")
+        .append("rect")
+        .attr("x", margin)
+        .attr("y", margin)
+        .attr("width", width - 2 * margin)
+        .attr("height", height - 2 * margin);
 
       // x-axis
       const xAxisG = svg
@@ -130,6 +155,7 @@ function loadObservation(id) {
         .attr("fill", "none")
         .attr("stroke", "steelblue")
         .attr("stroke-width", 1.5)
+        .attr("clip-path", "url(#plot-clip)")
         .attr("d", lineFn);
 
       // Tooltip
@@ -142,14 +168,45 @@ function loadObservation(id) {
         .attr("font-size", "12px")
         .attr("fill", "black");
 
-      svg
-        .append("rect")
-        .attr("width", width - 2 * margin)
-        .attr("height", height - 2 * margin)
-        .attr("x", margin)
-        .attr("y", margin)
-        .style("fill", "none")
-        .style("pointer-events", "all")
+      // Zoom helpers
+      function visibleYDomain(currentData, xDom) {
+        const visible = currentData.filter((d) => d.x >= xDom[0] && d.x <= xDom[1]);
+        if (visible.length === 0) return fullYDomain;
+        const yMin = d3.min(visible, (d) => d.y);
+        const yMax = d3.max(visible, (d) => d.y);
+        const pad = (yMax - yMin) * 0.05 || 1;
+        return [yMin - pad, yMax + pad];
+      }
+
+      function redraw(currentData, xDom, yDom) {
+        x.domain(xDom);
+        y.domain(yDom).nice();
+        xAxisG.call(d3.axisBottom(x).ticks(width / 160).tickSizeOuter(0))
+          .call((g) => g.selectAll("text").attr("font-size", "13px"));
+        yAxisG.call(d3.axisLeft(y).ticks(height / 80))
+          .call((g) => g.selectAll("text").attr("font-size", "13px"));
+        path.datum(currentData).attr("d", lineFn);
+      }
+
+      // Brush for zoom
+      const brush = d3.brush()
+        .extent([[margin, margin], [width - margin, height - margin]])
+        .on("end", function (event) {
+          if (!event.selection) return;
+          const [[px0, py0], [px1, py1]] = event.selection;
+          const x0 = x.invert(px0), x1 = x.invert(px1);
+          const y0 = y.invert(py1), y1 = y.invert(py0); // py inverted: top is max
+          const currentData = getDisplayData();
+          redraw(currentData, [x0, x1], [y0, y1]);
+          brushG.call(brush.move, null);
+        });
+
+      const brushG = svg.append("g")
+        .attr("class", "brush")
+        .call(brush);
+
+      // Tooltip on brush overlay
+      brushG.select("rect.overlay")
         .on("mousemove", function (event) {
           const [mouseX, mouseY] = d3.pointer(event);
           const xValue = x.invert(mouseX).toFixed(2);
@@ -160,6 +217,15 @@ function loadObservation(id) {
         .on("mouseout", function () {
           tooltip.text("");
         });
+
+      // Double-click to reset zoom
+      brushG.on("dblclick", function (event) {
+        event.stopPropagation();
+        redraw(getDisplayData(), fullXDomain, fullYDomain);
+      });
+
+      // Keep tooltip text on top
+      tooltip.raise();
 
       // Insert SVG before the toggle button so the button appears below the chart
       const btn = document.getElementById("observation-axis-toggle");
@@ -179,11 +245,12 @@ function loadObservation(id) {
             btn.textContent = showVlsr ? "Show frequency" : "Show VLSR";
             const newData = getDisplayData();
             const newXExtent = d3.extent(newData, (d) => d.x);
-            x.domain(newXExtent);
-            xAxisG.call(d3.axisBottom(x).ticks(width / 160).tickSizeOuter(0))
-              .call((g) => g.selectAll("text").attr("font-size", "13px"));
+            const newYExtent = d3.extent(newData, (d) => d.y);
+            const newPad = (newYExtent[1] - newYExtent[0]) * 0.05;
+            fullXDomain = newXExtent.slice();
+            fullYDomain = [newYExtent[0] - newPad, newYExtent[1] + newPad];
             xLabel.text(showVlsr ? "VLSR (km/s)" : "Frequency (MHz)");
-            path.datum(newData).attr("d", lineFn);
+            redraw(newData, fullXDomain, fullYDomain);
           };
         } else {
           btn.style.display = "none";
