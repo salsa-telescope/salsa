@@ -1,3 +1,15 @@
+function autoLoadFirstObservation() {
+  const chart = document.getElementById("observation-chart");
+  const firstRow = document.querySelector("[id^='obs-row-']");
+  if (firstRow && chart && chart.style.display === "none") {
+    const id = parseInt(firstRow.id.replace("obs-row-", ""));
+    loadObservation(id);
+  }
+}
+
+document.addEventListener("htmx:afterSettle", autoLoadFirstObservation);
+document.addEventListener("DOMContentLoaded", autoLoadFirstObservation);
+
 function loadObservation(id) {
   const C = 299792458; // m/s
   const F_REST = 1420.405751e6; // Hz
