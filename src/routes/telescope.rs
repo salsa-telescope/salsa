@@ -1,11 +1,11 @@
 use std::sync::Arc;
 
 use crate::app::AppState;
-use crate::coords::Direction;
+use crate::coords::{Direction, vlsrcorr_from_galactic};
 use crate::models::booking::booking_is_active;
 use crate::models::telescope::Telescope;
 use crate::models::telescope_types::TelescopeStatus;
-use crate::models::telescope_types::{TelescopeError, TelescopeInfo};
+use crate::models::telescope_types::{TelescopeError, TelescopeInfo, TelescopeTarget};
 use crate::models::user::User;
 use askama::Template;
 use axum::Extension;
@@ -18,6 +18,7 @@ use axum::{
     response::{Html, IntoResponse, Response},
     routing::{any, get},
 };
+use chrono::Utc;
 use tokio::time::Duration;
 use tokio_util::bytes::Bytes;
 
@@ -52,6 +53,25 @@ async fn spectrum_handle_upgrade(
 }
 
 async fn spectrum_handle_websocket(mut socket: WebSocket, telescope: Arc<dyn Telescope>) {
+    // Send one-time JSON metadata with VLSR correction
+    if let Ok(info) = telescope.get_info().await {
+        let vlsr_correction_mps = match info.current_target {
+            TelescopeTarget::Galactic {
+                longitude,
+                latitude,
+            } => Some(vlsrcorr_from_galactic(longitude, latitude, Utc::now())),
+            _ => None,
+        };
+        let json = serde_json::json!({ "vlsr_correction_mps": vlsr_correction_mps });
+        if socket
+            .send(Message::Text(json.to_string().into()))
+            .await
+            .is_err()
+        {
+            return;
+        }
+    }
+
     loop {
         let info = telescope.get_info().await;
         // Somehow signal the error ...

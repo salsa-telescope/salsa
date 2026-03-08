@@ -198,7 +198,6 @@ pub fn horizontal_from_sun(location: Location, when: DateTime<Utc>) -> Direction
     horizontal_from_equatorial(location, when, ra, dec)
 }
 
-#[allow(dead_code)] // TODO: Remove when used.
 pub fn vlsrcorr_from_galactic(l: f64, b: f64, when: DateTime<Utc>) -> f64 {
     // From http://web.mit.edu/8.13/www/srt_software/vlsr.pdf
 

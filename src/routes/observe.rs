@@ -1,4 +1,5 @@
 use crate::app::AppState;
+use crate::coords::vlsrcorr_from_galactic;
 use crate::models::booking::booking_is_active;
 use crate::models::observation::Observation;
 use crate::models::telescope::Telescope;
@@ -121,7 +122,11 @@ async fn save_latest_observation(
         return;
     };
 
-    let (coordinate_system, target_x, target_y) = match info.current_target {
+    let integration_time_secs = spectra.observation_time.as_secs_f64();
+    let start_time =
+        Utc::now() - Duration::milliseconds(spectra.observation_time.as_millis() as i64);
+
+    let (coordinate_system, target_x, target_y, vlsr_correction_mps) = match info.current_target {
         TelescopeTarget::Equatorial {
             right_ascension,
             declination,
@@ -129,20 +134,25 @@ async fn save_latest_observation(
             "equatorial",
             right_ascension.to_degrees(),
             declination.to_degrees(),
+            None,
         ),
         TelescopeTarget::Galactic {
             longitude,
             latitude,
-        } => ("galactic", longitude.to_degrees(), latitude.to_degrees()),
-        TelescopeTarget::Horizontal { azimuth, elevation } => {
-            ("horizontal", azimuth.to_degrees(), elevation.to_degrees())
-        }
-        TelescopeTarget::Parked => ("horizontal", 0.0, 0.0),
+        } => (
+            "galactic",
+            longitude.to_degrees(),
+            latitude.to_degrees(),
+            Some(vlsrcorr_from_galactic(longitude, latitude, start_time)),
+        ),
+        TelescopeTarget::Horizontal { azimuth, elevation } => (
+            "horizontal",
+            azimuth.to_degrees(),
+            elevation.to_degrees(),
+            None,
+        ),
+        TelescopeTarget::Parked => ("horizontal", 0.0, 0.0, None),
     };
-
-    let integration_time_secs = spectra.observation_time.as_secs_f64();
-    let start_time =
-        Utc::now() - Duration::milliseconds(spectra.observation_time.as_millis() as i64);
 
     let frequencies_json = match serde_json::to_string(&spectra.frequencies) {
         Ok(json) => json,
@@ -170,6 +180,7 @@ async fn save_latest_observation(
         integration_time_secs,
         &frequencies_json,
         &amplitudes_json,
+        vlsr_correction_mps,
     )
     .await
     {
