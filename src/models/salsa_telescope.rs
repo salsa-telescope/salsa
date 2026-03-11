@@ -92,6 +92,7 @@ impl Telescope for SalsaTelescope {
 
             log::info!("Starting integration");
             inner.receiver_configuration.integrate = true;
+            inner.measurements.lock().await.clear();
             let cancellation_token = CancellationToken::new();
             let measurement_task = {
                 let address = inner.receiver_address.clone();

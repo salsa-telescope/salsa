@@ -118,6 +118,7 @@ impl Telescope for FakeTelescope {
 
         if receiver_configuration.integrate && !inner.receiver_configuration.integrate {
             log::info!("Starting integration");
+            inner.current_spectra.clear();
             inner.receiver_configuration.integrate = true;
         } else if !receiver_configuration.integrate && inner.receiver_configuration.integrate {
             log::info!("Stopping integration");
