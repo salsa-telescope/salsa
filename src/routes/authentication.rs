@@ -100,7 +100,7 @@ async fn redirect_to_auth_provider(
         .add_extra_param("prompt".to_string(), "none".to_string())
         .url();
 
-    let link_user_id = user.map(|u| u.id);
+    let link_user_id = user.as_ref().map(|u| u.id);
     start_oauth2_login(
         state.database_connection.clone(),
         &provider,
@@ -108,17 +108,23 @@ async fn redirect_to_auth_provider(
         link_user_id,
     )
     .await?;
-    let cookie = format!(
-        "{}={}; SameSite=Lax; HttpOnly; Secure; Path=/",
-        SESSION_COOKIE_NAME,
-        token.secret()
-    );
 
     let mut headers = HeaderMap::new();
-    headers.insert(
-        SET_COOKIE,
-        HeaderValue::from_str(&cookie).expect("cookie will always be valid"),
-    );
+
+    // Only overwrite the session cookie with the CSRF token during a fresh login.
+    // When linking a new provider the user is already logged in, so we must not
+    // clobber their existing session cookie.
+    if user.is_none() {
+        let cookie = format!(
+            "{}={}; SameSite=Lax; HttpOnly; Secure; Path=/",
+            SESSION_COOKIE_NAME,
+            token.secret()
+        );
+        headers.insert(
+            SET_COOKIE,
+            HeaderValue::from_str(&cookie).expect("cookie will always be valid"),
+        );
+    }
 
     info!("Sending user to {provider} to authenticate");
 
