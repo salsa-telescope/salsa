@@ -17,9 +17,11 @@
           <div class="inline-flex items-center gap-4 bg-gray-100 px-4 py-2 rounded">
             <img src="/oauth-{{ provider }}.svg" class="size-5"/>
             <span class="font-medium">{{ provider | title }}</span>
+            {% if linked_providers.len() > 1 %}
             <form method="post" action="/auth/account/unlink/{{ provider }}">
               <button type="submit" class="text-sm text-red-600 hover:text-red-800 cursor-pointer">Unlink</button>
             </form>
+            {% endif %}
           </div>
           {% endfor %}
         </div>
