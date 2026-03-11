@@ -35,12 +35,14 @@
                         <a href="/auth/login">Login</a>
                     </li>
                     {% else %}
-                    <li class="list-entry">
-                        <div>
-                            Logged in as {{ name }}
-                            <a href="/auth/account">Account</a>
-                            <a href="/auth/logout">Log out</a>
-                        </div>
+                    <li class="nav-label">
+                        <span>{{ name }}</span>
+                    </li>
+                    <li>
+                        <a href="/auth/account">Account</a>
+                    </li>
+                    <li>
+                        <a href="/auth/logout">Log out</a>
                     </li>
                     {% endif %}
                 </menu>

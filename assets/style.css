@@ -150,6 +150,11 @@ nav menu li * {
     margin: 0 20px;
 }
 
+nav menu li.nav-label:hover {
+    background-color: transparent;
+    cursor: default;
+}
+
 footer {
     /* TODO: Need less contrast here */
     color: var(--gray300);
