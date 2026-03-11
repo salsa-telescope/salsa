@@ -4,7 +4,7 @@ use axum::{
     extract::{Path, Query, State},
     http::{HeaderMap, HeaderValue, StatusCode, header::SET_COOKIE},
     response::{Html, IntoResponse, Redirect, Response},
-    routing::get,
+    routing::{get, post},
 };
 use log::{debug, info};
 use oauth2::{
@@ -24,7 +24,7 @@ use crate::{
 };
 use crate::{
     middleware::session::{SESSION_COOKIE_NAME, get_session_token},
-    models::user::User,
+    models::user::{LinkResult, UnlinkResult, User},
 };
 
 pub fn routes(state: AppState) -> Router {
@@ -33,6 +33,8 @@ pub fn routes(state: AppState) -> Router {
         .route("/login", get(login))
         .route("/logout", get(logout))
         .route("/redirect/{provider_name}", get(redirect_to_auth_provider))
+        .route("/account", get(account_page))
+        .route("/account/unlink/{provider}", post(unlink_identity_handler))
         .with_state(state)
 }
 
@@ -75,12 +77,13 @@ async fn login(State(state): State<AppState>) -> Result<impl IntoResponse, Inter
 }
 
 // 2. We redirect the user to auth provider (e.g. Discord) where they authorize our app.
+// If the user is already logged in, we store their user_id so we can link the new identity
+// to their existing account when they return.
 async fn redirect_to_auth_provider(
     Path(provider): Path<String>,
     State(state): State<AppState>,
+    Extension(user): Extension<Option<User>>,
 ) -> Result<impl IntoResponse, InternalError> {
-    // To know that we're the originator of the request when the user comes back from OAuth2 provider
-
     let auth_provider = state.secrets.get_auth_provider(&provider)?;
     let client = BasicClient::new(ClientId::new(auth_provider.client_id.clone()))
         .set_auth_uri(
@@ -97,7 +100,14 @@ async fn redirect_to_auth_provider(
         .add_extra_param("prompt".to_string(), "none".to_string())
         .url();
 
-    start_oauth2_login(state.database_connection.clone(), &provider, &token).await?;
+    let link_user_id = user.map(|u| u.id);
+    start_oauth2_login(
+        state.database_connection.clone(),
+        &provider,
+        &token,
+        link_user_id,
+    )
+    .await?;
     let cookie = format!(
         "{}={}; SameSite=Lax; HttpOnly; Secure; Path=/",
         SESSION_COOKIE_NAME,
@@ -128,9 +138,9 @@ async fn authenticate_from_oauth2(
     State(state): State<AppState>,
 ) -> Result<Response, InternalError> {
     debug!("Coming back from OAuth2 provider");
-    let provider_name =
+    let (provider_name, link_user_id) =
         match complete_oauth2_login(state.database_connection.clone(), &query.state).await {
-            Ok(provider) => provider,
+            Ok(result) => result,
             Err(err) => {
                 debug!("Failed to validate CSRF token from oauth2 provider: {err:?}");
                 return Ok(StatusCode::UNAUTHORIZED.into_response());
@@ -188,7 +198,7 @@ async fn authenticate_from_oauth2(
             ))
         })?;
 
-    let user_id = match user_data.get("id") {
+    let external_id = match user_data.get("id") {
         Some(Value::Number(user_id)) => format!("{}", user_id),
         Some(Value::String(user_id)) => user_id.clone(),
         None => {
@@ -205,10 +215,29 @@ async fn authenticate_from_oauth2(
         }
     };
 
+    // If link_user_id is set, the user was already logged in and wants to link this
+    // new provider identity to their existing account.
+    if let Some(user_id) = link_user_id {
+        let result = User::link_identity(
+            state.database_connection.clone(),
+            user_id,
+            &provider_name,
+            &external_id,
+        )
+        .await?;
+        let redirect_url = match result {
+            LinkResult::Linked => "/auth/account",
+            LinkResult::AlreadyLinkedToSelf => "/auth/account?notice=already_linked",
+            LinkResult::AlreadyLinkedToOther => "/auth/account?error=linked_to_other",
+        };
+        return Ok(Redirect::to(redirect_url).into_response());
+    }
+
+    // Normal login flow: find or create the user account.
     let user = match User::fetch_with_user_with_external_id(
         state.database_connection.clone(),
         provider_name.clone(),
-        &user_id,
+        &external_id,
     )
     .await?
     {
@@ -228,7 +257,7 @@ async fn authenticate_from_oauth2(
                 state.database_connection.clone(),
                 username.to_string(),
                 provider_name.to_string(),
-                &user_id,
+                &external_id,
             )
             .await?
         }
@@ -246,4 +275,80 @@ async fn authenticate_from_oauth2(
         cookie.parse().expect("Cookie should be parseable always."),
     );
     Ok((headers, Redirect::to("/")).into_response())
+}
+
+#[derive(Template)]
+#[template(path = "account.html")]
+struct AccountTemplate {
+    linked_providers: Vec<String>,
+    available_providers: Vec<String>,
+    notice: Option<String>,
+    error: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct AccountQuery {
+    notice: Option<String>,
+    error: Option<String>,
+}
+
+async fn account_page(
+    State(state): State<AppState>,
+    Extension(user): Extension<Option<User>>,
+    Query(query): Query<AccountQuery>,
+) -> Result<Response, InternalError> {
+    let Some(user) = user else {
+        return Ok(Redirect::to("/auth/login").into_response());
+    };
+
+    let identities =
+        User::fetch_identities(state.database_connection.clone(), user.id).await?;
+    let linked_providers: Vec<String> = identities.into_iter().map(|i| i.provider).collect();
+
+    let all_providers = state.secrets.get_auth_provider_names();
+    let available_providers: Vec<String> = all_providers
+        .into_iter()
+        .filter(|p| !linked_providers.contains(p))
+        .collect();
+
+    let notice = query.notice.map(|n| match n.as_str() {
+        "already_linked" => "This account is already linked.".to_string(),
+        _ => n,
+    });
+    let error = query.error.map(|e| match e.as_str() {
+        "linked_to_other" => "That account is already linked to a different user.".to_string(),
+        _ => e,
+    });
+
+    let content = AccountTemplate {
+        linked_providers,
+        available_providers,
+        notice,
+        error,
+    }
+    .render()
+    .expect("Template rendering should always succeed");
+
+    Ok(Html(render_main(Some(user), content)).into_response())
+}
+
+async fn unlink_identity_handler(
+    State(state): State<AppState>,
+    Extension(user): Extension<Option<User>>,
+    Path(provider): Path<String>,
+) -> Result<Response, InternalError> {
+    let Some(user) = user else {
+        return Ok(StatusCode::UNAUTHORIZED.into_response());
+    };
+
+    let result =
+        User::unlink_identity(state.database_connection.clone(), user.id, &provider).await?;
+
+    let redirect_url = match result {
+        UnlinkResult::Unlinked => "/auth/account",
+        UnlinkResult::LastIdentity => "/auth/account?error=last_identity",
+        UnlinkResult::NotFound => "/auth/account",
+    };
+
+    Ok(Redirect::to(redirect_url).into_response())
 }

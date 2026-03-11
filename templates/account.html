@@ -1,0 +1,43 @@
+<div class="section light">
+  <div class="w-full flex-row justify-items-center">
+    <div class="inline-flex flex-col gap-6">
+      <h2 class="text-2xl font-bold">Account</h2>
+
+      {% if let Some(notice) = notice %}
+      <div class="bg-blue-100 border border-blue-400 text-blue-800 px-4 py-2 rounded">{{ notice }}</div>
+      {% endif %}
+      {% if let Some(error) = error %}
+      <div class="bg-red-100 border border-red-400 text-red-800 px-4 py-2 rounded">{{ error }}</div>
+      {% endif %}
+
+      <div>
+        <h3 class="text-lg font-semibold mb-2">Linked accounts</h3>
+        <div class="inline-flex flex-col gap-2">
+          {% for provider in linked_providers %}
+          <div class="inline-flex items-center gap-4 bg-gray-100 px-4 py-2 rounded">
+            <img src="/oauth-{{ provider }}.svg" class="size-5"/>
+            <span class="font-medium">{{ provider | title }}</span>
+            <form method="post" action="/auth/account/unlink/{{ provider }}">
+              <button type="submit" class="text-sm text-red-600 hover:text-red-800 cursor-pointer">Unlink</button>
+            </form>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      {% if !available_providers.is_empty() %}
+      <div>
+        <h3 class="text-lg font-semibold mb-2">Link another account</h3>
+        <div class="inline-flex flex-col gap-2">
+          {% for provider in available_providers %}
+          <a href="/auth/redirect/{{ provider }}" class="bg-gray-300 hover:bg-gray-400 hover:no-underline text-gray-800 font-bold py-3 px-6 rounded inline-flex items-center cursor-pointer">
+            <img src="/oauth-{{ provider }}.svg" class="size-5 mr-2"/>
+            <span>Link {{ provider | title }}</span>
+          </a>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>

@@ -21,11 +21,12 @@ pub async fn start_oauth2_login(
     connection: Arc<Mutex<Connection>>,
     provider: &str,
     csrf_token: &CsrfToken,
+    link_user_id: Option<i64>,
 ) -> Result<(), InternalError> {
     let conn = connection.lock().await;
     conn.execute(
-        "INSERT INTO pending_oauth2 (csrf_token, provider) VALUES ((?1), (?2))",
-        (csrf_token.secret(), provider),
+        "INSERT INTO pending_oauth2 (csrf_token, provider, link_user_id) VALUES (?1, ?2, ?3)",
+        (csrf_token.secret(), provider, link_user_id),
     )
     .map_err(|err| {
         InternalError::new(format!(
@@ -35,14 +36,16 @@ pub async fn start_oauth2_login(
     Ok(())
 }
 
+/// Returns (provider_name, link_user_id) for the completed OAuth2 login.
+/// link_user_id is Some when the flow was initiated to link a new identity to an existing account.
 pub async fn complete_oauth2_login(
     connection: Arc<Mutex<Connection>>,
     csrf_token: &str,
-) -> Result<String, InternalError> {
+) -> Result<(String, Option<i64>), InternalError> {
     let conn = connection.lock().await;
-    let (id, provider) = conn
+    let (id, provider, link_user_id) = conn
         .query_row(
-            "SELECT id, provider FROM pending_oauth2 WHERE csrf_token = (?1)",
+            "SELECT id, provider, link_user_id FROM pending_oauth2 WHERE csrf_token = ?1",
             (csrf_token,),
             |row| {
                 Ok((
@@ -50,18 +53,20 @@ pub async fn complete_oauth2_login(
                         .expect("Table 'pending_oauth2' has known layout"),
                     row.get::<usize, String>(1)
                         .expect("Table 'pending_oauth2' has known layout"),
+                    row.get::<usize, Option<i64>>(2)
+                        .expect("Table 'pending_oauth2' has known layout"),
                 ))
             },
         )
         .map_err(|err| InternalError::new(format!("No pending oauth login found: {err}")))?;
-    conn.execute("DELETE FROM pending_oauth2 WHERE id = (?1)", (id,))
+    conn.execute("DELETE FROM pending_oauth2 WHERE id = ?1", (id,))
         .map_err(|err| {
             InternalError::new(format!(
                 "Failed to clear complete pending oauth2 action in db: {err}"
             ))
         })?;
 
-    Ok(provider)
+    Ok((provider, link_user_id))
 }
 
 pub struct Session {
@@ -76,9 +81,9 @@ impl Session {
     ) -> Result<Option<Session>, InternalError> {
         let conn = connection.lock().await;
         match conn.query_row(
-            "SELECT token, user.id, username, provider FROM session \
-             INNER JOIN user ON session.user_id = user.id \
-             WHERE session.token = (?1)",
+            "SELECT token, user.id, username FROM session
+             INNER JOIN user ON session.user_id = user.id
+             WHERE session.token = ?1",
             ((token),),
             |row| {
                 Ok((
@@ -88,17 +93,14 @@ impl Session {
                         .expect("Table 'user' has known layout"),
                     row.get::<usize, String>(2)
                         .expect("Table 'user' has known layout"),
-                    row.get::<usize, String>(3)
-                        .expect("Table 'user' has known layout"),
                 ))
             },
         ) {
-            Ok((token, user_id, username, provider)) => Ok(Some(Session {
+            Ok((token, user_id, username)) => Ok(Some(Session {
                 token: token.to_string(),
                 user: User {
                     id: user_id,
                     name: username,
-                    provider,
                 },
             })),
             Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
@@ -115,7 +117,7 @@ impl Session {
         let conn = connection.lock().await;
         let token = create_session_token();
         conn.execute(
-            "INSERT INTO session (token, user_id) VALUES ((?1), (?2))",
+            "INSERT INTO session (token, user_id) VALUES (?1, ?2)",
             (&token, &user.id),
         )
         .map_err(|err| InternalError::new(format!("Failed to insert session in db: {err}")))?;
@@ -129,7 +131,7 @@ impl Session {
     pub async fn delete(self, connection: Arc<Mutex<Connection>>) -> Result<(), InternalError> {
         let conn = connection.lock().await;
 
-        conn.execute("DELETE FROM session WHERE token = (?1)", (self.token,))
+        conn.execute("DELETE FROM session WHERE token = ?1", (self.token,))
             .map_err(|err| {
                 InternalError::new(format!(
                     "Failed to clear complete pending oauth2 action in db: {err}"
@@ -153,7 +155,7 @@ mod test {
     #[tokio::test]
     async fn test_complete_oauth2_with_incorrect_csrf_token_fails() {
         let connection = create_connection().unwrap();
-        start_oauth2_login(connection.clone(), "test", &CsrfToken::new_random())
+        start_oauth2_login(connection.clone(), "test", &CsrfToken::new_random(), None)
             .await
             .unwrap();
         assert!(
@@ -167,16 +169,16 @@ mod test {
     async fn test_complete_oauth2_clears_request() {
         let connection = create_connection().unwrap();
         let csrf_token = CsrfToken::new_random();
-        start_oauth2_login(connection.clone(), "test", &csrf_token)
+        start_oauth2_login(connection.clone(), "test", &csrf_token, None)
             .await
             .unwrap();
         // First completion is valid
-        assert_eq!(
-            "test",
+        let (provider, link_user_id) =
             complete_oauth2_login(connection.clone(), &csrf_token.secret())
                 .await
-                .unwrap()
-        );
+                .unwrap();
+        assert_eq!("test", provider);
+        assert_eq!(None, link_user_id);
         // Second fails since the request is cleared
         assert!(
             complete_oauth2_login(connection.clone(), &csrf_token.secret())

@@ -71,7 +71,7 @@ fn build_calendar_slots(
                 let (status, booking_id) = if end_time <= now {
                     (SlotStatus::Past, overlapping.map(|b| b.id))
                 } else if let Some(b) = overlapping {
-                    if b.user_name == user.name && b.user_provider == user.provider {
+                    if b.user_id == user.id {
                         if b.active_at(&now) {
                             (SlotStatus::MineActive, Some(b.id))
                         } else {
@@ -181,7 +181,7 @@ async fn create_booking(
         start_time,
         end_time,
         user_name: user.name.clone(),
-        user_provider: user.provider.clone(),
+        user_id: user.id,
         telescope_name: form.telescope.clone(),
     };
 

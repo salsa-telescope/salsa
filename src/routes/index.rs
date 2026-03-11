@@ -39,11 +39,7 @@ pub fn render_main(user: Option<User>, content: String) -> String {
     };
     IndexTemplate {
         name: match user {
-            Some(User {
-                id: _,
-                name,
-                provider,
-            }) => format!("{} ({})", name, provider),
+            Some(User { id: _, name }) => name,
             None => String::new(),
         },
         content,

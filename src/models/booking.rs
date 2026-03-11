@@ -15,7 +15,7 @@ pub struct Booking {
     pub end_time: DateTime<Utc>,
     pub telescope_name: String,
     pub user_name: String,
-    pub user_provider: String,
+    pub user_id: i64,
 }
 
 impl Booking {
@@ -70,10 +70,10 @@ impl Booking {
     ) -> Result<Vec<Booking>, InternalError> {
         let conn = connection.lock().await;
         let query = String::from(
-            "SELECT booking.id, start_timestamp, end_timestamp, telescope_id, username, provider
-                FROM booking, user
-                WHERE booking.user_id = user.id",
-        ) + &where_cond.map_or(String::new(), |c| format!(" and {c}"))
+            "SELECT booking.id, start_timestamp, end_timestamp, telescope_id, username, booking.user_id
+                FROM booking
+                INNER JOIN user ON booking.user_id = user.id",
+        ) + &where_cond.map_or(String::new(), |c| format!(" WHERE {c}"))
             + " ORDER BY start_timestamp ASC";
         let mut stmt = conn
             .prepare(&query)
@@ -86,7 +86,7 @@ impl Booking {
                     end_time: DateTime::<Utc>::from_timestamp(row.get(2)?, 0).unwrap(),
                     telescope_name: row.get(3)?,
                     user_name: row.get(4)?,
-                    user_provider: row.get(5)?,
+                    user_id: row.get(5)?,
                 })
             })
             .map_err(|err| InternalError::new(format!("Failed to query_map: {err}")))?;
@@ -153,7 +153,7 @@ mod test {
             end_time: DateTime::from_timestamp(end_time_ts, 0).unwrap(),
             telescope_name: String::new(),
             user_name: String::new(),
-            user_provider: String::new(),
+            user_id: 0,
         }
     }
 
