@@ -35,11 +35,8 @@
                         <a href="/auth/login">Login</a>
                     </li>
                     {% else %}
-                    <li class="nav-label">
-                        <span>{{ name }}</span>
-                    </li>
                     <li>
-                        <a href="/auth/account">Account</a>
+                        <a href="/auth/account">{{ name }}</a>
                     </li>
                     <li>
                         <a href="/auth/logout">Log out</a>
