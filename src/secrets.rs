@@ -8,7 +8,9 @@ pub struct AuthProvider {
     pub token_uri: String,
     pub redirect_uri: String,
     pub user_uri: String,
+    pub id_field: String,
     pub display_name_field: String,
+    pub scopes: Vec<String>,
     pub client_id: String,
     pub client_secret: String,
 }
