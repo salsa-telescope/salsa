@@ -94,10 +94,9 @@ async fn redirect_to_auth_provider(
     let (url, token) = auth_provider
         .scopes
         .iter()
-        .fold(
-            client.authorize_url(CsrfToken::new_random),
-            |req, scope| req.add_scope(Scope::new(scope.clone())),
-        )
+        .fold(client.authorize_url(CsrfToken::new_random), |req, scope| {
+            req.add_scope(Scope::new(scope.clone()))
+        })
         .url();
 
     start_oauth2_login(state.database_connection.clone(), &provider, &token).await?;
