@@ -1,30 +1,57 @@
 <div class="section light">
-  {% if observations.is_empty() %}
+  {% if observations.is_empty() && current_page == 1 %}
   <h2 class="mt-4 mb-3">My observations</h2>
   <p>No observations yet.</p>
   {% else %}
   <div class="flex flex-col lg:flex-row gap-4">
     <div class="lg:w-1/3">
       <h2 class="mt-4 mb-3">My observations</h2>
-      <p class="text-xs text-gray-400 mb-2">{{ observations.len() }} observations · click to view spectrum</p>
-      <div class="relative">
-        <div class="space-y-1" style="max-height: 600px; overflow-y: auto;">
+      <p class="text-xs text-gray-400 mb-2">{{ total_count }} observations · click to view spectrum · ✕ to delete selected</p>
+      <div class="space-y-1">
           {% for obs in observations %}
           <div
             id="obs-row-{{ obs.id }}"
-            class="cursor-pointer hover:bg-gray-100 p-2 rounded border border-transparent text-sm"
-            onclick="loadObservation({{ obs.id }})"
+            class="hover:bg-gray-100 p-2 rounded border border-transparent text-sm flex justify-between items-center"
           >
-            {{ obs.start_time.naive_local() }} &mdash;
-            {{ obs.telescope_id }},
-            {{ obs.coordinate_system }} ({{ obs.target_x|fmt("{:.1}") }}, {{ obs.target_y|fmt("{:.1}") }}),
-            {{ obs.integration_time_secs|fmt("{:.0}") }}s
+            <span class="cursor-pointer" onclick="loadObservation({{ obs.id }})">
+              {{ obs.start_time.naive_local() }} &mdash;
+              {{ obs.telescope_id }},
+              {{ obs.coordinate_system }} ({{ obs.target_x|fmt("{:.1}") }}, {{ obs.target_y|fmt("{:.1}") }}),
+              {{ obs.integration_time_secs|fmt("{:.0}") }}s
+            </span>
+            <button
+              id="del-btn-{{ obs.id }}"
+              class="ml-2 text-gray-400 hover:text-red-500 text-xs px-1 flex-shrink-0 hidden"
+              hx-delete="/observations/{{ obs.id }}?page={{ current_page }}"
+              hx-target="#page"
+              hx-confirm="Delete this observation?"
+            >✕</button>
           </div>
           {% endfor %}
         </div>
-        <div class="pointer-events-none absolute bottom-0 left-0 right-0 h-12"
-             style="background: linear-gradient(to bottom, transparent, white);"></div>
+      {% if total_pages > 1 %}
+      <div class="flex items-center gap-2 mt-3 text-sm">
+        {% if let Some(p) = prev_page %}
+        <button
+          class="px-3 py-1 bg-gray-200 rounded hover:bg-gray-300"
+          hx-get="/observations?page={{ p }}"
+          hx-target="#page"
+        >&larr; Prev</button>
+        {% else %}
+        <button class="px-3 py-1 bg-gray-100 rounded text-gray-400 cursor-default" disabled>&larr; Prev</button>
+        {% endif %}
+        <span class="text-gray-500">{{ current_page }} / {{ total_pages }}</span>
+        {% if let Some(p) = next_page %}
+        <button
+          class="px-3 py-1 bg-gray-200 rounded hover:bg-gray-300"
+          hx-get="/observations?page={{ p }}"
+          hx-target="#page"
+        >Next &rarr;</button>
+        {% else %}
+        <button class="px-3 py-1 bg-gray-100 rounded text-gray-400 cursor-default" disabled>Next &rarr;</button>
+        {% endif %}
       </div>
+      {% endif %}
     </div>
     <div class="lg:w-2/3">
       <div id="observation-chart" style="display: none; max-width: 640px;">

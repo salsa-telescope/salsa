@@ -20,15 +20,22 @@ function loadObservation(id) {
       return res.json();
     })
     .then((data) => {
-      // Highlight selected observation row
+      // Highlight selected observation row, show only its delete button
       document.querySelectorAll("[id^='obs-row-']").forEach((el) => {
         el.classList.remove("bg-indigo-50", "border-indigo-300");
         el.classList.add("border-transparent");
+      });
+      document.querySelectorAll("[id^='del-btn-']").forEach((el) => {
+        el.classList.add("hidden");
       });
       const selectedRow = document.getElementById(`obs-row-${id}`);
       if (selectedRow) {
         selectedRow.classList.remove("border-transparent");
         selectedRow.classList.add("bg-indigo-50", "border-indigo-300");
+      }
+      const delBtn = document.getElementById(`del-btn-${id}`);
+      if (delBtn) {
+        delBtn.classList.remove("hidden");
       }
 
       const container = document.getElementById("observation-chart");
