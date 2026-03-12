@@ -1,4 +1,5 @@
 use crate::app::AppState;
+use crate::fits::{SpectrumMeta, write_spectrum_fits};
 use crate::models::observation::Observation;
 use crate::models::user::User;
 use crate::routes::index::render_main;
@@ -20,6 +21,7 @@ pub fn routes(state: AppState) -> Router {
             get(get_observation_data).delete(delete_observation),
         )
         .route("/{observation_id}/csv", get(get_observation_csv))
+        .route("/{observation_id}/fits", get(get_observation_fits))
         .with_state(state)
 }
 
@@ -224,6 +226,49 @@ async fn get_observation_csv(
             ),
         ],
         csv,
+    )
+        .into_response())
+}
+
+async fn get_observation_fits(
+    Extension(user): Extension<Option<User>>,
+    Path(observation_id): Path<i64>,
+    State(state): State<AppState>,
+) -> Result<Response, StatusCode> {
+    let user = user.ok_or(StatusCode::UNAUTHORIZED)?;
+    let observation = Observation::fetch_one(state.database_connection, observation_id, &user)
+        .await?
+        .ok_or(StatusCode::NOT_FOUND)?;
+
+    let frequencies: Vec<f64> = serde_json::from_str(&observation.frequencies_json)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let amplitudes: Vec<f64> = serde_json::from_str(&observation.amplitudes_json)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let tag = observation.start_time.format("%Y%m%dT%H%M%S").to_string();
+    let filename = format!("SALSA-{}-{}.fits", observation.telescope_id, tag);
+
+    let fits_bytes = write_spectrum_fits(&SpectrumMeta {
+        frequencies: &frequencies,
+        amplitudes: &amplitudes,
+        telescope_id: &observation.telescope_id,
+        coordinate_system: &observation.coordinate_system,
+        target_x: observation.target_x,
+        target_y: observation.target_y,
+        integration_time_secs: observation.integration_time_secs,
+        start_time: &observation.start_time.to_rfc3339(),
+        vlsr_correction_mps: observation.vlsr_correction_mps,
+    });
+
+    Ok((
+        [
+            (header::CONTENT_TYPE, "application/fits"),
+            (
+                header::CONTENT_DISPOSITION,
+                &format!("attachment; filename=\"{}\"", filename),
+            ),
+        ],
+        fits_bytes,
     )
         .into_response())
 }

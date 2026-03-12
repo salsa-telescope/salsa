@@ -11,6 +11,7 @@ mod app;
 mod coords;
 mod database;
 mod error;
+mod fits;
 mod middleware;
 mod models;
 mod routes;
