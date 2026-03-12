@@ -1,79 +1,100 @@
 <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
 <div id="observe-section" class="section light">
-  <h1>Observing using {{ info.id }}</h1>
-  <div id="errors"></div>
-  <div id="chart">
-    <!-- FIXME: maybe don't reload this javascript on each htmx fetch of this page? -->
-    <script src="/observe_chart.js"></script>
-    <button id="observe-axis-toggle" style="display: none;"
-      onclick="toggleObserveAxis()"
-      class="px-2 py-1 mt-1 bg-gray-200 text-sm rounded hover:bg-gray-300 mx-auto block">
-      Show frequency
-    </button>
-  </div>
-  <h2 class="mt-4 mb-3">Target</h2>
-  <form class="space-y-2">
-    <p>
-      <select name="coordinate_system" class="border rounded px-1 bg-white">
-        <option value="galactic" {% if target_mode=="galactic" %} selected="selected"{% endif %}>
-          Galactic
-        </option>
-        <option value="equatorial" {% if target_mode=="equatorial" %}selected="selected"{% endif %}>
-          Equatorial
-        </option>
-        <option value="horizontal" {% if target_mode=="horizontal" %}selected="selected"{% endif %}>
-          Horizontal
-        </option>
-      </select>
-    </p>
+  <h1 class="mb-4">Observing using {{ info.id }}</h1>
+  <div id="errors" class="mb-2"></div>
 
-    <p>
-      <label for="x">
-        {% if target_mode == "galactic" %}Longitude [deg]
-        {% else if target_mode == "equatorial" %}Right ascension [deg]
-        {% else %}Azimuth [deg]
-        {% endif %}
-      </label>
-      <input type="text" name="x" value="{{ commanded_x }}" class="border rounded px-1 bg-white" />
-    </p>
-    <p>
-      <label for="y">
-        {% if target_mode == "galactic" %}Latitude [deg]
-        {% else if target_mode == "equatorial" %}Declination [deg]
-        {% else %}Elevation [deg]
-        {% endif %}
-      </label>
-      <input type="text" name="y" value="{{ commanded_y }}" class="border rounded px-1 bg-white" />
-    </p>
+  <div class="flex flex-col lg:flex-row gap-6">
 
-    <p>
-      <button
-        hx-post="/observe/{{ info.id }}/set-target"
-        hx-swap="none"
-        class="px-2 py-1 bg-indigo-600 text-white rounded-md hover:bg-indigo-500"
-      >
-        Track target
-      </button>
-    </p>
-  </form>
-  <div class="my-3">
-    <button
-      hx-post="/observe/{{ info.id }}/observe"
-      hx-swap="none"
-      class="px-2 py-1 bg-indigo-600 text-white rounded-md hover:bg-indigo-500"
-    >
-      Start observation
-    </button>
-    <button
-      hx-post="/observe/{{ info.id }}/stop"
-      hx-swap="none"
-      class="px-2 py-1 bg-indigo-600 text-white rounded-md hover:bg-indigo-500"
-    >
-      Stop observation
-    </button>
-    <div>
-      <div hx-get="/telescope/{{ info.id }}/state" hx-trigger="every 1s">{{ state_html }}</div>
+    <!-- Left column: controls -->
+    <div class="lg:w-1/3 space-y-5">
+
+      <!-- Target input -->
+      <div>
+        <h2 class="mb-2 font-semibold">Target</h2>
+        <form class="space-y-3">
+          <div>
+            <label class="block text-sm text-gray-600 mb-1">Coordinate system</label>
+            <select name="coordinate_system" class="border rounded px-2 py-1 bg-white w-full">
+              <option value="galactic" {% if target_mode=="galactic" %}selected="selected"{% endif %}>Galactic</option>
+              <option value="equatorial" {% if target_mode=="equatorial" %}selected="selected"{% endif %}>Equatorial</option>
+              <option value="horizontal" {% if target_mode=="horizontal" %}selected="selected"{% endif %}>Horizontal</option>
+            </select>
+          </div>
+          <div class="flex gap-3">
+            <div class="flex-1">
+              <label for="x" class="block text-sm text-gray-600 mb-1">
+                {% if target_mode == "galactic" %}Longitude [deg]
+                {% else if target_mode == "equatorial" %}Right ascension [deg]
+                {% else %}Azimuth [deg]
+                {% endif %}
+              </label>
+              <input type="text" name="x" value="{{ commanded_x }}"
+                class="border rounded px-2 py-1 bg-white w-full" />
+            </div>
+            <div class="flex-1">
+              <label for="y" class="block text-sm text-gray-600 mb-1">
+                {% if target_mode == "galactic" %}Latitude [deg]
+                {% else if target_mode == "equatorial" %}Declination [deg]
+                {% else %}Elevation [deg]
+                {% endif %}
+              </label>
+              <input type="text" name="y" value="{{ commanded_y }}"
+                class="border rounded px-2 py-1 bg-white w-full" />
+            </div>
+          </div>
+          <button
+            hx-post="/observe/{{ info.id }}/set-target"
+            hx-swap="none"
+            class="px-3 py-1 bg-indigo-600 text-white rounded-md hover:bg-indigo-500 text-sm"
+          >
+            Track target
+          </button>
+        </form>
+      </div>
+
+      <!-- Observation controls -->
+      <div>
+        <h2 class="mb-2 font-semibold">Observation</h2>
+        <div class="flex gap-2">
+          <button
+            hx-post="/observe/{{ info.id }}/observe"
+            hx-swap="none"
+            class="px-3 py-1 bg-indigo-600 text-white rounded-md hover:bg-indigo-500 text-sm"
+          >
+            Start
+          </button>
+          <button
+            hx-post="/observe/{{ info.id }}/stop"
+            hx-swap="none"
+            class="px-3 py-1 bg-gray-300 text-gray-800 rounded-md hover:bg-gray-400 text-sm"
+          >
+            Stop
+          </button>
+        </div>
+      </div>
+
+      <!-- Telescope status (polled every 1s) -->
+      <div>
+        <h2 class="mb-2 font-semibold">Status</h2>
+        <div hx-get="/telescope/{{ info.id }}/state" hx-trigger="every 1s">{{ state_html }}</div>
+      </div>
+
     </div>
+
+    <!-- Right column: live spectrum chart -->
+    <div class="lg:w-2/3">
+      <h2 class="mb-2 font-semibold">Live spectrum</h2>
+      <div id="chart">
+        <!-- FIXME: maybe don't reload this javascript on each htmx fetch of this page? -->
+        <script src="/observe_chart.js"></script>
+        <button id="observe-axis-toggle" style="display: none;"
+          onclick="toggleObserveAxis()"
+          class="px-2 py-1 mt-1 bg-gray-200 text-sm rounded hover:bg-gray-300 mx-auto block">
+          Show frequency
+        </button>
+      </div>
+    </div>
+
   </div>
 </div>
 
