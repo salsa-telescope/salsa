@@ -1,8 +1,22 @@
-<h2 class="mt-4 mb-3">{{ info.id }}</h2>
-<p>Status: {{ status }}</p>
-<p>{{ error }}</p>
-{% if direction.is_some() %}
-<h3>Current horizontal coordinates</h3>
-<p>Azimuth: {{ "{:.3}"|format(direction.unwrap().azimuth.to_degrees()) }}</p>
-<p>Elevation: {{ "{:.3}"|format(direction.unwrap().elevation.to_degrees()) }}</p>
+<p>Status:
+  {% if status == "Idle" %}
+  <span class="text-blue-600 font-medium">Idle</span>
+  {% else if status == "Slewing" %}
+  <span class="text-yellow-500 font-medium">Slewing</span>
+  {% else if status == "Tracking" %}
+  <span class="text-green-600 font-medium">Tracking</span>
+  {% else %}
+  <span>{{ status }}</span>
+  {% endif %}
+</p>
+{% if !error.is_empty() %}
+<p class="text-red-600 text-sm">{{ error }}</p>
+{% endif %}
+{% if let Some(target) = info.commanded_horizontal %}
+<h3 class="mt-2 font-medium text-sm text-gray-600">Target (horizontal)</h3>
+<p class="text-sm">Az: {{ "{:.3}"|format(target.azimuth.to_degrees()) }}&deg; &nbsp; El: {{ "{:.3}"|format(target.elevation.to_degrees()) }}&deg;</p>
+{% endif %}
+{% if let Some(current) = direction %}
+<h3 class="mt-2 font-medium text-sm text-gray-600">Current (horizontal)</h3>
+<p class="text-sm">Az: {{ "{:.1}"|format(current.azimuth.to_degrees()) }}&deg; &nbsp; El: {{ "{:.1}"|format(current.elevation.to_degrees()) }}&deg;</p>
 {% endif %}
