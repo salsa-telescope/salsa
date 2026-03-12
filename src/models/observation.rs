@@ -59,9 +59,11 @@ impl Observation {
         Ok(())
     }
 
-    pub async fn fetch_for_user(
+    pub async fn fetch_for_user_page(
         connection: Arc<Mutex<Connection>>,
         user: &User,
+        page_size: i64,
+        offset: i64,
     ) -> Result<Vec<Observation>, InternalError> {
         let conn = connection.lock().await;
         let mut stmt = conn
@@ -69,11 +71,12 @@ impl Observation {
                 "SELECT id, user_id, telescope_id, start_time, coordinate_system, target_x, target_y, integration_time_secs, frequencies_json, amplitudes_json, vlsr_correction_mps
                  FROM observation
                  WHERE user_id = (?1)
-                 ORDER BY start_time DESC",
+                 ORDER BY start_time DESC
+                 LIMIT (?2) OFFSET (?3)",
             )
             .map_err(|err| InternalError::new(format!("Failed to prepare statement: {err}")))?;
         let observations = stmt
-            .query_map([&user.id], |row| {
+            .query_map(rusqlite::params![&user.id, page_size, offset], |row| {
                 Ok(Observation {
                     id: row.get(0)?,
                     user_id: row.get(1)?,
@@ -100,6 +103,19 @@ impl Observation {
             }
         }
         Ok(res)
+    }
+
+    pub async fn count_for_user(
+        connection: Arc<Mutex<Connection>>,
+        user: &User,
+    ) -> Result<i64, InternalError> {
+        let conn = connection.lock().await;
+        conn.query_row(
+            "SELECT COUNT(*) FROM observation WHERE user_id = (?1)",
+            [&user.id],
+            |row| row.get(0),
+        )
+        .map_err(|err| InternalError::new(format!("Failed to count observations: {err}")))
     }
 
     pub async fn fetch_one(
