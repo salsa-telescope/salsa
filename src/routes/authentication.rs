@@ -91,10 +91,13 @@ async fn redirect_to_auth_provider(
             RedirectUrl::new(auth_provider.redirect_uri.clone())
                 .expect("Hardcoded URL should always work."),
         );
-    let (url, token) = client
-        .authorize_url(CsrfToken::new_random)
-        .add_scope(Scope::new("identify".to_string()))
-        .add_extra_param("prompt".to_string(), "none".to_string())
+    let (url, token) = auth_provider
+        .scopes
+        .iter()
+        .fold(
+            client.authorize_url(CsrfToken::new_random),
+            |req, scope| req.add_scope(Scope::new(scope.clone())),
+        )
         .url();
 
     start_oauth2_login(state.database_connection.clone(), &provider, &token).await?;
@@ -188,7 +191,7 @@ async fn authenticate_from_oauth2(
             ))
         })?;
 
-    let user_id = match user_data.get("id") {
+    let user_id = match user_data.get(&provider.id_field) {
         Some(Value::Number(user_id)) => format!("{}", user_id),
         Some(Value::String(user_id)) => user_id.clone(),
         None => {
