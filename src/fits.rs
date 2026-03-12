@@ -34,7 +34,7 @@ fn card_float(key: &str, val: f64, comment: &str) -> [u8; 80] {
     let fits_val = if let Some(e) = s.find('E') {
         let mantissa = &s[..e];
         let exp: i32 = s[e + 1..].parse().unwrap_or(0);
-        format!("{}{:+03}", mantissa, exp)
+        format!("{}E{:+03}", mantissa, exp)
     } else {
         s
     };
