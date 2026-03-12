@@ -56,12 +56,27 @@
     <div class="lg:w-2/3">
       <div id="observation-chart" style="display: none; max-width: 640px;">
         <h2 class="mt-4 mb-3 text-center">Spectrum</h2>
-        <p id="observation-title" class="text-center text-sm text-gray-500 mb-1"></p>
-        <button id="observation-axis-toggle" style="display: none;"
+<button id="observation-axis-toggle" style="display: none;"
           class="px-2 py-1 mt-1 bg-gray-200 text-sm rounded hover:bg-gray-300 mx-auto block">
           Show frequency
         </button>
         <p class="text-xs text-gray-400 text-center mt-2">Hover to show coordinates · draw a box to zoom · double-click to reset</p>
+        <div id="observation-downloads" class="hidden flex gap-2 justify-center mt-3">
+          <button id="download-png"
+            class="px-3 py-1 bg-gray-200 text-sm rounded hover:bg-gray-300">
+            Save PNG
+          </button>
+          <a id="download-csv"
+            class="px-3 py-1 bg-gray-200 text-sm rounded hover:bg-gray-300 hover:no-underline"
+            download>
+            Save CSV
+          </a>
+          <a id="download-fits"
+            class="px-3 py-1 bg-gray-200 text-sm rounded hover:bg-gray-300 hover:no-underline"
+            download>
+            Save FITS
+          </a>
+        </div>
       </div>
     </div>
   </div>
