@@ -1,5 +1,5 @@
 <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
-<div class="section light">
+<div id="observe-section" class="section light">
   <h1>Observing using {{ info.id }}</h1>
   <div id="errors"></div>
   <div id="chart">
@@ -49,7 +49,7 @@
     <p>
       <button
         hx-post="/observe/{{ info.id }}/set-target"
-        hx-target="#page"
+        hx-swap="none"
         class="px-2 py-1 bg-indigo-600 text-white rounded-md hover:bg-indigo-500"
       >
         Track target
@@ -59,14 +59,14 @@
   <div class="my-3">
     <button
       hx-post="/observe/{{ info.id }}/observe"
-      hx-target="#page"
+      hx-swap="none"
       class="px-2 py-1 bg-indigo-600 text-white rounded-md hover:bg-indigo-500"
     >
       Start observation
     </button>
     <button
       hx-post="/observe/{{ info.id }}/stop"
-      hx-target="#page"
+      hx-swap="none"
       class="px-2 py-1 bg-indigo-600 text-white rounded-md hover:bg-indigo-500"
     >
       Stop observation
@@ -79,8 +79,6 @@
 
 <script>
   function coordinateSystemChanged(e) {
-      console.log("changed!");
-      console.log();
       const x_label = document.querySelector("form label[for='x']");
       const y_label = document.querySelector("form label[for='y']");
       switch (e.target.value) {
@@ -102,7 +100,6 @@
   function pageLoad() {
       const coordinateSystemDropdown = document.querySelector("form select[name='coordinate_system']");
       coordinateSystemDropdown.addEventListener("change", coordinateSystemChanged);
-
   }
 
   pageLoad();

@@ -56,6 +56,7 @@ fn error_response(message: String) -> Response {
     Response::builder()
         .status(StatusCode::OK) // Needs to be ok to be picked up by htmx.
         .header("HX-Retarget", "#errors")
+        .header("HX-Reswap", "innerHTML")
         .body(Body::from(message))
         .expect("Building a response should never fail")
 }
