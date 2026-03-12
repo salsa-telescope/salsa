@@ -1,3 +1,34 @@
+function exportPng(id, telescopeId, startTime) {
+  const svg = document.querySelector("#observation-chart svg");
+  if (!svg) return;
+  const scale = 2;
+  const width = parseInt(svg.getAttribute("width")) || 640;
+  const height = parseInt(svg.getAttribute("height")) || 420;
+  const svgData = new XMLSerializer().serializeToString(svg);
+  const canvas = document.createElement("canvas");
+  canvas.width = width * scale;
+  canvas.height = height * scale;
+  const ctx = canvas.getContext("2d");
+  const img = new Image();
+  img.onload = () => {
+    ctx.fillStyle = "white";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.scale(scale, scale);
+    ctx.drawImage(img, 0, 0, width, height);
+    const tag = new Date(startTime)
+      .toISOString()
+      .slice(0, 19)
+      .replace(/[-:]/g, "")
+      .replace("T", "T");
+    const a = document.createElement("a");
+    a.download = `SALSA-${telescopeId}-${tag}.png`;
+    a.href = canvas.toDataURL("image/png");
+    a.click();
+  };
+  img.src =
+    "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svgData);
+}
+
 function autoLoadFirstObservation() {
   const chart = document.getElementById("observation-chart");
   const firstRow = document.querySelector("[id^='obs-row-']");
@@ -41,13 +72,15 @@ function loadObservation(id) {
       const container = document.getElementById("observation-chart");
       container.style.display = "block";
 
-      // Update title with observation summary
-      const title = document.getElementById("observation-title");
-      if (title) {
-        const startTime = new Date(data.start_time).toUTCString();
-        const intTime = Math.round(data.integration_time_secs);
-        title.textContent = `${data.telescope_id} — ${data.coordinate_system} (${data.target_x.toFixed(1)}, ${data.target_y.toFixed(1)}) — ${intTime}s — ${startTime}`;
-      }
+      // Wire up download buttons
+      const downloads = document.getElementById("observation-downloads");
+      if (downloads) downloads.classList.remove("hidden");
+      const dlCsv = document.getElementById("download-csv");
+      if (dlCsv) dlCsv.href = `/observations/${id}/csv`;
+      const dlFits = document.getElementById("download-fits");
+      if (dlFits) dlFits.href = `/observations/${id}/fits`;
+      const dlPng = document.getElementById("download-png");
+      if (dlPng) dlPng.onclick = () => exportPng(id, data.telescope_id, data.start_time);
 
       // Remove any previous SVG
       const existing = container.querySelector("svg");
@@ -56,6 +89,10 @@ function loadObservation(id) {
       const width = 640;
       const height = 420;
       const margin = 60;
+
+      const startTime = new Date(data.start_time).toUTCString();
+      const intTime = Math.round(data.integration_time_secs);
+      const titleText = `${data.telescope_id} — ${data.coordinate_system} (${data.target_x.toFixed(1)}, ${data.target_y.toFixed(1)}) — ${intTime}s — ${startTime}`;
 
       const vlsrCorrection = data.vlsr_correction_mps;
       let showVlsr = vlsrCorrection !== null && vlsrCorrection !== undefined;
@@ -105,6 +142,16 @@ function loadObservation(id) {
         .attr("height", height)
         .attr("viewBox", [0, 0, width, height])
         .attr("style", "max-width: 100%; height: auto;");
+
+      // Chart title (also included when exporting as PNG)
+      svg
+        .append("text")
+        .attr("x", width / 2)
+        .attr("y", 18)
+        .attr("text-anchor", "middle")
+        .attr("font-size", "12px")
+        .attr("fill", "#6b7280")
+        .text(titleText);
 
       // Clip path to keep line inside plot area when zoomed
       svg.append("defs")
