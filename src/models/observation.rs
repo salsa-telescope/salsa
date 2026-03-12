@@ -118,6 +118,20 @@ impl Observation {
         .map_err(|err| InternalError::new(format!("Failed to count observations: {err}")))
     }
 
+    pub async fn delete(
+        connection: Arc<Mutex<Connection>>,
+        id: i64,
+        user: &User,
+    ) -> Result<(), InternalError> {
+        let conn = connection.lock().await;
+        conn.execute(
+            "DELETE FROM observation WHERE id = (?1) AND user_id = (?2)",
+            [&id, &user.id],
+        )
+        .map_err(|err| InternalError::new(format!("Failed to delete observation: {err}")))?;
+        Ok(())
+    }
+
     pub async fn fetch_one(
         connection: Arc<Mutex<Connection>>,
         id: i64,
