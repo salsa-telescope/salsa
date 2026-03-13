@@ -280,6 +280,13 @@ struct ObserveTemplate {
     state_html: String,
 }
 
+fn fmt_deg(deg: f64) -> String {
+    let s = format!("{:.6}", deg);
+    let s = s.trim_end_matches('0');
+    let s = s.trim_end_matches('.');
+    s.to_string()
+}
+
 async fn observe(telescope: &dyn Telescope) -> Result<String, StatusCode> {
     let info = telescope.get_info().await.map_err(|err| {
         error!("Failed to get info {err}");
@@ -297,19 +304,19 @@ async fn observe(telescope: &dyn Telescope) -> Result<String, StatusCode> {
             right_ascension,
             declination,
         } => (
-            right_ascension.to_degrees().to_string(),
-            declination.to_degrees().to_string(),
+            fmt_deg(right_ascension.to_degrees()),
+            fmt_deg(declination.to_degrees()),
         ),
         TelescopeTarget::Galactic {
             longitude,
             latitude,
         } => (
-            longitude.to_degrees().to_string(),
-            latitude.to_degrees().to_string(),
+            fmt_deg(longitude.to_degrees()),
+            fmt_deg(latitude.to_degrees()),
         ),
         TelescopeTarget::Horizontal { azimuth, elevation } => (
-            azimuth.to_degrees().to_string(),
-            elevation.to_degrees().to_string(),
+            fmt_deg(azimuth.to_degrees()),
+            fmt_deg(elevation.to_degrees()),
         ),
         TelescopeTarget::Parked => (String::new(), String::new()),
     };
