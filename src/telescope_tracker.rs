@@ -135,7 +135,6 @@ async fn tracker_task_function(
         let need_stop = prev_target.is_some() && target.is_none();
         prev_target = target;
 
-
         let mut controller = match TelescopeController::connect(&controller_address) {
             Ok(controller) => controller,
             Err(err) => {

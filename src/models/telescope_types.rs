@@ -44,6 +44,7 @@ pub struct TelescopeInfo {
     pub most_recent_error: Option<TelescopeError>,
     pub measurement_in_progress: bool,
     pub latest_observation: Option<ObservedSpectra>,
+    pub stow_position: Option<Direction>,
 }
 
 #[derive(Deserialize, PartialEq, Debug, Clone)]
@@ -58,6 +59,7 @@ pub struct TelescopeDefinition {
     pub enabled: bool,
     pub location: Location,
     pub min_elevation: f64,
+    pub stow_position: Option<[f64; 2]>, // [azimuth, elevation] in degrees
     pub telescope_type: TelescopeType,
     pub controller_address: Option<String>,
     pub receiver_address: Option<String>,

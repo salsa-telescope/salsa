@@ -20,6 +20,7 @@
                 <option value="galactic" {% if target_mode=="galactic" %}selected="selected"{% endif %}>Galactic</option>
                 <option value="equatorial" {% if target_mode=="equatorial" %}selected="selected"{% endif %}>Equatorial</option>
                 <option value="horizontal" {% if target_mode=="horizontal" %}selected="selected"{% endif %}>Horizontal</option>
+                {% if info.stow_position.is_some() %}<option value="stow">Stow</option>{% endif %}
               </select>
             </div>
             <div class="flex-1">
@@ -118,6 +119,8 @@
   function coordinateSystemChanged(e) {
       const x_label = document.querySelector("form label[for='x']");
       const y_label = document.querySelector("form label[for='y']");
+      const inputX = document.querySelector("form input[name='x']");
+      const inputY = document.querySelector("form input[name='y']");
       switch (e.target.value) {
       case "galactic":
           x_label.textContent = "Long. [deg]"
@@ -131,7 +134,15 @@
           x_label.textContent = "Az. [deg]"
           y_label.textContent = "El. [deg]"
           break;
+      case "stow":
+          x_label.textContent = "Az. [deg]"
+          y_label.textContent = "El. [deg]"
+          inputX.value = '';
+          inputY.value = '';
+          break;
       }
+      const isTracking = !document.getElementById('stop-btn').classList.contains('hidden');
+      setTrackingState(isTracking);
   }
 
   let obsTimerInterval = null;
@@ -186,12 +197,13 @@
       const select = document.querySelector("form select[name='coordinate_system']");
       const inputX = document.querySelector("form input[name='x']");
       const inputY = document.querySelector("form input[name='y']");
+      const isStow = select.value === 'stow';
       select.style.pointerEvents = tracking ? 'none' : '';
       select.classList.toggle('opacity-50', tracking);
-      inputX.readOnly = tracking;
-      inputX.classList.toggle('opacity-50', tracking);
-      inputY.readOnly = tracking;
-      inputY.classList.toggle('opacity-50', tracking);
+      inputX.readOnly = tracking || isStow;
+      inputX.classList.toggle('opacity-50', tracking || isStow);
+      inputY.readOnly = tracking || isStow;
+      inputY.classList.toggle('opacity-50', tracking || isStow);
   }
 
   function updateTrackStopButtons() {

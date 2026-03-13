@@ -1,3 +1,4 @@
+use crate::coords::Direction;
 use crate::models::telescope_types::{
     ReceiverConfiguration, ReceiverError, TelescopeDefinition, TelescopeError, TelescopeInfo,
     TelescopeTarget, TelescopeType, TelescopesConfig,
@@ -60,6 +61,10 @@ impl TelescopeCollectionHandle {
 
 fn create_telescope(def: TelescopeDefinition) -> Arc<dyn Telescope> {
     log::info!("Creating telescope {}", def.name);
+    let stow_position = def.stow_position.map(|p| Direction {
+        azimuth: p[0].to_radians(),
+        elevation: p[1].to_radians(),
+    });
     match def.telescope_type {
         TelescopeType::Salsa => Arc::new(salsa_telescope::create(
             def.name.clone(),
@@ -69,8 +74,9 @@ fn create_telescope(def: TelescopeDefinition) -> Arc<dyn Telescope> {
             def.receiver_address
                 .expect("Telescope of type Salsa should have receiver_address.")
                 .clone(),
+            stow_position,
         )),
-        TelescopeType::Fake => Arc::new(fake_telescope::create(def.name.clone())),
+        TelescopeType::Fake => Arc::new(fake_telescope::create(def.name.clone(), stow_position)),
     }
 }
 

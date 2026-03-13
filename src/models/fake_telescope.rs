@@ -37,6 +37,7 @@ struct Inner {
     receiver_configuration: ReceiverConfiguration,
     current_spectra: Vec<ObservedSpectra>,
     name: String,
+    stow_position: Option<Direction>,
     alive: bool,
 }
 
@@ -44,7 +45,7 @@ pub struct FakeTelescope {
     inner: Arc<Mutex<Inner>>,
 }
 
-pub fn create(name: String) -> FakeTelescope {
+pub fn create(name: String, stow_position: Option<Direction>) -> FakeTelescope {
     let inner = Arc::new(Mutex::new(Inner {
         target: None,
         horizontal: FAKE_TELESCOPE_PARKING_HORIZONTAL,
@@ -58,6 +59,7 @@ pub fn create(name: String) -> FakeTelescope {
         receiver_configuration: ReceiverConfiguration { integrate: false },
         current_spectra: vec![],
         name,
+        stow_position,
         alive: true,
     }));
 
@@ -181,6 +183,7 @@ impl Telescope for FakeTelescope {
             most_recent_error: inner.most_recent_error.clone(),
             measurement_in_progress: inner.receiver_configuration.integrate,
             latest_observation,
+            stow_position: inner.stow_position,
         })
     }
     async fn shutdown(&self) {
