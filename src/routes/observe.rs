@@ -4,7 +4,7 @@ use crate::models::booking::booking_is_active;
 use crate::models::observation::Observation;
 use crate::models::telescope::Telescope;
 use crate::models::telescope_types::{
-    ReceiverConfiguration, ReceiverError, TelescopeInfo, TelescopeTarget,
+    ReceiverConfiguration, ReceiverError, TelescopeError, TelescopeInfo, TelescopeTarget,
 };
 use crate::models::user::User;
 use crate::routes::index::render_main;
@@ -53,10 +53,16 @@ impl IntoResponse for ReceiverError {
 
 fn error_response(message: String) -> Response {
     // Create a response that will specifically update the error box on the page.
+    let body = if message.is_empty() {
+        String::new()
+    } else {
+        format!("<p class=\"text-red-600 text-sm\">Error: {message}</p>")
+    };
     Response::builder()
         .status(StatusCode::OK) // Needs to be ok to be picked up by htmx.
         .header("HX-Retarget", "#errors")
-        .body(Body::from(message))
+        .header("HX-Reswap", "innerHTML")
+        .body(Body::from(body))
         .expect("Building a response should never fail")
 }
 
@@ -65,7 +71,7 @@ async fn set_target(
     Path(telescope_id): Path<String>,
     Extension(user): Extension<Option<User>>,
     Form(target): Form<Target>,
-) -> Result<impl IntoResponse, StatusCode> {
+) -> Result<Response, StatusCode> {
     let user = user.ok_or(StatusCode::UNAUTHORIZED)?;
     if !booking_is_active(state.database_connection, &user, &telescope_id).await? {
         return Err(StatusCode::UNAUTHORIZED);
@@ -97,12 +103,17 @@ async fn set_target(
         .get(&telescope_id)
         .await
         .ok_or(StatusCode::NOT_FOUND)?;
-    telescope.set_target(target).await.map_err(|err| {
-        error!("Failed to set target {err}.");
-        StatusCode::INTERNAL_SERVER_ERROR
-    })?;
-    let content = observe(telescope.as_ref()).await?;
-    Ok(Html(content))
+    match telescope.set_target(target).await {
+        Err(TelescopeError::TargetBelowHorizon) => {
+            return Ok(error_response("Target is below the horizon.".to_string()));
+        }
+        Err(err) => {
+            error!("Failed to set target: {err}.");
+            return Err(StatusCode::INTERNAL_SERVER_ERROR);
+        }
+        Ok(_) => {}
+    }
+    Ok(error_response(String::new()))
 }
 
 async fn save_latest_observation(
@@ -279,6 +290,13 @@ struct ObserveTemplate {
     state_html: String,
 }
 
+fn fmt_deg(deg: f64) -> String {
+    let s = format!("{:.6}", deg);
+    let s = s.trim_end_matches('0');
+    let s = s.trim_end_matches('.');
+    s.to_string()
+}
+
 async fn observe(telescope: &dyn Telescope) -> Result<String, StatusCode> {
     let info = telescope.get_info().await.map_err(|err| {
         error!("Failed to get info {err}");
@@ -296,19 +314,19 @@ async fn observe(telescope: &dyn Telescope) -> Result<String, StatusCode> {
             right_ascension,
             declination,
         } => (
-            right_ascension.to_degrees().to_string(),
-            declination.to_degrees().to_string(),
+            fmt_deg(right_ascension.to_degrees()),
+            fmt_deg(declination.to_degrees()),
         ),
         TelescopeTarget::Galactic {
             longitude,
             latitude,
         } => (
-            longitude.to_degrees().to_string(),
-            latitude.to_degrees().to_string(),
+            fmt_deg(longitude.to_degrees()),
+            fmt_deg(latitude.to_degrees()),
         ),
         TelescopeTarget::Horizontal { azimuth, elevation } => (
-            azimuth.to_degrees().to_string(),
-            elevation.to_degrees().to_string(),
+            fmt_deg(azimuth.to_degrees()),
+            fmt_deg(elevation.to_degrees()),
         ),
         TelescopeTarget::Parked => (String::new(), String::new()),
     };

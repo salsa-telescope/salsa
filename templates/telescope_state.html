@@ -1,8 +1,38 @@
-<h2 class="mt-4 mb-3">{{ info.id }}</h2>
-<p>Status: {{ status }}</p>
-<p>{{ error }}</p>
-{% if direction.is_some() %}
-<h3>Current horizontal coordinates</h3>
-<p>Azimuth: {{ "{:.3}"|format(direction.unwrap().azimuth.to_degrees()) }}</p>
-<p>Elevation: {{ "{:.3}"|format(direction.unwrap().elevation.to_degrees()) }}</p>
+<span id="measuring-state"
+  data-measuring="{{ info.measurement_in_progress }}"
+  data-obs-secs="{% if let Some(obs) = info.latest_observation %}{{ obs.observation_time.as_secs() }}{% else %}0{% endif %}"
+  class="hidden"></span>
+
+<h2 class="font-semibold mb-3">Telescope control &mdash; {{ info.id }} &mdash;
+  {% if status == "Idle" %}
+  <span class="text-blue-600">Idle</span>
+  {% else if status == "Slewing" %}
+  <span class="text-yellow-500">Slewing</span>
+  {% else if status == "Tracking" %}
+  <span class="text-green-600">Tracking</span>
+  {% else %}
+  <span>{{ status }}</span>
+  {% endif %}
+</h2>
+
+{% if !error.is_empty() %}
+<p class="text-red-600 text-sm mb-2">{{ error }}</p>
 {% endif %}
+
+<div class="text-sm grid items-baseline gap-x-1"
+  style="grid-template-columns: 3.5rem 1.5rem auto 1.5rem auto">
+  {% if let Some(target) = info.commanded_horizontal %}
+  <span class="text-gray-400">Target</span>
+  <span class="text-gray-400">Az</span>
+  <span class="font-mono">{{ "{:.3}"|format(target.azimuth.to_degrees()) }}&deg;</span>
+  <span class="text-gray-400">El</span>
+  <span class="font-mono">{{ "{:.3}"|format(target.elevation.to_degrees()) }}&deg;</span>
+  {% endif %}
+  {% if let Some(current) = direction %}
+  <span class="text-gray-400">Current</span>
+  <span class="text-gray-400">Az</span>
+  <span class="font-mono">{{ "{:.1}"|format(current.azimuth.to_degrees()) }}&deg;</span>
+  <span class="text-gray-400">El</span>
+  <span class="font-mono">{{ "{:.1}"|format(current.elevation.to_degrees()) }}&deg;</span>
+  {% endif %}
+</div>
