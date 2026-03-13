@@ -131,6 +131,35 @@ impl Booking {
     }
 }
 
+pub async fn consecutive_booking_end(
+    connection: Arc<Mutex<Connection>>,
+    user: &User,
+    telescope_id: &str,
+) -> Result<Option<DateTime<Utc>>, InternalError> {
+    let bookings = Booking::fetch_for_user(connection, user).await?;
+    let now = Utc::now();
+
+    let active = bookings
+        .iter()
+        .find(|b| b.active_at(&now) && b.telescope_name == telescope_id);
+    let Some(active) = active else {
+        return Ok(None);
+    };
+
+    let mut end_time = active.end_time;
+    loop {
+        let next = bookings
+            .iter()
+            .find(|b| b.telescope_name == telescope_id && b.start_time == end_time);
+        match next {
+            Some(next) => end_time = next.end_time,
+            None => break,
+        }
+    }
+
+    Ok(Some(end_time))
+}
+
 pub async fn booking_is_active(
     connection: Arc<Mutex<Connection>>,
     user: &User,

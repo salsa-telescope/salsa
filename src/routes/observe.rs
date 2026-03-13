@@ -3,7 +3,7 @@ use crate::coords::{
     Direction, Location, horizontal_from_equatorial, horizontal_from_galactic,
     vlsrcorr_from_galactic,
 };
-use crate::models::booking::booking_is_active;
+use crate::models::booking::{booking_is_active, consecutive_booking_end};
 use crate::models::observation::Observation;
 use crate::models::telescope::Telescope;
 use crate::models::telescope_types::{
@@ -34,6 +34,7 @@ pub fn routes(state: AppState) -> Router {
     let observe_routes = Router::new()
         .route("/", get(get_observe))
         .route("/preview", get(get_preview))
+        .route("/booking-end-time", get(get_booking_end_time))
         .route("/set-target", post(set_target))
         .route("/stop-telescope", post(stop_telescope))
         .route("/observe", post(start_observe))
@@ -48,6 +49,22 @@ struct PreviewQuery {
     coordinate_system: Option<String>,
     x: Option<String>,
     y: Option<String>,
+}
+
+async fn get_booking_end_time(
+    Extension(user): Extension<Option<User>>,
+    State(state): State<AppState>,
+    Path(telescope_id): Path<String>,
+) -> impl IntoResponse {
+    let Some(user) = user else {
+        return String::new();
+    };
+    consecutive_booking_end(state.database_connection, &user, &telescope_id)
+        .await
+        .ok()
+        .flatten()
+        .map(|t| t.to_rfc3339())
+        .unwrap_or_default()
 }
 
 async fn get_preview(
