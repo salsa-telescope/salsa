@@ -42,14 +42,14 @@
               <input type="text" name="y" value="{{ commanded_y }}"
                 class="border rounded px-2 py-1 bg-white w-full text-sm" />
             </div>
+            <button
+              hx-post="/observe/{{ info.id }}/set-target"
+              hx-swap="none"
+              class="px-3 py-1 bg-indigo-600 text-white rounded-md hover:bg-indigo-500 text-sm flex-shrink-0"
+            >
+              Track
+            </button>
           </div>
-          <button
-            hx-post="/observe/{{ info.id }}/set-target"
-            hx-swap="none"
-            class="px-3 py-1 bg-indigo-600 text-white rounded-md hover:bg-indigo-500 text-sm"
-          >
-            Track target
-          </button>
         </form>
       </div>
 
