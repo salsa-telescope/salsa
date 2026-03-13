@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::app::AppState;
-use crate::coords::{Direction, vlsrcorr_from_galactic};
+use crate::coords::vlsrcorr_from_galactic;
 use crate::models::booking::booking_is_active;
 use crate::models::telescope::Telescope;
 use crate::models::telescope_types::TelescopeStatus;
@@ -56,10 +56,10 @@ async fn spectrum_handle_websocket(mut socket: WebSocket, telescope: Arc<dyn Tel
     // Send one-time JSON metadata with VLSR correction
     if let Ok(info) = telescope.get_info().await {
         let vlsr_correction_mps = match info.current_target {
-            TelescopeTarget::Galactic {
+            Some(TelescopeTarget::Galactic {
                 longitude,
                 latitude,
-            } => Some(vlsrcorr_from_galactic(longitude, latitude, Utc::now())),
+            }) => Some(vlsrcorr_from_galactic(longitude, latitude, Utc::now())),
             _ => None,
         };
         let json = serde_json::json!({ "vlsr_correction_mps": vlsr_correction_mps });
@@ -140,7 +140,6 @@ struct TelescopeStateTemplate {
     info: TelescopeInfo,
     status: String,
     error: String,
-    direction: Option<Direction>,
 }
 
 pub async fn telescope_state(telescope: &dyn Telescope) -> Result<String, TelescopeError> {
@@ -162,7 +161,6 @@ pub async fn telescope_state(telescope: &dyn Telescope) -> Result<String, Telesc
             },
             None => "".to_string(),
         },
-        direction: telescope.get_direction().await,
     }
     .render()
     .expect("Template rendering should always succeed"))

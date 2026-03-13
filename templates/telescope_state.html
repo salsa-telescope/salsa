@@ -19,20 +19,3 @@
 <p class="text-red-600 text-sm mb-2">{{ error }}</p>
 {% endif %}
 
-<div class="text-sm grid items-baseline gap-x-1"
-  style="grid-template-columns: 3.5rem 1.5rem auto 1.5rem auto">
-  {% if let Some(target) = info.commanded_horizontal %}
-  <span class="text-gray-400">Target</span>
-  <span class="text-gray-400">Az</span>
-  <span class="font-mono">{{ "{:.3}"|format(target.azimuth.to_degrees()) }}&deg;</span>
-  <span class="text-gray-400">El</span>
-  <span class="font-mono">{{ "{:.3}"|format(target.elevation.to_degrees()) }}&deg;</span>
-  {% endif %}
-  {% if let Some(current) = direction %}
-  <span class="text-gray-400">Current</span>
-  <span class="text-gray-400">Az</span>
-  <span class="font-mono">{{ "{:.1}"|format(current.azimuth.to_degrees()) }}&deg;</span>
-  <span class="text-gray-400">El</span>
-  <span class="font-mono">{{ "{:.1}"|format(current.elevation.to_degrees()) }}&deg;</span>
-  {% endif %}
-</div>

@@ -2,7 +2,7 @@ use crate::coords::{Direction, Location};
 use crate::coords::{horizontal_from_equatorial, horizontal_from_galactic};
 use crate::models::telescope_types::{TelescopeError, TelescopeStatus, TelescopeTarget};
 use crate::telescope_controller::{TelescopeCommand, TelescopeController, TelescopeResponse};
-use chrono::{DateTime, TimeDelta, Utc};
+use chrono::{DateTime, Utc};
 use log::{debug, error, info};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -11,7 +11,7 @@ use tokio::time::{Instant, sleep_until};
 pub const LOWEST_ALLOWED_ELEVATION: f64 = 5.0f64 / 180.0f64 * std::f64::consts::PI;
 
 pub struct TelescopeTrackerInfo {
-    pub target: TelescopeTarget,
+    pub target: Option<TelescopeTarget>,
     pub commanded_horizontal: Option<Direction>,
     pub current_horizontal: Option<Direction>,
     pub status: TelescopeStatus,
@@ -26,9 +26,8 @@ pub struct TelescopeTracker {
 impl TelescopeTracker {
     pub fn new(controller_address: String) -> TelescopeTracker {
         let state = Arc::new(Mutex::new(TelescopeTrackerState {
-            target: TelescopeTarget::Parked,
+            target: None,
             commanded_horizontal: None,
-            stop_tracking_time: None,
             current_direction: None,
             most_recent_error: None,
             should_restart: false,
@@ -61,9 +60,15 @@ impl TelescopeTracker {
     ) -> Result<TelescopeTarget, TelescopeError> {
         let mut state = self.state.lock().unwrap();
         assert!(!state.quit);
-        state.target = target;
-        state.stop_tracking_time = Some(Utc::now() + TimeDelta::hours(1));
+        state.target = Some(target);
         Ok(target)
+    }
+
+    pub fn stop(&mut self) -> Result<(), TelescopeError> {
+        let mut state = self.state.lock().unwrap();
+        assert!(!state.quit);
+        state.target = None;
+        Ok(())
     }
 
     #[allow(dead_code)]
@@ -102,25 +107,11 @@ impl TelescopeTracker {
             most_recent_error,
         })
     }
-
-    pub fn direction(&self) -> Option<Direction> {
-        let state = self.state.lock().unwrap();
-        assert!(!state.quit);
-        state.current_direction
-    }
-
-    #[allow(dead_code)]
-    pub fn target(&self) -> Result<TelescopeTarget, TelescopeError> {
-        let state = self.state.lock().unwrap();
-        assert!(!state.quit);
-        Ok(state.target)
-    }
 }
 
 struct TelescopeTrackerState {
-    target: TelescopeTarget,
+    target: Option<TelescopeTarget>,
     commanded_horizontal: Option<Direction>,
-    stop_tracking_time: Option<DateTime<Utc>>,
     current_direction: Option<Direction>,
     most_recent_error: Option<TelescopeError>,
     should_restart: bool,
@@ -132,18 +123,17 @@ async fn tracker_task_function(
     controller_address: String,
 ) {
     let mut connection_established = false;
+    let mut prev_target: Option<TelescopeTarget> = None;
 
     while !state.lock().unwrap().quit {
         // 1 Hz update freq
         sleep_until(Instant::now() + Duration::from_secs(1)).await;
 
-        {
-            // If the telscope is parked we don't need to update the position
-            let state_guard = state.lock().unwrap();
-            if state_guard.target == TelescopeTarget::Parked {
-                continue;
-            }
-        }
+        let target = state.lock().unwrap().target;
+
+        // If target just became None, send Stop to hardware
+        let need_stop = prev_target.is_some() && target.is_none();
+        prev_target = target;
 
         let mut controller = match TelescopeController::connect(&controller_address) {
             Ok(controller) => controller,
@@ -165,15 +155,13 @@ async fn tracker_task_function(
             connection_established = true;
         }
 
-        {
+        if need_stop {
+            debug!("Target set to None, sending Stop to controller");
+            let err = controller.execute(TelescopeCommand::Stop).err();
             let mut state_guard = state.lock().unwrap();
-            if let Some(stop_telescope_time) = state_guard.stop_tracking_time
-                && stop_telescope_time < Utc::now()
-            {
-                state_guard.target = TelescopeTarget::Parked;
-                state_guard.stop_tracking_time = None;
-                debug!("Stopped tracking due to timeout");
-            }
+            state_guard.most_recent_error = err;
+            state_guard.commanded_horizontal = None;
+            continue;
         }
 
         if state.lock().unwrap().should_restart {
@@ -202,13 +190,11 @@ fn update_direction(
         latitude: 1.00170457462,  //(57.0+23.0/60.0+36.4/3600.0) * PI / 180.0
     };
 
-    // Read target and commanded_horizontal from state, then release the lock
-    let (target, prev_commanded) = {
+    // Read target from state, then release the lock
+    let target = {
         let state_guard = state.lock().unwrap();
-        (state_guard.target, state_guard.commanded_horizontal)
+        state_guard.target
     };
-
-    let target_horizontal = calculate_target_horizontal(target, location, when);
 
     let current_horizontal = match controller.execute(TelescopeCommand::GetDirection)? {
         TelescopeResponse::CurrentDirection(direction) => Ok(direction),
@@ -217,66 +203,55 @@ fn update_direction(
         )),
     }?;
 
-    match target_horizontal {
-        Some(target_horizontal) => {
-            // FIXME: How to handle static configuration like this?
-            if target_horizontal.elevation < LOWEST_ALLOWED_ELEVATION {
-                let mut state_guard = state.lock().unwrap();
-                state_guard.current_direction = Some(current_horizontal);
-                state_guard.most_recent_error = Some(TelescopeError::TargetBelowHorizon);
-                state_guard.commanded_horizontal = None;
-                return Err(TelescopeError::TargetBelowHorizon);
-            }
+    let Some(target) = target else {
+        state.lock().unwrap().current_direction = Some(current_horizontal);
+        return Ok(());
+    };
 
-            // Check if more than 1 tolerance off, if so we need to send track command
-            if !directions_are_close(target_horizontal, current_horizontal, 1.0) {
-                controller.execute(TelescopeCommand::SetDirection(target_horizontal))?;
-            }
+    let target_horizontal = calculate_target_horizontal(target, location, when);
 
-            let mut state_guard = state.lock().unwrap();
-            state_guard.current_direction = Some(current_horizontal);
-            state_guard.commanded_horizontal = Some(target_horizontal);
-
-            Ok(())
-        }
-        None => {
-            if prev_commanded.is_some() {
-                controller.execute(TelescopeCommand::Stop)?;
-            }
-
-            let mut state_guard = state.lock().unwrap();
-            state_guard.current_direction = Some(current_horizontal);
-            if prev_commanded.is_some() {
-                state_guard.commanded_horizontal = None;
-            }
-
-            Ok(())
-        }
+    // FIXME: How to handle static configuration like this?
+    if target_horizontal.elevation < LOWEST_ALLOWED_ELEVATION {
+        let mut state_guard = state.lock().unwrap();
+        state_guard.current_direction = Some(current_horizontal);
+        state_guard.most_recent_error = Some(TelescopeError::TargetBelowHorizon);
+        state_guard.commanded_horizontal = None;
+        return Err(TelescopeError::TargetBelowHorizon);
     }
+
+    // Check if more than 1 tolerance off, if so we need to send track command
+    if !directions_are_close(target_horizontal, current_horizontal, 1.0) {
+        controller.execute(TelescopeCommand::SetDirection(target_horizontal))?;
+    }
+
+    let mut state_guard = state.lock().unwrap();
+    state_guard.current_direction = Some(current_horizontal);
+    state_guard.commanded_horizontal = Some(target_horizontal);
+
+    Ok(())
 }
 
 fn calculate_target_horizontal(
     target: TelescopeTarget,
     location: Location,
     when: DateTime<Utc>,
-) -> Option<Direction> {
+) -> Direction {
     match target {
         TelescopeTarget::Equatorial {
             right_ascension: ra,
             declination: dec,
-        } => Some(horizontal_from_equatorial(location, when, ra, dec)),
+        } => horizontal_from_equatorial(location, when, ra, dec),
         TelescopeTarget::Galactic {
             longitude: l,
             latitude: b,
-        } => Some(horizontal_from_galactic(location, when, l, b)),
+        } => horizontal_from_galactic(location, when, l, b),
         TelescopeTarget::Horizontal {
             azimuth: az,
             elevation: el,
-        } => Some(Direction {
+        } => Direction {
             azimuth: az,
             elevation: el,
-        }),
-        TelescopeTarget::Parked => None,
+        },
     }
 }
 

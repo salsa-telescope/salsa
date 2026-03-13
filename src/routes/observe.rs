@@ -1,5 +1,8 @@
 use crate::app::AppState;
-use crate::coords::vlsrcorr_from_galactic;
+use crate::coords::{
+    Direction, Location, horizontal_from_equatorial, horizontal_from_galactic,
+    vlsrcorr_from_galactic,
+};
 use crate::models::booking::booking_is_active;
 use crate::models::observation::Observation;
 use crate::models::telescope::Telescope;
@@ -12,7 +15,7 @@ use crate::routes::telescope::telescope_state;
 
 use askama::Template;
 use axum::body::Body;
-use axum::extract::{Path, State};
+use axum::extract::{Path, Query, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::{Html, IntoResponse, Response};
 use axum::{Extension, Form};
@@ -30,7 +33,9 @@ use tokio::sync::Mutex;
 pub fn routes(state: AppState) -> Router {
     let observe_routes = Router::new()
         .route("/", get(get_observe))
+        .route("/preview", get(get_preview))
         .route("/set-target", post(set_target))
+        .route("/stop-telescope", post(stop_telescope))
         .route("/observe", post(start_observe))
         .route("/stop", post(stop_observe));
     Router::new()
@@ -38,10 +43,100 @@ pub fn routes(state: AppState) -> Router {
         .with_state(state)
 }
 
+#[derive(Deserialize)]
+struct PreviewQuery {
+    coordinate_system: Option<String>,
+    x: Option<String>,
+    y: Option<String>,
+}
+
+async fn get_preview(
+    State(state): State<AppState>,
+    Path(telescope_id): Path<String>,
+    Query(query): Query<PreviewQuery>,
+) -> impl IntoResponse {
+    // TODO: get location from telescope definition instead of hardcoding
+    let location = Location {
+        longitude: 0.20802143022,
+        latitude: 1.00170457462,
+    };
+
+    let x = query.x.as_deref().and_then(|s| s.parse::<f64>().ok());
+    let y = query.y.as_deref().and_then(|s| s.parse::<f64>().ok());
+
+    let calculated = if query.coordinate_system.as_deref() == Some("stow") {
+        match state.telescopes.get(&telescope_id).await {
+            Some(telescope) => telescope
+                .get_info()
+                .await
+                .ok()
+                .and_then(|i| i.stow_position),
+            None => None,
+        }
+    } else {
+        match (&query.coordinate_system, x, y) {
+            (Some(cs), Some(x), Some(y)) => {
+                let x_rad = x.to_radians();
+                let y_rad = y.to_radians();
+                match cs.as_str() {
+                    "galactic" => {
+                        Some(horizontal_from_galactic(location, Utc::now(), x_rad, y_rad))
+                    }
+                    "equatorial" => Some(horizontal_from_equatorial(
+                        location,
+                        Utc::now(),
+                        x_rad,
+                        y_rad,
+                    )),
+                    "horizontal" => Some(Direction {
+                        azimuth: x_rad,
+                        elevation: y_rad,
+                    }),
+                    _ => None,
+                }
+            }
+            _ => None,
+        }
+    };
+
+    let current = match state.telescopes.get(&telescope_id).await {
+        Some(telescope) => telescope
+            .get_info()
+            .await
+            .ok()
+            .and_then(|i| i.current_horizontal),
+        None => None,
+    };
+
+    let fmt = |d: Option<Direction>, decimals: usize| match d {
+        Some(dir) => (
+            format!("{:.prec$}", dir.azimuth.to_degrees(), prec = decimals),
+            format!("{:.prec$}", dir.elevation.to_degrees(), prec = decimals),
+        ),
+        None => ("&mdash;".to_string(), "&mdash;".to_string()),
+    };
+
+    let (calc_az, calc_el) = fmt(calculated, 3);
+    let (cur_az, cur_el) = fmt(current, 1);
+
+    Html(format!(
+        r#"<span class="text-gray-400">Calc.</span>
+<span class="text-gray-400">Az</span>
+<span class="font-mono">{calc_az}&deg;</span>
+<span class="text-gray-400">El</span>
+<span class="font-mono">{calc_el}&deg;</span>
+<span class="text-gray-400">Current</span>
+<span class="text-gray-400">Az</span>
+<span class="font-mono">{cur_az}&deg;</span>
+<span class="text-gray-400">El</span>
+<span class="font-mono">{cur_el}&deg;</span>"#
+    ))
+}
+
 #[derive(Deserialize, Debug)]
 struct Target {
-    x: f64, // Degrees
-    y: f64, // Degrees
+    x: Option<String>, // Degrees; not required when coordinate_system == "stow"
+    y: Option<String>, // Degrees; not required when coordinate_system == "stow"
     coordinate_system: String,
 }
 
@@ -73,37 +168,71 @@ async fn set_target(
     Form(target): Form<Target>,
 ) -> Result<Response, StatusCode> {
     let user = user.ok_or(StatusCode::UNAUTHORIZED)?;
-    if !booking_is_active(state.database_connection, &user, &telescope_id).await? {
+    if !booking_is_active(state.database_connection.clone(), &user, &telescope_id).await? {
         return Err(StatusCode::UNAUTHORIZED);
     }
-
-    let x_rad = target.x.to_radians();
-    let y_rad = target.y.to_radians();
-    let target = match target.coordinate_system.as_str() {
-        "galactic" => TelescopeTarget::Galactic {
-            longitude: x_rad,
-            latitude: y_rad,
-        },
-        "equatorial" => TelescopeTarget::Equatorial {
-            right_ascension: x_rad,
-            declination: y_rad,
-        },
-        "horizontal" => TelescopeTarget::Horizontal {
-            azimuth: x_rad,
-            elevation: y_rad,
-        },
-        coordinate_system => {
-            debug!("Unkown coordinate system {coordinate_system}");
-            return Err(StatusCode::BAD_REQUEST);
-        }
-    };
 
     let telescope = state
         .telescopes
         .get(&telescope_id)
         .await
         .ok_or(StatusCode::NOT_FOUND)?;
-    match telescope.set_target(target).await {
+
+    let telescope_target = if target.coordinate_system == "stow" {
+        let info = telescope.get_info().await.map_err(|err| {
+            error!("Failed to get telescope info: {err}");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+        let stow = info.stow_position.ok_or_else(|| {
+            error!("No stow position configured for telescope {telescope_id}");
+            StatusCode::NOT_FOUND
+        })?;
+        save_latest_observation(state.database_connection, &user, telescope.as_ref()).await;
+        telescope
+            .set_receiver_configuration(ReceiverConfiguration { integrate: false })
+            .await
+            .map_err(|err| {
+                error!("Failed to stop integration: {err}.");
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?;
+        TelescopeTarget::Horizontal {
+            azimuth: stow.azimuth,
+            elevation: stow.elevation,
+        }
+    } else {
+        let x_rad = target
+            .x
+            .as_deref()
+            .and_then(|s| s.parse::<f64>().ok())
+            .ok_or(StatusCode::BAD_REQUEST)?
+            .to_radians();
+        let y_rad = target
+            .y
+            .as_deref()
+            .and_then(|s| s.parse::<f64>().ok())
+            .ok_or(StatusCode::BAD_REQUEST)?
+            .to_radians();
+        match target.coordinate_system.as_str() {
+            "galactic" => TelescopeTarget::Galactic {
+                longitude: x_rad,
+                latitude: y_rad,
+            },
+            "equatorial" => TelescopeTarget::Equatorial {
+                right_ascension: x_rad,
+                declination: y_rad,
+            },
+            "horizontal" => TelescopeTarget::Horizontal {
+                azimuth: x_rad,
+                elevation: y_rad,
+            },
+            coordinate_system => {
+                debug!("Unkown coordinate system {coordinate_system}");
+                return Err(StatusCode::BAD_REQUEST);
+            }
+        }
+    };
+
+    match telescope.set_target(telescope_target).await {
         Err(TelescopeError::TargetBelowHorizon) => {
             return Ok(error_response("Target is below the horizon.".to_string()));
         }
@@ -137,7 +266,10 @@ async fn save_latest_observation(
     let start_time =
         Utc::now() - Duration::milliseconds(spectra.observation_time.as_millis() as i64);
 
-    let (coordinate_system, target_x, target_y, vlsr_correction_mps) = match info.current_target {
+    let Some(current_target) = info.current_target else {
+        return;
+    };
+    let (coordinate_system, target_x, target_y, vlsr_correction_mps) = match current_target {
         TelescopeTarget::Equatorial {
             right_ascension,
             declination,
@@ -162,7 +294,6 @@ async fn save_latest_observation(
             elevation.to_degrees(),
             None,
         ),
-        TelescopeTarget::Parked => ("horizontal", 0.0, 0.0, None),
     };
 
     let frequencies_json = match serde_json::to_string(&spectra.frequencies) {
@@ -197,6 +328,35 @@ async fn save_latest_observation(
     {
         error!("Failed to save observation: {err:?}");
     }
+}
+
+async fn stop_telescope(
+    Extension(user): Extension<Option<User>>,
+    State(state): State<AppState>,
+    Path(telescope_id): Path<String>,
+) -> Result<impl IntoResponse, StatusCode> {
+    let user = user.ok_or(StatusCode::UNAUTHORIZED)?;
+    if !booking_is_active(state.database_connection.clone(), &user, &telescope_id).await? {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+    let telescope = state
+        .telescopes
+        .get(&telescope_id)
+        .await
+        .ok_or(StatusCode::NOT_FOUND)?;
+    save_latest_observation(state.database_connection, &user, telescope.as_ref()).await;
+    telescope
+        .set_receiver_configuration(ReceiverConfiguration { integrate: false })
+        .await
+        .map_err(|err| {
+            error!("Failed to stop integration: {err}.");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+    telescope.stop().await.map_err(|err| {
+        error!("Failed to stop telescope: {err}.");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+    Ok(error_response(String::new()))
 }
 
 async fn start_observe(
@@ -303,32 +463,32 @@ async fn observe(telescope: &dyn Telescope) -> Result<String, StatusCode> {
         StatusCode::NOT_FOUND
     })?;
     let target_mode = match &info.current_target {
-        TelescopeTarget::Equatorial { .. } => "equatorial",
-        TelescopeTarget::Galactic { .. } => "galactic",
-        TelescopeTarget::Horizontal { .. } => "horizontal",
-        TelescopeTarget::Parked => "equatorial",
+        Some(TelescopeTarget::Equatorial { .. }) => "equatorial",
+        Some(TelescopeTarget::Galactic { .. }) => "galactic",
+        Some(TelescopeTarget::Horizontal { .. }) => "horizontal",
+        None => "galactic",
     }
     .to_string();
     let (commanded_x, commanded_y) = match info.current_target {
-        TelescopeTarget::Equatorial {
+        Some(TelescopeTarget::Equatorial {
             right_ascension,
             declination,
-        } => (
+        }) => (
             fmt_deg(right_ascension.to_degrees()),
             fmt_deg(declination.to_degrees()),
         ),
-        TelescopeTarget::Galactic {
+        Some(TelescopeTarget::Galactic {
             longitude,
             latitude,
-        } => (
+        }) => (
             fmt_deg(longitude.to_degrees()),
             fmt_deg(latitude.to_degrees()),
         ),
-        TelescopeTarget::Horizontal { azimuth, elevation } => (
+        Some(TelescopeTarget::Horizontal { azimuth, elevation }) => (
             fmt_deg(azimuth.to_degrees()),
             fmt_deg(elevation.to_degrees()),
         ),
-        TelescopeTarget::Parked => (String::new(), String::new()),
+        None => (String::new(), String::new()),
     };
     let state_html = telescope_state(telescope).await.map_err(|err| {
         error!("Failed to get telescope state {err}");

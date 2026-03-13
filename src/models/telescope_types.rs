@@ -18,7 +18,6 @@ pub enum TelescopeTarget {
         azimuth: f64,   // in radians
         elevation: f64, // in radians
     },
-    Parked, // aka Stow
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Debug, Copy, Clone)]
@@ -41,10 +40,11 @@ pub struct TelescopeInfo {
     pub status: TelescopeStatus,
     pub commanded_horizontal: Option<Direction>,
     pub current_horizontal: Option<Direction>,
-    pub current_target: TelescopeTarget,
+    pub current_target: Option<TelescopeTarget>,
     pub most_recent_error: Option<TelescopeError>,
     pub measurement_in_progress: bool,
     pub latest_observation: Option<ObservedSpectra>,
+    pub stow_position: Option<Direction>,
 }
 
 #[derive(Deserialize, PartialEq, Debug, Clone)]
@@ -59,6 +59,7 @@ pub struct TelescopeDefinition {
     pub enabled: bool,
     pub location: Location,
     pub min_elevation: f64,
+    pub stow_position: Option<[f64; 2]>, // [azimuth, elevation] in degrees
     pub telescope_type: TelescopeType,
     pub controller_address: Option<String>,
     pub receiver_address: Option<String>,
