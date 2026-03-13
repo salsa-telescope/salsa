@@ -42,15 +42,32 @@
               <input type="text" name="y" value="{{ commanded_y }}"
                 class="border rounded px-2 py-1 bg-white w-full text-sm" />
             </div>
-            <button
+            <button id="track-btn"
               hx-post="/observe/{{ info.id }}/set-target"
               hx-swap="none"
               class="px-3 py-1 bg-indigo-600 text-white rounded-md hover:bg-indigo-500 text-sm flex-shrink-0"
             >
               Track
             </button>
+            <button id="stop-btn"
+              hx-post="/observe/{{ info.id }}/stop-telescope"
+              hx-swap="none"
+              onclick="setTrackingState(false)"
+              class="px-3 py-1 bg-red-600 text-white rounded-md hover:bg-red-500 text-sm flex-shrink-0 hidden"
+            >
+              Stop
+            </button>
           </div>
         </form>
+      </div>
+
+      <!-- Calculated + current position -->
+      <div id="position-display"
+        class="text-sm grid items-baseline gap-x-1"
+        style="grid-template-columns: 3.5rem 1.5rem auto 1.5rem auto"
+        hx-get="/observe/{{ info.id }}/preview"
+        hx-trigger="load, every 1s"
+        hx-include="[name='coordinate_system'],[name='x'],[name='y']">
       </div>
 
       <!-- Measurement controls -->
@@ -163,9 +180,39 @@
       }
   }
 
+  function setTrackingState(tracking) {
+      document.getElementById('track-btn').classList.toggle('hidden', tracking);
+      document.getElementById('stop-btn').classList.toggle('hidden', !tracking);
+      const select = document.querySelector("form select[name='coordinate_system']");
+      const inputX = document.querySelector("form input[name='x']");
+      const inputY = document.querySelector("form input[name='y']");
+      select.style.pointerEvents = tracking ? 'none' : '';
+      select.classList.toggle('opacity-50', tracking);
+      inputX.readOnly = tracking;
+      inputX.classList.toggle('opacity-50', tracking);
+      inputY.readOnly = tracking;
+      inputY.classList.toggle('opacity-50', tracking);
+  }
+
+  function updateTrackStopButtons() {
+      const statusSpan = document.querySelector('#telescope-status h2 span');
+      const isIdle = !statusSpan || statusSpan.textContent.trim() === 'Idle';
+      setTrackingState(!isIdle);
+  }
+
+  document.addEventListener('htmx:beforeRequest', function (evt) {
+      if (evt.detail.elt.id === 'track-btn') {
+          setTrackingState(true);
+      }
+  });
+
   document.addEventListener('htmx:afterSwap', function (evt) {
       if (evt.detail.target.id === 'telescope-status') {
           updateObsTimer();
+          updateTrackStopButtons();
+      }
+      if (evt.detail.target.id === 'errors' && evt.detail.target.innerHTML.trim() !== '') {
+          setTrackingState(false);
       }
   });
 
@@ -173,6 +220,7 @@
       const coordinateSystemDropdown = document.querySelector("form select[name='coordinate_system']");
       coordinateSystemDropdown.addEventListener("change", coordinateSystemChanged);
       updateObsTimer();
+      updateTrackStopButtons();
   }
 
   pageLoad();

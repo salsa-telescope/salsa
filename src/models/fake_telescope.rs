@@ -30,7 +30,7 @@ pub const FAKE_TELESCOPE_NOISE: f64 = 2f64;
 pub const TELESCOPE_UPDATE_INTERVAL: Duration = Duration::from_secs(1);
 
 struct Inner {
-    target: TelescopeTarget,
+    target: Option<TelescopeTarget>,
     horizontal: Direction,
     location: Location,
     most_recent_error: Option<TelescopeError>,
@@ -46,7 +46,7 @@ pub struct FakeTelescope {
 
 pub fn create(name: String) -> FakeTelescope {
     let inner = Arc::new(Mutex::new(Inner {
-        target: TelescopeTarget::Parked,
+        target: None,
         horizontal: FAKE_TELESCOPE_PARKING_HORIZONTAL,
         location: Location {
             //(11.0+55.0/60.0+7.5/3600.0) * PI / 180.0. Sign positive, handled in gmst calc
@@ -79,11 +79,6 @@ pub fn create(name: String) -> FakeTelescope {
 
 #[async_trait]
 impl Telescope for FakeTelescope {
-    async fn get_direction(&self) -> Option<Direction> {
-        let inner = self.inner.lock().await;
-        Some(inner.horizontal)
-    }
-
     async fn set_target(&self, target: TelescopeTarget) -> Result<TelescopeTarget, TelescopeError> {
         let mut inner = self.inner.lock().await;
 
@@ -105,9 +100,16 @@ impl Telescope for FakeTelescope {
                 &inner.name,
                 &target
             );
-            inner.target = target;
+            inner.target = Some(target);
             Ok(target)
         }
+    }
+
+    async fn stop(&self) -> Result<(), TelescopeError> {
+        let mut inner = self.inner.lock().await;
+        log::info!("Stopping telescope {}", &inner.name);
+        inner.target = None;
+        Ok(())
     }
 
     async fn set_receiver_configuration(
@@ -130,20 +132,19 @@ impl Telescope for FakeTelescope {
     async fn get_info(&self) -> Result<TelescopeInfo, TelescopeError> {
         let inner = self.inner.lock().await;
 
-        let target_horizontal =
-            calculate_target_horizontal(inner.location, Utc::now(), inner.target);
-
-        let horizontal_offset_squared = (target_horizontal.azimuth - inner.horizontal.azimuth)
-            .powi(2)
-            + (target_horizontal.elevation - inner.horizontal.elevation).powi(2);
-        let status = {
-            if horizontal_offset_squared > 0.2f64.to_radians().powi(2) {
+        let (status, commanded_horizontal) = if let Some(target) = inner.target {
+            let target_horizontal = calculate_target_horizontal(inner.location, Utc::now(), target);
+            let horizontal_offset_squared = (target_horizontal.azimuth - inner.horizontal.azimuth)
+                .powi(2)
+                + (target_horizontal.elevation - inner.horizontal.elevation).powi(2);
+            let status = if horizontal_offset_squared > 0.2f64.to_radians().powi(2) {
                 TelescopeStatus::Slewing
-            } else if inner.target == TelescopeTarget::Parked {
-                TelescopeStatus::Idle
             } else {
                 TelescopeStatus::Tracking
-            }
+            };
+            (status, Some(target_horizontal))
+        } else {
+            (TelescopeStatus::Idle, None)
         };
 
         let latest_observation = if inner.current_spectra.is_empty() {
@@ -175,7 +176,7 @@ impl Telescope for FakeTelescope {
             id: inner.name.clone(),
             status,
             current_horizontal: Some(inner.horizontal),
-            commanded_horizontal: Some(target_horizontal),
+            commanded_horizontal,
             current_target: inner.target,
             most_recent_error: inner.most_recent_error.clone(),
             measurement_in_progress: inner.receiver_configuration.integrate,
@@ -192,23 +193,26 @@ impl Telescope for FakeTelescope {
 impl Inner {
     fn update(&mut self, delta_time: Duration) -> Result<(), TelescopeError> {
         assert!(self.alive);
-        let now = Utc::now();
-        let current_horizontal = self.horizontal;
-        let target_horizontal = calculate_target_horizontal(self.location, now, self.target);
 
-        if target_horizontal.elevation < LOWEST_ALLOWED_ELEVATION {
-            log::info!(
-                "Stopping telescope since target {:?} set below horizon.",
-                &self.target
-            );
-            self.most_recent_error = Some(TelescopeError::TargetBelowHorizon);
-        } else {
-            let max_delta_angle = FAKE_TELESCOPE_SLEWING_SPEED * delta_time.as_secs_f64();
-            self.horizontal.azimuth += (target_horizontal.azimuth - current_horizontal.azimuth)
-                .clamp(-max_delta_angle, max_delta_angle);
-            self.horizontal.elevation += (target_horizontal.elevation
-                - current_horizontal.elevation)
-                .clamp(-max_delta_angle, max_delta_angle);
+        if let Some(target) = self.target {
+            let now = Utc::now();
+            let current_horizontal = self.horizontal;
+            let target_horizontal = calculate_target_horizontal(self.location, now, target);
+
+            if target_horizontal.elevation < LOWEST_ALLOWED_ELEVATION {
+                log::info!(
+                    "Stopping telescope since target {:?} set below horizon.",
+                    &target
+                );
+                self.most_recent_error = Some(TelescopeError::TargetBelowHorizon);
+            } else {
+                let max_delta_angle = FAKE_TELESCOPE_SLEWING_SPEED * delta_time.as_secs_f64();
+                self.horizontal.azimuth += (target_horizontal.azimuth - current_horizontal.azimuth)
+                    .clamp(-max_delta_angle, max_delta_angle);
+                self.horizontal.elevation += (target_horizontal.elevation
+                    - current_horizontal.elevation)
+                    .clamp(-max_delta_angle, max_delta_angle);
+            }
         }
 
         if self.receiver_configuration.integrate {
@@ -261,6 +265,5 @@ fn calculate_target_horizontal(
             azimuth: az,
             elevation: el,
         },
-        TelescopeTarget::Parked => FAKE_TELESCOPE_PARKING_HORIZONTAL,
     }
 }

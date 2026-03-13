@@ -1,4 +1,3 @@
-use crate::coords::Direction;
 use crate::models::telescope_types::{
     ReceiverConfiguration, ReceiverError, TelescopeDefinition, TelescopeError, TelescopeInfo,
     TelescopeTarget, TelescopeType, TelescopesConfig,
@@ -15,8 +14,8 @@ use tokio::sync::RwLock;
 
 #[async_trait]
 pub trait Telescope: Send + Sync {
-    async fn get_direction(&self) -> Option<Direction>;
     async fn set_target(&self, target: TelescopeTarget) -> Result<TelescopeTarget, TelescopeError>;
+    async fn stop(&self) -> Result<(), TelescopeError>;
     async fn set_receiver_configuration(
         &self,
         receiver_configuration: ReceiverConfiguration,

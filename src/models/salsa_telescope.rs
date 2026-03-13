@@ -1,4 +1,3 @@
-use crate::coords::Direction;
 use crate::models::telescope::Telescope;
 use crate::models::telescope_types::{
     Measurement, ObservedSpectra, ReceiverConfiguration, ReceiverError, TelescopeError,
@@ -70,14 +69,14 @@ pub fn create(
 
 #[async_trait]
 impl Telescope for SalsaTelescope {
-    async fn get_direction(&self) -> Option<Direction> {
-        let inner = self.inner.lock().await;
-        inner.controller.direction()
-    }
-
     async fn set_target(&self, target: TelescopeTarget) -> Result<TelescopeTarget, TelescopeError> {
         let mut inner = self.inner.lock().await;
         inner.controller.set_target(target)
+    }
+
+    async fn stop(&self) -> Result<(), TelescopeError> {
+        let mut inner = self.inner.lock().await;
+        inner.controller.stop()
     }
 
     async fn set_receiver_configuration(
