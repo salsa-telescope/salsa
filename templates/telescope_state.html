@@ -3,18 +3,17 @@
   data-obs-secs="{% if let Some(obs) = info.latest_observation %}{{ obs.observation_time.as_secs() }}{% else %}0{% endif %}"
   class="hidden"></span>
 
-<div class="flex items-baseline justify-between mb-3">
-  <h2 class="font-semibold">Observing using {{ info.id }}</h2>
+<h2 class="font-semibold mb-3">Telescope control &mdash; {{ info.id }} &mdash;
   {% if status == "Idle" %}
-  <span class="text-blue-600 text-sm font-medium">Idle</span>
+  <span class="text-blue-600">Idle</span>
   {% else if status == "Slewing" %}
-  <span class="text-yellow-500 text-sm font-medium">Slewing</span>
+  <span class="text-yellow-500">Slewing</span>
   {% else if status == "Tracking" %}
-  <span class="text-green-600 text-sm font-medium">Tracking</span>
+  <span class="text-green-600">Tracking</span>
   {% else %}
-  <span class="text-sm">{{ status }}</span>
+  <span>{{ status }}</span>
   {% endif %}
-</div>
+</h2>
 
 {% if !error.is_empty() %}
 <p class="text-red-600 text-sm mb-2">{{ error }}</p>
