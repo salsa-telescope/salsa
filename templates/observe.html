@@ -1,19 +1,20 @@
 <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
 <div id="observe-section" class="section light">
-  <h1 class="mb-4">Observing using {{ info.id }}</h1>
-  <div id="errors" class="mb-2"></div>
+  <div id="errors" class="mb-1"></div>
 
   <div class="flex flex-col lg:flex-row gap-6">
 
     <!-- Left column: controls -->
-    <div class="lg:w-1/3 space-y-5">
+    <div class="lg:w-1/3 space-y-3">
+
+      <!-- Telescope status (polled every 1s) — includes h2 heading + status badge -->
+      <div id="telescope-status" hx-get="/telescope/{{ info.id }}/state" hx-trigger="every 1s">{{ state_html }}</div>
 
       <!-- Target input -->
       <div>
-        <h2 class="mb-2 font-semibold">Target</h2>
-        <form class="space-y-3">
+        <form class="space-y-2">
           <div>
-            <label class="block text-sm text-gray-600 mb-1">Coordinate system</label>
+            <label class="block text-sm text-gray-600">Coordinate system</label>
             <select name="coordinate_system" class="border rounded px-2 py-1 bg-white w-full">
               <option value="galactic" {% if target_mode=="galactic" %}selected="selected"{% endif %}>Galactic</option>
               <option value="equatorial" {% if target_mode=="equatorial" %}selected="selected"{% endif %}>Equatorial</option>
@@ -54,8 +55,7 @@
 
       <!-- Observation controls -->
       <div>
-        <h2 class="mb-2 font-semibold">Observation</h2>
-        <div class="flex gap-2">
+        <div class="flex gap-2 items-center">
           <button
             hx-post="/observe/{{ info.id }}/observe"
             hx-swap="none"
@@ -70,13 +70,10 @@
           >
             Stop
           </button>
+          <span id="obs-timer" class="text-sm text-gray-500 hidden">
+            <span id="obs-elapsed">0</span>s
+          </span>
         </div>
-      </div>
-
-      <!-- Telescope status (polled every 1s) -->
-      <div>
-        <h2 class="mb-2 font-semibold">Status</h2>
-        <div hx-get="/telescope/{{ info.id }}/state" hx-trigger="every 1s">{{ state_html }}</div>
       </div>
 
     </div>
@@ -84,6 +81,7 @@
     <!-- Right column: live spectrum chart -->
     <div class="lg:w-2/3">
       <h2 class="mb-2 font-semibold">Live spectrum</h2>
+      <p id="obs-time-display" class="text-sm text-gray-500 mb-2 hidden"></p>
       <div id="chart">
         <!-- FIXME: maybe don't reload this javascript on each htmx fetch of this page? -->
         <script src="/observe_chart.js"></script>
@@ -118,9 +116,62 @@
       }
   }
 
+  let obsTimerInterval = null;
+  let obsStartTime = null;
+
+  function updateObsTimer() {
+      const measuringEl = document.getElementById('measuring-state');
+      if (!measuringEl) return;
+      const isMeasuring = measuringEl.dataset.measuring === 'true';
+      const serverSecs = parseInt(measuringEl.dataset.obsSecs || '0', 10);
+      const timerEl = document.getElementById('obs-timer');
+      const elapsedEl = document.getElementById('obs-elapsed');
+      const displayEl = document.getElementById('obs-time-display');
+
+      if (isMeasuring && obsTimerInterval === null) {
+          obsStartTime = Date.now();
+          timerEl.classList.remove('hidden');
+          obsTimerInterval = setInterval(function () {
+              const secs = Math.floor((Date.now() - obsStartTime) / 1000);
+              elapsedEl.textContent = secs;
+              if (displayEl) {
+                  displayEl.textContent = 'Integrating: ' + secs + 's';
+                  displayEl.classList.remove('hidden');
+              }
+          }, 1000);
+      } else if (!isMeasuring && obsTimerInterval !== null) {
+          clearInterval(obsTimerInterval);
+          obsTimerInterval = null;
+          obsStartTime = null;
+          timerEl.classList.add('hidden');
+          elapsedEl.textContent = '0';
+          if (displayEl) {
+              if (serverSecs > 0) {
+                  displayEl.textContent = 'Integration time: ' + serverSecs + 's';
+                  displayEl.classList.remove('hidden');
+              } else {
+                  displayEl.classList.add('hidden');
+              }
+          }
+      } else if (!isMeasuring && obsTimerInterval === null && displayEl) {
+          // Page load with existing observation data
+          if (serverSecs > 0) {
+              displayEl.textContent = 'Integration time: ' + serverSecs + 's';
+              displayEl.classList.remove('hidden');
+          }
+      }
+  }
+
+  document.addEventListener('htmx:afterSwap', function (evt) {
+      if (evt.detail.target.id === 'telescope-status') {
+          updateObsTimer();
+      }
+  });
+
   function pageLoad() {
       const coordinateSystemDropdown = document.querySelector("form select[name='coordinate_system']");
       coordinateSystemDropdown.addEventListener("change", coordinateSystemChanged);
+      updateObsTimer();
   }
 
   pageLoad();
