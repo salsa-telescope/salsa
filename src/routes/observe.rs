@@ -224,7 +224,9 @@ async fn set_target(
             .and_then(|s| s.parse::<f64>().ok())
             .map(f64::to_radians)
         else {
-            return Ok(error_response("Please enter valid coordinates.".to_string()));
+            return Ok(error_response(
+                "Please enter valid coordinates.".to_string(),
+            ));
         };
         let Some(y_rad) = target
             .y
@@ -232,7 +234,9 @@ async fn set_target(
             .and_then(|s| s.parse::<f64>().ok())
             .map(f64::to_radians)
         else {
-            return Ok(error_response("Please enter valid coordinates.".to_string()));
+            return Ok(error_response(
+                "Please enter valid coordinates.".to_string(),
+            ));
         };
         match target.coordinate_system.as_str() {
             "galactic" => TelescopeTarget::Galactic {
