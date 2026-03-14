@@ -40,6 +40,12 @@ async fn delete_account(
     State(state): State<AppState>,
 ) -> Result<impl IntoResponse, StatusCode> {
     let user = user.ok_or(StatusCode::UNAUTHORIZED)?;
+    log::info!(
+        "Deleting account for user {} ({}, provider: {})",
+        user.id,
+        user.name,
+        user.provider
+    );
     user.delete(state.database_connection)
         .await
         .map_err(|err| {
