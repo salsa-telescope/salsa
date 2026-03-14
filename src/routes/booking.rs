@@ -180,6 +180,7 @@ async fn create_booking(
         id: -1,
         start_time,
         end_time,
+        user_id: user.id,
         user_name: user.name.clone(),
         user_provider: user.provider.clone(),
         telescope_name: form.telescope.clone(),

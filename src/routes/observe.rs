@@ -17,7 +17,7 @@ use askama::Template;
 use axum::body::Body;
 use axum::extract::{Path, Query, State};
 use axum::http::{HeaderMap, StatusCode};
-use axum::response::{Html, IntoResponse, Response};
+use axum::response::{Html, IntoResponse, Redirect, Response};
 use axum::{Extension, Form};
 use axum::{
     Router,
@@ -33,6 +33,7 @@ use tokio::sync::Mutex;
 pub fn routes(state: AppState) -> Router {
     let observe_routes = Router::new()
         .route("/", get(get_observe))
+        .route("/not-available", get(get_observe_not_available))
         .route("/preview", get(get_preview))
         .route("/booking-end-time", get(get_booking_end_time))
         .route("/set-target", post(set_target))
@@ -262,7 +263,7 @@ async fn set_target(
     Ok(error_response(String::new()))
 }
 
-async fn save_latest_observation(
+pub(crate) async fn save_latest_observation(
     connection: Arc<Mutex<Connection>>,
     user: &User,
     telescope: &dyn Telescope,
@@ -440,7 +441,7 @@ async fn get_observe(
 ) -> Result<impl IntoResponse, StatusCode> {
     let user = user.ok_or(StatusCode::UNAUTHORIZED)?;
     if !booking_is_active(state.database_connection, &user, &telescope_id).await? {
-        return Err(StatusCode::UNAUTHORIZED);
+        return Ok(Redirect::to(&format!("/observe/{telescope_id}/not-available")).into_response());
     }
 
     let telescope = state
@@ -449,6 +450,29 @@ async fn get_observe(
         .await
         .ok_or(StatusCode::NOT_FOUND)?;
     let content = observe(telescope.as_ref()).await?;
+    let content = if headers.get("hx-request").is_some() {
+        content
+    } else {
+        render_main(Some(user), content)
+    };
+    Ok(Html(content).into_response())
+}
+
+#[derive(Template)]
+#[template(path = "observe_no_booking.html", escape = "none")]
+struct NoBookingTemplate {
+    telescope_id: String,
+}
+
+async fn get_observe_not_available(
+    Extension(user): Extension<Option<User>>,
+    Path(telescope_id): Path<String>,
+    headers: HeaderMap,
+) -> Result<impl IntoResponse, StatusCode> {
+    let user = user.ok_or(StatusCode::UNAUTHORIZED)?;
+    let content = NoBookingTemplate { telescope_id }
+        .render()
+        .expect("Template rendering should always succeed");
     let content = if headers.get("hx-request").is_some() {
         content
     } else {

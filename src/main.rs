@@ -8,6 +8,7 @@ use std::path::PathBuf;
 use tokio::signal;
 
 mod app;
+mod booking_monitor;
 mod coords;
 mod database;
 mod error;
@@ -51,6 +52,7 @@ async fn main() {
     };
 
     let (app, state) = app::create_app(&args.config_dir, &args.database_dir).await;
+    booking_monitor::start(state.clone());
 
     let listener = TcpListener::bind(addr).unwrap();
     log::info!("listening on {}", listener.local_addr().unwrap());
