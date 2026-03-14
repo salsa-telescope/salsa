@@ -1,0 +1,11 @@
+<div class="section light">
+  <h2 class="font-semibold mb-4">Account</h2>
+  <dl class="text-sm space-y-2" style="display: grid; grid-template-columns: max-content auto; gap: 0.25rem 1rem;">
+    <dt class="text-gray-500">Provider</dt>
+    <dd>{{ user.provider }}</dd>
+    <dt class="text-gray-500">SALSA user ID</dt>
+    <dd>{{ user.id }}</dd>
+    <dt class="text-gray-500">Account type</dt>
+    <dd>{% if user.is_admin %}Admin{% else %}User{% endif %}</dd>
+  </dl>
+</div>

@@ -43,6 +43,7 @@ pub fn render_main(user: Option<User>, content: String) -> String {
                 id: _,
                 name,
                 provider,
+                ..
             }) => format!("{} ({})", name, provider),
             None => String::new(),
         },

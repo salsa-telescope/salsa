@@ -37,10 +37,18 @@ impl Default for BookingConfig {
     }
 }
 
+#[derive(Debug, Clone, Deserialize, Default)]
+pub struct AdminConfig {
+    #[serde(default)]
+    pub user_ids: Vec<i64>,
+}
+
 #[derive(Deserialize)]
 struct SalsaConfig {
     #[serde(default)]
     bookings: BookingConfig,
+    #[serde(default)]
+    admin: AdminConfig,
 }
 
 // Anything that goes in here must be a handle or pointer that can be cloned.
@@ -51,6 +59,7 @@ pub struct AppState {
     pub telescopes: TelescopeCollectionHandle,
     pub secrets: Arc<Secrets>,
     pub booking_config: Arc<BookingConfig>,
+    pub admin_config: Arc<AdminConfig>,
 }
 
 pub async fn create_app(config_dir: &Path, database_dir: &Path) -> (Router, AppState) {
@@ -64,6 +73,7 @@ pub async fn create_app(config_dir: &Path, database_dir: &Path) -> (Router, AppS
     let salsa_config: SalsaConfig =
         toml::from_str(&config_str).expect("config.toml should be valid toml");
     let booking_config = Arc::new(salsa_config.bookings);
+    let admin_config = Arc::new(salsa_config.admin);
 
     let telescopes = create_telescope_collection(
         config_path
@@ -84,10 +94,12 @@ pub async fn create_app(config_dir: &Path, database_dir: &Path) -> (Router, AppS
         telescopes,
         secrets,
         booking_config,
+        admin_config,
     };
 
     let mut app = Router::new()
         .route("/", get(routes::index::get_index))
+        .nest("/account", routes::account::routes())
         .nest("/auth", routes::authentication::routes(state.clone()))
         .nest("/observe", routes::observe::routes(state.clone()))
         .nest("/bookings", routes::booking::routes(state.clone()))

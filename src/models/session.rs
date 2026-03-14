@@ -99,6 +99,7 @@ impl Session {
                     id: user_id,
                     name: username,
                     provider,
+                    is_admin: false,
                 },
             })),
             Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),

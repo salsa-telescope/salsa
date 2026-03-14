@@ -10,6 +10,7 @@ pub struct User {
     pub id: i64,
     pub name: String,
     pub provider: String,
+    pub is_admin: bool,
 }
 
 impl User {
@@ -29,6 +30,7 @@ impl User {
             id: conn.last_insert_rowid(),
             name,
             provider,
+            is_admin: false,
         })
     }
 
@@ -50,7 +52,12 @@ impl User {
                 ))
             },
         ) {
-            Ok((id, name)) => Ok(Some(User { id, name, provider })),
+            Ok((id, name)) => Ok(Some(User {
+                id,
+                name,
+                provider,
+                is_admin: false,
+            })),
             Err(Error::QueryReturnedNoRows) => Ok(None),
             Err(err) => Err(InternalError::new(format!(
                 "Failed to fetch user from db: {err}"

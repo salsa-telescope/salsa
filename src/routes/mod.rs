@@ -1,3 +1,4 @@
+pub mod account;
 pub mod authentication;
 pub mod booking;
 pub mod index;
