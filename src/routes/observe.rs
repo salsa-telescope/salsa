@@ -4,6 +4,7 @@ use crate::coords::{
     vlsrcorr_from_galactic,
 };
 use crate::models::booking::{booking_is_active, consecutive_booking_end};
+use crate::models::maintenance::fetch_maintenance_set;
 use crate::models::observation::Observation;
 use crate::models::telescope::Telescope;
 use crate::models::telescope_types::{
@@ -34,6 +35,7 @@ pub fn routes(state: AppState) -> Router {
     let observe_routes = Router::new()
         .route("/", get(get_observe))
         .route("/not-available", get(get_observe_not_available))
+        .route("/maintenance", get(get_observe_maintenance))
         .route("/preview", get(get_preview))
         .route("/booking-end-time", get(get_booking_end_time))
         .route("/set-target", post(set_target))
@@ -448,8 +450,16 @@ async fn get_observe(
     headers: HeaderMap,
 ) -> Result<impl IntoResponse, StatusCode> {
     let user = user.ok_or(StatusCode::UNAUTHORIZED)?;
-    if !booking_is_active(state.database_connection, &user, &telescope_id).await? {
+    if !booking_is_active(state.database_connection.clone(), &user, &telescope_id).await? {
         return Ok(Redirect::to(&format!("/observe/{telescope_id}/not-available")).into_response());
+    }
+    let maintenance = fetch_maintenance_set(state.database_connection.clone())
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    if maintenance.contains(&telescope_id) {
+        return Ok(
+            Redirect::to(&format!("/observe/{telescope_id}/maintenance")).into_response(),
+        );
     }
 
     let telescope = state
@@ -479,6 +489,29 @@ async fn get_observe_not_available(
 ) -> Result<impl IntoResponse, StatusCode> {
     let user = user.ok_or(StatusCode::UNAUTHORIZED)?;
     let content = NoBookingTemplate { telescope_id }
+        .render()
+        .expect("Template rendering should always succeed");
+    let content = if headers.get("hx-request").is_some() {
+        content
+    } else {
+        render_main(Some(user), content)
+    };
+    Ok(Html(content))
+}
+
+#[derive(Template)]
+#[template(path = "observe_maintenance.html", escape = "none")]
+struct ObserveMaintenanceTemplate {
+    telescope_id: String,
+}
+
+async fn get_observe_maintenance(
+    Extension(user): Extension<Option<User>>,
+    Path(telescope_id): Path<String>,
+    headers: HeaderMap,
+) -> Result<impl IntoResponse, StatusCode> {
+    let user = user.ok_or(StatusCode::UNAUTHORIZED)?;
+    let content = ObserveMaintenanceTemplate { telescope_id }
         .render()
         .expect("Template rendering should always succeed");
     let content = if headers.get("hx-request").is_some() {

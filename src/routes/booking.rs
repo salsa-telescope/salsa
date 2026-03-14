@@ -1,5 +1,6 @@
 use crate::app::AppState;
 use crate::models::booking::Booking;
+use crate::models::maintenance::fetch_maintenance_set;
 use crate::models::user::User;
 use crate::routes::index::render_main;
 use askama::Template;
@@ -114,6 +115,7 @@ struct WeekQuery {
 struct BookingsTemplate {
     my_bookings: Vec<Booking>,
     telescope_names: Vec<String>,
+    maintenance_telescopes: Vec<bool>,
     error: Option<String>,
     now: DateTime<Utc>,
     week_start: NaiveDate,
@@ -186,6 +188,9 @@ async fn create_booking(
         telescope_name: form.telescope.clone(),
     };
 
+    let maintenance = fetch_maintenance_set(state.database_connection.clone())
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     let bookings = Booking::fetch_all(state.database_connection.clone()).await?;
     let max_upcoming = state.booking_config.max_upcoming_bookings;
     let upcoming_count = Booking::fetch_for_user(state.database_connection.clone(), &user)
@@ -194,7 +199,12 @@ async fn create_booking(
         .filter(|b| b.end_time > now)
         .count();
 
-    let error = if upcoming_count as u32 >= max_upcoming {
+    let error = if maintenance.contains(&form.telescope) {
+        Some(format!(
+            "{} is currently under maintenance.",
+            form.telescope
+        ))
+    } else if upcoming_count as u32 >= max_upcoming {
         Some(format!(
             "You have reached the maximum of {} upcoming bookings.",
             max_upcoming,
@@ -287,6 +297,13 @@ async fn build_bookings_page(
     let hours: Vec<u32> = (0..24).collect();
 
     let telescope_names = state.telescopes.get_names().await;
+    let maintenance_set = fetch_maintenance_set(state.database_connection.clone())
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let maintenance_telescopes: Vec<bool> = telescope_names
+        .iter()
+        .map(|name| maintenance_set.contains(name.as_str()))
+        .collect();
     let all_bookings = Booking::fetch_all(state.database_connection.clone()).await?;
     let my_bookings: Vec<Booking> =
         Booking::fetch_for_user(state.database_connection.clone(), user)
@@ -304,6 +321,7 @@ async fn build_bookings_page(
     let content = BookingsTemplate {
         my_bookings,
         telescope_names,
+        maintenance_telescopes,
         error,
         now,
         week_start,
