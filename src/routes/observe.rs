@@ -218,18 +218,22 @@ async fn set_target(
             elevation: stow.elevation,
         }
     } else {
-        let x_rad = target
+        let Some(x_rad) = target
             .x
             .as_deref()
             .and_then(|s| s.parse::<f64>().ok())
-            .ok_or(StatusCode::BAD_REQUEST)?
-            .to_radians();
-        let y_rad = target
+            .map(f64::to_radians)
+        else {
+            return Ok(error_response("Please enter valid coordinates.".to_string()));
+        };
+        let Some(y_rad) = target
             .y
             .as_deref()
             .and_then(|s| s.parse::<f64>().ok())
-            .ok_or(StatusCode::BAD_REQUEST)?
-            .to_radians();
+            .map(f64::to_radians)
+        else {
+            return Ok(error_response("Please enter valid coordinates.".to_string()));
+        };
         match target.coordinate_system.as_str() {
             "galactic" => TelescopeTarget::Galactic {
                 longitude: x_rad,
