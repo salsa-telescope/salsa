@@ -34,6 +34,15 @@ impl User {
         })
     }
 
+    pub async fn delete(self, connection: Arc<Mutex<Connection>>) -> Result<(), InternalError> {
+        let conn = connection.lock().await;
+        conn.execute("DELETE FROM booking WHERE user_id = (?1)", (self.id,))
+            .map_err(|err| InternalError::new(format!("Failed to delete bookings: {err}")))?;
+        conn.execute("DELETE FROM user WHERE id = (?1)", (self.id,))
+            .map_err(|err| InternalError::new(format!("Failed to delete user: {err}")))?;
+        Ok(())
+    }
+
     pub async fn fetch_with_user_with_external_id(
         connection: Arc<Mutex<Connection>>,
         provider: String,
