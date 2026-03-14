@@ -14,6 +14,7 @@ pub struct Booking {
     pub start_time: DateTime<Utc>,
     pub end_time: DateTime<Utc>,
     pub telescope_name: String,
+    pub user_id: i64,
     pub user_name: String,
     pub user_provider: String,
 }
@@ -70,7 +71,7 @@ impl Booking {
     ) -> Result<Vec<Booking>, InternalError> {
         let conn = connection.lock().await;
         let query = String::from(
-            "SELECT booking.id, start_timestamp, end_timestamp, telescope_id, username, provider
+            "SELECT booking.id, start_timestamp, end_timestamp, telescope_id, user.id, username, provider
                 FROM booking, user
                 WHERE booking.user_id = user.id",
         ) + &where_cond.map_or(String::new(), |c| format!(" and {c}"))
@@ -85,8 +86,9 @@ impl Booking {
                     start_time: DateTime::<Utc>::from_timestamp(row.get(1)?, 0).unwrap(),
                     end_time: DateTime::<Utc>::from_timestamp(row.get(2)?, 0).unwrap(),
                     telescope_name: row.get(3)?,
-                    user_name: row.get(4)?,
-                    user_provider: row.get(5)?,
+                    user_id: row.get(4)?,
+                    user_name: row.get(5)?,
+                    user_provider: row.get(6)?,
                 })
             })
             .map_err(|err| InternalError::new(format!("Failed to query_map: {err}")))?;
@@ -129,6 +131,49 @@ impl Booking {
             .pop();
         Ok(booking)
     }
+
+    pub async fn fetch_active(
+        connection: Arc<Mutex<Connection>>,
+    ) -> Result<Vec<Booking>, InternalError> {
+        let now = Utc::now().timestamp();
+        // FIXME: Even though now is a trusted integer, use a prepared statement.
+        Self::fetch(
+            connection,
+            Some(format!(
+                "start_timestamp <= {now} AND end_timestamp > {now}"
+            )),
+        )
+        .await
+    }
+}
+
+pub async fn consecutive_booking_end(
+    connection: Arc<Mutex<Connection>>,
+    user: &User,
+    telescope_id: &str,
+) -> Result<Option<DateTime<Utc>>, InternalError> {
+    let bookings = Booking::fetch_for_user(connection, user).await?;
+    let now = Utc::now();
+
+    let active = bookings
+        .iter()
+        .find(|b| b.active_at(&now) && b.telescope_name == telescope_id);
+    let Some(active) = active else {
+        return Ok(None);
+    };
+
+    let mut end_time = active.end_time;
+    loop {
+        let next = bookings
+            .iter()
+            .find(|b| b.telescope_name == telescope_id && b.start_time == end_time);
+        match next {
+            Some(next) => end_time = next.end_time,
+            None => break,
+        }
+    }
+
+    Ok(Some(end_time))
 }
 
 pub async fn booking_is_active(
@@ -152,6 +197,7 @@ mod test {
             start_time: DateTime::from_timestamp(start_time_ts, 0).unwrap(),
             end_time: DateTime::from_timestamp(end_time_ts, 0).unwrap(),
             telescope_name: String::new(),
+            user_id: 0,
             user_name: String::new(),
             user_provider: String::new(),
         }

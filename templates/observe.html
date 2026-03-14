@@ -10,6 +10,9 @@
       <!-- Telescope status (polled every 1s) — includes h2 heading + status badge -->
       <div id="telescope-status" hx-get="/telescope/{{ info.id }}/state" hx-trigger="every 1s">{{ state_html }}</div>
 
+      <!-- Booking warning (shown at T-5min) -->
+      <div id="booking-warning" class="hidden text-sm font-semibold text-yellow-700 bg-yellow-50 border border-yellow-300 rounded px-3 py-2"></div>
+
       <!-- Target input -->
       <div>
         <form class="space-y-2">
@@ -53,7 +56,6 @@
             <button id="stop-btn"
               hx-post="/observe/{{ info.id }}/stop-telescope"
               hx-swap="none"
-              onclick="setTrackingState(false)"
               class="px-3 py-1 bg-red-600 text-white rounded-md hover:bg-red-500 text-sm flex-shrink-0 hidden"
             >
               Stop
@@ -116,6 +118,57 @@
 </div>
 
 <script>
+  let bookingEndTime = null;
+  let warningSent = false;
+  let bookingEnded = false;
+
+  async function fetchBookingEndTime() {
+      try {
+          const res = await fetch('/observe/{{ info.id }}/booking-end-time');
+          const text = (await res.text()).trim();
+          bookingEndTime = text ? new Date(text) : null;
+      } catch (_) {}
+  }
+
+  function updateBookingCountdown() {
+      const inlineEl = document.getElementById('booking-countdown-inline');
+      const warningEl = document.getElementById('booking-warning');
+
+      if (bookingEnded || !bookingEndTime) return;
+
+      const remaining = Math.floor((bookingEndTime - Date.now()) / 1000);
+
+      if (remaining <= 0) {
+          bookingEnded = true;
+          if (inlineEl) { inlineEl.textContent = ''; }
+          if (warningEl) { warningEl.classList.add('hidden'); }
+          window.location.href = '/observe/{{ info.id }}/not-available';
+          return;
+      }
+
+      const mins = Math.floor(remaining / 60);
+      const secs = remaining % 60;
+      const mm = String(mins).padStart(2, '0');
+      const ss = String(secs).padStart(2, '0');
+
+      if (inlineEl) {
+          if (remaining <= 300) {
+              inlineEl.className = 'font-normal text-yellow-600 text-base';
+          } else {
+              inlineEl.className = 'font-normal text-gray-400 text-base';
+          }
+          inlineEl.textContent = ' \u2014 Time left: ' + mm + ':' + ss;
+      }
+
+      if (remaining <= 300 && !warningSent) {
+          warningSent = true;
+          if (warningEl) {
+              warningEl.textContent = 'Booking ending soon, please stow telescope or extend booking.';
+              warningEl.classList.remove('hidden');
+          }
+      }
+  }
+
   function coordinateSystemChanged(e) {
       const x_label = document.querySelector("form label[for='x']");
       const y_label = document.querySelector("form label[for='y']");
@@ -212,16 +265,11 @@
       setTrackingState(!isIdle);
   }
 
-  document.addEventListener('htmx:beforeRequest', function (evt) {
-      if (evt.detail.elt.id === 'track-btn') {
-          setTrackingState(true);
-      }
-  });
-
   document.addEventListener('htmx:afterSwap', function (evt) {
       if (evt.detail.target.id === 'telescope-status') {
           updateObsTimer();
           updateTrackStopButtons();
+          updateBookingCountdown();
       }
       if (evt.detail.target.id === 'errors' && evt.detail.target.innerHTML.trim() !== '') {
           setTrackingState(false);
@@ -233,6 +281,11 @@
       coordinateSystemDropdown.addEventListener("change", coordinateSystemChanged);
       updateObsTimer();
       updateTrackStopButtons();
+      fetchBookingEndTime().then(updateBookingCountdown);
+      setInterval(async function() {
+          await fetchBookingEndTime();
+          updateBookingCountdown();
+      }, 1000);
   }
 
   pageLoad();

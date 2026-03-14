@@ -3,7 +3,7 @@
   data-obs-secs="{% if let Some(obs) = info.latest_observation %}{{ obs.observation_time.as_secs() }}{% else %}0{% endif %}"
   class="hidden"></span>
 
-<h2 class="font-semibold mb-3">Telescope control &mdash; {{ info.id }} &mdash;
+<h2 class="font-semibold mb-3">Telescope &mdash; {{ info.id }} &mdash;
   {% if status == "Idle" %}
   <span class="text-blue-600">Idle</span>
   {% else if status == "Slewing" %}
@@ -13,6 +13,7 @@
   {% else %}
   <span>{{ status }}</span>
   {% endif %}
+  <span id="booking-countdown-inline" class="font-normal text-gray-400 text-base"></span>
 </h2>
 
 {% if !error.is_empty() %}
