@@ -3,7 +3,7 @@ use axum::{
     Extension, Router,
     extract::State,
     http::{HeaderValue, StatusCode, header::SET_COOKIE},
-    response::{Html, IntoResponse, Redirect},
+    response::{Html, IntoResponse, Response},
     routing::{get, post},
 };
 
@@ -48,10 +48,13 @@ async fn delete_account(
         })?;
     let clear_cookie =
         format!("{SESSION_COOKIE_NAME}=deleted; expires=Thu, 01 Jan 1970 00:00:00 GMT");
-    let mut response = Redirect::to("/").into_response();
+    let mut response = Response::new(axum::body::Body::empty());
     response.headers_mut().insert(
         SET_COOKIE,
         HeaderValue::from_str(&clear_cookie).expect("Hardcoded cookie value should always work"),
     );
+    response
+        .headers_mut()
+        .insert("HX-Redirect", HeaderValue::from_static("/"));
     Ok(response)
 }
