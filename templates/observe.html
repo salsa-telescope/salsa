@@ -260,27 +260,11 @@
       inputY.classList.toggle('opacity-50', tracking || isStow);
   }
 
-  let trackRequestPending = false;
-
   function updateTrackStopButtons() {
-      if (trackRequestPending) return;
       const statusSpan = document.querySelector('#telescope-status h2 span');
       const isIdle = !statusSpan || statusSpan.textContent.trim() === 'Idle';
       setTrackingState(!isIdle);
   }
-
-  document.addEventListener('htmx:beforeRequest', function (evt) {
-      if (evt.detail.elt.id === 'track-btn') {
-          trackRequestPending = true;
-          setTrackingState(true);
-      }
-  });
-
-  document.addEventListener('htmx:afterRequest', function (evt) {
-      if (evt.detail.elt.id === 'track-btn') {
-          trackRequestPending = false;
-      }
-  });
 
   document.addEventListener('htmx:afterSwap', function (evt) {
       if (evt.detail.target.id === 'telescope-status') {
