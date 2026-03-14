@@ -1,0 +1,35 @@
+<div class="section light">
+  <h2 class="font-semibold mb-4">Admin &mdash; Telescope status</h2>
+  <table class="text-sm w-full max-w-md">
+    <thead>
+      <tr class="text-left text-gray-500 border-b">
+        <th class="pb-2 pr-8">Telescope</th>
+        <th class="pb-2 pr-8">Status</th>
+        <th class="pb-2"></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for (name, in_maintenance) in telescopes %}
+      <tr class="border-b last:border-0">
+        <td class="py-2 pr-8 font-medium">{{ name }}</td>
+        <td class="py-2 pr-8">
+          {% if in_maintenance %}
+          <span class="text-yellow-700 font-semibold">Maintenance</span>
+          {% else %}
+          <span class="text-green-700">Operational</span>
+          {% endif %}
+        </td>
+        <td class="py-2">
+          <button
+            hx-post="/admin/telescope/{{ name }}/toggle"
+            hx-target="#page"
+            hx-confirm="{% if in_maintenance %}Mark {{ name }} as operational?{% else %}Put {{ name }} into maintenance? Users will not be able to observe.{% endif %}"
+            class="px-3 py-1 text-sm rounded-md {% if in_maintenance %}bg-green-600 hover:bg-green-500 text-white{% else %}bg-yellow-600 hover:bg-yellow-500 text-white{% endif %}">
+            {% if in_maintenance %}Set operational{% else %}Set maintenance{% endif %}
+          </button>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>

@@ -100,6 +100,8 @@ pub async fn create_app(config_dir: &Path, database_dir: &Path) -> (Router, AppS
     let mut app = Router::new()
         .route("/", get(routes::index::get_index))
         .nest("/account", routes::account::routes(state.clone()))
+        .nest("/admin", routes::admin::routes(state.clone()))
+        .nest("/support", routes::support::routes())
         .nest("/auth", routes::authentication::routes(state.clone()))
         .nest("/observe", routes::observe::routes(state.clone()))
         .nest("/bookings", routes::booking::routes(state.clone()))
