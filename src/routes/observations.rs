@@ -7,7 +7,7 @@ use askama::Template;
 use axum::extract::{Path, Query, State};
 use axum::http::header;
 use axum::http::{HeaderMap, StatusCode};
-use axum::response::{Html, IntoResponse, Json, Response};
+use axum::response::{Html, IntoResponse, Json, Redirect, Response};
 use axum::{Extension, Router, routing::get};
 use serde::{Deserialize, Serialize};
 
@@ -84,7 +84,13 @@ async fn get_observations(
     Query(query): Query<PageQuery>,
     State(state): State<AppState>,
 ) -> Result<Response, StatusCode> {
-    let user = user.ok_or(StatusCode::UNAUTHORIZED)?;
+    let Some(user) = user else {
+        return Ok(if headers.get("hx-request").is_some() {
+            ([("HX-Redirect", "/auth/login")], "").into_response()
+        } else {
+            Redirect::to("/auth/login").into_response()
+        });
+    };
     let viewed_user_id = if user.is_admin {
         query.user_id.unwrap_or(user.id)
     } else {

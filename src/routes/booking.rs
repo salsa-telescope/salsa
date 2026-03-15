@@ -6,7 +6,7 @@ use crate::routes::index::render_main;
 use askama::Template;
 use axum::extract::{Path, Query};
 use axum::http::HeaderMap;
-use axum::response::{Html, IntoResponse, Response};
+use axum::response::{Html, IntoResponse, Redirect, Response};
 use axum::{Extension, Form};
 use axum::{
     Router,
@@ -141,7 +141,11 @@ async fn get_bookings(
     State(state): State<AppState>,
 ) -> Result<Response, StatusCode> {
     let Some(user) = user else {
-        return Ok(StatusCode::UNAUTHORIZED.into_response());
+        return Ok(if headers.get("hx-request").is_some() {
+            ([("HX-Redirect", "/auth/login")], "").into_response()
+        } else {
+            Redirect::to("/auth/login").into_response()
+        });
     };
 
     let viewed_user_id = if user.is_admin {
