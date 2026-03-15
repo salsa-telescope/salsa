@@ -39,16 +39,12 @@ pub fn render_main(user: Option<User>, content: String) -> String {
         _ => String::new(),
     };
     let is_admin = user.as_ref().is_some_and(|u| u.is_admin);
+    let name = match &user {
+        Some(u) => u.name.clone(),
+        None => String::new(),
+    };
     IndexTemplate {
-        name: match user {
-            Some(User {
-                id: _,
-                name,
-                provider,
-                ..
-            }) => format!("{} ({})", name, provider),
-            None => String::new(),
-        },
+        name,
         is_admin,
         content,
         build_url,
