@@ -1,6 +1,10 @@
 <div class="section light">
   <h2 class="font-semibold mb-1">Admin tools</h2>
-  <p class="text-gray-500 text-sm mb-2">This page is only visible to users with IDs listed in the <code>admin</code> section of <code>config.toml</code>.</p>
+  <p class="text-gray-500 text-sm mb-1">This page is only visible to users with IDs listed in the <code>admin</code> section of <code>config.toml</code>.</p>
+  <ul class="text-gray-500 text-sm mb-2 list-disc list-inside">
+    <li>The <a href="/observations" class="text-indigo-600 hover:underline">Observations</a> page has an admin-only filter to view, export, and delete any user's observations.</li>
+    <li>The <a href="/bookings" class="text-indigo-600 hover:underline">Bookings</a> page has an admin-only filter to view and cancel upcoming bookings for any user.</li>
+  </ul>
 
   <h3 class="font-semibold mt-12 mb-2">Telescope maintenance</h3>
   <p class="text-gray-500 text-sm mb-4">Press Set maintenance to disable any upcoming bookings. If currently booked, the user has access until the current slot ends.</p>
