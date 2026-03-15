@@ -52,6 +52,28 @@ impl User {
         Ok(())
     }
 
+    pub async fn fetch_all(connection: Arc<Mutex<Connection>>) -> Result<Vec<User>, InternalError> {
+        let conn = connection.lock().await;
+        let mut stmt = conn
+            .prepare("SELECT id, username, provider FROM user ORDER BY id ASC")
+            .map_err(|err| InternalError::new(format!("Failed to prepare statement: {err}")))?;
+        let users = stmt
+            .query_map([], |row| {
+                Ok(User {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                    provider: row.get(2).unwrap_or_default(),
+                    is_admin: false,
+                })
+            })
+            .map_err(|err| InternalError::new(format!("Failed to query users: {err}")))?;
+        let mut res = Vec::new();
+        for user in users {
+            res.push(user.map_err(|err| InternalError::new(format!("Failed to map row: {err}")))?);
+        }
+        Ok(res)
+    }
+
     pub async fn fetch_with_user_with_external_id(
         connection: Arc<Mutex<Connection>>,
         provider: String,

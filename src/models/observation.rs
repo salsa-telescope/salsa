@@ -61,7 +61,7 @@ impl Observation {
 
     pub async fn fetch_for_user_page(
         connection: Arc<Mutex<Connection>>,
-        user: &User,
+        user_id: i64,
         page_size: i64,
         offset: i64,
     ) -> Result<Vec<Observation>, InternalError> {
@@ -76,7 +76,7 @@ impl Observation {
             )
             .map_err(|err| InternalError::new(format!("Failed to prepare statement: {err}")))?;
         let observations = stmt
-            .query_map(rusqlite::params![&user.id, page_size, offset], |row| {
+            .query_map(rusqlite::params![user_id, page_size, offset], |row| {
                 Ok(Observation {
                     id: row.get(0)?,
                     user_id: row.get(1)?,
@@ -107,12 +107,12 @@ impl Observation {
 
     pub async fn count_for_user(
         connection: Arc<Mutex<Connection>>,
-        user: &User,
+        user_id: i64,
     ) -> Result<i64, InternalError> {
         let conn = connection.lock().await;
         conn.query_row(
             "SELECT COUNT(*) FROM observation WHERE user_id = (?1)",
-            [&user.id],
+            [user_id],
             |row| row.get(0),
         )
         .map_err(|err| InternalError::new(format!("Failed to count observations: {err}")))
@@ -135,18 +135,18 @@ impl Observation {
     pub async fn fetch_one(
         connection: Arc<Mutex<Connection>>,
         id: i64,
-        user: &User,
+        user_id: Option<i64>,
     ) -> Result<Option<Observation>, InternalError> {
         let conn = connection.lock().await;
         let mut stmt = conn
             .prepare(
                 "SELECT id, user_id, telescope_id, start_time, coordinate_system, target_x, target_y, integration_time_secs, frequencies_json, amplitudes_json, vlsr_correction_mps
                  FROM observation
-                 WHERE id = (?1) AND user_id = (?2)",
+                 WHERE id = (?1) AND ((?2) IS NULL OR user_id = (?2))",
             )
             .map_err(|err| InternalError::new(format!("Failed to prepare statement: {err}")))?;
         let mut observations = stmt
-            .query_map([&id, &user.id], |row| {
+            .query_map(rusqlite::params![id, user_id], |row| {
                 Ok(Observation {
                     id: row.get(0)?,
                     user_id: row.get(1)?,

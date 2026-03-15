@@ -1,4 +1,16 @@
 <div class="section light">
+  {% if is_admin %}
+  <p class="text-gray-500 text-sm mb-3">As admin, you can view, export, and delete observations for any user.</p>
+  <form hx-get="/observations" hx-target="#page" hx-push-url="true" class="flex items-center gap-3 mb-4 text-sm">
+    <select name="user_id" class="border rounded px-2 py-1">
+      {% for u in all_users %}
+      <option value="{{ u.id }}" {% if u.id == viewed_user_id %}selected{% endif %}>{{ u.id }} &ndash; {{ u.name }} ({{ u.provider }})</option>
+      {% endfor %}
+    </select>
+    <button type="submit" class="px-3 py-1 bg-indigo-600 text-white rounded-md hover:bg-indigo-500">View</button>
+    <span class="text-gray-400 text-xs">&larr; Admin only filter: uid &ndash; username (provider)</span>
+  </form>
+  {% endif %}
   {% if observations.is_empty() && current_page == 1 %}
   <h2 class="mt-4 mb-3">My observations</h2>
   <p>No observations yet.</p>
@@ -22,7 +34,7 @@
             <button
               id="del-btn-{{ obs.id }}"
               class="ml-2 text-gray-400 hover:text-red-500 text-xs px-1 flex-shrink-0 hidden"
-              hx-delete="/observations/{{ obs.id }}?page={{ current_page }}"
+              hx-delete="/observations/{{ obs.id }}?page={{ current_page }}&user_id={{ viewed_user_id }}"
               hx-target="#page"
               hx-confirm="Delete this observation?"
             >✕</button>
@@ -34,7 +46,7 @@
         {% if let Some(p) = prev_page %}
         <button
           class="px-3 py-1 bg-gray-200 rounded hover:bg-gray-300"
-          hx-get="/observations?page={{ p }}"
+          hx-get="/observations?page={{ p }}&user_id={{ viewed_user_id }}"
           hx-target="#page"
         >&larr; Prev</button>
         {% else %}
@@ -44,7 +56,7 @@
         {% if let Some(p) = next_page %}
         <button
           class="px-3 py-1 bg-gray-200 rounded hover:bg-gray-300"
-          hx-get="/observations?page={{ p }}"
+          hx-get="/observations?page={{ p }}&user_id={{ viewed_user_id }}"
           hx-target="#page"
         >Next &rarr;</button>
         {% else %}
