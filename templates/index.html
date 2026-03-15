@@ -13,46 +13,58 @@
         <script src="https://unpkg.com/htmx.org@2.0.4/dist/htmx.js" integrity="sha384-oeUn82QNXPuVkGCkcrInrS1twIxKhkZiFfr2TdiuObZ3n3yIeMiqcRzkIcguaof1" crossorigin="anonymous"></script>
         <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
         <script src="/observation_chart.js"></script>
+        <script>
+            function toggleNav() {
+                document.body.classList.toggle('nav-open');
+                document.body.classList.remove('user-open');
+            }
+            function toggleUser() {
+                document.body.classList.toggle('user-open');
+                document.body.classList.remove('nav-open');
+            }
+            function closeAllPanels() {
+                document.body.classList.remove('nav-open', 'user-open');
+            }
+            document.addEventListener('click', function(e) {
+                if (!e.target.closest('header, #main-nav, .nav-user-dropdown')) {
+                    closeAllPanels();
+                }
+            });
+        </script>
     </head>
     <body>
         <header>
-            <div id="logo" hx-get="/welcome.html" hx-push-url="/" hx-target="#page"><a href="#">SALSA</a></div>
-            <nav>
-                <menu>
-                    <li hx-get="/bookings" hx-target="#page" hx-push-url="/bookings" class="list-entry">
-                        <a href="#">Bookings</a>
-                    </li>
-                    <li hx-get="/observations" hx-target="#page" hx-push-url="/observations" class="list-entry">
-                        <a href="#">Observations</a>
-                    </li>
-                    <li hx-get="/support" hx-target="#page" hx-push-url="/support" class="list-entry">
-                        <a href="#">Support</a>
-                    </li>
-                    <li hx-get="/webcam" hx-target="#page" hx-push-url="/webcam" class="list-entry">
-                        <a href="#">Webcam</a>
-                    </li>
-                    {% if is_admin %}
-                    <li hx-get="/admin" hx-target="#page" hx-push-url="/admin" class="list-entry">
-                        <a href="#">Admin</a>
-                    </li>
-                    {% endif %}
-                </menu>
-            </nav>
-            <nav>
-                <menu>
-                    {% if name == "" %}
-                    <li class="list-entry">
-                        <a href="/auth/login">Login</a>
-                    </li>
-                    {% else %}
-                    <li hx-get="/account" hx-target="#page" hx-push-url="/account" class="list-entry">
-                        <a href="#">Account</a>
-                    </li>
-                    <li>
-                        <a href="/auth/logout">Log out</a>
-                    </li>
-                    {% endif %}
-                </menu>
+            <div class="header-bar">
+                <div id="logo" hx-get="/welcome.html" hx-push-url="/" hx-target="#page"><a href="#">SALSA</a></div>
+                <button class="hamburger" onclick="toggleNav()" aria-label="Menu">
+                    <svg viewBox="0 0 24 24" fill="currentColor" width="28" height="28">
+                        <path d="M3 6h18v2H3V6zm0 5h18v2H3v-2zm0 5h18v2H3v-2z"/>
+                    </svg>
+                </button>
+            </div>
+            <nav id="main-nav">
+                <a href="#" class="nav-link" hx-get="/bookings" hx-target="#page" hx-push-url="/bookings" onclick="closeAllPanels()">Bookings</a>
+                <a href="#" class="nav-link" hx-get="/observations" hx-target="#page" hx-push-url="/observations" onclick="closeAllPanels()">Observations</a>
+                <a href="#" class="nav-link" hx-get="/support" hx-target="#page" hx-push-url="/support" onclick="closeAllPanels()">Support</a>
+                <a href="#" class="nav-link" hx-get="/webcam" hx-target="#page" hx-push-url="/webcam" onclick="closeAllPanels()">Webcam</a>
+                {% if is_admin %}
+                <a href="#" class="nav-link" hx-get="/admin" hx-target="#page" hx-push-url="/admin" onclick="closeAllPanels()">Admin</a>
+                {% endif %}
+                <span class="nav-spacer"></span>
+                {% if name == "" %}
+                <a href="/auth/login" class="nav-link">Login</a>
+                {% else %}
+                <button class="nav-user-toggle" onclick="toggleUser()">
+                    <svg class="w-5 h-5 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/>
+                    </svg>
+                    {{ name }}
+                </button>
+                <div class="nav-user-dropdown">
+                    <a href="#" class="nav-link" hx-get="/account" hx-target="#page" hx-push-url="/account" onclick="closeAllPanels()">Account</a>
+                    <a href="/auth/logout" class="nav-link">Log out</a>
+                </div>
+                {% endif %}
             </nav>
         </header>
         <div id="page">

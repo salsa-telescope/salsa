@@ -1,7 +1,9 @@
 @import "tailwindcss";
 @source "../templates/";
 
-header * {
+header *,
+header *::before,
+header *::after {
     margin: 0;
     padding: 0;
     box-sizing: border-box;
@@ -176,9 +178,12 @@ header {
     color: var(--gray100);
     background-color: var(--primary-color);
     display: flex;
-    justify-content: space-between;
-    flex-direction: row;
+    align-items: center;
     height: 80px;
+}
+
+.header-bar {
+    display: contents;
 }
 
 #logo {
@@ -187,8 +192,9 @@ header {
     font-family: 'Audiowide', cursive;
     margin: 0 20px;
     display: flex;
-    align-items:center;
-    justify-content:center;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
 }
 
 #logo a {
@@ -196,43 +202,142 @@ header {
     text-decoration: none;
 }
 
-nav menu {
+/* Hamburger button — mobile only */
+.hamburger {
+    @apply hidden;
+    background: none;
+    border: none;
+    color: inherit;
+    cursor: pointer;
+    padding: 0 20px;
+    height: 100%;
+}
+
+/* === Main navigation === */
+#main-nav {
+    display: flex;
+    flex: 1;
+    height: 100%;
+    align-items: center;
+}
+
+.nav-link {
+    color: inherit;
+    text-decoration: none;
+    padding: 0 20px;
     height: 100%;
     display: flex;
     align-items: center;
-    list-style: none;
-    padding: 0;
-    justify-content: center;
-    font-weight: 400;
 }
-
-nav menu li {
-    flex-grow: 1;
-    height: 100%;
-}
-
-nav menu li:hover {
+.nav-link:hover {
     background-color: var(--primary-color-light);
 }
 
-nav menu li * {
-    padding: 0px 20px;
+.nav-spacer {
+    flex: 1;
+}
+
+/* User toggle button (desktop) */
+.nav-user-toggle {
+    @apply flex items-center gap-2 cursor-pointer h-full px-5;
+    background: none;
+    border: none;
     color: inherit;
-    font-size: 16px;
-    text-decoration: none;
-    height: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    font: inherit;
+    position: relative;
+}
+.nav-user-toggle:hover {
+    background-color: var(--primary-color-light);
+}
+.nav-user-dropdown {
+    display: none;
+    position: absolute;
+    right: 0;
+    top: 100%;
+    min-width: 200px;
+    z-index: 100;
+    background-color: var(--primary-color);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+}
+.nav-user-dropdown .nav-link {
+    height: auto;
+    padding: 12px 20px;
 }
 
-#login {
-    margin: 0 20px;
+body.user-open .nav-user-dropdown {
+    display: block;
 }
 
-nav menu li.nav-label:hover {
-    background-color: transparent;
-    cursor: default;
+/* === Desktop === */
+@media (min-width: 701px) {
+    .hamburger {
+        display: none;
+    }
+    header {
+        position: relative;
+    }
+}
+
+/* === Mobile === */
+@media (max-width: 700px) {
+    header {
+        flex-direction: column;
+        height: auto;
+    }
+
+    .header-bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        width: 100%;
+        height: 80px;
+    }
+
+    .hamburger {
+        display: flex;
+        align-items: center;
+        height: 80px;
+    }
+
+    #main-nav {
+        display: none;
+        flex-direction: column;
+        align-items: stretch;
+        height: auto;
+        width: 100%;
+    }
+
+    body.nav-open #main-nav {
+        display: flex;
+    }
+
+    .nav-link {
+        height: auto;
+        padding: 16px 24px;
+        width: 100%;
+    }
+
+    .nav-spacer {
+        display: none;
+    }
+
+    .nav-user-toggle {
+        display: none !important;
+    }
+
+    body.nav-open .nav-user-dropdown {
+        display: block;
+        position: static;
+        min-width: 0;
+        width: 100%;
+        box-shadow: none;
+        border-top: 1px solid var(--primary-color-light);
+    }
+
+    .nav-user-dropdown .nav-link {
+        padding: 16px 24px;
+    }
+
 }
 
 footer {
