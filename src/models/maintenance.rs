@@ -18,9 +18,7 @@ pub async fn fetch_maintenance_set(
         .map_err(|err| InternalError::new(format!("Failed to query maintenance: {err}")))?;
     let mut set = HashSet::new();
     for id in ids {
-        set.insert(
-            id.map_err(|err| InternalError::new(format!("Failed to read row: {err}")))?,
-        );
+        set.insert(id.map_err(|err| InternalError::new(format!("Failed to read row: {err}")))?);
     }
     Ok(set)
 }

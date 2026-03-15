@@ -132,6 +132,23 @@ impl Booking {
         Ok(booking)
     }
 
+    pub async fn fetch_in_range(
+        connection: Arc<Mutex<Connection>>,
+        from: DateTime<Utc>,
+        to: DateTime<Utc>,
+    ) -> Result<Vec<Booking>, InternalError> {
+        let from_ts = from.timestamp();
+        let to_ts = to.timestamp();
+        // FIXME: use prepared statement
+        Self::fetch(
+            connection,
+            Some(format!(
+                "start_timestamp >= {from_ts} AND start_timestamp < {to_ts}"
+            )),
+        )
+        .await
+    }
+
     pub async fn fetch_active(
         connection: Arc<Mutex<Connection>>,
     ) -> Result<Vec<Booking>, InternalError> {

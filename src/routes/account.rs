@@ -2,7 +2,7 @@ use askama::Template;
 use axum::{
     Extension, Router,
     extract::State,
-    http::{HeaderValue, StatusCode, header::SET_COOKIE},
+    http::{HeaderMap, HeaderValue, StatusCode, header::SET_COOKIE},
     response::{Html, IntoResponse, Response},
     routing::{get, post},
 };
@@ -27,12 +27,18 @@ struct AccountTemplate {
 
 async fn get_account(
     Extension(user): Extension<Option<User>>,
+    headers: HeaderMap,
 ) -> Result<impl IntoResponse, StatusCode> {
     let user = user.ok_or(StatusCode::UNAUTHORIZED)?;
     let content = AccountTemplate { user: user.clone() }
         .render()
         .expect("Template rendering should always succeed");
-    Ok(Html(render_main(Some(user), content)))
+    let content = if headers.get("hx-request").is_some() {
+        content
+    } else {
+        render_main(Some(user), content)
+    };
+    Ok(Html(content))
 }
 
 async fn delete_account(

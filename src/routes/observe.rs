@@ -457,9 +457,7 @@ async fn get_observe(
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     if maintenance.contains(&telescope_id) {
-        return Ok(
-            Redirect::to(&format!("/observe/{telescope_id}/maintenance")).into_response(),
-        );
+        return Ok(Redirect::to(&format!("/observe/{telescope_id}/maintenance")).into_response());
     }
 
     let telescope = state

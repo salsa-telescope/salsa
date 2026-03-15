@@ -1,15 +1,19 @@
 <div class="section light">
-  <h2 class="font-semibold mb-4">Admin &mdash; Telescope status</h2>
+  <h2 class="font-semibold mb-1">Admin tools</h2>
+  <p class="text-gray-500 text-sm mb-2">This page is only visible to users with IDs listed in the <code>admin</code> section of <code>config.toml</code>.</p>
+
+  <h3 class="font-semibold mt-12 mb-2">Telescope status</h3>
   <table class="text-sm w-full max-w-md">
     <thead>
       <tr class="text-left text-gray-500 border-b">
         <th class="pb-2 pr-8">Telescope</th>
         <th class="pb-2 pr-8">Status</th>
+        <th class="pb-2 pr-8">Current slot</th>
         <th class="pb-2"></th>
       </tr>
     </thead>
     <tbody>
-      {% for (name, in_maintenance) in telescopes %}
+      {% for (name, in_maintenance, is_booked_now) in telescopes %}
       <tr class="border-b last:border-0">
         <td class="py-2 pr-8 font-medium">{{ name }}</td>
         <td class="py-2 pr-8">
@@ -17,6 +21,15 @@
           <span class="text-yellow-700 font-semibold">Maintenance</span>
           {% else %}
           <span class="text-green-700">Operational</span>
+          {% endif %}
+        </td>
+        <td class="py-2 pr-8">
+          {% if in_maintenance %}
+          <span class="text-gray-400">&mdash;</span>
+          {% else if is_booked_now %}
+          <span class="text-red-600">Booked</span>
+          {% else %}
+          <span class="text-green-700">Free</span>
           {% endif %}
         </td>
         <td class="py-2">
@@ -30,6 +43,31 @@
         </td>
       </tr>
       {% endfor %}
+    </tbody>
+  </table>
+
+  <h3 class="font-semibold mt-12 mb-2">Usage report</h3>
+  <form hx-get="/admin" hx-target="#page" hx-push-url="true" class="flex items-center gap-3 mb-4 text-sm">
+    <label class="text-gray-600">From</label>
+    <input type="date" name="from" value="{{ usage_from }}" class="border rounded px-2 py-1" />
+    <label class="text-gray-600">To</label>
+    <input type="date" name="to" value="{{ usage_to }}" class="border rounded px-2 py-1" />
+    <button type="submit" class="px-3 py-1 bg-indigo-600 text-white rounded-md hover:bg-indigo-500">Update</button>
+  </form>
+  <table class="text-sm w-full max-w-md">
+    <tbody>
+      <tr class="border-b">
+        <td class="py-2 pr-8 text-gray-500">Total bookings</td>
+        <td class="py-2 font-medium">{{ total_bookings }}</td>
+      </tr>
+      <tr class="border-b">
+        <td class="py-2 pr-8 text-gray-500">Total booked hours</td>
+        <td class="py-2 font-medium">{{ total_hours }}</td>
+      </tr>
+      <tr>
+        <td class="py-2 pr-8 text-gray-500">Unique users</td>
+        <td class="py-2 font-medium">{{ unique_users }}</td>
+      </tr>
     </tbody>
   </table>
 </div>

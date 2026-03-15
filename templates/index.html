@@ -43,8 +43,8 @@
                         <a href="/auth/login">Login</a>
                     </li>
                     {% else %}
-                    <li class="nav-label">
-                        <a href="/account">Account</a>
+                    <li hx-get="/account" hx-target="#page" hx-push-url="/account" class="list-entry">
+                        <a href="#">Account</a>
                     </li>
                     <li>
                         <a href="/auth/logout">Log out</a>
