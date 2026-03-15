@@ -213,7 +213,7 @@ async fn create_booking(
             "{} is currently under maintenance.",
             form.telescope
         ))
-    } else if upcoming_count as u32 >= max_upcoming {
+    } else if !user.is_admin && upcoming_count as u32 >= max_upcoming {
         Some(format!(
             "You have reached the maximum of {} upcoming bookings.",
             max_upcoming,
@@ -339,7 +339,9 @@ async fn build_bookings_page(
 
     let upcoming_count = my_bookings.len();
     let max_upcoming_bookings = state.booking_config.max_upcoming_bookings;
-    let at_limit = viewed_user_id == user.id && upcoming_count as u32 >= max_upcoming_bookings;
+    let at_limit = !user.is_admin
+        && viewed_user_id == user.id
+        && upcoming_count as u32 >= max_upcoming_bookings;
 
     let content = BookingsTemplate {
         my_bookings,
