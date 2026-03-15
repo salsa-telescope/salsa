@@ -35,11 +35,20 @@ impl User {
     }
 
     pub async fn delete(self, connection: Arc<Mutex<Connection>>) -> Result<(), InternalError> {
+        let now = chrono::Utc::now().timestamp();
         let conn = connection.lock().await;
-        conn.execute("DELETE FROM booking WHERE user_id = (?1)", (self.id,))
-            .map_err(|err| InternalError::new(format!("Failed to delete bookings: {err}")))?;
-        conn.execute("DELETE FROM user WHERE id = (?1)", (self.id,))
-            .map_err(|err| InternalError::new(format!("Failed to delete user: {err}")))?;
+        conn.execute(
+            "UPDATE user SET username = 'Deleted account', provider = '', external_id = '' WHERE id = (?1)",
+            (self.id,),
+        )
+        .map_err(|err| InternalError::new(format!("Failed to anonymize user: {err}")))?;
+        conn.execute(
+            "DELETE FROM booking WHERE user_id = (?1) AND end_timestamp > (?2)",
+            (self.id, now),
+        )
+        .map_err(|err| InternalError::new(format!("Failed to delete upcoming bookings: {err}")))?;
+        conn.execute("DELETE FROM session WHERE user_id = (?1)", (self.id,))
+            .map_err(|err| InternalError::new(format!("Failed to delete sessions: {err}")))?;
         Ok(())
     }
 
