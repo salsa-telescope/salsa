@@ -1,5 +1,6 @@
 use crate::app::AppState;
 use crate::models::booking::Booking;
+use crate::models::maintenance::fetch_maintenance_set;
 use crate::models::user::User;
 use crate::routes::index::render_main;
 use askama::Template;
@@ -107,6 +108,7 @@ fn week_monday(date: NaiveDate) -> NaiveDate {
 #[derive(Deserialize)]
 struct WeekQuery {
     week: Option<NaiveDate>,
+    user_id: Option<i64>,
 }
 
 #[derive(Template)]
@@ -114,6 +116,7 @@ struct WeekQuery {
 struct BookingsTemplate {
     my_bookings: Vec<Booking>,
     telescope_names: Vec<String>,
+    maintenance_telescopes: Vec<bool>,
     error: Option<String>,
     now: DateTime<Utc>,
     week_start: NaiveDate,
@@ -126,6 +129,9 @@ struct BookingsTemplate {
     upcoming_count: usize,
     max_upcoming_bookings: u32,
     at_limit: bool,
+    is_admin: bool,
+    viewed_user_id: i64,
+    all_users: Vec<User>,
 }
 
 async fn get_bookings(
@@ -138,9 +144,14 @@ async fn get_bookings(
         return Ok(StatusCode::UNAUTHORIZED.into_response());
     };
 
+    let viewed_user_id = if user.is_admin {
+        query.user_id.unwrap_or(user.id)
+    } else {
+        user.id
+    };
     let now = Utc::now();
     let week_start = week_monday(query.week.unwrap_or(now.date_naive()));
-    let content = build_bookings_page(&state, &user, now, week_start, None).await?;
+    let content = build_bookings_page(&state, &user, viewed_user_id, now, week_start, None).await?;
 
     let content = if headers.get("hx-request").is_some() {
         content
@@ -186,6 +197,9 @@ async fn create_booking(
         telescope_name: form.telescope.clone(),
     };
 
+    let maintenance = fetch_maintenance_set(state.database_connection.clone())
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     let bookings = Booking::fetch_all(state.database_connection.clone()).await?;
     let max_upcoming = state.booking_config.max_upcoming_bookings;
     let upcoming_count = Booking::fetch_for_user(state.database_connection.clone(), &user)
@@ -194,7 +208,12 @@ async fn create_booking(
         .filter(|b| b.end_time > now)
         .count();
 
-    let error = if upcoming_count as u32 >= max_upcoming {
+    let error = if maintenance.contains(&form.telescope) {
+        Some(format!(
+            "{} is currently under maintenance.",
+            form.telescope
+        ))
+    } else if !user.is_admin && upcoming_count as u32 >= max_upcoming {
         Some(format!(
             "You have reached the maximum of {} upcoming bookings.",
             max_upcoming,
@@ -222,7 +241,7 @@ async fn create_booking(
     };
 
     let week_start = week_monday(form.week.unwrap_or(now.date_naive()));
-    let content = build_bookings_page(&state, &user, now, week_start, error).await?;
+    let content = build_bookings_page(&state, &user, user.id, now, week_start, error).await?;
 
     let content = if headers.get("hx-request").is_some() {
         content
@@ -235,6 +254,7 @@ async fn create_booking(
 #[derive(Deserialize)]
 struct DeleteQuery {
     week: Option<NaiveDate>,
+    user_id: Option<i64>,
 }
 
 async fn delete_booking(
@@ -259,7 +279,12 @@ async fn delete_booking(
 
     let now = Utc::now();
     let week_start = week_monday(query.week.unwrap_or(now.date_naive()));
-    let content = build_bookings_page(&state, &user, now, week_start, None).await?;
+    let viewed_user_id = if user.is_admin {
+        query.user_id.unwrap_or(user.id)
+    } else {
+        user.id
+    };
+    let content = build_bookings_page(&state, &user, viewed_user_id, now, week_start, None).await?;
 
     let content = if headers.get("hx-request").is_some() {
         content
@@ -272,6 +297,7 @@ async fn delete_booking(
 async fn build_bookings_page(
     state: &AppState,
     user: &User,
+    viewed_user_id: i64,
     now: DateTime<Utc>,
     week_start: NaiveDate,
     error: Option<String>,
@@ -287,23 +313,40 @@ async fn build_bookings_page(
     let hours: Vec<u32> = (0..24).collect();
 
     let telescope_names = state.telescopes.get_names().await;
+    let maintenance_set = fetch_maintenance_set(state.database_connection.clone())
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let maintenance_telescopes: Vec<bool> = telescope_names
+        .iter()
+        .map(|name| maintenance_set.contains(name.as_str()))
+        .collect();
     let all_bookings = Booking::fetch_all(state.database_connection.clone()).await?;
     let my_bookings: Vec<Booking> =
-        Booking::fetch_for_user(state.database_connection.clone(), user)
+        Booking::fetch_for_user_id(state.database_connection.clone(), viewed_user_id)
             .await?
             .into_iter()
             .filter(|b| b.end_time > now)
             .collect();
+    let all_users = if user.is_admin {
+        User::fetch_all(state.database_connection.clone())
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+    } else {
+        vec![]
+    };
 
     let slots = build_calendar_slots(week_start, &telescope_names, &all_bookings, user, now);
 
     let upcoming_count = my_bookings.len();
     let max_upcoming_bookings = state.booking_config.max_upcoming_bookings;
-    let at_limit = upcoming_count as u32 >= max_upcoming_bookings;
+    let at_limit = !user.is_admin
+        && viewed_user_id == user.id
+        && upcoming_count as u32 >= max_upcoming_bookings;
 
     let content = BookingsTemplate {
         my_bookings,
         telescope_names,
+        maintenance_telescopes,
         error,
         now,
         week_start,
@@ -316,6 +359,9 @@ async fn build_bookings_page(
         upcoming_count,
         max_upcoming_bookings,
         at_limit,
+        is_admin: user.is_admin,
+        viewed_user_id,
+        all_users,
     }
     .render()
     .expect("Template rendering should always succeed");

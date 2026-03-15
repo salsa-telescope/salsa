@@ -28,7 +28,9 @@ pub async fn session_middleware(
         if let Some(session) =
             Session::fetch(state.database_connection.clone(), &session_token).await?
         {
-            Some(session.user)
+            let mut user = session.user;
+            user.is_admin = state.admin_config.user_ids.contains(&user.id);
+            Some(user)
         } else {
             should_reset_cookie = true;
             None

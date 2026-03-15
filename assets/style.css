@@ -408,6 +408,12 @@ a.action:visited {
     background: #e0e0e0;
 }
 
+/* Maintenance — yellow */
+.calendar-slot-maintenance {
+    background: #fff3cd;
+    cursor: not-allowed;
+}
+
 /* Current hour highlight */
 .calendar-slot-current {
     outline: 2px solid var(--primary-color);

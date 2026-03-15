@@ -28,6 +28,7 @@ pub fn routes(state: AppState) -> Router {
 #[derive(Deserialize)]
 struct PageQuery {
     page: Option<usize>,
+    user_id: Option<i64>,
 }
 
 #[derive(Template)]
@@ -39,12 +40,18 @@ struct ObservationsTemplate {
     prev_page: Option<usize>,
     next_page: Option<usize>,
     total_count: i64,
+    is_admin: bool,
+    viewed_user_id: i64,
+    all_users: Vec<User>,
 }
 
 fn build_observations_template(
     observations: Vec<Observation>,
     total_count: i64,
     current_page: usize,
+    is_admin: bool,
+    viewed_user_id: i64,
+    all_users: Vec<User>,
 ) -> ObservationsTemplate {
     let total_pages = ((total_count as usize).saturating_sub(1) / PAGE_SIZE as usize) + 1;
     let current_page = current_page.min(total_pages.max(1));
@@ -65,6 +72,9 @@ fn build_observations_template(
         prev_page,
         next_page,
         total_count,
+        is_admin,
+        viewed_user_id,
+        all_users,
     }
 }
 
@@ -75,17 +85,41 @@ async fn get_observations(
     State(state): State<AppState>,
 ) -> Result<Response, StatusCode> {
     let user = user.ok_or(StatusCode::UNAUTHORIZED)?;
+    let viewed_user_id = if user.is_admin {
+        query.user_id.unwrap_or(user.id)
+    } else {
+        user.id
+    };
     let current_page = query.page.unwrap_or(1).max(1);
-    let total_count = Observation::count_for_user(state.database_connection.clone(), &user).await?;
+    let total_count =
+        Observation::count_for_user(state.database_connection.clone(), viewed_user_id).await?;
     let total_pages = ((total_count as usize).saturating_sub(1) / PAGE_SIZE as usize) + 1;
     let current_page = current_page.min(total_pages.max(1));
     let offset = ((current_page - 1) as i64) * PAGE_SIZE;
-    let observations =
-        Observation::fetch_for_user_page(state.database_connection, &user, PAGE_SIZE, offset)
-            .await?;
-    let content = build_observations_template(observations, total_count, current_page)
-        .render()
-        .expect("Template rendering should always succeed");
+    let all_users = if user.is_admin {
+        User::fetch_all(state.database_connection.clone())
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+    } else {
+        vec![]
+    };
+    let observations = Observation::fetch_for_user_page(
+        state.database_connection,
+        viewed_user_id,
+        PAGE_SIZE,
+        offset,
+    )
+    .await?;
+    let content = build_observations_template(
+        observations,
+        total_count,
+        current_page,
+        user.is_admin,
+        viewed_user_id,
+        all_users,
+    )
+    .render()
+    .expect("Template rendering should always succeed");
     let content = if headers.get("hx-request").is_some() {
         content
     } else {
@@ -101,18 +135,35 @@ async fn delete_observation(
     State(state): State<AppState>,
 ) -> Result<Response, StatusCode> {
     let user = user.ok_or(StatusCode::UNAUTHORIZED)?;
+    let viewed_user_id = if user.is_admin {
+        query.user_id.unwrap_or(user.id)
+    } else {
+        user.id
+    };
     Observation::delete(state.database_connection.clone(), observation_id, &user).await?;
     let current_page = query.page.unwrap_or(1).max(1);
-    let total_count = Observation::count_for_user(state.database_connection.clone(), &user).await?;
+    let total_count =
+        Observation::count_for_user(state.database_connection.clone(), viewed_user_id).await?;
     let total_pages = ((total_count as usize).saturating_sub(1) / PAGE_SIZE as usize) + 1;
     let current_page = current_page.min(total_pages.max(1));
     let offset = ((current_page - 1) as i64) * PAGE_SIZE;
-    let observations =
-        Observation::fetch_for_user_page(state.database_connection, &user, PAGE_SIZE, offset)
-            .await?;
-    let content = build_observations_template(observations, total_count, current_page)
-        .render()
-        .expect("Template rendering should always succeed");
+    let observations = Observation::fetch_for_user_page(
+        state.database_connection,
+        viewed_user_id,
+        PAGE_SIZE,
+        offset,
+    )
+    .await?;
+    let content = build_observations_template(
+        observations,
+        total_count,
+        current_page,
+        user.is_admin,
+        viewed_user_id,
+        vec![],
+    )
+    .render()
+    .expect("Template rendering should always succeed");
     Ok(Html(content).into_response())
 }
 
@@ -135,9 +186,11 @@ async fn get_observation_data(
     State(state): State<AppState>,
 ) -> Result<Response, StatusCode> {
     let user = user.ok_or(StatusCode::UNAUTHORIZED)?;
-    let observation = Observation::fetch_one(state.database_connection, observation_id, &user)
-        .await?
-        .ok_or(StatusCode::NOT_FOUND)?;
+    let user_id_filter = if user.is_admin { None } else { Some(user.id) };
+    let observation =
+        Observation::fetch_one(state.database_connection, observation_id, user_id_filter)
+            .await?
+            .ok_or(StatusCode::NOT_FOUND)?;
 
     let frequencies: Vec<f64> = serde_json::from_str(&observation.frequencies_json)
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
@@ -164,9 +217,11 @@ async fn get_observation_csv(
     State(state): State<AppState>,
 ) -> Result<Response, StatusCode> {
     let user = user.ok_or(StatusCode::UNAUTHORIZED)?;
-    let observation = Observation::fetch_one(state.database_connection, observation_id, &user)
-        .await?
-        .ok_or(StatusCode::NOT_FOUND)?;
+    let user_id_filter = if user.is_admin { None } else { Some(user.id) };
+    let observation =
+        Observation::fetch_one(state.database_connection, observation_id, user_id_filter)
+            .await?
+            .ok_or(StatusCode::NOT_FOUND)?;
 
     let frequencies: Vec<f64> = serde_json::from_str(&observation.frequencies_json)
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
@@ -236,9 +291,11 @@ async fn get_observation_fits(
     State(state): State<AppState>,
 ) -> Result<Response, StatusCode> {
     let user = user.ok_or(StatusCode::UNAUTHORIZED)?;
-    let observation = Observation::fetch_one(state.database_connection, observation_id, &user)
-        .await?
-        .ok_or(StatusCode::NOT_FOUND)?;
+    let user_id_filter = if user.is_admin { None } else { Some(user.id) };
+    let observation =
+        Observation::fetch_one(state.database_connection, observation_id, user_id_filter)
+            .await?
+            .ok_or(StatusCode::NOT_FOUND)?;
 
     let frequencies: Vec<f64> = serde_json::from_str(&observation.frequencies_json)
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;

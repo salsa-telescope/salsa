@@ -1,6 +1,9 @@
 [bookings]
 max_upcoming_bookings = 6
 
+[admin]
+user_ids = []
+
 [[telescopes]]
 name = "fake1"
 enabled = true

@@ -12,6 +12,7 @@ use crate::models::user::User;
 #[template(path = "index.html", escape = "none")]
 struct IndexTemplate {
     name: String,
+    is_admin: bool,
     content: String,
     build_url: String,
     version_description: String,
@@ -37,15 +38,18 @@ pub fn render_main(user: Option<User>, content: String) -> String {
         }
         _ => String::new(),
     };
+    let is_admin = user.as_ref().is_some_and(|u| u.is_admin);
     IndexTemplate {
         name: match user {
             Some(User {
                 id: _,
                 name,
                 provider,
+                ..
             }) => format!("{} ({})", name, provider),
             None => String::new(),
         },
+        is_admin,
         content,
         build_url,
         version_description: format!("local build on branch {}", env!("GIT_BRANCH_NAME")),

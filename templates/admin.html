@@ -1,0 +1,79 @@
+<div class="section light">
+  <h2 class="font-semibold mb-1">Admin tools</h2>
+  <p class="text-gray-500 text-sm mb-1">This page is only visible to users with IDs listed in the <code>admin</code> section of <code>config.toml</code>.</p>
+  <ul class="text-gray-500 text-sm mb-2 list-disc list-inside">
+    <li>The <a href="/observations" class="text-indigo-600 hover:underline">Observations</a> page has an admin-only filter to view, export, and delete any user's observations.</li>
+    <li>The <a href="/bookings" class="text-indigo-600 hover:underline">Bookings</a> page has an admin-only filter to view and cancel upcoming bookings for any user.</li>
+  </ul>
+
+  <h3 class="font-semibold mt-12 mb-2">Telescope maintenance</h3>
+  <p class="text-gray-500 text-sm mb-4">Press Set maintenance to disable any upcoming bookings. If currently booked, the user has access until the current slot ends.</p>
+  <table class="text-sm w-full max-w-md">
+    <thead>
+      <tr class="text-left text-gray-500 border-b">
+        <th class="pb-2 pr-8">Telescope</th>
+        <th class="pb-2 pr-8">Status</th>
+        <th class="pb-2 pr-8">Current slot</th>
+        <th class="pb-2"></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for (name, in_maintenance, is_booked_now) in telescopes %}
+      <tr class="border-b last:border-0">
+        <td class="py-2 pr-8 font-medium">{{ name }}</td>
+        <td class="py-2 pr-8">
+          {% if in_maintenance %}
+          <span class="text-yellow-700 font-semibold">Maintenance</span>
+          {% else %}
+          <span class="text-green-700">Operational</span>
+          {% endif %}
+        </td>
+        <td class="py-2 pr-8">
+          {% if in_maintenance %}
+          <span class="text-gray-400">&mdash;</span>
+          {% else if is_booked_now %}
+          <span class="text-red-600">Booked</span>
+          {% else %}
+          <span class="text-green-700">Free</span>
+          {% endif %}
+        </td>
+        <td class="py-2">
+          <button
+            hx-post="/admin/telescope/{{ name }}/toggle"
+            hx-target="#page"
+            hx-confirm="{% if in_maintenance %}Mark {{ name }} as operational?{% else %}Put {{ name }} into maintenance? Users will not be able to observe.{% endif %}"
+            class="px-3 py-1 text-sm rounded-md {% if in_maintenance %}bg-green-600 hover:bg-green-500 text-white{% else %}bg-yellow-600 hover:bg-yellow-500 text-white{% endif %}">
+            {% if in_maintenance %}Set operational{% else %}Set maintenance{% endif %}
+          </button>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h3 class="font-semibold mt-12 mb-2">Usage report</h3>
+  <p class="text-gray-500 text-sm mb-4">Summarise user activity in a given time range.</p>
+  <form hx-get="/admin" hx-target="#page" hx-push-url="true" class="flex items-center gap-3 mb-4 text-sm">
+    <label class="text-gray-600">From</label>
+    <input type="date" name="from" value="{{ usage_from }}" class="border rounded px-2 py-1" />
+    <label class="text-gray-600">To</label>
+    <input type="date" name="to" value="{{ usage_to }}" class="border rounded px-2 py-1" />
+    <button type="submit" class="px-3 py-1 bg-indigo-600 text-white rounded-md hover:bg-indigo-500">Update</button>
+  </form>
+  <table class="text-sm w-full max-w-md">
+    <tbody>
+      <tr class="border-b">
+        <td class="py-2 pr-8 text-gray-500">Total bookings</td>
+        <td class="py-2 font-medium">{{ total_bookings }}</td>
+      </tr>
+      <tr class="border-b">
+        <td class="py-2 pr-8 text-gray-500">Total booked hours</td>
+        <td class="py-2 font-medium">{{ total_hours }}</td>
+      </tr>
+      <tr>
+        <td class="py-2 pr-8 text-gray-500">Unique users</td>
+        <td class="py-2 font-medium">{{ unique_users }}</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
