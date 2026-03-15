@@ -115,9 +115,16 @@ impl Booking {
         connection: Arc<Mutex<Connection>>,
         user: &User,
     ) -> Result<Vec<Booking>, InternalError> {
-        // FIXME: Even though user.id can be trusted not to be a random string,
+        Self::fetch_for_user_id(connection, user.id).await
+    }
+
+    pub async fn fetch_for_user_id(
+        connection: Arc<Mutex<Connection>>,
+        user_id: i64,
+    ) -> Result<Vec<Booking>, InternalError> {
+        // FIXME: Even though user_id can be trusted not to be a random string,
         // use a prepared statement to avoid injection.
-        Self::fetch(connection, Some(format!("user.id == {}", user.id))).await
+        Self::fetch(connection, Some(format!("user.id == {user_id}"))).await
     }
 
     pub async fn fetch_one(
