@@ -5,3 +5,7 @@ target/
 /.secrets.toml
 /config.toml
 database.json
+
+# Tailwind CLI binary and compiled output
+/tailwindcss
+/assets/style.css
