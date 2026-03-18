@@ -322,7 +322,7 @@ async fn build_bookings_page(
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     let maintenance_telescopes: Vec<bool> = telescope_names
         .iter()
-        .map(|name| !user.is_admin && maintenance_set.contains(name.as_str()))
+        .map(|name| maintenance_set.contains(name.as_str()))
         .collect();
     let all_bookings = Booking::fetch_all(state.database_connection.clone()).await?;
     let my_bookings: Vec<Booking> =
