@@ -172,7 +172,9 @@ fn error_response(message: String) -> Response {
     let body = if message.is_empty() {
         String::new()
     } else {
-        format!("<div class=\"text-sm font-semibold text-red-700 bg-red-50 border border-red-300 rounded px-3 py-2\">{message}</div>")
+        format!(
+            "<div class=\"text-sm font-semibold text-red-700 bg-red-50 border border-red-300 rounded px-3 py-2\">{message}</div>"
+        )
     };
     Response::builder()
         .status(StatusCode::OK) // Needs to be ok to be picked up by htmx.
