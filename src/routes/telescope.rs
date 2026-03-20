@@ -115,13 +115,6 @@ impl IntoResponse for TelescopeNotFound {
     }
 }
 
-// HACK: Hacky hack!
-impl From<TelescopeError> for TelescopeNotFound {
-    fn from(_: TelescopeError) -> Self {
-        TelescopeNotFound {}
-    }
-}
-
 pub async fn get_state(
     State(state): State<AppState>,
     Path(telescope_id): Path<String>,
@@ -131,7 +124,9 @@ pub async fn get_state(
         .get(&telescope_id)
         .await
         .ok_or(TelescopeNotFound)?;
-    Ok(Html(telescope_state(telescope.as_ref()).await?))
+    Ok(Html(
+        telescope_state(&telescope_id, telescope.as_ref()).await,
+    ))
 }
 
 #[derive(Template)]
@@ -142,26 +137,52 @@ struct TelescopeStateTemplate {
     error: String,
 }
 
-pub async fn telescope_state(telescope: &dyn Telescope) -> Result<String, TelescopeError> {
-    let info = telescope.get_info().await?;
-    Ok(TelescopeStateTemplate {
-        info: info.clone(),
-        status: match &info.status {
-            TelescopeStatus::Idle => "Idle".to_string(),
-            TelescopeStatus::Slewing => "Slewing".to_string(),
-            TelescopeStatus::Tracking => "Tracking".to_string(),
-        },
-        error: match &info.most_recent_error {
-            Some(err) => match err {
-                TelescopeError::TargetBelowHorizon => "target is below horizon".to_string(),
-                TelescopeError::TelescopeIOError(_) => {
-                    "io error in communication with telescope".to_string()
-                }
-                TelescopeError::TelescopeNotConnected => "telescope is not connected".to_string(),
+#[derive(Template)]
+#[template(path = "telescope_state_offline.html")]
+struct TelescopeOfflineTemplate {
+    id: String,
+}
+
+pub async fn telescope_state(telescope_id: &str, telescope: &dyn Telescope) -> String {
+    match telescope.get_info().await {
+        Ok(info)
+            if matches!(
+                info.most_recent_error,
+                Some(TelescopeError::TelescopeIOError(_) | TelescopeError::TelescopeNotConnected)
+            ) =>
+        {
+            TelescopeOfflineTemplate {
+                id: telescope_id.to_string(),
+            }
+            .render()
+            .expect("Template rendering should always succeed")
+        }
+        Ok(info) => TelescopeStateTemplate {
+            info: info.clone(),
+            status: match &info.status {
+                TelescopeStatus::Idle => "Idle".to_string(),
+                TelescopeStatus::Slewing => "Slewing".to_string(),
+                TelescopeStatus::Tracking => "Tracking".to_string(),
             },
-            None => "".to_string(),
-        },
+            error: match &info.most_recent_error {
+                Some(err) => match err {
+                    TelescopeError::TargetBelowHorizon => "target is below horizon".to_string(),
+                    TelescopeError::TelescopeIOError(_) => {
+                        "io error in communication with telescope".to_string()
+                    }
+                    TelescopeError::TelescopeNotConnected => {
+                        "telescope is not connected".to_string()
+                    }
+                },
+                None => "".to_string(),
+            },
+        }
+        .render()
+        .expect("Template rendering should always succeed"),
+        Err(_) => TelescopeOfflineTemplate {
+            id: telescope_id.to_string(),
+        }
+        .render()
+        .expect("Template rendering should always succeed"),
     }
-    .render()
-    .expect("Template rendering should always succeed"))
 }

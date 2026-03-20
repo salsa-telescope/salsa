@@ -13,6 +13,7 @@ use serde::Deserialize;
 use crate::app::AppState;
 use crate::models::booking::Booking;
 use crate::models::maintenance::{fetch_maintenance_set, set_maintenance};
+use crate::models::telescope_types::TelescopeError;
 use crate::models::user::User;
 use crate::routes::index::render_main;
 
@@ -34,7 +35,7 @@ fn require_admin(user: Option<User>) -> Result<User, StatusCode> {
 #[derive(Template)]
 #[template(path = "admin.html", escape = "none")]
 struct AdminTemplate {
-    telescopes: Vec<(String, bool, bool)>, // (name, in_maintenance, is_booked_now)
+    telescopes: Vec<(String, bool, bool, bool)>, // (name, in_maintenance, is_booked_now, is_connected)
     usage_from: NaiveDate,
     usage_to: NaiveDate,
     total_bookings: usize,
@@ -64,14 +65,24 @@ async fn get_admin(
     let active_bookings = Booking::fetch_active(state.database_connection.clone())
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    let telescopes = telescope_names
-        .into_iter()
-        .map(|name| {
-            let in_maintenance = maintenance.contains(&name);
-            let is_booked_now = active_bookings.iter().any(|b| b.telescope_name == name);
-            (name, in_maintenance, is_booked_now)
-        })
-        .collect();
+    let mut telescopes = Vec::new();
+    for name in telescope_names {
+        let in_maintenance = maintenance.contains(&name);
+        let is_booked_now = active_bookings.iter().any(|b| b.telescope_name == name);
+        let is_connected = if let Some(tel) = state.telescopes.get(&name).await {
+            tel.get_info().await.is_ok_and(|i| {
+                !matches!(
+                    i.most_recent_error,
+                    Some(
+                        TelescopeError::TelescopeIOError(_) | TelescopeError::TelescopeNotConnected
+                    )
+                )
+            })
+        } else {
+            false
+        };
+        telescopes.push((name, in_maintenance, is_booked_now, is_connected));
+    }
 
     let bookings = Booking::fetch_in_range(state.database_connection, from_dt, to_dt)
         .await
