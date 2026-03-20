@@ -104,7 +104,15 @@
           {% let slot = slots[tel_idx][day_idx][hour as usize] %}
           {% match slot.status %}
           {% when SlotStatus::Free %}
-          {% if maintenance_telescopes[tel_idx] %}
+          {% if maintenance_telescopes[tel_idx] && is_admin %}
+          <td class="calendar-slot calendar-slot-maintenance{% if slot.is_current_hour %} calendar-slot-current{% endif %}"
+              hx-post="/bookings"
+              hx-target="#page"
+              hx-vals='{"start_timestamp": {{ slot.start_time.timestamp() }}, "telescope": "{{ slot.telescope_name }}", "week": "{{ week_start }}"}'
+              title="Book {{ slot.telescope_name }} at {{ slot.start_time.format("%Y-%m-%d %H:%M") }} UTC (maintenance mode)"
+              style="cursor: pointer;">
+          </td>
+          {% else if maintenance_telescopes[tel_idx] %}
           <td class="calendar-slot calendar-slot-maintenance{% if slot.is_current_hour %} calendar-slot-current{% endif %}"
               title="{{ slot.telescope_name }} is under maintenance">
           </td>

@@ -410,7 +410,11 @@ async fn start_observe(
             error!("Failed to set target {err}.");
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
-    let content = observe(telescope.as_ref()).await?;
+    let in_maintenance = fetch_maintenance_set(state.database_connection)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+        .contains(&telescope_id);
+    let content = observe(telescope.as_ref(), in_maintenance).await?;
     Ok(Html(content))
 }
 
@@ -430,7 +434,7 @@ async fn stop_observe(
         .await
         .ok_or(StatusCode::NOT_FOUND)?;
 
-    save_latest_observation(state.database_connection, &user, telescope.as_ref()).await;
+    save_latest_observation(state.database_connection.clone(), &user, telescope.as_ref()).await;
 
     telescope
         .set_receiver_configuration(ReceiverConfiguration { integrate: false })
@@ -439,7 +443,11 @@ async fn stop_observe(
             error!("Failed to set target {err}.");
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
-    let content = observe(telescope.as_ref()).await?;
+    let in_maintenance = fetch_maintenance_set(state.database_connection)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+        .contains(&telescope_id);
+    let content = observe(telescope.as_ref(), in_maintenance).await?;
     Ok(Html(content))
 }
 
@@ -456,7 +464,8 @@ async fn get_observe(
     let maintenance = fetch_maintenance_set(state.database_connection.clone())
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    if maintenance.contains(&telescope_id) {
+    let in_maintenance = maintenance.contains(&telescope_id);
+    if in_maintenance && !user.is_admin {
         return Ok(Redirect::to(&format!("/observe/{telescope_id}/maintenance")).into_response());
     }
 
@@ -465,7 +474,7 @@ async fn get_observe(
         .get(&telescope_id)
         .await
         .ok_or(StatusCode::NOT_FOUND)?;
-    let content = observe(telescope.as_ref()).await?;
+    let content = observe(telescope.as_ref(), in_maintenance).await?;
     let content = if headers.get("hx-request").is_some() {
         content
     } else {
@@ -528,6 +537,7 @@ struct ObserveTemplate {
     commanded_x: String,
     commanded_y: String,
     state_html: String,
+    in_maintenance: bool,
 }
 
 fn fmt_deg(deg: f64) -> String {
@@ -537,7 +547,7 @@ fn fmt_deg(deg: f64) -> String {
     s.to_string()
 }
 
-async fn observe(telescope: &dyn Telescope) -> Result<String, StatusCode> {
+async fn observe(telescope: &dyn Telescope, in_maintenance: bool) -> Result<String, StatusCode> {
     let info = telescope.get_info().await.map_err(|err| {
         error!("Failed to get info {err}");
         StatusCode::NOT_FOUND
@@ -580,6 +590,7 @@ async fn observe(telescope: &dyn Telescope) -> Result<String, StatusCode> {
         commanded_x,
         commanded_y,
         state_html,
+        in_maintenance,
     }
     .render()
     .expect("Template rendering should always succeed"))
