@@ -109,9 +109,8 @@
 
     <!-- Right column: live spectrum chart -->
     <div class="lg:w-2/3">
-      <h2 class="mb-2 font-semibold">Live spectrum</h2>
-      <p id="obs-time-display" class="text-sm text-gray-500 mb-2 hidden"></p>
-      <div id="chart">
+      <h2 class="font-semibold">Live spectrum</h2>
+      <div id="chart" class="-mt-4">
         <!-- FIXME: maybe don't reload this javascript on each htmx fetch of this page? -->
         <script src="/observe_chart.js"></script>
         <button id="observe-axis-toggle" style="display: none;"
@@ -215,7 +214,6 @@
       const serverSecs = parseInt(measuringEl.dataset.obsSecs || '0', 10);
       const timerEl = document.getElementById('obs-timer');
       const elapsedEl = document.getElementById('obs-elapsed');
-      const displayEl = document.getElementById('obs-time-display');
 
       if (isMeasuring && obsTimerInterval === null) {
           obsStartTime = Date.now();
@@ -223,10 +221,7 @@
           obsTimerInterval = setInterval(function () {
               const secs = Math.floor((Date.now() - obsStartTime) / 1000);
               elapsedEl.textContent = secs;
-              if (displayEl) {
-                  displayEl.textContent = 'Integrating: ' + secs + 's';
-                  displayEl.classList.remove('hidden');
-              }
+              if (window.setChartTitle) window.setChartTitle('Integrating: ' + secs + 's');
           }, 1000);
       } else if (!isMeasuring && obsTimerInterval !== null) {
           clearInterval(obsTimerInterval);
@@ -234,20 +229,10 @@
           obsStartTime = null;
           timerEl.classList.add('hidden');
           elapsedEl.textContent = '0';
-          if (displayEl) {
-              if (serverSecs > 0) {
-                  displayEl.textContent = 'Integration time: ' + serverSecs + 's';
-                  displayEl.classList.remove('hidden');
-              } else {
-                  displayEl.classList.add('hidden');
-              }
-          }
-      } else if (!isMeasuring && obsTimerInterval === null && displayEl) {
+          if (window.setChartTitle) window.setChartTitle(serverSecs > 0 ? 'Integration time: ' + serverSecs + 's' : '');
+      } else if (!isMeasuring && obsTimerInterval === null) {
           // Page load with existing observation data
-          if (serverSecs > 0) {
-              displayEl.textContent = 'Integration time: ' + serverSecs + 's';
-              displayEl.classList.remove('hidden');
-          }
+          if (serverSecs > 0 && window.setChartTitle) window.setChartTitle('Integration time: ' + serverSecs + 's');
       }
   }
 

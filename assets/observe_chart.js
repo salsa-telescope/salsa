@@ -60,6 +60,14 @@ function get_telescope_from_location() {
     .attr("text-anchor", "middle")
     .attr("font-size", "13px")
     .text("Frequency (MHz)");
+  // chart title (integration time)
+  const chartTitle = svg
+    .append("text")
+    .attr("x", width / 2)
+    .attr("y", margin / 2)
+    .attr("text-anchor", "middle")
+    .attr("font-size", "12px")
+    .attr("fill", "#6b7280");
   // y-axis
   const yAxis = svg
     .append("g")
@@ -149,6 +157,10 @@ function get_telescope_from_location() {
     svg.select(".line").datum(data).attr("d", lineFn);
     xLabel.text(showVlsr ? "VLSR (km/s)" : "Frequency (MHz)");
   }
+
+  window.setChartTitle = function(text) {
+    chartTitle.text(text);
+  };
 
   // Expose toggle function for the button
   window.toggleObserveAxis = function () {
