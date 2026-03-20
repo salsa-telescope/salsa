@@ -171,31 +171,31 @@ function get_telescope_from_location() {
     updateChart();
   };
 
-  // There can be a socket already here if the page is refetched by htmx.
-  if (window.spectrumSocket) {
-    window.spectrumSocket.close();
-  }
-  let receivedMetadata = false;
-  window.spectrumSocket = new WebSocket(`/telescope/${get_telescope_from_location()}/spectrum`);
-  window.spectrumSocket.onmessage = async (event) => {
-    // First message is JSON text with metadata
-    if (!receivedMetadata) {
-      receivedMetadata = true;
-      const meta = JSON.parse(typeof event.data === "string" ? event.data : await event.data.text());
-      vlsrCorrection = meta.vlsr_correction_mps;
-      const btn = document.getElementById("observe-axis-toggle");
-      if (vlsrCorrection !== null) {
-        showVlsr = true;
-        if (btn) {
-          btn.style.display = "";
-          btn.textContent = "Show frequency";
-        }
-      } else {
-        showVlsr = false;
-        if (btn) btn.style.display = "none";
-      }
-      return;
+  function connectSpectrumSocket() {
+    if (window.spectrumSocket) {
+      window.spectrumSocket.close();
     }
+    let receivedMetadata = false;
+    window.spectrumSocket = new WebSocket(`/telescope/${get_telescope_from_location()}/spectrum`);
+    window.spectrumSocket.onmessage = async (event) => {
+      // First message is JSON text with metadata
+      if (!receivedMetadata) {
+        receivedMetadata = true;
+        const meta = JSON.parse(typeof event.data === "string" ? event.data : await event.data.text());
+        vlsrCorrection = meta.vlsr_correction_mps;
+        const btn = document.getElementById("observe-axis-toggle");
+        if (vlsrCorrection !== null) {
+          showVlsr = true;
+          if (btn) {
+            btn.style.display = "";
+            btn.textContent = "Show frequency";
+          }
+        } else {
+          showVlsr = false;
+          if (btn) btn.style.display = "none";
+        }
+        return;
+      }
 
     let dataView = new DataView(await event.data.arrayBuffer());
     latestData = [];
@@ -206,6 +206,10 @@ function get_telescope_from_location() {
         y: dataView.getFloat64(i + 8, true),
       });
     }
-    updateChart();
-  };
+      updateChart();
+    };
+  }
+
+  window.reconnectSpectrumSocket = connectSpectrumSocket;
+  connectSpectrumSocket();
 })();

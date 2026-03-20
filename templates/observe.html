@@ -216,6 +216,7 @@
       const elapsedEl = document.getElementById('obs-elapsed');
 
       if (isMeasuring && obsTimerInterval === null) {
+          if (window.reconnectSpectrumSocket) window.reconnectSpectrumSocket();
           obsStartTime = Date.now();
           timerEl.classList.remove('hidden');
           obsTimerInterval = setInterval(function () {
