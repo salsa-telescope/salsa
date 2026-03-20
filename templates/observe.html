@@ -83,16 +83,18 @@
         <h3 class="text-sm font-semibold text-gray-700 mb-2">Observe</h3>
         <div class="flex gap-2 items-center">
           <button
+            id="observe-btn"
             hx-post="/observe/{{ info.id }}/observe"
             hx-swap="none"
             class="px-3 py-1 bg-indigo-600 text-white rounded-md hover:bg-indigo-500 text-sm"
           >
-            Start
+            Observe
           </button>
           <button
+            id="stop-obs-btn"
             hx-post="/observe/{{ info.id }}/stop"
             hx-swap="none"
-            class="px-3 py-1 bg-gray-300 text-gray-800 rounded-md hover:bg-gray-400 text-sm"
+            class="px-3 py-1 bg-red-600 text-white rounded-md hover:bg-red-500 text-sm hidden"
           >
             Stop
           </button>
@@ -199,8 +201,7 @@
           inputY.value = '';
           break;
       }
-      const isTracking = !document.getElementById('stop-btn').classList.contains('hidden');
-      setTrackingState(isTracking);
+      updateTrackStopButtons();
   }
 
   let obsTimerInterval = null;
@@ -249,6 +250,11 @@
       }
   }
 
+  function setObservingState(observing) {
+      document.getElementById('observe-btn').classList.toggle('hidden', observing);
+      document.getElementById('stop-obs-btn').classList.toggle('hidden', !observing);
+  }
+
   function setTrackingState(tracking) {
       document.getElementById('track-btn').classList.toggle('hidden', tracking);
       document.getElementById('stop-btn').classList.toggle('hidden', !tracking);
@@ -266,8 +272,13 @@
 
   function updateTrackStopButtons() {
       const statusSpan = document.querySelector('#telescope-status h2 span');
-      const isIdle = !statusSpan || statusSpan.textContent.trim() === 'Idle';
+      const status = statusSpan ? statusSpan.textContent.trim() : 'Idle';
+      const isTracking = status === 'Tracking';
+      const isIdle = status === 'Idle';
       setTrackingState(!isIdle);
+      const measuringEl = document.getElementById('measuring-state');
+      const isMeasuring = measuringEl && measuringEl.dataset.measuring === 'true';
+      setObservingState(isMeasuring);
   }
 
   document.addEventListener('htmx:afterSwap', function (evt) {
@@ -278,6 +289,7 @@
       }
       if (evt.detail.target.id === 'errors' && evt.detail.target.innerHTML.trim() !== '') {
           setTrackingState(false);
+          setObservingState(false);
       }
   });
 

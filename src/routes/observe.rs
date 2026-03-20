@@ -8,7 +8,8 @@ use crate::models::maintenance::fetch_maintenance_set;
 use crate::models::observation::Observation;
 use crate::models::telescope::Telescope;
 use crate::models::telescope_types::{
-    ReceiverConfiguration, ReceiverError, TelescopeError, TelescopeInfo, TelescopeTarget,
+    ReceiverConfiguration, ReceiverError, TelescopeError, TelescopeInfo, TelescopeStatus,
+    TelescopeTarget,
 };
 use crate::models::user::User;
 use crate::routes::index::render_main;
@@ -403,6 +404,16 @@ async fn start_observe(
         .await
         .ok_or(StatusCode::NOT_FOUND)?;
 
+    let info = telescope.get_info().await.map_err(|err| {
+        error!("Failed to get telescope info: {err}");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+    if info.status != TelescopeStatus::Tracking {
+        return Ok(error_response(
+            "Telescope is not tracking. Please wait until it has reached the target.".to_string(),
+        ));
+    }
+
     telescope
         .set_receiver_configuration(ReceiverConfiguration { integrate: true })
         .await
@@ -415,7 +426,7 @@ async fn start_observe(
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
         .contains(&telescope_id);
     let content = observe(telescope.as_ref(), in_maintenance).await?;
-    Ok(Html(content))
+    Ok(Html(content).into_response())
 }
 
 async fn stop_observe(
