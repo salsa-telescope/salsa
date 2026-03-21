@@ -8,8 +8,8 @@ use crate::models::maintenance::fetch_maintenance_set;
 use crate::models::observation::Observation;
 use crate::models::telescope::Telescope;
 use crate::models::telescope_types::{
-    ReceiverConfiguration, ReceiverError, TelescopeError, TelescopeInfo, TelescopeStatus,
-    TelescopeTarget,
+    ObservationMode, ReceiverConfiguration, ReceiverError, TelescopeError, TelescopeInfo,
+    TelescopeStatus, TelescopeTarget,
 };
 use crate::models::user::User;
 use crate::routes::index::render_main;
@@ -212,7 +212,10 @@ async fn set_target(
         })?;
         save_latest_observation(state.database_connection, &user, telescope.as_ref()).await;
         telescope
-            .set_receiver_configuration(ReceiverConfiguration { integrate: false })
+            .set_receiver_configuration(ReceiverConfiguration {
+                integrate: false,
+                ..Default::default()
+            })
             .await
             .map_err(|err| {
                 error!("Failed to stop integration: {err}.");
@@ -377,7 +380,10 @@ async fn stop_telescope(
         .ok_or(StatusCode::NOT_FOUND)?;
     save_latest_observation(state.database_connection, &user, telescope.as_ref()).await;
     telescope
-        .set_receiver_configuration(ReceiverConfiguration { integrate: false })
+        .set_receiver_configuration(ReceiverConfiguration {
+            integrate: false,
+            ..Default::default()
+        })
         .await
         .map_err(|err| {
             error!("Failed to stop integration: {err}.");
@@ -390,10 +396,17 @@ async fn stop_telescope(
     Ok(error_response(String::new()))
 }
 
+#[derive(Deserialize)]
+struct ObserveForm {
+    #[serde(default)]
+    mode: ObservationMode,
+}
+
 async fn start_observe(
     Extension(user): Extension<Option<User>>,
     State(state): State<AppState>,
     Path(telescope_id): Path<String>,
+    Form(form): Form<ObserveForm>,
 ) -> Result<impl IntoResponse, StatusCode> {
     let user = user.ok_or(StatusCode::UNAUTHORIZED)?;
     if !booking_is_active(state.database_connection.clone(), &user, &telescope_id).await? {
@@ -417,7 +430,10 @@ async fn start_observe(
     }
 
     telescope
-        .set_receiver_configuration(ReceiverConfiguration { integrate: true })
+        .set_receiver_configuration(ReceiverConfiguration {
+            integrate: true,
+            mode: form.mode,
+        })
         .await
         .map_err(|err| {
             error!("Failed to set target {err}.");
@@ -450,7 +466,10 @@ async fn stop_observe(
     save_latest_observation(state.database_connection.clone(), &user, telescope.as_ref()).await;
 
     telescope
-        .set_receiver_configuration(ReceiverConfiguration { integrate: false })
+        .set_receiver_configuration(ReceiverConfiguration {
+            integrate: false,
+            ..Default::default()
+        })
         .await
         .map_err(|err| {
             error!("Failed to set target {err}.");

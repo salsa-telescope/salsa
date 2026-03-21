@@ -111,9 +111,18 @@ impl Display for ReceiverError {
     }
 }
 
-#[derive(Serialize, Deserialize, PartialEq, Debug, Copy, Clone)]
+#[derive(Serialize, Deserialize, PartialEq, Debug, Copy, Clone, Default)]
+pub enum ObservationMode {
+    #[default]
+    FreqSwitched,
+    Raw,
+}
+
+#[derive(Serialize, Deserialize, PartialEq, Debug, Copy, Clone, Default)]
 pub struct ReceiverConfiguration {
     pub integrate: bool,
+    #[serde(default)]
+    pub mode: ObservationMode,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
