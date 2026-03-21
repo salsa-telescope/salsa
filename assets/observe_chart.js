@@ -69,10 +69,11 @@ function get_telescope_from_location() {
     .attr("font-size", "12px")
     .attr("fill", "#6b7280");
   // y-axis
+  const yTickFormat = d3.format(".3~s");
   const yAxis = svg
     .append("g")
     .attr("transform", `translate(${margin},0)`)
-    .call(d3.axisLeft(y).ticks(height / 80));
+    .call(d3.axisLeft(y).ticks(height / 80).tickFormat(yTickFormat));
 
   // y-axis label
   svg
@@ -146,7 +147,7 @@ function get_telescope_from_location() {
     const yRange = d3.extent(data, (d) => d.y);
     const padding = (yRange[1] - yRange[0]) * 0.05;
     y.domain([yRange[0] - padding, yRange[1] + padding]).nice();
-    yAxis.call(d3.axisLeft(y).ticks(height / 80));
+    yAxis.call(d3.axisLeft(y).ticks(height / 80).tickFormat(yTickFormat));
     const xRange = d3.extent(data, (d) => d.x);
     x.domain(xRange);
     xAxis.call(d3.axisBottom(x));

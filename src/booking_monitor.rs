@@ -77,7 +77,10 @@ pub fn start(state: AppState) {
                 let mut stop_ok = true;
 
                 if let Err(err) = telescope
-                    .set_receiver_configuration(ReceiverConfiguration { integrate: false })
+                    .set_receiver_configuration(ReceiverConfiguration {
+                        integrate: false,
+                        ..Default::default()
+                    })
                     .await
                 {
                     error!("Booking monitor: failed to stop integration: {err:?}");

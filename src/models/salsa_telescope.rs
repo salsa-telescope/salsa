@@ -1,8 +1,8 @@
 use crate::coords::Direction;
 use crate::models::telescope::Telescope;
 use crate::models::telescope_types::{
-    Measurement, ObservedSpectra, ReceiverConfiguration, ReceiverError, TelescopeError,
-    TelescopeInfo, TelescopeTarget,
+    Measurement, ObservationMode, ObservedSpectra, ReceiverConfiguration, ReceiverError,
+    TelescopeError, TelescopeInfo, TelescopeTarget,
 };
 use crate::telescope_tracker::TelescopeTracker;
 use async_trait::async_trait;
@@ -49,7 +49,10 @@ pub fn create(
         name,
         receiver_address,
         controller: TelescopeTracker::new(controller_address),
-        receiver_configuration: ReceiverConfiguration { integrate: false },
+        receiver_configuration: ReceiverConfiguration {
+            integrate: false,
+            ..Default::default()
+        },
         measurements: Arc::new(Mutex::new(Vec::new())),
         active_integration: None,
         stow_position,
@@ -102,7 +105,13 @@ impl Telescope for SalsaTelescope {
                 let measurements = inner.measurements.clone();
                 let cancellation_token = cancellation_token.clone();
                 tokio::spawn(async move {
-                    measure(address, measurements, cancellation_token).await;
+                    measure(
+                        address,
+                        measurements,
+                        cancellation_token,
+                        receiver_configuration.mode,
+                    )
+                    .await;
                 })
             };
             inner.active_integration = Some(ActiveIntegration {
@@ -198,7 +207,7 @@ fn measure_switched(
     tint: f64,
     avg_pts: usize,
     srate: f64,
-    spec: &mut [f64],
+    spec: &mut Vec<f64>,
 ) {
     let mut spec_sig: Vec<f64> = vec![];
     measure_single(
@@ -224,7 +233,7 @@ fn measure_switched(
     // Hard coded Tsys for now
     let tsys = 285.0;
     for i in 0..avg_pts {
-        spec[i] = tsys * (spec_sig[i] - spec_ref[i]) / spec_ref[i];
+        spec.push(tsys * (spec_sig[i] - spec_ref[i]) / spec_ref[i]);
     }
 }
 
@@ -324,6 +333,7 @@ async fn measure(
     address: String,
     measurements: Arc<Mutex<Vec<Measurement>>>,
     cancellation_token: CancellationToken,
+    mode: ObservationMode,
 ) {
     // Switched HI example
     let tint: f64 = 1.0; // integration time per cycle, seconds
@@ -362,10 +372,15 @@ async fn measure(
     // start taking data until integrate is false
     let mut n = 0.0;
     while !cancellation_token.is_cancelled() {
-        let mut spec = vec![0.0; avg_pts];
-        measure_switched(
-            &mut usrp, sfreq, rfreq, fft_pts, tint, avg_pts, srate, &mut spec,
-        );
+        let mut spec = vec![];
+        match mode {
+            ObservationMode::FreqSwitched => measure_switched(
+                &mut usrp, sfreq, rfreq, fft_pts, tint, avg_pts, srate, &mut spec,
+            ),
+            ObservationMode::Raw => {
+                measure_single(&mut usrp, sfreq, fft_pts, tint, avg_pts, srate, &mut spec)
+            }
+        };
         n += 1.0;
 
         let mut measurements = measurements.lock().await;

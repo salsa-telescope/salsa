@@ -56,7 +56,10 @@ pub fn create(name: String, stow_position: Option<Direction>) -> FakeTelescope {
             latitude: 1.00170457462,
         },
         most_recent_error: None,
-        receiver_configuration: ReceiverConfiguration { integrate: false },
+        receiver_configuration: ReceiverConfiguration {
+            integrate: false,
+            ..Default::default()
+        },
         current_spectra: vec![],
         name,
         stow_position,
