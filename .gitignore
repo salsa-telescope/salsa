@@ -3,3 +3,4 @@ target/
 
 /database.sqlite3
 /.secrets.toml
+/config.toml
