@@ -1,5 +1,4 @@
 use reqwest::blocking::get;
-use std::fs::copy;
 use std::io::{BufRead, BufReader};
 use std::process::{Child, Command, Stdio};
 use std::thread;
@@ -16,8 +15,6 @@ impl SalsaTestServer {
     pub fn spawn() -> Self {
         let database_dir =
             TempDir::new("database_dir").expect("Need to be able to create tempdir in test");
-        copy("config.toml", database_dir.path().join("config.toml"))
-            .expect("Need to be able to copy config.toml in test");
         let backend_executable = env!("CARGO_BIN_EXE_backend");
         let mut process = Command::new(backend_executable)
             .args([
