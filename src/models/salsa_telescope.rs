@@ -207,7 +207,7 @@ fn measure_switched(
     tint: f64,
     avg_pts: usize,
     srate: f64,
-    spec: &mut [f64],
+    spec: &mut Vec<f64>,
 ) {
     let mut spec_sig: Vec<f64> = vec![];
     measure_single(
@@ -233,7 +233,7 @@ fn measure_switched(
     // Hard coded Tsys for now
     let tsys = 285.0;
     for i in 0..avg_pts {
-        spec[i] = tsys * (spec_sig[i] - spec_ref[i]) / spec_ref[i];
+        spec.push(tsys * (spec_sig[i] - spec_ref[i]) / spec_ref[i]);
     }
 }
 
