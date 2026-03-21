@@ -38,7 +38,7 @@
                 {% else %}Az. [deg]
                 {% endif %}
               </label>
-              <input type="text" name="x" value="{{ commanded_x }}"
+              <input type="text" id="x" name="x" value="{{ commanded_x }}"
                 class="border rounded px-2 py-1 bg-white w-full text-sm" />
             </div>
             <div class="flex-1">
@@ -48,7 +48,7 @@
                 {% else %}El. [deg]
                 {% endif %}
               </label>
-              <input type="text" name="y" value="{{ commanded_y }}"
+              <input type="text" id="y" name="y" value="{{ commanded_y }}"
                 class="border rounded px-2 py-1 bg-white w-full text-sm" />
             </div>
             <button id="track-btn"
