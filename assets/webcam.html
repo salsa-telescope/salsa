@@ -1,0 +1,15 @@
+<div class="section light">
+  <h2 class="font-semibold mb-4">Webcam</h2>
+  <div class="flex justify-center">
+    <img id="webcam-img" src="/webcam/snapshot" class="max-w-full rounded shadow" alt="Telescope webcam" />
+  </div>
+</div>
+
+<script>
+  (function () {
+    const img = document.getElementById('webcam-img');
+    setInterval(function () {
+      img.src = '/webcam/snapshot?t=' + Date.now();
+    }, 2000);
+  })();
+</script>

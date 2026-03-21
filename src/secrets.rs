@@ -3,6 +3,12 @@ use serde::Deserialize;
 use std::{collections::HashMap, fs::read_to_string};
 
 #[derive(Deserialize, Clone)]
+pub struct WebcamCredentials {
+    pub username: String,
+    pub password: String,
+}
+
+#[derive(Deserialize, Clone)]
 pub struct AuthProvider {
     pub auth_uri: String,
     pub token_uri: String,
@@ -18,6 +24,7 @@ pub struct AuthProvider {
 #[derive(Deserialize)]
 pub struct Secrets {
     auth_provider: HashMap<String, AuthProvider>,
+    pub webcam: Option<WebcamCredentials>,
 }
 
 impl Secrets {
