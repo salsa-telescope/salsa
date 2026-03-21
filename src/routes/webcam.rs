@@ -1,5 +1,6 @@
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock};
 
+use axum::body::Bytes;
 use axum::{
     Extension, Router,
     extract::State,
@@ -7,9 +8,16 @@ use axum::{
     response::{Html, IntoResponse, Response},
     routing::get,
 };
+use tokio::sync::Mutex;
 
 use crate::models::user::User;
 use crate::routes::index::render_main;
+
+#[derive(Clone)]
+struct WebcamState {
+    snapshot_url: String,
+    cache: Arc<Mutex<Option<Bytes>>>,
+}
 
 static HTTP_CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
 
@@ -23,10 +31,33 @@ fn http_client() -> &'static reqwest::Client {
 }
 
 pub fn routes(snapshot_url: String) -> Router {
+    let state = WebcamState {
+        cache: Arc::new(Mutex::new(None)),
+        snapshot_url,
+    };
+
+    if !state.snapshot_url.is_empty() {
+        let cache_clone = state.cache.clone();
+        let url_clone = state.snapshot_url.clone();
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(2));
+            loop {
+                interval.tick().await;
+                match http_client().get(&url_clone).send().await {
+                    Ok(resp) => match resp.bytes().await {
+                        Ok(bytes) => *cache_clone.lock().await = Some(bytes),
+                        Err(e) => log::error!("Failed to read webcam snapshot body: {e}"),
+                    },
+                    Err(e) => log::error!("Failed to fetch webcam snapshot: {e}"),
+                }
+            }
+        });
+    }
+
     Router::new()
         .route("/", get(get_webcam_page))
         .route("/snapshot", get(get_webcam_snapshot))
-        .with_state(snapshot_url)
+        .with_state(state)
 }
 
 async fn get_webcam_page(
@@ -42,28 +73,20 @@ async fn get_webcam_page(
     Html(content)
 }
 
-async fn get_webcam_snapshot(State(snapshot_url): State<String>) -> Response {
-    if snapshot_url.is_empty() {
+async fn get_webcam_snapshot(State(state): State<WebcamState>) -> Response {
+    if state.snapshot_url.is_empty() {
         return StatusCode::SERVICE_UNAVAILABLE.into_response();
     }
-    match http_client().get(&snapshot_url).send().await {
-        Ok(resp) => match resp.bytes().await {
-            Ok(bytes) => (
-                [
-                    (header::CONTENT_TYPE, "image/jpeg"),
-                    (header::CACHE_CONTROL, "no-store"),
-                ],
-                bytes,
-            )
-                .into_response(),
-            Err(e) => {
-                log::error!("Failed to read webcam snapshot body: {e}");
-                StatusCode::BAD_GATEWAY.into_response()
-            }
-        },
-        Err(e) => {
-            log::error!("Failed to fetch webcam snapshot: {e}");
-            StatusCode::BAD_GATEWAY.into_response()
-        }
+    let cached: Option<Bytes> = state.cache.lock().await.clone();
+    match cached {
+        Some(bytes) => (
+            [
+                (header::CONTENT_TYPE, "image/jpeg"),
+                (header::CACHE_CONTROL, "no-store"),
+            ],
+            bytes,
+        )
+            .into_response(),
+        None => StatusCode::SERVICE_UNAVAILABLE.into_response(),
     }
 }
