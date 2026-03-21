@@ -4,6 +4,7 @@ use std::{collections::HashMap, fs::read_to_string};
 
 #[derive(Deserialize, Clone)]
 pub struct WebcamCredentials {
+    pub url: String,
     pub username: String,
     pub password: String,
 }

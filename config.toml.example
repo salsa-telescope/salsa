@@ -5,10 +5,6 @@ max_upcoming_bookings = 6
 # User IDs (from the OAuth provider) that should have admin access.
 user_ids = [1]
 
-# Optional: IP or hostname of a webcam. Credentials go in .secrets.toml.
-# [webcam]
-# url = "https://192.168.1.100"
-
 # --- Fake telescopes (useful for development / testing) ---
 
 [[telescopes]]
