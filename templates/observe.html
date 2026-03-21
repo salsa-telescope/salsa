@@ -107,7 +107,7 @@
 
         <!-- Advanced settings -->
         <details class="mt-3 text-sm text-gray-700">
-          <summary class="cursor-pointer text-gray-500 select-none">Advanced</summary>
+          <summary class="cursor-pointer text-gray-500 select-none">Advanced receiver settings</summary>
           <div class="mt-2 space-y-2">
             <div>
               <label class="block text-sm text-gray-600 mb-1">Mode</label>
@@ -295,6 +295,15 @@
   function setObservingState(observing) {
       document.getElementById('observe-btn').classList.toggle('hidden', observing);
       document.getElementById('stop-obs-btn').classList.toggle('hidden', !observing);
+      const advancedInputs = document.querySelectorAll(
+          "details input[name='center_freq_mhz'], details input[name='ref_freq_mhz'], " +
+          "details select[name='bandwidth_mhz'], details input[name='gain_db'], " +
+          "details input[name='mode']"
+      );
+      advancedInputs.forEach(el => {
+          el.disabled = observing;
+          el.classList.toggle('opacity-50', observing);
+      });
   }
 
   function setTrackingState(tracking) {
