@@ -217,8 +217,7 @@
       updateTrackStopButtons();
   }
 
-  let obsTimerInterval = null;
-  let obsStartTime = null;
+  let wasObserving = false;
 
   function updateObsTimer() {
       const measuringEl = document.getElementById('measuring-state');
@@ -228,25 +227,17 @@
       const timerEl = document.getElementById('obs-timer');
       const elapsedEl = document.getElementById('obs-elapsed');
 
-      if (isMeasuring && obsTimerInterval === null) {
-          if (window.reconnectSpectrumSocket) window.reconnectSpectrumSocket();
-          obsStartTime = Date.now();
+      if (isMeasuring) {
+          if (!wasObserving && window.reconnectSpectrumSocket) window.reconnectSpectrumSocket();
+          wasObserving = true;
           timerEl.classList.remove('hidden');
-          obsTimerInterval = setInterval(function () {
-              const secs = Math.floor((Date.now() - obsStartTime) / 1000);
-              elapsedEl.textContent = secs;
-              if (window.setChartTitle) window.setChartTitle('Integrating: ' + secs + 's');
-          }, 1000);
-      } else if (!isMeasuring && obsTimerInterval !== null) {
-          clearInterval(obsTimerInterval);
-          obsTimerInterval = null;
-          obsStartTime = null;
+          elapsedEl.textContent = serverSecs;
+          if (window.setChartTitle) window.setChartTitle('Integrating: ' + serverSecs + 's');
+      } else {
+          wasObserving = false;
           timerEl.classList.add('hidden');
           elapsedEl.textContent = '0';
           if (window.setChartTitle) window.setChartTitle(serverSecs > 0 ? 'Integration time: ' + serverSecs + 's' : '');
-      } else if (!isMeasuring && obsTimerInterval === null) {
-          // Page load with existing observation data
-          if (serverSecs > 0 && window.setChartTitle) window.setChartTitle('Integration time: ' + serverSecs + 's');
       }
   }
 
