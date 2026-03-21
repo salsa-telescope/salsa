@@ -192,7 +192,6 @@ fn equatorial_from_sun(when: DateTime<Utc>) -> (f64, f64) {
     (ra, dec)
 }
 
-#[allow(dead_code)] // TODO: Remove when used.
 pub fn horizontal_from_sun(location: Location, when: DateTime<Utc>) -> Direction {
     let (ra, dec) = equatorial_from_sun(when);
     horizontal_from_equatorial(location, when, ra, dec)

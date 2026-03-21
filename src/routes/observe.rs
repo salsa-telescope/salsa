@@ -1,6 +1,6 @@
 use crate::app::AppState;
 use crate::coords::{
-    Direction, Location, horizontal_from_equatorial, horizontal_from_galactic,
+    Direction, Location, horizontal_from_equatorial, horizontal_from_galactic, horizontal_from_sun,
     vlsrcorr_from_galactic,
 };
 use crate::models::booking::{booking_is_active, consecutive_booking_end};
@@ -53,6 +53,10 @@ struct PreviewQuery {
     coordinate_system: Option<String>,
     x: Option<String>,
     y: Option<String>,
+    #[serde(default)]
+    az_offset_deg: f64,
+    #[serde(default)]
+    el_offset_deg: f64,
 }
 
 async fn get_booking_end_time(
@@ -85,6 +89,9 @@ async fn get_preview(
     let x = query.x.as_deref().and_then(|s| s.parse::<f64>().ok());
     let y = query.y.as_deref().and_then(|s| s.parse::<f64>().ok());
 
+    let az_offset_rad = query.az_offset_deg.to_radians();
+    let el_offset_rad = query.el_offset_deg.to_radians();
+
     let calculated = if query.coordinate_system.as_deref() == Some("stow") {
         match state.telescopes.get(&telescope_id).await {
             Some(telescope) => telescope
@@ -94,6 +101,8 @@ async fn get_preview(
                 .and_then(|i| i.stow_position),
             None => None,
         }
+    } else if query.coordinate_system.as_deref() == Some("sun") {
+        Some(horizontal_from_sun(location, Utc::now()))
     } else {
         match (&query.coordinate_system, x, y) {
             (Some(cs), Some(x), Some(y)) => {
@@ -118,6 +127,18 @@ async fn get_preview(
             }
             _ => None,
         }
+    };
+
+    let calculated = if query.coordinate_system.as_deref() == Some("stow") {
+        calculated
+    } else {
+        calculated.map(|dir| {
+            let full_circle = 2.0 * std::f64::consts::PI;
+            Direction {
+                azimuth: ((dir.azimuth + az_offset_rad) % full_circle + full_circle) % full_circle,
+                elevation: dir.elevation + el_offset_rad,
+            }
+        })
     };
 
     let current = match state.telescopes.get(&telescope_id).await {
@@ -156,9 +177,13 @@ async fn get_preview(
 
 #[derive(Deserialize, Debug)]
 struct Target {
-    x: Option<String>, // Degrees; not required when coordinate_system == "stow"
-    y: Option<String>, // Degrees; not required when coordinate_system == "stow"
+    x: Option<String>, // Degrees; not required when coordinate_system == "sun" or "stow"
+    y: Option<String>, // Degrees; not required when coordinate_system == "sun" or "stow"
     coordinate_system: String,
+    #[serde(default)]
+    az_offset_deg: f64,
+    #[serde(default)]
+    el_offset_deg: f64,
 }
 
 impl IntoResponse for ReceiverError {
@@ -201,6 +226,9 @@ async fn set_target(
         .await
         .ok_or(StatusCode::NOT_FOUND)?;
 
+    let az_offset_rad = target.az_offset_deg.to_radians();
+    let el_offset_rad = target.el_offset_deg.to_radians();
+
     let telescope_target = if target.coordinate_system == "stow" {
         let info = telescope.get_info().await.map_err(|err| {
             error!("Failed to get telescope info: {err}");
@@ -225,6 +253,8 @@ async fn set_target(
             azimuth: stow.azimuth,
             elevation: stow.elevation,
         }
+    } else if target.coordinate_system == "sun" {
+        TelescopeTarget::Sun
     } else {
         let Some(x_rad) = target
             .x
@@ -266,7 +296,10 @@ async fn set_target(
         }
     };
 
-    match telescope.set_target(telescope_target).await {
+    match telescope
+        .set_target(telescope_target, az_offset_rad, el_offset_rad)
+        .await
+    {
         Err(TelescopeError::TargetBelowHorizon) => {
             return Ok(error_response("Target is below the horizon.".to_string()));
         }
@@ -303,6 +336,18 @@ pub(crate) async fn save_latest_observation(
     let Some(current_target) = info.current_target else {
         return;
     };
+    let az_offset_deg = info.az_offset_rad.to_degrees();
+    let el_offset_deg = info.el_offset_rad.to_degrees();
+    let stored_az_offset = if az_offset_deg.abs() > 1e-9 {
+        Some(az_offset_deg)
+    } else {
+        None
+    };
+    let stored_el_offset = if el_offset_deg.abs() > 1e-9 {
+        Some(el_offset_deg)
+    } else {
+        None
+    };
     let (coordinate_system, target_x, target_y, vlsr_correction_mps) = match current_target {
         TelescopeTarget::Equatorial {
             right_ascension,
@@ -328,6 +373,20 @@ pub(crate) async fn save_latest_observation(
             elevation.to_degrees(),
             None,
         ),
+        TelescopeTarget::Sun => {
+            // TODO: get location from telescope definition instead of hardcoding
+            let location = Location {
+                longitude: 0.20802143022,
+                latitude: 1.00170457462,
+            };
+            let sun = horizontal_from_sun(location, start_time);
+            (
+                "sun",
+                sun.azimuth.to_degrees(),
+                sun.elevation.to_degrees(),
+                None,
+            )
+        }
     };
 
     let frequencies_json = match serde_json::to_string(&spectra.frequencies) {
@@ -357,6 +416,8 @@ pub(crate) async fn save_latest_observation(
         &frequencies_json,
         &amplitudes_json,
         vlsr_correction_mps,
+        stored_az_offset,
+        stored_el_offset,
     )
     .await
     {
@@ -658,6 +719,7 @@ async fn observe(
         Some(TelescopeTarget::Equatorial { .. }) => "equatorial",
         Some(TelescopeTarget::Galactic { .. }) => "galactic",
         Some(TelescopeTarget::Horizontal { .. }) => "horizontal",
+        Some(TelescopeTarget::Sun) => "sun",
         None => "galactic",
     }
     .to_string();
@@ -680,7 +742,7 @@ async fn observe(
             fmt_deg(azimuth.to_degrees()),
             fmt_deg(elevation.to_degrees()),
         ),
-        None => (String::new(), String::new()),
+        Some(TelescopeTarget::Sun) | None => (String::new(), String::new()),
     };
     let state_html = telescope_state(&info.id, telescope).await;
     let (freq_min_mhz, freq_max_mhz) = if is_admin {

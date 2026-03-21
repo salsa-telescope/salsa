@@ -157,6 +157,13 @@ function get_telescope_from_location() {
       .y((d) => y(d.y));
     svg.select(".line").datum(data).attr("d", lineFn);
     xLabel.text(showVlsr ? "VLSR (km/s)" : "Frequency (MHz)");
+
+    // Update power level: average of center 50% of spectrum
+    const n = latestData.length;
+    const lo = Math.floor(n * 0.25);
+    const hi = Math.ceil(n * 0.75);
+    const center = latestData.slice(lo, hi);
+    window.observePowerLevel = center.reduce((s, d) => s + d.y, 0) / center.length;
   }
 
   window.setChartTitle = function(text) {

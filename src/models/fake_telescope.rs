@@ -1,5 +1,5 @@
 use crate::coords::{Direction, Location};
-use crate::coords::{horizontal_from_equatorial, horizontal_from_galactic};
+use crate::coords::{horizontal_from_equatorial, horizontal_from_galactic, horizontal_from_sun};
 use crate::models::telescope::Telescope;
 use crate::models::telescope_types::{
     ObservedSpectra, ReceiverConfiguration, ReceiverError, TelescopeError, TelescopeInfo,
@@ -31,6 +31,8 @@ pub const TELESCOPE_UPDATE_INTERVAL: Duration = Duration::from_secs(1);
 
 struct Inner {
     target: Option<TelescopeTarget>,
+    az_offset_rad: f64,
+    el_offset_rad: f64,
     horizontal: Direction,
     location: Location,
     most_recent_error: Option<TelescopeError>,
@@ -48,6 +50,8 @@ pub struct FakeTelescope {
 pub fn create(name: String, stow_position: Option<Direction>) -> FakeTelescope {
     let inner = Arc::new(Mutex::new(Inner {
         target: None,
+        az_offset_rad: 0.0,
+        el_offset_rad: 0.0,
         horizontal: FAKE_TELESCOPE_PARKING_HORIZONTAL,
         location: Location {
             //(11.0+55.0/60.0+7.5/3600.0) * PI / 180.0. Sign positive, handled in gmst calc
@@ -84,14 +88,23 @@ pub fn create(name: String, stow_position: Option<Direction>) -> FakeTelescope {
 
 #[async_trait]
 impl Telescope for FakeTelescope {
-    async fn set_target(&self, target: TelescopeTarget) -> Result<TelescopeTarget, TelescopeError> {
+    async fn set_target(
+        &self,
+        target: TelescopeTarget,
+        az_offset_rad: f64,
+        el_offset_rad: f64,
+    ) -> Result<TelescopeTarget, TelescopeError> {
         let mut inner = self.inner.lock().await;
 
         inner.most_recent_error = None;
         inner.receiver_configuration.integrate = false;
         inner.current_spectra.clear();
 
-        let target_horizontal = calculate_target_horizontal(inner.location, Utc::now(), target);
+        let target_horizontal = apply_offset(
+            calculate_target_horizontal(inner.location, Utc::now(), target),
+            az_offset_rad,
+            el_offset_rad,
+        );
         if target_horizontal.elevation < LOWEST_ALLOWED_ELEVATION {
             log::info!(
                 "Refusing to set target for telescope {} to {:?}. Target is below horizon",
@@ -105,6 +118,8 @@ impl Telescope for FakeTelescope {
                 &inner.name,
                 &target
             );
+            inner.az_offset_rad = az_offset_rad;
+            inner.el_offset_rad = el_offset_rad;
             inner.target = Some(target);
             Ok(target)
         }
@@ -138,7 +153,11 @@ impl Telescope for FakeTelescope {
         let inner = self.inner.lock().await;
 
         let (status, commanded_horizontal) = if let Some(target) = inner.target {
-            let target_horizontal = calculate_target_horizontal(inner.location, Utc::now(), target);
+            let target_horizontal = apply_offset(
+                calculate_target_horizontal(inner.location, Utc::now(), target),
+                inner.az_offset_rad,
+                inner.el_offset_rad,
+            );
             let horizontal_offset_squared = (target_horizontal.azimuth - inner.horizontal.azimuth)
                 .powi(2)
                 + (target_horizontal.elevation - inner.horizontal.elevation).powi(2);
@@ -187,6 +206,8 @@ impl Telescope for FakeTelescope {
             measurement_in_progress: inner.receiver_configuration.integrate,
             latest_observation,
             stow_position: inner.stow_position,
+            az_offset_rad: inner.az_offset_rad,
+            el_offset_rad: inner.el_offset_rad,
         })
     }
     async fn shutdown(&self) {
@@ -203,7 +224,11 @@ impl Inner {
         if let Some(target) = self.target {
             let now = Utc::now();
             let current_horizontal = self.horizontal;
-            let target_horizontal = calculate_target_horizontal(self.location, now, target);
+            let target_horizontal = apply_offset(
+                calculate_target_horizontal(self.location, now, target),
+                self.az_offset_rad,
+                self.el_offset_rad,
+            );
 
             if target_horizontal.elevation < LOWEST_ALLOWED_ELEVATION {
                 log::info!(
@@ -271,5 +296,14 @@ fn calculate_target_horizontal(
             azimuth: az,
             elevation: el,
         },
+        TelescopeTarget::Sun => horizontal_from_sun(location, when),
+    }
+}
+
+fn apply_offset(dir: Direction, az_offset_rad: f64, el_offset_rad: f64) -> Direction {
+    let full_circle = 2.0 * PI;
+    Direction {
+        azimuth: ((dir.azimuth + az_offset_rad) % full_circle + full_circle) % full_circle,
+        elevation: dir.elevation + el_offset_rad,
     }
 }
