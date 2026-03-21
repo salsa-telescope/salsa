@@ -21,6 +21,8 @@ pub struct Observation {
     pub frequencies_json: String,
     pub amplitudes_json: String,
     pub vlsr_correction_mps: Option<f64>,
+    pub az_offset_deg: Option<f64>,
+    pub el_offset_deg: Option<f64>,
 }
 
 impl Observation {
@@ -37,11 +39,13 @@ impl Observation {
         frequencies_json: &str,
         amplitudes_json: &str,
         vlsr_correction_mps: Option<f64>,
+        az_offset_deg: Option<f64>,
+        el_offset_deg: Option<f64>,
     ) -> Result<(), InternalError> {
         let conn = connection.lock().await;
         conn.execute(
-            "INSERT INTO observation (user_id, telescope_id, start_time, coordinate_system, target_x, target_y, integration_time_secs, frequencies_json, amplitudes_json, vlsr_correction_mps)
-                 VALUES ((?1), (?2), (?3), (?4), (?5), (?6), (?7), (?8), (?9), (?10))",
+            "INSERT INTO observation (user_id, telescope_id, start_time, coordinate_system, target_x, target_y, integration_time_secs, frequencies_json, amplitudes_json, vlsr_correction_mps, az_offset_deg, el_offset_deg)
+                 VALUES ((?1), (?2), (?3), (?4), (?5), (?6), (?7), (?8), (?9), (?10), (?11), (?12))",
             (
                 &user.id,
                 telescope_id,
@@ -53,6 +57,8 @@ impl Observation {
                 frequencies_json,
                 amplitudes_json,
                 vlsr_correction_mps,
+                az_offset_deg,
+                el_offset_deg,
             ),
         )
         .map_err(|err| InternalError::new(format!("Failed to insert observation in db: {err}")))?;
@@ -68,7 +74,7 @@ impl Observation {
         let conn = connection.lock().await;
         let mut stmt = conn
             .prepare(
-                "SELECT id, user_id, telescope_id, start_time, coordinate_system, target_x, target_y, integration_time_secs, frequencies_json, amplitudes_json, vlsr_correction_mps
+                "SELECT id, user_id, telescope_id, start_time, coordinate_system, target_x, target_y, integration_time_secs, frequencies_json, amplitudes_json, vlsr_correction_mps, az_offset_deg, el_offset_deg
                  FROM observation
                  WHERE user_id = (?1)
                  ORDER BY start_time DESC
@@ -89,6 +95,8 @@ impl Observation {
                     frequencies_json: row.get(8)?,
                     amplitudes_json: row.get(9)?,
                     vlsr_correction_mps: row.get(10)?,
+                    az_offset_deg: row.get(11)?,
+                    el_offset_deg: row.get(12)?,
                 })
             })
             .map_err(|err| InternalError::new(format!("Failed to query_map: {err}")))?;
@@ -140,7 +148,7 @@ impl Observation {
         let conn = connection.lock().await;
         let mut stmt = conn
             .prepare(
-                "SELECT id, user_id, telescope_id, start_time, coordinate_system, target_x, target_y, integration_time_secs, frequencies_json, amplitudes_json, vlsr_correction_mps
+                "SELECT id, user_id, telescope_id, start_time, coordinate_system, target_x, target_y, integration_time_secs, frequencies_json, amplitudes_json, vlsr_correction_mps, az_offset_deg, el_offset_deg
                  FROM observation
                  WHERE id = (?1) AND ((?2) IS NULL OR user_id = (?2))",
             )
@@ -159,6 +167,8 @@ impl Observation {
                     frequencies_json: row.get(8)?,
                     amplitudes_json: row.get(9)?,
                     vlsr_correction_mps: row.get(10)?,
+                    az_offset_deg: row.get(11)?,
+                    el_offset_deg: row.get(12)?,
                 })
             })
             .map_err(|err| InternalError::new(format!("Failed to query_map: {err}")))?;

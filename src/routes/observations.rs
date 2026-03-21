@@ -184,6 +184,8 @@ struct ObservationData {
     integration_time_secs: f64,
     start_time: String,
     vlsr_correction_mps: Option<f64>,
+    az_offset_deg: Option<f64>,
+    el_offset_deg: Option<f64>,
 }
 
 async fn get_observation_data(
@@ -213,6 +215,8 @@ async fn get_observation_data(
         integration_time_secs: observation.integration_time_secs,
         start_time: observation.start_time.to_rfc3339(),
         vlsr_correction_mps: observation.vlsr_correction_mps,
+        az_offset_deg: observation.az_offset_deg,
+        el_offset_deg: observation.el_offset_deg,
     })
     .into_response())
 }

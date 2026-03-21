@@ -46,6 +46,8 @@ pub struct TelescopeInfo {
     pub measurement_in_progress: bool,
     pub latest_observation: Option<ObservedSpectra>,
     pub stow_position: Option<Direction>,
+    pub az_offset_rad: f64,
+    pub el_offset_rad: f64,
 }
 
 #[derive(Deserialize, PartialEq, Debug, Clone)]

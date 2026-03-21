@@ -16,6 +16,8 @@ pub struct TelescopeTrackerInfo {
     pub current_horizontal: Option<Direction>,
     pub status: TelescopeStatus,
     pub most_recent_error: Option<TelescopeError>,
+    pub az_offset_rad: f64,
+    pub el_offset_rad: f64,
 }
 
 pub struct TelescopeTracker {
@@ -104,13 +106,22 @@ impl TelescopeTracker {
             }
             None => TelescopeStatus::Idle,
         };
-        let (target, most_recent_error) = { (state.target, state.most_recent_error.clone()) };
+        let (target, most_recent_error, az_offset_rad, el_offset_rad) = {
+            (
+                state.target,
+                state.most_recent_error.clone(),
+                state.az_offset_rad,
+                state.el_offset_rad,
+            )
+        };
         Ok(TelescopeTrackerInfo {
             target,
             current_horizontal,
             commanded_horizontal,
             status,
             most_recent_error,
+            az_offset_rad,
+            el_offset_rad,
         })
     }
 }

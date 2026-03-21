@@ -336,6 +336,18 @@ pub(crate) async fn save_latest_observation(
     let Some(current_target) = info.current_target else {
         return;
     };
+    let az_offset_deg = info.az_offset_rad.to_degrees();
+    let el_offset_deg = info.el_offset_rad.to_degrees();
+    let stored_az_offset = if az_offset_deg.abs() > 1e-9 {
+        Some(az_offset_deg)
+    } else {
+        None
+    };
+    let stored_el_offset = if el_offset_deg.abs() > 1e-9 {
+        Some(el_offset_deg)
+    } else {
+        None
+    };
     let (coordinate_system, target_x, target_y, vlsr_correction_mps) = match current_target {
         TelescopeTarget::Equatorial {
             right_ascension,
@@ -361,7 +373,20 @@ pub(crate) async fn save_latest_observation(
             elevation.to_degrees(),
             None,
         ),
-        TelescopeTarget::Sun => ("sun", 0.0, 0.0, None),
+        TelescopeTarget::Sun => {
+            // TODO: get location from telescope definition instead of hardcoding
+            let location = Location {
+                longitude: 0.20802143022,
+                latitude: 1.00170457462,
+            };
+            let sun = horizontal_from_sun(location, start_time);
+            (
+                "sun",
+                sun.azimuth.to_degrees(),
+                sun.elevation.to_degrees(),
+                None,
+            )
+        }
     };
 
     let frequencies_json = match serde_json::to_string(&spectra.frequencies) {
@@ -391,6 +416,8 @@ pub(crate) async fn save_latest_observation(
         &frequencies_json,
         &amplitudes_json,
         vlsr_correction_mps,
+        stored_az_offset,
+        stored_el_offset,
     )
     .await
     {

@@ -354,17 +354,20 @@
       const timerEl = document.getElementById('obs-timer');
       const elapsedEl = document.getElementById('obs-elapsed');
 
+      const powerStr = (window.observePowerLevel !== undefined)
+          ? '  |  Avg. power: ' + window.observePowerLevel.toFixed(2)
+          : '';
       if (isMeasuring) {
           if (!wasObserving && window.reconnectSpectrumSocket) window.reconnectSpectrumSocket();
           wasObserving = true;
           timerEl.classList.remove('hidden');
           elapsedEl.textContent = serverSecs;
-          if (window.setChartTitle) window.setChartTitle('Integrating: ' + serverSecs + 's');
+          if (window.setChartTitle) window.setChartTitle('Integrating: ' + serverSecs + 's' + powerStr);
       } else {
           wasObserving = false;
           timerEl.classList.add('hidden');
           elapsedEl.textContent = '0';
-          if (window.setChartTitle) window.setChartTitle(serverSecs > 0 ? 'Integration time: ' + serverSecs + 's' : '');
+          if (window.setChartTitle) window.setChartTitle(serverSecs > 0 ? 'Integration time: ' + serverSecs + 's' + powerStr : '');
       }
   }
 
@@ -396,6 +399,10 @@
       inputX.classList.toggle('opacity-50', tracking || isStow);
       inputY.readOnly = tracking || isStow;
       inputY.classList.toggle('opacity-50', tracking || isStow);
+      document.querySelectorAll("input[name='az_offset_deg'], input[name='el_offset_deg']").forEach(el => {
+          el.disabled = tracking;
+          el.classList.toggle('opacity-50', tracking);
+      });
   }
 
   function updateTrackStopButtons() {

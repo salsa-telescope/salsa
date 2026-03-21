@@ -165,6 +165,8 @@ impl Telescope for SalsaTelescope {
             measurement_in_progress: inner.active_integration.is_some(),
             latest_observation,
             stow_position: inner.stow_position,
+            az_offset_rad: controller_info.az_offset_rad,
+            el_offset_rad: controller_info.el_offset_rad,
         })
     }
     async fn shutdown(&self) {

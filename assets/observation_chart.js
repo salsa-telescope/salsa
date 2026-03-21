@@ -90,9 +90,25 @@ function loadObservation(id) {
       const height = 420;
       const margin = 60;
 
+      // Compute power level: average of center 50% of amplitudes
+      const amps = data.amplitudes;
+      const pLo = Math.floor(amps.length * 0.25);
+      const pHi = Math.ceil(amps.length * 0.75);
+      const centerAmps = amps.slice(pLo, pHi);
+      const powerLevel = centerAmps.reduce((s, v) => s + v, 0) / centerAmps.length;
+
       const startTime = new Date(data.start_time).toUTCString();
       const intTime = Math.round(data.integration_time_secs);
-      const titleText = `${data.telescope_id} — ${data.coordinate_system} (${data.target_x.toFixed(1)}, ${data.target_y.toFixed(1)}) — ${intTime}s — ${startTime}`;
+      const coordLabel = data.coordinate_system === "sun" ? "Sun az/el" : data.coordinate_system;
+      const coordStr = `(${data.target_x.toFixed(1)}°, ${data.target_y.toFixed(1)}°)`;
+      const offsetParts = [];
+      const azOff = data.az_offset_deg;
+      const elOff = data.el_offset_deg;
+      if (azOff && Math.abs(azOff) >= 0.05) offsetParts.push(`az ${azOff >= 0 ? "+" : ""}${azOff.toFixed(1)}°`);
+      if (elOff && Math.abs(elOff) >= 0.05) offsetParts.push(`el ${elOff >= 0 ? "+" : ""}${elOff.toFixed(1)}°`);
+      const offsetStr = offsetParts.length > 0 ? ` + offset ${offsetParts.join(", ")}` : "";
+      const titleLine1 = `${data.telescope_id} — ${coordLabel} ${coordStr}${offsetStr} — ${intTime}s  |  Avg. power: ${powerLevel.toFixed(2)}`;
+      const titleLine2 = startTime;
 
       const vlsrCorrection = data.vlsr_correction_mps;
       let showVlsr = vlsrCorrection !== null && vlsrCorrection !== undefined;
@@ -144,14 +160,19 @@ function loadObservation(id) {
         .attr("style", "max-width: 100%; height: auto;");
 
       // Chart title (also included when exporting as PNG)
-      svg
-        .append("text")
+      const titleGroup = svg.append("text")
         .attr("x", width / 2)
-        .attr("y", 18)
         .attr("text-anchor", "middle")
         .attr("font-size", "12px")
-        .attr("fill", "#6b7280")
-        .text(titleText);
+        .attr("fill", "#6b7280");
+      titleGroup.append("tspan")
+        .attr("x", width / 2)
+        .attr("dy", "1em")
+        .text(titleLine1);
+      titleGroup.append("tspan")
+        .attr("x", width / 2)
+        .attr("dy", "1.2em")
+        .text(titleLine2);
 
       // Clip path to keep line inside plot area when zoomed
       svg.append("defs")

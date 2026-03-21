@@ -206,6 +206,8 @@ impl Telescope for FakeTelescope {
             measurement_in_progress: inner.receiver_configuration.integrate,
             latest_observation,
             stow_position: inner.stow_position,
+            az_offset_rad: inner.az_offset_rad,
+            el_offset_rad: inner.el_offset_rad,
         })
     }
     async fn shutdown(&self) {
