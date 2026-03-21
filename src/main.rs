@@ -81,6 +81,22 @@ async fn main() {
         let tls_config = RustlsConfig::from_pem_file(cert_file_path, key_file_path)
             .await
             .unwrap();
+
+        let https_port = addr.port();
+        let redirect_listener = TcpListener::bind(SocketAddr::from(([0, 0, 0, 0], 80))).unwrap();
+        log::info!("listening for HTTP->HTTPS redirect on port 80");
+        let redirect_app = app::create_redirect_app(https_port);
+        let redirect_handle = handle.clone();
+        tokio::spawn(async move {
+            if let Err(e) = axum_server::from_tcp(redirect_listener)
+                .handle(redirect_handle)
+                .serve(redirect_app.into_make_service())
+                .await
+            {
+                log::error!("HTTP redirect server error: {e}");
+            }
+        });
+
         axum_server::from_tcp_rustls(listener, tls_config)
             .handle(handle)
             .serve(app.into_make_service())
