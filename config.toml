@@ -2,7 +2,10 @@
 max_upcoming_bookings = 6
 
 [admin]
-user_ids = []
+user_ids = [1]
+
+[webcam]
+url = "https://129.16.208.198"
 
 [[telescopes]]
 name = "fake1"

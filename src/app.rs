@@ -44,12 +44,19 @@ pub struct AdminConfig {
     pub user_ids: Vec<i64>,
 }
 
+#[derive(Debug, Clone, Deserialize, Default)]
+struct WebcamConfig {
+    url: Option<String>,
+}
+
 #[derive(Deserialize)]
 struct SalsaConfig {
     #[serde(default)]
     bookings: BookingConfig,
     #[serde(default)]
     admin: AdminConfig,
+    #[serde(default)]
+    webcam: WebcamConfig,
 }
 
 // Anything that goes in here must be a handle or pointer that can be cloned.
@@ -75,6 +82,7 @@ pub async fn create_app(config_dir: &Path, database_dir: &Path) -> (Router, AppS
         toml::from_str(&config_str).expect("config.toml should be valid toml");
     let booking_config = Arc::new(salsa_config.bookings);
     let admin_config = Arc::new(salsa_config.admin);
+    let webcam_url = salsa_config.webcam.url;
 
     let telescopes = create_telescope_collection(
         config_path
@@ -90,6 +98,13 @@ pub async fn create_app(config_dir: &Path, database_dir: &Path) -> (Router, AppS
         )
         .expect("Reading .secrets.toml should always succeed"),
     );
+    let webcam_snapshot_url = match (webcam_url, secrets.webcam.as_ref()) {
+        (Some(url), Some(creds)) => format!(
+            "{}/cgi-bin/api.cgi?cmd=Snap&channel=0&rs=salsa&user={}&password={}",
+            url, creds.username, creds.password
+        ),
+        _ => String::new(),
+    };
     let state = AppState {
         database_connection,
         telescopes,
@@ -108,6 +123,7 @@ pub async fn create_app(config_dir: &Path, database_dir: &Path) -> (Router, AppS
         .nest("/bookings", routes::booking::routes(state.clone()))
         .nest("/telescope", routes::telescope::routes(state.clone()))
         .nest("/observations", routes::observations::routes(state.clone()))
+        .nest("/webcam", routes::webcam::routes(webcam_snapshot_url))
         .layer(
             TraceLayer::new_for_http().make_span_with(|request: &Request<_>| {
                 let matched_path = request
