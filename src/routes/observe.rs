@@ -105,6 +105,16 @@ async fn get_preview(
         }
     } else if query.coordinate_system.as_deref() == Some("sun") {
         Some(horizontal_from_sun(location, Utc::now()))
+    } else if query.coordinate_system.as_deref() == Some("gnss") {
+        query
+            .x
+            .as_deref()
+            .and_then(|s| s.parse::<u64>().ok())
+            .and_then(|norad_id| {
+                state
+                    .tle_cache
+                    .satellite_direction(norad_id, location, Utc::now())
+            })
     } else {
         match (&query.coordinate_system, x, y) {
             (Some(cs), Some(x), Some(y)) => {

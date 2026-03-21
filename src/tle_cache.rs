@@ -85,9 +85,7 @@ impl TleCacheHandle {
             .and_then(|el| el.object_name.as_deref().map(|s| s.trim().to_string()))
     }
 
-    pub fn is_empty(&self) -> bool {
-        self.elements.read().unwrap().is_empty()
-    }
+
 }
 
 /// Estimate primary L-band frequency for a GNSS satellite by name.

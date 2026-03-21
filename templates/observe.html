@@ -359,6 +359,14 @@
       updateTrackStopButtons();
   }
 
+  function satConstellation(name) {
+      const u = name.toUpperCase();
+      if (u.startsWith('COSMOS')) return 'GLONASS';
+      if (u.startsWith('BEIDOU')) return 'BeiDou';
+      if (u.startsWith('GSAT')) return 'Galileo';
+      return 'GPS';
+  }
+
   function fetchSatellites() {
       fetch('/observe/{{ info.id }}/satellites')
           .then(r => r.json())
@@ -366,12 +374,25 @@
               const sel = document.getElementById('satellite-select');
               const prev = sel.value;
               sel.innerHTML = '';
+              const groups = {};
               sats.forEach(s => {
-                  const opt = document.createElement('option');
-                  opt.value = s.norad_id;
-                  opt.dataset.freqMhz = s.freq_mhz;
-                  opt.textContent = s.name + ' (' + s.elevation_deg.toFixed(1) + '°)';
-                  sel.appendChild(opt);
+                  const grp = satConstellation(s.name);
+                  if (!groups[grp]) groups[grp] = [];
+                  groups[grp].push(s);
+              });
+              ['GPS', 'Galileo', 'GLONASS', 'BeiDou'].forEach(grpName => {
+                  const members = groups[grpName];
+                  if (!members || members.length === 0) return;
+                  const optgrp = document.createElement('optgroup');
+                  optgrp.label = grpName;
+                  members.forEach(s => {
+                      const opt = document.createElement('option');
+                      opt.value = s.norad_id;
+                      opt.dataset.freqMhz = s.freq_mhz;
+                      opt.textContent = s.name + ' (az ' + s.azimuth_deg.toFixed(1) + '°, el ' + s.elevation_deg.toFixed(1) + '°)';
+                      optgrp.appendChild(opt);
+                  });
+                  sel.appendChild(optgrp);
               });
               if (prev && [...sel.options].some(o => o.value === prev)) sel.value = prev;
               satelliteChanged();
