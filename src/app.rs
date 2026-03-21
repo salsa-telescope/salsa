@@ -1,6 +1,7 @@
-use axum::extract::MatchedPath;
-use axum::http::Request;
+use axum::extract::{MatchedPath, State};
+use axum::http::{HeaderMap, Request, Uri};
 use axum::middleware;
+use axum::response::{IntoResponse, Redirect, Response};
 use axum::{Router, routing::get};
 use rusqlite::Connection;
 use std::path::Path;
@@ -139,4 +140,28 @@ pub async fn teardown_app(app: AppState) {
     for telescope in app.telescopes.get_all().await {
         telescope.shutdown().await;
     }
+}
+
+pub fn create_redirect_app(https_port: u16) -> Router {
+    Router::new()
+        .fallback(redirect_to_https)
+        .with_state(https_port)
+}
+
+async fn redirect_to_https(
+    uri: Uri,
+    State(https_port): State<u16>,
+    headers: HeaderMap,
+) -> Response {
+    let host = headers
+        .get(axum::http::header::HOST)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+    let hostname = host.split(':').next().unwrap_or(host);
+    let https_url = if https_port == 443 {
+        format!("https://{hostname}{uri}")
+    } else {
+        format!("https://{hostname}:{https_port}{uri}")
+    };
+    Redirect::permanent(&https_url).into_response()
 }
