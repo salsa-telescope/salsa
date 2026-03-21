@@ -412,6 +412,14 @@ fn default_gain_db() -> f64 {
     60.0
 }
 
+fn default_spectral_channels() -> usize {
+    512
+}
+
+fn default_rfi_filter() -> bool {
+    true
+}
+
 #[derive(Deserialize)]
 struct ObserveForm {
     #[serde(default)]
@@ -424,6 +432,10 @@ struct ObserveForm {
     bandwidth_mhz: f64,
     #[serde(default = "default_gain_db")]
     gain_db: f64,
+    #[serde(default = "default_spectral_channels")]
+    spectral_channels: usize,
+    #[serde(default = "default_rfi_filter")]
+    rfi_filter: bool,
 }
 
 async fn start_observe(
@@ -477,6 +489,8 @@ async fn start_observe(
             ref_freq_hz: form.ref_freq_mhz * 1e6,
             bandwidth_hz: form.bandwidth_mhz * 1e6,
             gain_db: form.gain_db,
+            spectral_channels: form.spectral_channels,
+            rfi_filter: form.rfi_filter,
         })
         .await
         .map_err(|err| {

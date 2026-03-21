@@ -86,7 +86,7 @@
             id="observe-btn"
             hx-post="/observe/{{ info.id }}/observe"
             hx-swap="none"
-            hx-include="[name='mode'],[name='center_freq_mhz'],[name='ref_freq_mhz'],[name='bandwidth_mhz'],[name='gain_db']"
+            hx-include="[name='mode'],[name='center_freq_mhz'],[name='ref_freq_mhz'],[name='bandwidth_mhz'],[name='gain_db'],[name='spectral_channels'],[name='rfi_filter']"
             hx-on::before-request="document.getElementById('errors').innerHTML=''"
             class="px-3 py-1 bg-indigo-600 text-white rounded-md hover:bg-indigo-500 text-sm"
           >
@@ -138,14 +138,15 @@
                   class="border rounded px-2 py-1 bg-white w-full text-sm" />
               </div>
             </div>
-            <p class="text-xs text-{% if is_admin %}yellow{% else %}gray{% endif %}-700 bg-{% if is_admin %}yellow{% else %}gray{% endif %}-50 border border-{% if is_admin %}yellow{% else %}gray{% endif %}-200 rounded px-2 py-1">
+            <p class="text-xs text-gray-400 mt-1">
               {% if is_admin %}Admin: full receiver range {{ freq_min_mhz }}–{{ freq_max_mhz }} MHz (DBSRX2).
               {% else %}Frequency range {{ freq_min_mhz }}–{{ freq_max_mhz }} MHz (LNA).{% endif %}
             </p>
             <div class="flex gap-2">
               <div class="flex-1">
                 <label class="block text-sm text-gray-600">Bandwidth</label>
-                <select name="bandwidth_mhz" class="border rounded px-2 py-1 bg-white text-sm w-full">
+                <select name="bandwidth_mhz" class="border rounded px-2 py-1 bg-white text-sm w-full"
+                  onchange="updateSpectralResolution()">
                   <option value="1.0">1.0 MHz</option>
                   <option value="2.5" selected>2.5 MHz</option>
                   <option value="5.0">5.0 MHz</option>
@@ -158,6 +159,28 @@
                 <input type="number" name="gain_db" value="60" min="0" max="60" step="1"
                   class="border rounded px-2 py-1 bg-white w-full text-sm" />
               </div>
+            </div>
+            <div>
+              <label class="block text-sm text-gray-600">Spectral channels</label>
+              <select name="spectral_channels" class="border rounded px-2 py-1 bg-white text-sm w-full"
+                onchange="updateSpectralResolution()">
+                <option value="64">64</option>
+                <option value="128">128</option>
+                <option value="256">256</option>
+                <option value="512" selected>512</option>
+                <option value="1024">1024</option>
+                <option value="2048">2048</option>
+                <option value="4096">4096</option>
+                <option value="8192">8192</option>
+              </select>
+                <p id="spectral-resolution" class="text-xs text-gray-400 mt-1"></p>
+            </div>
+            <div>
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input type="hidden" name="rfi_filter" value="false" />
+                <input type="checkbox" name="rfi_filter" value="true" checked />
+                <span class="text-sm text-gray-600">RFI filter (median window)</span>
+              </label>
             </div>
           </div>
         </details>
@@ -234,6 +257,16 @@
       }
   }
 
+  function updateSpectralResolution() {
+      const bwMhz = parseFloat(document.querySelector("select[name='bandwidth_mhz']").value);
+      const channels = parseInt(document.querySelector("select[name='spectral_channels']").value, 10);
+      const resKhz = (bwMhz * 1000) / channels;
+      const txt = resKhz >= 1
+          ? resKhz.toFixed(resKhz < 10 ? 2 : 1) + ' kHz/channel'
+          : (resKhz * 1000).toFixed(1) + ' Hz/channel';
+      document.getElementById('spectral-resolution').textContent = txt;
+  }
+
   function updateRefFreqVisibility() {
       const freqSwitched = document.getElementById('obs-mode-freqswitched');
       const refField = document.getElementById('ref-freq-field');
@@ -298,7 +331,8 @@
       const advancedInputs = document.querySelectorAll(
           "details input[name='center_freq_mhz'], details input[name='ref_freq_mhz'], " +
           "details select[name='bandwidth_mhz'], details input[name='gain_db'], " +
-          "details input[name='mode']"
+          "details input[name='mode'], details select[name='spectral_channels'], " +
+          "details input[name='rfi_filter'][type='checkbox']"
       );
       advancedInputs.forEach(el => {
           el.disabled = observing;
@@ -348,6 +382,7 @@
       coordinateSystemDropdown.addEventListener("change", coordinateSystemChanged);
       updateObsTimer();
       updateTrackStopButtons();
+      updateSpectralResolution();
       fetchBookingEndTime().then(updateBookingCountdown);
       setInterval(async function() {
           await fetchBookingEndTime();

@@ -134,6 +134,14 @@ fn default_gain_db() -> f64 {
     60.0
 }
 
+fn default_spectral_channels() -> usize {
+    512
+}
+
+fn default_rfi_filter() -> bool {
+    true
+}
+
 #[derive(Serialize, Deserialize, PartialEq, Debug, Copy, Clone)]
 pub struct ReceiverConfiguration {
     pub integrate: bool,
@@ -147,6 +155,10 @@ pub struct ReceiverConfiguration {
     pub bandwidth_hz: f64,
     #[serde(default = "default_gain_db")]
     pub gain_db: f64,
+    #[serde(default = "default_spectral_channels")]
+    pub spectral_channels: usize,
+    #[serde(default = "default_rfi_filter")]
+    pub rfi_filter: bool,
 }
 
 impl Default for ReceiverConfiguration {
@@ -158,6 +170,8 @@ impl Default for ReceiverConfiguration {
             ref_freq_hz: default_ref_freq_hz(),
             bandwidth_hz: default_bandwidth_hz(),
             gain_db: default_gain_db(),
+            spectral_channels: default_spectral_channels(),
+            rfi_filter: default_rfi_filter(),
         }
     }
 }
