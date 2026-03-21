@@ -109,7 +109,7 @@ impl Telescope for SalsaTelescope {
                         address,
                         measurements,
                         cancellation_token,
-                        receiver_configuration.mode,
+                        receiver_configuration,
                     )
                     .await;
                 })
@@ -333,16 +333,16 @@ async fn measure(
     address: String,
     measurements: Arc<Mutex<Vec<Measurement>>>,
     cancellation_token: CancellationToken,
-    mode: ObservationMode,
+    config: ReceiverConfiguration,
 ) {
-    // Switched HI example
     let tint: f64 = 1.0; // integration time per cycle, seconds
-    let srate: f64 = 2.5e6; // sample rate, Hz
-    let sfreq: f64 = 1.4204e9;
-    let rfreq: f64 = 1.4179e9;
+    let srate: f64 = config.bandwidth_hz;
+    let sfreq: f64 = config.center_freq_hz;
+    let rfreq: f64 = config.ref_freq_hz;
     let avg_pts: usize = 512; // ^2 Number of points after average, setting spectral resolution
     let fft_pts: usize = 8192; // ^2 Number of points in FFT, setting spectral resolution
-    let gain: f64 = 60.0;
+    let gain: f64 = config.gain_db;
+    let mode = config.mode;
 
     // Setup usrp for taking data
     let args = format!("addr={}", address);

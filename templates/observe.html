@@ -86,7 +86,7 @@
             id="observe-btn"
             hx-post="/observe/{{ info.id }}/observe"
             hx-swap="none"
-            hx-include="[name='mode']"
+            hx-include="[name='mode'],[name='center_freq_mhz'],[name='ref_freq_mhz'],[name='bandwidth_mhz'],[name='gain_db']"
             hx-on::before-request="document.getElementById('errors').innerHTML=''"
             class="px-3 py-1 bg-indigo-600 text-white rounded-md hover:bg-indigo-500 text-sm"
           >
@@ -108,12 +108,57 @@
         <!-- Advanced settings -->
         <details class="mt-3 text-sm text-gray-700">
           <summary class="cursor-pointer text-gray-500 select-none">Advanced</summary>
-          <div class="mt-2">
-            <label class="block text-sm text-gray-600">Mode</label>
-            <select name="mode" class="border rounded px-2 py-1 bg-white text-sm w-full">
-              <option value="FreqSwitched" selected>Freq. switched</option>
-              <option value="Raw">Raw</option>
-            </select>
+          <div class="mt-2 space-y-2">
+            <div>
+              <label class="block text-sm text-gray-600 mb-1">Mode</label>
+              <div class="flex gap-4">
+                <label class="flex items-center gap-1 cursor-pointer">
+                  <input type="radio" id="obs-mode-freqswitched" name="mode" value="FreqSwitched" checked
+                    onchange="updateRefFreqVisibility()" />
+                  Freq. switched
+                </label>
+                <label class="flex items-center gap-1 cursor-pointer">
+                  <input type="radio" id="obs-mode-raw" name="mode" value="Raw"
+                    onchange="updateRefFreqVisibility()" />
+                  Raw
+                </label>
+              </div>
+            </div>
+            <div class="flex gap-2">
+              <div class="flex-1">
+                <label class="block text-sm text-gray-600">Center freq. [MHz]</label>
+                <input type="number" name="center_freq_mhz" value="1420.4" step="0.1"
+                  min="{{ freq_min_mhz }}" max="{{ freq_max_mhz }}"
+                  class="border rounded px-2 py-1 bg-white w-full text-sm" />
+              </div>
+              <div id="ref-freq-field" class="flex-1">
+                <label class="block text-sm text-gray-600">Ref. freq. [MHz]</label>
+                <input type="number" name="ref_freq_mhz" value="1417.9" step="0.1"
+                  min="{{ freq_min_mhz }}" max="{{ freq_max_mhz }}"
+                  class="border rounded px-2 py-1 bg-white w-full text-sm" />
+              </div>
+            </div>
+            <p class="text-xs text-{% if is_admin %}yellow{% else %}gray{% endif %}-700 bg-{% if is_admin %}yellow{% else %}gray{% endif %}-50 border border-{% if is_admin %}yellow{% else %}gray{% endif %}-200 rounded px-2 py-1">
+              {% if is_admin %}Admin: full receiver range {{ freq_min_mhz }}–{{ freq_max_mhz }} MHz (DBSRX2).
+              {% else %}Frequency range {{ freq_min_mhz }}–{{ freq_max_mhz }} MHz (LNA).{% endif %}
+            </p>
+            <div class="flex gap-2">
+              <div class="flex-1">
+                <label class="block text-sm text-gray-600">Bandwidth</label>
+                <select name="bandwidth_mhz" class="border rounded px-2 py-1 bg-white text-sm w-full">
+                  <option value="1.0">1.0 MHz</option>
+                  <option value="2.5" selected>2.5 MHz</option>
+                  <option value="5.0">5.0 MHz</option>
+                  <option value="10.0">10.0 MHz</option>
+                  <option value="25.0">25.0 MHz</option>
+                </select>
+              </div>
+              <div class="flex-1">
+                <label class="block text-sm text-gray-600">Gain [dB]</label>
+                <input type="number" name="gain_db" value="60" min="0" max="60" step="1"
+                  class="border rounded px-2 py-1 bg-white w-full text-sm" />
+              </div>
+            </div>
           </div>
         </details>
       </div>
@@ -187,6 +232,12 @@
               warningEl.classList.remove('hidden');
           }
       }
+  }
+
+  function updateRefFreqVisibility() {
+      const freqSwitched = document.getElementById('obs-mode-freqswitched');
+      const refField = document.getElementById('ref-freq-field');
+      if (refField && freqSwitched) refField.classList.toggle('hidden', !freqSwitched.checked);
   }
 
   function coordinateSystemChanged(e) {
