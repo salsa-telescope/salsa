@@ -60,6 +60,14 @@ function get_telescope_from_location() {
     .attr("text-anchor", "middle")
     .attr("font-size", "13px")
     .text("Frequency (MHz)");
+  // chart title (integration time)
+  const chartTitle = svg
+    .append("text")
+    .attr("x", width / 2)
+    .attr("y", margin / 2)
+    .attr("text-anchor", "middle")
+    .attr("font-size", "12px")
+    .attr("fill", "#6b7280");
   // y-axis
   const yAxis = svg
     .append("g")
@@ -150,6 +158,10 @@ function get_telescope_from_location() {
     xLabel.text(showVlsr ? "VLSR (km/s)" : "Frequency (MHz)");
   }
 
+  window.setChartTitle = function(text) {
+    chartTitle.text(text);
+  };
+
   // Expose toggle function for the button
   window.toggleObserveAxis = function () {
     if (vlsrCorrection === null) return;
@@ -159,31 +171,31 @@ function get_telescope_from_location() {
     updateChart();
   };
 
-  // There can be a socket already here if the page is refetched by htmx.
-  if (window.spectrumSocket) {
-    window.spectrumSocket.close();
-  }
-  let receivedMetadata = false;
-  window.spectrumSocket = new WebSocket(`/telescope/${get_telescope_from_location()}/spectrum`);
-  window.spectrumSocket.onmessage = async (event) => {
-    // First message is JSON text with metadata
-    if (!receivedMetadata) {
-      receivedMetadata = true;
-      const meta = JSON.parse(typeof event.data === "string" ? event.data : await event.data.text());
-      vlsrCorrection = meta.vlsr_correction_mps;
-      const btn = document.getElementById("observe-axis-toggle");
-      if (vlsrCorrection !== null) {
-        showVlsr = true;
-        if (btn) {
-          btn.style.display = "";
-          btn.textContent = "Show frequency";
-        }
-      } else {
-        showVlsr = false;
-        if (btn) btn.style.display = "none";
-      }
-      return;
+  function connectSpectrumSocket() {
+    if (window.spectrumSocket) {
+      window.spectrumSocket.close();
     }
+    let receivedMetadata = false;
+    window.spectrumSocket = new WebSocket(`/telescope/${get_telescope_from_location()}/spectrum`);
+    window.spectrumSocket.onmessage = async (event) => {
+      // First message is JSON text with metadata
+      if (!receivedMetadata) {
+        receivedMetadata = true;
+        const meta = JSON.parse(typeof event.data === "string" ? event.data : await event.data.text());
+        vlsrCorrection = meta.vlsr_correction_mps;
+        const btn = document.getElementById("observe-axis-toggle");
+        if (vlsrCorrection !== null) {
+          showVlsr = true;
+          if (btn) {
+            btn.style.display = "";
+            btn.textContent = "Show frequency";
+          }
+        } else {
+          showVlsr = false;
+          if (btn) btn.style.display = "none";
+        }
+        return;
+      }
 
     let dataView = new DataView(await event.data.arrayBuffer());
     latestData = [];
@@ -194,6 +206,10 @@ function get_telescope_from_location() {
         y: dataView.getFloat64(i + 8, true),
       });
     }
-    updateChart();
-  };
+      updateChart();
+    };
+  }
+
+  window.reconnectSpectrumSocket = connectSpectrumSocket;
+  connectSpectrumSocket();
 })();

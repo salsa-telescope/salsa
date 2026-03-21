@@ -83,16 +83,19 @@
         <h3 class="text-sm font-semibold text-gray-700 mb-2">Observe</h3>
         <div class="flex gap-2 items-center">
           <button
+            id="observe-btn"
             hx-post="/observe/{{ info.id }}/observe"
             hx-swap="none"
+            hx-on::before-request="document.getElementById('errors').innerHTML=''"
             class="px-3 py-1 bg-indigo-600 text-white rounded-md hover:bg-indigo-500 text-sm"
           >
             Start
           </button>
           <button
+            id="stop-obs-btn"
             hx-post="/observe/{{ info.id }}/stop"
             hx-swap="none"
-            class="px-3 py-1 bg-gray-300 text-gray-800 rounded-md hover:bg-gray-400 text-sm"
+            class="px-3 py-1 bg-red-600 text-white rounded-md hover:bg-red-500 text-sm hidden"
           >
             Stop
           </button>
@@ -106,9 +109,8 @@
 
     <!-- Right column: live spectrum chart -->
     <div class="lg:w-2/3">
-      <h2 class="mb-2 font-semibold">Live spectrum</h2>
-      <p id="obs-time-display" class="text-sm text-gray-500 mb-2 hidden"></p>
-      <div id="chart">
+      <h2 class="font-semibold">Live spectrum</h2>
+      <div id="chart" class="-mt-4">
         <!-- FIXME: maybe don't reload this javascript on each htmx fetch of this page? -->
         <script src="/observe_chart.js"></script>
         <button id="observe-axis-toggle" style="display: none;"
@@ -199,8 +201,7 @@
           inputY.value = '';
           break;
       }
-      const isTracking = !document.getElementById('stop-btn').classList.contains('hidden');
-      setTrackingState(isTracking);
+      updateTrackStopButtons();
   }
 
   let obsTimerInterval = null;
@@ -213,18 +214,15 @@
       const serverSecs = parseInt(measuringEl.dataset.obsSecs || '0', 10);
       const timerEl = document.getElementById('obs-timer');
       const elapsedEl = document.getElementById('obs-elapsed');
-      const displayEl = document.getElementById('obs-time-display');
 
       if (isMeasuring && obsTimerInterval === null) {
+          if (window.reconnectSpectrumSocket) window.reconnectSpectrumSocket();
           obsStartTime = Date.now();
           timerEl.classList.remove('hidden');
           obsTimerInterval = setInterval(function () {
               const secs = Math.floor((Date.now() - obsStartTime) / 1000);
               elapsedEl.textContent = secs;
-              if (displayEl) {
-                  displayEl.textContent = 'Integrating: ' + secs + 's';
-                  displayEl.classList.remove('hidden');
-              }
+              if (window.setChartTitle) window.setChartTitle('Integrating: ' + secs + 's');
           }, 1000);
       } else if (!isMeasuring && obsTimerInterval !== null) {
           clearInterval(obsTimerInterval);
@@ -232,21 +230,16 @@
           obsStartTime = null;
           timerEl.classList.add('hidden');
           elapsedEl.textContent = '0';
-          if (displayEl) {
-              if (serverSecs > 0) {
-                  displayEl.textContent = 'Integration time: ' + serverSecs + 's';
-                  displayEl.classList.remove('hidden');
-              } else {
-                  displayEl.classList.add('hidden');
-              }
-          }
-      } else if (!isMeasuring && obsTimerInterval === null && displayEl) {
+          if (window.setChartTitle) window.setChartTitle(serverSecs > 0 ? 'Integration time: ' + serverSecs + 's' : '');
+      } else if (!isMeasuring && obsTimerInterval === null) {
           // Page load with existing observation data
-          if (serverSecs > 0) {
-              displayEl.textContent = 'Integration time: ' + serverSecs + 's';
-              displayEl.classList.remove('hidden');
-          }
+          if (serverSecs > 0 && window.setChartTitle) window.setChartTitle('Integration time: ' + serverSecs + 's');
       }
+  }
+
+  function setObservingState(observing) {
+      document.getElementById('observe-btn').classList.toggle('hidden', observing);
+      document.getElementById('stop-obs-btn').classList.toggle('hidden', !observing);
   }
 
   function setTrackingState(tracking) {
@@ -266,8 +259,13 @@
 
   function updateTrackStopButtons() {
       const statusSpan = document.querySelector('#telescope-status h2 span');
-      const isIdle = !statusSpan || statusSpan.textContent.trim() === 'Idle';
+      const status = statusSpan ? statusSpan.textContent.trim() : 'Idle';
+      const isTracking = status === 'Tracking';
+      const isIdle = status === 'Idle';
       setTrackingState(!isIdle);
+      const measuringEl = document.getElementById('measuring-state');
+      const isMeasuring = measuringEl && measuringEl.dataset.measuring === 'true';
+      setObservingState(isMeasuring);
   }
 
   document.addEventListener('htmx:afterSwap', function (evt) {
@@ -277,7 +275,7 @@
           updateBookingCountdown();
       }
       if (evt.detail.target.id === 'errors' && evt.detail.target.innerHTML.trim() !== '') {
-          setTrackingState(false);
+          setObservingState(false);
       }
   });
 

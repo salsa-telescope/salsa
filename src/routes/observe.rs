@@ -8,7 +8,8 @@ use crate::models::maintenance::fetch_maintenance_set;
 use crate::models::observation::Observation;
 use crate::models::telescope::Telescope;
 use crate::models::telescope_types::{
-    ReceiverConfiguration, ReceiverError, TelescopeError, TelescopeInfo, TelescopeTarget,
+    ReceiverConfiguration, ReceiverError, TelescopeError, TelescopeInfo, TelescopeStatus,
+    TelescopeTarget,
 };
 use crate::models::user::User;
 use crate::routes::index::render_main;
@@ -171,7 +172,9 @@ fn error_response(message: String) -> Response {
     let body = if message.is_empty() {
         String::new()
     } else {
-        format!("<p class=\"text-red-600 text-sm\">Error: {message}</p>")
+        format!(
+            "<div class=\"text-sm font-semibold text-red-700 bg-red-50 border border-red-300 rounded px-3 py-2\">{message}</div>"
+        )
     };
     Response::builder()
         .status(StatusCode::OK) // Needs to be ok to be picked up by htmx.
@@ -403,6 +406,16 @@ async fn start_observe(
         .await
         .ok_or(StatusCode::NOT_FOUND)?;
 
+    let info = telescope.get_info().await.map_err(|err| {
+        error!("Failed to get telescope info: {err}");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+    if info.status != TelescopeStatus::Tracking {
+        return Ok(error_response(
+            "Telescope is not tracking. Please wait until it has reached the target.".to_string(),
+        ));
+    }
+
     telescope
         .set_receiver_configuration(ReceiverConfiguration { integrate: true })
         .await
@@ -415,7 +428,7 @@ async fn start_observe(
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
         .contains(&telescope_id);
     let content = observe(telescope.as_ref(), in_maintenance).await?;
-    Ok(Html(content))
+    Ok(Html(content).into_response())
 }
 
 async fn stop_observe(
