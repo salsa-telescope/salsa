@@ -176,11 +176,17 @@
                 <p id="spectral-resolution" class="text-xs text-gray-400 mt-1"></p>
             </div>
             <div>
-              <label class="flex items-center gap-2 cursor-pointer">
-                <input type="hidden" name="rfi_filter" value="false" />
-                <input type="checkbox" name="rfi_filter" value="true" checked />
-                <span class="text-sm text-gray-600">RFI filter (median window)</span>
-              </label>
+              <label class="block text-sm text-gray-600 mb-1">RFI filter (median window)</label>
+              <div class="flex gap-4">
+                <label class="flex items-center gap-1 cursor-pointer">
+                  <input type="radio" name="rfi_filter" value="true" checked />
+                  Enabled
+                </label>
+                <label class="flex items-center gap-1 cursor-pointer">
+                  <input type="radio" name="rfi_filter" value="false" />
+                  Disabled
+                </label>
+              </div>
             </div>
           </div>
         </details>
@@ -332,7 +338,7 @@
           "details input[name='center_freq_mhz'], details input[name='ref_freq_mhz'], " +
           "details select[name='bandwidth_mhz'], details input[name='gain_db'], " +
           "details input[name='mode'], details select[name='spectral_channels'], " +
-          "details input[name='rfi_filter'][type='checkbox']"
+          "details input[name='rfi_filter']"
       );
       advancedInputs.forEach(el => {
           el.disabled = observing;
