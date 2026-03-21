@@ -1,5 +1,5 @@
 use crate::coords::{Direction, Location};
-use crate::coords::{horizontal_from_equatorial, horizontal_from_galactic};
+use crate::coords::{horizontal_from_equatorial, horizontal_from_galactic, horizontal_from_sun};
 use crate::models::telescope_types::{TelescopeError, TelescopeStatus, TelescopeTarget};
 use crate::telescope_controller::{TelescopeCommand, TelescopeController, TelescopeResponse};
 use chrono::{DateTime, Utc};
@@ -27,6 +27,8 @@ impl TelescopeTracker {
     pub fn new(controller_address: String) -> TelescopeTracker {
         let state = Arc::new(Mutex::new(TelescopeTrackerState {
             target: None,
+            az_offset_rad: 0.0,
+            el_offset_rad: 0.0,
             commanded_horizontal: None,
             current_direction: None,
             most_recent_error: None,
@@ -57,10 +59,14 @@ impl TelescopeTracker {
     pub fn set_target(
         &mut self,
         target: TelescopeTarget,
+        az_offset_rad: f64,
+        el_offset_rad: f64,
     ) -> Result<TelescopeTarget, TelescopeError> {
         let mut state = self.state.lock().unwrap();
         assert!(!state.quit);
         state.target = Some(target);
+        state.az_offset_rad = az_offset_rad;
+        state.el_offset_rad = el_offset_rad;
         Ok(target)
     }
 
@@ -111,6 +117,8 @@ impl TelescopeTracker {
 
 struct TelescopeTrackerState {
     target: Option<TelescopeTarget>,
+    az_offset_rad: f64,
+    el_offset_rad: f64,
     commanded_horizontal: Option<Direction>,
     current_direction: Option<Direction>,
     most_recent_error: Option<TelescopeError>,
@@ -190,10 +198,14 @@ fn update_direction(
         latitude: 1.00170457462,  //(57.0+23.0/60.0+36.4/3600.0) * PI / 180.0
     };
 
-    // Read target from state, then release the lock
-    let target = {
+    // Read target and offsets from state, then release the lock
+    let (target, az_offset_rad, el_offset_rad) = {
         let state_guard = state.lock().unwrap();
-        state_guard.target
+        (
+            state_guard.target,
+            state_guard.az_offset_rad,
+            state_guard.el_offset_rad,
+        )
     };
 
     let current_horizontal = match controller.execute(TelescopeCommand::GetDirection)? {
@@ -208,7 +220,11 @@ fn update_direction(
         return Ok(());
     };
 
-    let target_horizontal = calculate_target_horizontal(target, location, when);
+    let target_horizontal = apply_offset(
+        calculate_target_horizontal(target, location, when),
+        az_offset_rad,
+        el_offset_rad,
+    );
 
     // FIXME: How to handle static configuration like this?
     if target_horizontal.elevation < LOWEST_ALLOWED_ELEVATION {
@@ -252,6 +268,15 @@ fn calculate_target_horizontal(
             azimuth: az,
             elevation: el,
         },
+        TelescopeTarget::Sun => horizontal_from_sun(location, when),
+    }
+}
+
+fn apply_offset(dir: Direction, az_offset_rad: f64, el_offset_rad: f64) -> Direction {
+    let full_circle = 2.0 * std::f64::consts::PI;
+    Direction {
+        azimuth: ((dir.azimuth + az_offset_rad) % full_circle + full_circle) % full_circle,
+        elevation: dir.elevation + el_offset_rad,
     }
 }
 

@@ -28,10 +28,11 @@
                 <option value="galactic" {% if target_mode=="galactic" %}selected="selected"{% endif %}>Galactic</option>
                 <option value="equatorial" {% if target_mode=="equatorial" %}selected="selected"{% endif %}>Equatorial</option>
                 <option value="horizontal" {% if target_mode=="horizontal" %}selected="selected"{% endif %}>Horizontal</option>
+                <option value="sun" {% if target_mode=="sun" %}selected="selected"{% endif %}>Sun</option>
                 {% if info.stow_position.is_some() %}<option value="stow">Stow</option>{% endif %}
               </select>
             </div>
-            <div class="flex-1">
+            <div id="coord-x" class="flex-1">
               <label for="x" class="block text-sm text-gray-600">
                 {% if target_mode == "galactic" %}Long. [deg]
                 {% else if target_mode == "equatorial" %}R.A. [deg]
@@ -41,7 +42,7 @@
               <input type="text" id="x" name="x" value="{{ commanded_x }}"
                 class="border rounded px-2 py-1 bg-white w-full text-sm" />
             </div>
-            <div class="flex-1">
+            <div id="coord-y" class="flex-1">
               <label for="y" class="block text-sm text-gray-600">
                 {% if target_mode == "galactic" %}Lat. [deg]
                 {% else if target_mode == "equatorial" %}Dec. [deg]
@@ -54,6 +55,7 @@
             <button id="track-btn"
               hx-post="/observe/{{ info.id }}/set-target"
               hx-swap="none"
+              hx-include="[name='coordinate_system'],[name='x'],[name='y'],[name='az_offset_deg'],[name='el_offset_deg']"
               class="px-3 py-1 bg-indigo-600 text-white rounded-md hover:bg-indigo-500 text-sm flex-shrink-0"
             >
               Track
@@ -66,6 +68,23 @@
               Stop
             </button>
           </div>
+
+          <!-- Advanced tracking settings -->
+          <details class="text-sm text-gray-700">
+            <summary class="cursor-pointer text-gray-500 select-none">Advanced tracking settings</summary>
+            <div class="mt-2 flex gap-2">
+              <div class="flex-1">
+                <label class="block text-sm text-gray-600">Az. offset [deg]</label>
+                <input type="number" name="az_offset_deg" value="0" step="0.1"
+                  class="border rounded px-2 py-1 bg-white w-full text-sm" />
+              </div>
+              <div class="flex-1">
+                <label class="block text-sm text-gray-600">El. offset [deg]</label>
+                <input type="number" name="el_offset_deg" value="0" step="0.1"
+                  class="border rounded px-2 py-1 bg-white w-full text-sm" />
+              </div>
+            </div>
+          </details>
         </form>
       </div>
 
@@ -75,7 +94,7 @@
         style="grid-template-columns: 3.5rem 1.5rem auto 1.5rem auto"
         hx-get="/observe/{{ info.id }}/preview"
         hx-trigger="load, every 1s"
-        hx-include="[name='coordinate_system'],[name='x'],[name='y']">
+        hx-include="[name='coordinate_system'],[name='x'],[name='y'],[name='az_offset_deg'],[name='el_offset_deg']">
       </div>
 
       <!-- Measurement controls -->
@@ -284,6 +303,20 @@
       const y_label = document.querySelector("form label[for='y']");
       const inputX = document.querySelector("form input[name='x']");
       const inputY = document.querySelector("form input[name='y']");
+      const coordX = document.getElementById('coord-x');
+      const coordY = document.getElementById('coord-y');
+      const isSun = e.target.value === 'sun';
+      const isStow = e.target.value === 'stow';
+      coordX.classList.toggle('hidden', isSun || isStow);
+      coordY.classList.toggle('hidden', isSun || isStow);
+      const modeRaw = document.getElementById('obs-mode-raw');
+      const modeFreqSwitched = document.getElementById('obs-mode-freqswitched');
+      if (isSun) {
+          modeRaw.checked = true;
+      } else {
+          modeFreqSwitched.checked = true;
+      }
+      updateRefFreqVisibility();
       switch (e.target.value) {
       case "galactic":
           x_label.textContent = "Long. [deg]"
@@ -296,6 +329,10 @@
       case "horizontal":
           x_label.textContent = "Az. [deg]"
           y_label.textContent = "El. [deg]"
+          break;
+      case "sun":
+          inputX.value = '';
+          inputY.value = '';
           break;
       case "stow":
           x_label.textContent = "Az. [deg]"
@@ -386,6 +423,13 @@
   function pageLoad() {
       const coordinateSystemDropdown = document.querySelector("form select[name='coordinate_system']");
       coordinateSystemDropdown.addEventListener("change", coordinateSystemChanged);
+      const isSunOrStow = coordinateSystemDropdown.value === 'sun' || coordinateSystemDropdown.value === 'stow';
+      document.getElementById('coord-x').classList.toggle('hidden', isSunOrStow);
+      document.getElementById('coord-y').classList.toggle('hidden', isSunOrStow);
+      if (coordinateSystemDropdown.value === 'sun') {
+          document.getElementById('obs-mode-raw').checked = true;
+          updateRefFreqVisibility();
+      }
       updateObsTimer();
       updateTrackStopButtons();
       updateSpectralResolution();

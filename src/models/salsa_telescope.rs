@@ -76,9 +76,16 @@ pub fn create(
 
 #[async_trait]
 impl Telescope for SalsaTelescope {
-    async fn set_target(&self, target: TelescopeTarget) -> Result<TelescopeTarget, TelescopeError> {
+    async fn set_target(
+        &self,
+        target: TelescopeTarget,
+        az_offset_rad: f64,
+        el_offset_rad: f64,
+    ) -> Result<TelescopeTarget, TelescopeError> {
         let mut inner = self.inner.lock().await;
-        inner.controller.set_target(target)
+        inner
+            .controller
+            .set_target(target, az_offset_rad, el_offset_rad)
     }
 
     async fn stop(&self) -> Result<(), TelescopeError> {

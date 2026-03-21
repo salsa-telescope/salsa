@@ -18,6 +18,7 @@ pub enum TelescopeTarget {
         azimuth: f64,   // in radians
         elevation: f64, // in radians
     },
+    Sun,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Debug, Copy, Clone)]
