@@ -19,6 +19,7 @@ use crate::middleware::session::session_middleware;
 use crate::models::telescope::{TelescopeCollectionHandle, create_telescope_collection};
 use crate::routes;
 use crate::secrets::Secrets;
+use crate::tle_cache::{TleCacheHandle, start_tle_refresh};
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct BookingConfig {
@@ -61,6 +62,7 @@ pub struct AppState {
     pub secrets: Arc<Secrets>,
     pub booking_config: Arc<BookingConfig>,
     pub admin_config: Arc<AdminConfig>,
+    pub tle_cache: TleCacheHandle,
 }
 
 pub async fn create_app(config_dir: &Path, database_dir: &Path) -> (Router, AppState) {
@@ -76,10 +78,13 @@ pub async fn create_app(config_dir: &Path, database_dir: &Path) -> (Router, AppS
     let booking_config = Arc::new(salsa_config.bookings);
     let admin_config = Arc::new(salsa_config.admin);
 
+    let tle_cache = TleCacheHandle::new();
+    start_tle_refresh(tle_cache.clone());
     let telescopes = create_telescope_collection(
         config_path
             .to_str()
             .expect("Config path should be convertible to string"),
+        tle_cache.clone(),
     );
     let secrets_path = config_dir.join(".secrets.toml");
     let secrets = Arc::new(
@@ -103,6 +108,7 @@ pub async fn create_app(config_dir: &Path, database_dir: &Path) -> (Router, AppS
         secrets,
         booking_config,
         admin_config,
+        tle_cache,
     };
 
     let mut app = Router::new()

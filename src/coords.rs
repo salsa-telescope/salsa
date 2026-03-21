@@ -1,5 +1,6 @@
 use chrono::{DateTime, TimeZone, Utc};
 use serde::{Deserialize, Serialize};
+use sgp4::Elements;
 use std::f64::consts::PI;
 
 // Obliquity of the ecliptic, accurate to 1 arcmin per century from J2000
@@ -28,7 +29,6 @@ pub struct Direction {
 // from https://celestrak.org/columns/v02n02/
 // satellite ECI xs,ys,zs in km
 // observer lat,long in radians, el in km
-#[allow(dead_code)] // TODO: Remove when used.
 pub fn horizontal_from_sat_eci(
     xs: f64,
     ys: f64,
@@ -60,6 +60,27 @@ pub fn horizontal_from_sat_eci(
     let rg = (rx * rx + ry * ry + rz * rz).sqrt();
     let el = (top_z / rg).asin();
     (az, el)
+}
+
+/// Propagate a TLE to the given time and return az/el for the observer location.
+/// Returns None if the TLE cannot be propagated (e.g. too far from epoch).
+pub fn horizontal_from_elements(
+    elements: &Elements,
+    location: Location,
+    when: DateTime<Utc>,
+) -> Option<Direction> {
+    let minutes = elements
+        .datetime_to_minutes_since_epoch(&when.naive_utc())
+        .ok()?;
+    let constants = sgp4::Constants::from_elements(elements).ok()?;
+    let prediction = constants.propagate(minutes).ok()?;
+    let [xs, ys, zs] = prediction.position;
+    let (az, el) =
+        horizontal_from_sat_eci(xs, ys, zs, location.latitude, location.longitude, 0.0, when);
+    Some(Direction {
+        azimuth: az,
+        elevation: el,
+    })
 }
 
 fn julian_day(when: DateTime<Utc>) -> f64 {

@@ -19,6 +19,7 @@ mod routes;
 mod secrets;
 mod telescope_controller;
 mod telescope_tracker;
+mod tle_cache;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]

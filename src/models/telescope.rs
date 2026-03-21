@@ -6,6 +6,7 @@ use crate::models::telescope_types::{
 
 use crate::models::fake_telescope;
 use crate::models::salsa_telescope;
+use crate::tle_cache::TleCacheHandle;
 use async_trait::async_trait;
 use std::collections::HashMap;
 use std::fs;
@@ -64,7 +65,7 @@ impl TelescopeCollectionHandle {
     }
 }
 
-fn create_telescope(def: TelescopeDefinition) -> Arc<dyn Telescope> {
+fn create_telescope(def: TelescopeDefinition, tle_cache: TleCacheHandle) -> Arc<dyn Telescope> {
     log::info!("Creating telescope {}", def.name);
     let stow_position = def.stow_position.map(|p| Direction {
         azimuth: p[0].to_radians(),
@@ -80,13 +81,19 @@ fn create_telescope(def: TelescopeDefinition) -> Arc<dyn Telescope> {
                 .expect("Telescope of type Salsa should have receiver_address.")
                 .clone(),
             stow_position,
+            tle_cache,
         )),
-        TelescopeType::Fake => Arc::new(fake_telescope::create(def.name.clone(), stow_position)),
+        TelescopeType::Fake => Arc::new(fake_telescope::create(
+            def.name.clone(),
+            stow_position,
+            tle_cache,
+        )),
     }
 }
 
 pub fn create_telescope_collection(
     config_filepath: impl Into<PathBuf>,
+    tle_cache: TleCacheHandle,
 ) -> TelescopeCollectionHandle {
     let config: TelescopesConfig = toml::from_str(
         &fs::read_to_string(config_filepath.into())
@@ -99,7 +106,7 @@ pub fn create_telescope_collection(
         .map(|telescope_definition| {
             (
                 telescope_definition.name.clone(),
-                create_telescope(telescope_definition),
+                create_telescope(telescope_definition, tle_cache.clone()),
             )
         })
         .collect();

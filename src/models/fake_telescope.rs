@@ -5,6 +5,7 @@ use crate::models::telescope_types::{
     ObservedSpectra, ReceiverConfiguration, ReceiverError, TelescopeError, TelescopeInfo,
     TelescopeStatus, TelescopeTarget,
 };
+use crate::tle_cache::TleCacheHandle;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use log::debug;
@@ -41,13 +42,18 @@ struct Inner {
     name: String,
     stow_position: Option<Direction>,
     alive: bool,
+    tle_cache: TleCacheHandle,
 }
 
 pub struct FakeTelescope {
     inner: Arc<Mutex<Inner>>,
 }
 
-pub fn create(name: String, stow_position: Option<Direction>) -> FakeTelescope {
+pub fn create(
+    name: String,
+    stow_position: Option<Direction>,
+    tle_cache: TleCacheHandle,
+) -> FakeTelescope {
     let inner = Arc::new(Mutex::new(Inner {
         target: None,
         az_offset_rad: 0.0,
@@ -68,6 +74,7 @@ pub fn create(name: String, stow_position: Option<Direction>) -> FakeTelescope {
         name,
         stow_position,
         alive: true,
+        tle_cache,
     }));
 
     let task_inner = inner.clone();
@@ -100,11 +107,12 @@ impl Telescope for FakeTelescope {
         inner.receiver_configuration.integrate = false;
         inner.current_spectra.clear();
 
-        let target_horizontal = apply_offset(
-            calculate_target_horizontal(inner.location, Utc::now(), target),
-            az_offset_rad,
-            el_offset_rad,
-        );
+        let raw = calculate_target_horizontal(inner.location, Utc::now(), target, &inner.tle_cache)
+            .unwrap_or(Direction {
+                azimuth: 0.0,
+                elevation: -1.0,
+            });
+        let target_horizontal = apply_offset(raw, az_offset_rad, el_offset_rad);
         if target_horizontal.elevation < LOWEST_ALLOWED_ELEVATION {
             log::info!(
                 "Refusing to set target for telescope {} to {:?}. Target is below horizon",
@@ -153,11 +161,13 @@ impl Telescope for FakeTelescope {
         let inner = self.inner.lock().await;
 
         let (status, commanded_horizontal) = if let Some(target) = inner.target {
-            let target_horizontal = apply_offset(
-                calculate_target_horizontal(inner.location, Utc::now(), target),
-                inner.az_offset_rad,
-                inner.el_offset_rad,
-            );
+            let raw =
+                calculate_target_horizontal(inner.location, Utc::now(), target, &inner.tle_cache)
+                    .unwrap_or(Direction {
+                        azimuth: 0.0,
+                        elevation: -1.0,
+                    });
+            let target_horizontal = apply_offset(raw, inner.az_offset_rad, inner.el_offset_rad);
             let horizontal_offset_squared = (target_horizontal.azimuth - inner.horizontal.azimuth)
                 .powi(2)
                 + (target_horizontal.elevation - inner.horizontal.elevation).powi(2);
@@ -224,11 +234,13 @@ impl Inner {
         if let Some(target) = self.target {
             let now = Utc::now();
             let current_horizontal = self.horizontal;
-            let target_horizontal = apply_offset(
-                calculate_target_horizontal(self.location, now, target),
-                self.az_offset_rad,
-                self.el_offset_rad,
-            );
+            let Some(raw) =
+                calculate_target_horizontal(self.location, now, target, &self.tle_cache)
+            else {
+                // Satellite not yet in TLE cache — skip update
+                return Ok(());
+            };
+            let target_horizontal = apply_offset(raw, self.az_offset_rad, self.el_offset_rad);
 
             if target_horizontal.elevation < LOWEST_ALLOWED_ELEVATION {
                 log::info!(
@@ -279,24 +291,28 @@ fn calculate_target_horizontal(
     location: Location,
     when: DateTime<Utc>,
     target: TelescopeTarget,
-) -> Direction {
+    tle_cache: &TleCacheHandle,
+) -> Option<Direction> {
     match target {
         TelescopeTarget::Equatorial {
             right_ascension: ra,
             declination: dec,
-        } => horizontal_from_equatorial(location, when, ra, dec),
+        } => Some(horizontal_from_equatorial(location, when, ra, dec)),
         TelescopeTarget::Galactic {
             longitude: l,
             latitude: b,
-        } => horizontal_from_galactic(location, when, l, b),
+        } => Some(horizontal_from_galactic(location, when, l, b)),
         TelescopeTarget::Horizontal {
             azimuth: az,
             elevation: el,
-        } => Direction {
+        } => Some(Direction {
             azimuth: az,
             elevation: el,
-        },
-        TelescopeTarget::Sun => horizontal_from_sun(location, when),
+        }),
+        TelescopeTarget::Sun => Some(horizontal_from_sun(location, when)),
+        TelescopeTarget::Satellite { norad_id } => {
+            tle_cache.satellite_direction(norad_id, location, when)
+        }
     }
 }
 
