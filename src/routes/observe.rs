@@ -580,10 +580,7 @@ async fn observe(telescope: &dyn Telescope, in_maintenance: bool) -> Result<Stri
         ),
         None => (String::new(), String::new()),
     };
-    let state_html = telescope_state(telescope).await.map_err(|err| {
-        error!("Failed to get telescope state {err}");
-        StatusCode::INTERNAL_SERVER_ERROR
-    })?;
+    let state_html = telescope_state(&info.id, telescope).await;
     Ok(ObserveTemplate {
         info,
         target_mode,
