@@ -372,7 +372,7 @@ async fn measure(
     // start taking data until integrate is false
     let mut n = 0.0;
     while !cancellation_token.is_cancelled() {
-        let mut spec = vec![0.0; avg_pts];
+        let mut spec = vec![];
         match mode {
             ObservationMode::FreqSwitched => measure_switched(
                 &mut usrp, sfreq, rfreq, fft_pts, tint, avg_pts, srate, &mut spec,
