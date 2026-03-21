@@ -118,11 +118,62 @@ pub enum ObservationMode {
     Raw,
 }
 
-#[derive(Serialize, Deserialize, PartialEq, Debug, Copy, Clone, Default)]
+fn default_center_freq_hz() -> f64 {
+    1.4204e9
+}
+
+fn default_ref_freq_hz() -> f64 {
+    1.4179e9
+}
+
+fn default_bandwidth_hz() -> f64 {
+    2.5e6
+}
+
+fn default_gain_db() -> f64 {
+    60.0
+}
+
+fn default_spectral_channels() -> usize {
+    512
+}
+
+fn default_rfi_filter() -> bool {
+    true
+}
+
+#[derive(Serialize, Deserialize, PartialEq, Debug, Copy, Clone)]
 pub struct ReceiverConfiguration {
     pub integrate: bool,
     #[serde(default)]
     pub mode: ObservationMode,
+    #[serde(default = "default_center_freq_hz")]
+    pub center_freq_hz: f64,
+    #[serde(default = "default_ref_freq_hz")]
+    pub ref_freq_hz: f64,
+    #[serde(default = "default_bandwidth_hz")]
+    pub bandwidth_hz: f64,
+    #[serde(default = "default_gain_db")]
+    pub gain_db: f64,
+    #[serde(default = "default_spectral_channels")]
+    pub spectral_channels: usize,
+    #[serde(default = "default_rfi_filter")]
+    pub rfi_filter: bool,
+}
+
+impl Default for ReceiverConfiguration {
+    fn default() -> Self {
+        ReceiverConfiguration {
+            integrate: false,
+            mode: ObservationMode::default(),
+            center_freq_hz: default_center_freq_hz(),
+            ref_freq_hz: default_ref_freq_hz(),
+            bandwidth_hz: default_bandwidth_hz(),
+            gain_db: default_gain_db(),
+            spectral_channels: default_spectral_channels(),
+            rfi_filter: default_rfi_filter(),
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]

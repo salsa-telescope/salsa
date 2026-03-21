@@ -396,10 +396,46 @@ async fn stop_telescope(
     Ok(error_response(String::new()))
 }
 
+fn default_center_freq_mhz() -> f64 {
+    1420.4
+}
+
+fn default_ref_freq_mhz() -> f64 {
+    1417.9
+}
+
+fn default_bandwidth_mhz() -> f64 {
+    2.5
+}
+
+fn default_gain_db() -> f64 {
+    60.0
+}
+
+fn default_spectral_channels() -> usize {
+    512
+}
+
+fn default_rfi_filter() -> bool {
+    true
+}
+
 #[derive(Deserialize)]
 struct ObserveForm {
     #[serde(default)]
     mode: ObservationMode,
+    #[serde(default = "default_center_freq_mhz")]
+    center_freq_mhz: f64,
+    #[serde(default = "default_ref_freq_mhz")]
+    ref_freq_mhz: f64,
+    #[serde(default = "default_bandwidth_mhz")]
+    bandwidth_mhz: f64,
+    #[serde(default = "default_gain_db")]
+    gain_db: f64,
+    #[serde(default = "default_spectral_channels")]
+    spectral_channels: usize,
+    #[serde(default = "default_rfi_filter")]
+    rfi_filter: bool,
 }
 
 async fn start_observe(
@@ -429,10 +465,32 @@ async fn start_observe(
         ));
     }
 
+    let (freq_min, freq_max) = if user.is_admin {
+        (FREQ_MIN_ADMIN_MHZ, FREQ_MAX_ADMIN_MHZ)
+    } else {
+        (FREQ_MIN_USER_MHZ, FREQ_MAX_USER_MHZ)
+    };
+    if form.center_freq_mhz < freq_min as f64 || form.center_freq_mhz > freq_max as f64 {
+        return Ok(error_response(format!(
+            "Center frequency must be between {freq_min} and {freq_max} MHz."
+        )));
+    }
+    if form.ref_freq_mhz < freq_min as f64 || form.ref_freq_mhz > freq_max as f64 {
+        return Ok(error_response(format!(
+            "Reference frequency must be between {freq_min} and {freq_max} MHz."
+        )));
+    }
+
     telescope
         .set_receiver_configuration(ReceiverConfiguration {
             integrate: true,
             mode: form.mode,
+            center_freq_hz: form.center_freq_mhz * 1e6,
+            ref_freq_hz: form.ref_freq_mhz * 1e6,
+            bandwidth_hz: form.bandwidth_mhz * 1e6,
+            gain_db: form.gain_db,
+            spectral_channels: form.spectral_channels,
+            rfi_filter: form.rfi_filter,
         })
         .await
         .map_err(|err| {
@@ -443,7 +501,7 @@ async fn start_observe(
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
         .contains(&telescope_id);
-    let content = observe(telescope.as_ref(), in_maintenance).await?;
+    let content = observe(telescope.as_ref(), in_maintenance, user.is_admin).await?;
     Ok(Html(content).into_response())
 }
 
@@ -479,7 +537,7 @@ async fn stop_observe(
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
         .contains(&telescope_id);
-    let content = observe(telescope.as_ref(), in_maintenance).await?;
+    let content = observe(telescope.as_ref(), in_maintenance, user.is_admin).await?;
     Ok(Html(content))
 }
 
@@ -506,7 +564,7 @@ async fn get_observe(
         .get(&telescope_id)
         .await
         .ok_or(StatusCode::NOT_FOUND)?;
-    let content = observe(telescope.as_ref(), in_maintenance).await?;
+    let content = observe(telescope.as_ref(), in_maintenance, user.is_admin).await?;
     let content = if headers.get("hx-request").is_some() {
         content
     } else {
@@ -561,6 +619,11 @@ async fn get_observe_maintenance(
     Ok(Html(content))
 }
 
+const FREQ_MIN_USER_MHZ: u32 = 1400;
+const FREQ_MAX_USER_MHZ: u32 = 1700;
+const FREQ_MIN_ADMIN_MHZ: u32 = 800;
+const FREQ_MAX_ADMIN_MHZ: u32 = 2300;
+
 #[derive(Template)]
 #[template(path = "observe.html", escape = "none")]
 struct ObserveTemplate {
@@ -570,6 +633,9 @@ struct ObserveTemplate {
     commanded_y: String,
     state_html: String,
     in_maintenance: bool,
+    is_admin: bool,
+    freq_min_mhz: u32,
+    freq_max_mhz: u32,
 }
 
 fn fmt_deg(deg: f64) -> String {
@@ -579,7 +645,11 @@ fn fmt_deg(deg: f64) -> String {
     s.to_string()
 }
 
-async fn observe(telescope: &dyn Telescope, in_maintenance: bool) -> Result<String, StatusCode> {
+async fn observe(
+    telescope: &dyn Telescope,
+    in_maintenance: bool,
+    is_admin: bool,
+) -> Result<String, StatusCode> {
     let info = telescope.get_info().await.map_err(|err| {
         error!("Failed to get info {err}");
         StatusCode::NOT_FOUND
@@ -613,6 +683,11 @@ async fn observe(telescope: &dyn Telescope, in_maintenance: bool) -> Result<Stri
         None => (String::new(), String::new()),
     };
     let state_html = telescope_state(&info.id, telescope).await;
+    let (freq_min_mhz, freq_max_mhz) = if is_admin {
+        (FREQ_MIN_ADMIN_MHZ, FREQ_MAX_ADMIN_MHZ)
+    } else {
+        (FREQ_MIN_USER_MHZ, FREQ_MAX_USER_MHZ)
+    };
     Ok(ObserveTemplate {
         info,
         target_mode,
@@ -620,6 +695,9 @@ async fn observe(telescope: &dyn Telescope, in_maintenance: bool) -> Result<Stri
         commanded_y,
         state_html,
         in_maintenance,
+        is_admin,
+        freq_min_mhz,
+        freq_max_mhz,
     }
     .render()
     .expect("Template rendering should always succeed"))

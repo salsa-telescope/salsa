@@ -109,7 +109,7 @@ impl Telescope for SalsaTelescope {
                         address,
                         measurements,
                         cancellation_token,
-                        receiver_configuration.mode,
+                        receiver_configuration,
                     )
                     .await;
                 })
@@ -207,6 +207,7 @@ fn measure_switched(
     tint: f64,
     avg_pts: usize,
     srate: f64,
+    rfi_filter: bool,
     spec: &mut Vec<f64>,
 ) {
     let mut spec_sig: Vec<f64> = vec![];
@@ -217,6 +218,7 @@ fn measure_switched(
         0.5 * tint,
         avg_pts,
         srate,
+        rfi_filter,
         &mut spec_sig,
     );
     let mut spec_ref: Vec<f64> = vec![];
@@ -227,6 +229,7 @@ fn measure_switched(
         0.5 * tint,
         avg_pts,
         srate,
+        rfi_filter,
         &mut spec_ref,
     );
     // Form sig-ref difference and scale with Tsys
@@ -237,6 +240,7 @@ fn measure_switched(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn measure_single(
     usrp: &mut Usrp,
     cfreq: f64,
@@ -244,6 +248,7 @@ fn measure_single(
     tint: f64,
     avg_pts: usize,
     srate: f64,
+    rfi_filter: bool,
     fft_avg: &mut Vec<f64>,
 ) {
     let nsamp: f64 = tint * srate; // total number of samples to request
@@ -297,16 +302,18 @@ fn measure_single(
     }
 
     // median window filter data
-    let mwkernel = 32; //median window filter size, power of 2
-    let threshold = 0.1; // threshold where to cut data and replace with median
-    let nchunks = fft_pts / mwkernel;
-    for i in 0..nchunks {
-        let chunk = &mut fft_abs[i * mwkernel..(i + 1) * mwkernel];
-        let m = median(chunk.to_vec());
-        for val in chunk.iter_mut() {
-            let diff = (*val - m).abs();
-            if diff > threshold * m {
-                *val = m;
+    if rfi_filter {
+        let mwkernel = 32; //median window filter size, power of 2
+        let threshold = 0.1; // threshold where to cut data and replace with median
+        let nchunks = fft_pts / mwkernel;
+        for i in 0..nchunks {
+            let chunk = &mut fft_abs[i * mwkernel..(i + 1) * mwkernel];
+            let m = median(chunk.to_vec());
+            for val in chunk.iter_mut() {
+                let diff = (*val - m).abs();
+                if diff > threshold * m {
+                    *val = m;
+                }
             }
         }
     }
@@ -333,16 +340,16 @@ async fn measure(
     address: String,
     measurements: Arc<Mutex<Vec<Measurement>>>,
     cancellation_token: CancellationToken,
-    mode: ObservationMode,
+    config: ReceiverConfiguration,
 ) {
-    // Switched HI example
     let tint: f64 = 1.0; // integration time per cycle, seconds
-    let srate: f64 = 2.5e6; // sample rate, Hz
-    let sfreq: f64 = 1.4204e9;
-    let rfreq: f64 = 1.4179e9;
-    let avg_pts: usize = 512; // ^2 Number of points after average, setting spectral resolution
+    let srate: f64 = config.bandwidth_hz;
+    let sfreq: f64 = config.center_freq_hz;
+    let rfreq: f64 = config.ref_freq_hz;
+    let avg_pts: usize = config.spectral_channels;
     let fft_pts: usize = 8192; // ^2 Number of points in FFT, setting spectral resolution
-    let gain: f64 = 60.0;
+    let gain: f64 = config.gain_db;
+    let mode = config.mode;
 
     // Setup usrp for taking data
     let args = format!("addr={}", address);
@@ -375,11 +382,26 @@ async fn measure(
         let mut spec = vec![];
         match mode {
             ObservationMode::FreqSwitched => measure_switched(
-                &mut usrp, sfreq, rfreq, fft_pts, tint, avg_pts, srate, &mut spec,
+                &mut usrp,
+                sfreq,
+                rfreq,
+                fft_pts,
+                tint,
+                avg_pts,
+                srate,
+                config.rfi_filter,
+                &mut spec,
             ),
-            ObservationMode::Raw => {
-                measure_single(&mut usrp, sfreq, fft_pts, tint, avg_pts, srate, &mut spec)
-            }
+            ObservationMode::Raw => measure_single(
+                &mut usrp,
+                sfreq,
+                fft_pts,
+                tint,
+                avg_pts,
+                srate,
+                config.rfi_filter,
+                &mut spec,
+            ),
         };
         n += 1.0;
 
