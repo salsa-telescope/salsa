@@ -107,6 +107,8 @@ fn cant_start_observation_if_not_logged_in() {
     let client = Client::new();
     let res = client
         .post(server.addr() + "/observe/fake1/observe")
+        .header("Content-Type", "application/x-www-form-urlencoded")
+        .body("mode=FreqSwitched")
         .send()
         .expect("Should be able to send request");
 
