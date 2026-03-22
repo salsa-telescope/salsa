@@ -13,13 +13,14 @@
       <tr class="text-left text-gray-500 border-b">
         <th class="pb-2 pr-8">Telescope</th>
         <th class="pb-2 pr-8">Controller</th>
-        <th class="pb-2 pr-8">Status</th>
+        <th class="pb-2 pr-8">Receiver</th>
+        <th class="pb-2 pr-8">Maintenance</th>
         <th class="pb-2 pr-8">Current slot</th>
         <th class="pb-2"></th>
       </tr>
     </thead>
     <tbody>
-      {% for (name, in_maintenance, is_booked_now, is_connected) in telescopes %}
+      {% for (name, in_maintenance, is_booked_now, is_connected, receiver_reachable) in telescopes %}
       <tr class="border-b last:border-0">
         <td class="py-2 pr-8 font-medium">{{ name }}</td>
         <td class="py-2 pr-8">
@@ -27,6 +28,17 @@
           <span class="text-green-700">Online</span>
           {% else %}
           <span class="text-red-600 font-semibold">Offline</span>
+          {% endif %}
+        </td>
+        <td class="py-2 pr-8">
+          {% if let Some(reachable) = receiver_reachable %}
+            {% if reachable %}
+            <span class="text-green-700">Online</span>
+            {% else %}
+            <span class="text-red-600 font-semibold">Offline</span>
+            {% endif %}
+          {% else %}
+          <span class="text-gray-400">&mdash;</span>
           {% endif %}
         </td>
         <td class="py-2 pr-8">

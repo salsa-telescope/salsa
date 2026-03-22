@@ -35,7 +35,7 @@ fn require_admin(user: Option<User>) -> Result<User, StatusCode> {
 #[derive(Template)]
 #[template(path = "admin.html", escape = "none")]
 struct AdminTemplate {
-    telescopes: Vec<(String, bool, bool, bool)>, // (name, in_maintenance, is_booked_now, is_connected)
+    telescopes: Vec<(String, bool, bool, bool, Option<bool>)>, // (name, in_maintenance, is_booked_now, controller_connected, receiver_reachable)
     usage_from: NaiveDate,
     usage_to: NaiveDate,
     total_bookings: usize,
@@ -75,19 +75,25 @@ async fn get_admin(
     for name in telescope_names {
         let in_maintenance = maintenance.contains(&name);
         let is_booked_now = active_bookings.iter().any(|b| b.telescope_name == name);
-        let is_connected = if let Some(tel) = state.telescopes.get(&name).await {
-            tel.get_info().await.is_ok_and(|i| {
-                !matches!(
-                    i.most_recent_error,
-                    Some(
-                        TelescopeError::TelescopeIOError(_) | TelescopeError::TelescopeNotConnected
-                    )
-                )
-            })
+        let info = if let Some(tel) = state.telescopes.get(&name).await {
+            tel.get_info().await.ok()
         } else {
-            false
+            None
         };
-        telescopes.push((name, in_maintenance, is_booked_now, is_connected));
+        let is_connected = info.as_ref().is_some_and(|i| {
+            !matches!(
+                i.most_recent_error,
+                Some(TelescopeError::TelescopeIOError(_) | TelescopeError::TelescopeNotConnected)
+            )
+        });
+        let receiver_reachable = info.and_then(|i| i.receiver_reachable);
+        telescopes.push((
+            name,
+            in_maintenance,
+            is_booked_now,
+            is_connected,
+            receiver_reachable,
+        ));
     }
 
     let bookings = Booking::fetch_in_range(state.database_connection, from_dt, to_dt)

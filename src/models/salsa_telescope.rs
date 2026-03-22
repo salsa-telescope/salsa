@@ -37,6 +37,7 @@ struct Inner {
     location: Location,
     min_elevation_rad: f64,
     t_rec_k: f64,
+    receiver_reachable: Arc<tokio::sync::Mutex<bool>>,
 }
 
 pub struct SalsaTelescope {
@@ -56,6 +57,10 @@ pub fn create(
     t_rec_k: f64,
     tle_cache: TleCacheHandle,
 ) -> SalsaTelescope {
+    let receiver_reachable = Arc::new(tokio::sync::Mutex::new(false));
+    let ping_reachable = receiver_reachable.clone();
+    let ping_address = receiver_address.clone();
+
     let inner = Arc::new(Mutex::new(Inner {
         name,
         receiver_address,
@@ -77,6 +82,7 @@ pub fn create(
         location,
         min_elevation_rad,
         t_rec_k,
+        receiver_reachable,
     }));
 
     let task_inner = inner.clone();
@@ -89,6 +95,23 @@ pub fn create(
                 }
             }
             tokio::time::sleep(TELESCOPE_UPDATE_INTERVAL).await;
+        }
+    });
+
+    tokio::spawn(async move {
+        loop {
+            let addr = ping_address.clone();
+            let reachable = tokio::task::spawn_blocking(move || {
+                std::process::Command::new("ping")
+                    .args(["-c", "1", "-W", "1", &addr])
+                    .output()
+                    .map(|o| o.status.success())
+                    .unwrap_or(false)
+            })
+            .await
+            .unwrap_or(false);
+            *ping_reachable.lock().await = reachable;
+            tokio::time::sleep(Duration::from_secs(5)).await;
         }
     });
 
@@ -160,6 +183,7 @@ impl Telescope for SalsaTelescope {
 
     async fn get_info(&self) -> Result<TelescopeInfo, TelescopeError> {
         let inner = self.inner.lock().await;
+        let receiver_reachable = *inner.receiver_reachable.lock().await;
         let controller_info = inner.controller.info()?;
 
         let latest_observation = {
@@ -192,6 +216,7 @@ impl Telescope for SalsaTelescope {
             el_offset_rad: controller_info.el_offset_rad,
             location: inner.location,
             min_elevation_rad: inner.min_elevation_rad,
+            receiver_reachable: Some(receiver_reachable),
         })
     }
     async fn shutdown(&self) {
