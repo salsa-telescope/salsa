@@ -86,7 +86,6 @@ async fn redirect_to_auth_provider(
         .set_auth_uri(
             AuthUrl::new(auth_provider.auth_uri.clone()).expect("Hardcoded URL should always work"),
         )
-        // TODO: This url should be retrieved from where we are deployed.
         .set_redirect_uri(
             RedirectUrl::new(auth_provider.redirect_uri.clone())
                 .expect("Hardcoded URL should always work."),
@@ -148,7 +147,6 @@ async fn authenticate_from_oauth2(
     let provider = state.secrets.get_auth_provider(&provider_name)?;
     let client = BasicClient::new(ClientId::new(provider.client_id.clone()))
         .set_client_secret(ClientSecret::new(provider.client_secret.clone()))
-        // TODO: This url should be retrieved from where we are deployed.
         .set_redirect_uri(
             RedirectUrl::new(provider.redirect_uri.clone())
                 .expect("Hardcoded URL should always work."),
