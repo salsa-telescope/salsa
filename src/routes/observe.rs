@@ -823,9 +823,8 @@ async fn observe(
             fmt_deg(azimuth.to_degrees()),
             fmt_deg(elevation.to_degrees()),
         ),
-        Some(TelescopeTarget::Sun) | Some(TelescopeTarget::Satellite { .. }) | None => {
-            (String::new(), String::new())
-        }
+        Some(TelescopeTarget::Satellite { norad_id }) => (norad_id.to_string(), String::new()),
+        Some(TelescopeTarget::Sun) | None => (String::new(), String::new()),
     };
     let state_html = telescope_state(&info.id, telescope).await;
     let (freq_min_mhz, freq_max_mhz) = if is_admin {
