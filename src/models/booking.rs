@@ -44,7 +44,11 @@ impl Booking {
             .map_err(|err| {
                 InternalError::new(format!("Failed to delete booking from db: {err}"))
             })?;
-        assert!(rows_deleted < 2);
+        if rows_deleted >= 2 {
+            return Err(InternalError::new(format!(
+                "Unexpected number of rows deleted: {rows_deleted}"
+            )));
+        }
         Ok(rows_deleted > 0)
     }
 
@@ -65,50 +69,21 @@ impl Booking {
         Ok(())
     }
 
-    async fn fetch(
-        connection: Arc<Mutex<Connection>>,
-        where_cond: Option<String>,
-    ) -> Result<Vec<Booking>, InternalError> {
-        let conn = connection.lock().await;
-        let query = String::from(
-            "SELECT booking.id, start_timestamp, end_timestamp, telescope_id, user.id, username, provider
-                FROM booking, user
-                WHERE booking.user_id = user.id",
-        ) + &where_cond.map_or(String::new(), |c| format!(" and {c}"))
-            + " ORDER BY start_timestamp ASC";
-        let mut stmt = conn
-            .prepare(&query)
-            .map_err(|err| InternalError::new(format!("Failed to prepare statement: {err}")))?;
-        let bookings = stmt
-            .query_map([], |row| {
-                Ok(Booking {
-                    id: row.get(0)?,
-                    start_time: DateTime::<Utc>::from_timestamp(row.get(1)?, 0).unwrap(),
-                    end_time: DateTime::<Utc>::from_timestamp(row.get(2)?, 0).unwrap(),
-                    telescope_name: row.get(3)?,
-                    user_id: row.get(4)?,
-                    user_name: row.get(5)?,
-                    user_provider: row.get(6)?,
-                })
-            })
-            .map_err(|err| InternalError::new(format!("Failed to query_map: {err}")))?;
-
-        let mut res = Vec::new();
-        for booking in bookings {
-            match booking {
-                Ok(booking) => res.push(booking),
-                Err(err) => {
-                    return Err(InternalError::new(format!("Failed to map row: {err}")));
-                }
-            }
-        }
-        Ok(res)
-    }
-
     pub async fn fetch_all(
         connection: Arc<Mutex<Connection>>,
     ) -> Result<Vec<Booking>, InternalError> {
-        Self::fetch(connection, None).await
+        let conn = connection.lock().await;
+        let mut stmt = conn
+            .prepare(
+                "SELECT booking.id, start_timestamp, end_timestamp, telescope_id, user.id, username, provider
+                FROM booking, user WHERE booking.user_id = user.id
+                ORDER BY start_timestamp ASC",
+            )
+            .map_err(|err| InternalError::new(format!("Failed to prepare statement: {err}")))?;
+        stmt.query_map([], map_booking_row)
+            .map_err(|err| InternalError::new(format!("Failed to query_map: {err}")))?
+            .map(|r| r.map_err(|err| InternalError::new(format!("Failed to map row: {err}"))))
+            .collect()
     }
 
     pub async fn fetch_for_user(
@@ -122,21 +97,38 @@ impl Booking {
         connection: Arc<Mutex<Connection>>,
         user_id: i64,
     ) -> Result<Vec<Booking>, InternalError> {
-        // FIXME: Even though user_id can be trusted not to be a random string,
-        // use a prepared statement to avoid injection.
-        Self::fetch(connection, Some(format!("user.id == {user_id}"))).await
+        let conn = connection.lock().await;
+        let mut stmt = conn
+            .prepare(
+                "SELECT booking.id, start_timestamp, end_timestamp, telescope_id, user.id, username, provider
+                FROM booking, user WHERE booking.user_id = user.id AND user.id = ?1
+                ORDER BY start_timestamp ASC",
+            )
+            .map_err(|err| InternalError::new(format!("Failed to prepare statement: {err}")))?;
+        stmt.query_map([user_id], map_booking_row)
+            .map_err(|err| InternalError::new(format!("Failed to query_map: {err}")))?
+            .map(|r| r.map_err(|err| InternalError::new(format!("Failed to map row: {err}"))))
+            .collect()
     }
 
     pub async fn fetch_one(
         connection: Arc<Mutex<Connection>>,
         id: i64,
     ) -> Result<Option<Booking>, InternalError> {
-        // FIXME: Even though id can be trusted not to be a random string,
-        // use a prepared statement to avoid injection.
-        let booking = Self::fetch(connection, Some(format!("booking.id == {}", id)))
-            .await?
-            .pop();
-        Ok(booking)
+        let conn = connection.lock().await;
+        let mut stmt = conn
+            .prepare(
+                "SELECT booking.id, start_timestamp, end_timestamp, telescope_id, user.id, username, provider
+                FROM booking, user WHERE booking.user_id = user.id AND booking.id = ?1
+                ORDER BY start_timestamp ASC",
+            )
+            .map_err(|err| InternalError::new(format!("Failed to prepare statement: {err}")))?;
+        Ok(stmt
+            .query_map([id], map_booking_row)
+            .map_err(|err| InternalError::new(format!("Failed to query_map: {err}")))?
+            .map(|r| r.map_err(|err| InternalError::new(format!("Failed to map row: {err}"))))
+            .collect::<Result<Vec<_>, _>>()?
+            .pop())
     }
 
     pub async fn fetch_in_range(
@@ -144,31 +136,51 @@ impl Booking {
         from: DateTime<Utc>,
         to: DateTime<Utc>,
     ) -> Result<Vec<Booking>, InternalError> {
-        let from_ts = from.timestamp();
-        let to_ts = to.timestamp();
-        // FIXME: use prepared statement
-        Self::fetch(
-            connection,
-            Some(format!(
-                "start_timestamp >= {from_ts} AND start_timestamp < {to_ts}"
-            )),
-        )
-        .await
+        let conn = connection.lock().await;
+        let mut stmt = conn
+            .prepare(
+                "SELECT booking.id, start_timestamp, end_timestamp, telescope_id, user.id, username, provider
+                FROM booking, user WHERE booking.user_id = user.id
+                AND start_timestamp >= ?1 AND start_timestamp < ?2
+                ORDER BY start_timestamp ASC",
+            )
+            .map_err(|err| InternalError::new(format!("Failed to prepare statement: {err}")))?;
+        stmt.query_map([from.timestamp(), to.timestamp()], map_booking_row)
+            .map_err(|err| InternalError::new(format!("Failed to query_map: {err}")))?
+            .map(|r| r.map_err(|err| InternalError::new(format!("Failed to map row: {err}"))))
+            .collect()
     }
 
     pub async fn fetch_active(
         connection: Arc<Mutex<Connection>>,
     ) -> Result<Vec<Booking>, InternalError> {
+        let conn = connection.lock().await;
         let now = Utc::now().timestamp();
-        // FIXME: Even though now is a trusted integer, use a prepared statement.
-        Self::fetch(
-            connection,
-            Some(format!(
-                "start_timestamp <= {now} AND end_timestamp > {now}"
-            )),
-        )
-        .await
+        let mut stmt = conn
+            .prepare(
+                "SELECT booking.id, start_timestamp, end_timestamp, telescope_id, user.id, username, provider
+                FROM booking, user WHERE booking.user_id = user.id
+                AND start_timestamp <= ?1 AND end_timestamp > ?1
+                ORDER BY start_timestamp ASC",
+            )
+            .map_err(|err| InternalError::new(format!("Failed to prepare statement: {err}")))?;
+        stmt.query_map([now], map_booking_row)
+            .map_err(|err| InternalError::new(format!("Failed to query_map: {err}")))?
+            .map(|r| r.map_err(|err| InternalError::new(format!("Failed to map row: {err}"))))
+            .collect()
     }
+}
+
+fn map_booking_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Booking> {
+    Ok(Booking {
+        id: row.get(0)?,
+        start_time: DateTime::<Utc>::from_timestamp(row.get(1)?, 0).unwrap_or_default(),
+        end_time: DateTime::<Utc>::from_timestamp(row.get(2)?, 0).unwrap_or_default(),
+        telescope_name: row.get(3)?,
+        user_id: row.get(4)?,
+        user_name: row.get(5)?,
+        user_provider: row.get(6)?,
+    })
 }
 
 pub async fn consecutive_booking_end(

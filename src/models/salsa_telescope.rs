@@ -337,8 +337,10 @@ fn measure_single(
 }
 
 fn median(mut xs: Vec<f64>) -> f64 {
-    // sort in ascending order, panic on f64::NaN
-    xs.sort_by(|x, y| x.partial_cmp(y).unwrap());
+    if xs.is_empty() {
+        return 0.0;
+    }
+    xs.sort_by(|x, y| x.partial_cmp(y).unwrap_or(std::cmp::Ordering::Equal));
     let n = xs.len();
     if n.is_multiple_of(2) {
         (xs[n / 2] + xs[n / 2 - 1]) / 2.0
@@ -357,7 +359,7 @@ async fn measure(
     let srate: f64 = config.bandwidth_hz;
     let sfreq: f64 = config.center_freq_hz;
     let rfreq: f64 = config.ref_freq_hz;
-    let avg_pts: usize = config.spectral_channels;
+    let avg_pts: usize = config.spectral_channels.max(1);
     let fft_pts: usize = 8192; // ^2 Number of points in FFT, setting spectral resolution
     let gain: f64 = config.gain_db;
     let mode = config.mode;
@@ -417,7 +419,9 @@ async fn measure(
         n += 1.0;
 
         let mut measurements = measurements.lock().await;
-        let measurement = measurements.last_mut().unwrap();
+        let Some(measurement) = measurements.last_mut() else {
+            break;
+        };
         for (amp, spec_val) in zip(measurement.amps.iter_mut(), spec.iter()).take(avg_pts) {
             *amp = (*amp * (n - 1.0) + spec_val) / n;
         }
