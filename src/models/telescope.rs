@@ -75,6 +75,7 @@ fn create_telescope(def: TelescopeDefinition, tle_cache: TleCacheHandle) -> Arc<
         azimuth: p[0].to_radians(),
         elevation: p[1].to_radians(),
     });
+    let min_elevation_rad = def.min_elevation.to_radians();
     match def.telescope_type {
         TelescopeType::Salsa => Arc::new(salsa_telescope::create(
             def.name.clone(),
@@ -86,12 +87,14 @@ fn create_telescope(def: TelescopeDefinition, tle_cache: TleCacheHandle) -> Arc<
                 .clone(),
             stow_position,
             location,
+            min_elevation_rad,
             tle_cache,
         )),
         TelescopeType::Fake => Arc::new(fake_telescope::create(
             def.name.clone(),
             stow_position,
             location,
+            min_elevation_rad,
             tle_cache,
         )),
     }

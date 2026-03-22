@@ -11,7 +11,7 @@ user_ids = [1]
 name = "fake1"
 enabled = true
 location = [ 11.9188, 57.3934 ]  # [longitude, latitude] in degrees
-min_elevation = 0.087
+min_elevation = 5.0  # in degrees
 stow_position = [ 90.0, 90.0 ]
 telescope_type = "Fake"
 
@@ -19,7 +19,7 @@ telescope_type = "Fake"
 name = "fake2"
 enabled = true
 location = [ 11.9188, 57.3934 ]  # [longitude, latitude] in degrees
-min_elevation = 0.087
+min_elevation = 5.0  # in degrees
 stow_position = [ 90.0, 90.0 ]
 telescope_type = "Fake"
 
@@ -29,7 +29,7 @@ telescope_type = "Fake"
 # name = "vale"
 # enabled = true
 # location = [ 11.9188, 57.3934 ]  # [longitude, latitude] in degrees
-# min_elevation = 0.087
+# min_elevation = 5.0  # in degrees
 # stow_position = [ 90.0, 90.0 ]
 # telescope_type = "Salsa"
 # controller_address = "192.168.5.11:23"

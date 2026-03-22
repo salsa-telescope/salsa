@@ -9,8 +9,6 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::time::{Instant, sleep_until};
 
-pub const LOWEST_ALLOWED_ELEVATION: f64 = 5.0f64 / 180.0f64 * std::f64::consts::PI;
-
 pub struct TelescopeTrackerInfo {
     pub target: Option<TelescopeTarget>,
     pub commanded_horizontal: Option<Direction>,
@@ -30,6 +28,7 @@ impl TelescopeTracker {
     pub fn new(
         controller_address: String,
         location: Location,
+        min_elevation_rad: f64,
         tle_cache: TleCacheHandle,
     ) -> TelescopeTracker {
         let state = Arc::new(Mutex::new(TelescopeTrackerState {
@@ -43,6 +42,7 @@ impl TelescopeTracker {
             quit: false,
             tle_cache: tle_cache.clone(),
             location,
+            min_elevation_rad,
         }));
         let task = tokio::spawn(tracker_task_function(state.clone(), controller_address));
         TelescopeTracker {
@@ -144,6 +144,7 @@ struct TelescopeTrackerState {
     quit: bool,
     tle_cache: TleCacheHandle,
     location: Location,
+    min_elevation_rad: f64,
 }
 
 async fn tracker_task_function(
@@ -212,14 +213,15 @@ fn update_direction(
     when: DateTime<Utc>,
     controller: &mut TelescopeController,
 ) -> Result<(), TelescopeError> {
-    // Read target, offsets, location, and tle_cache from state, then release the lock
-    let (target, az_offset_rad, el_offset_rad, location, tle_cache) = {
+    // Read target, offsets, location, min_elevation, and tle_cache from state, then release the lock
+    let (target, az_offset_rad, el_offset_rad, location, min_elevation_rad, tle_cache) = {
         let state_guard = state.lock().unwrap();
         (
             state_guard.target,
             state_guard.az_offset_rad,
             state_guard.el_offset_rad,
             state_guard.location,
+            state_guard.min_elevation_rad,
             state_guard.tle_cache.clone(),
         )
     };
@@ -244,7 +246,7 @@ fn update_direction(
     };
     let target_horizontal = apply_offset(raw_horizontal, az_offset_rad, el_offset_rad);
 
-    if target_horizontal.elevation < LOWEST_ALLOWED_ELEVATION {
+    if target_horizontal.elevation < min_elevation_rad {
         let mut state_guard = state.lock().unwrap();
         state_guard.current_direction = Some(current_horizontal);
         state_guard.most_recent_error = Some(TelescopeError::TargetBelowHorizon);

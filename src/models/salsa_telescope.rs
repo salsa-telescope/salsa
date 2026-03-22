@@ -47,12 +47,18 @@ pub fn create(
     receiver_address: String,
     stow_position: Option<Direction>,
     location: Location,
+    min_elevation_rad: f64,
     tle_cache: TleCacheHandle,
 ) -> SalsaTelescope {
     let inner = Arc::new(Mutex::new(Inner {
         name,
         receiver_address,
-        controller: TelescopeTracker::new(controller_address, location, tle_cache.clone()),
+        controller: TelescopeTracker::new(
+            controller_address,
+            location,
+            min_elevation_rad,
+            tle_cache.clone(),
+        ),
         receiver_configuration: ReceiverConfiguration {
             integrate: false,
             ..Default::default()

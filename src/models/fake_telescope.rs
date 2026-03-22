@@ -20,7 +20,6 @@ const FAKE_TELESCOPE_PARKING_HORIZONTAL: Direction = Direction {
     azimuth: 0.0,
     elevation: PI / 2.0,
 };
-pub const LOWEST_ALLOWED_ELEVATION: f64 = 5.0 / 180. * PI;
 
 pub const FAKE_TELESCOPE_SLEWING_SPEED: f64 = PI / 10.0;
 pub const FAKE_TELESCOPE_CHANNELS: usize = 400;
@@ -36,6 +35,7 @@ struct Inner {
     el_offset_rad: f64,
     horizontal: Direction,
     location: Location,
+    min_elevation_rad: f64,
     most_recent_error: Option<TelescopeError>,
     receiver_configuration: ReceiverConfiguration,
     current_spectra: Vec<ObservedSpectra>,
@@ -53,6 +53,7 @@ pub fn create(
     name: String,
     stow_position: Option<Direction>,
     location: Location,
+    min_elevation_rad: f64,
     tle_cache: TleCacheHandle,
 ) -> FakeTelescope {
     let inner = Arc::new(Mutex::new(Inner {
@@ -61,6 +62,7 @@ pub fn create(
         el_offset_rad: 0.0,
         horizontal: FAKE_TELESCOPE_PARKING_HORIZONTAL,
         location,
+        min_elevation_rad,
         most_recent_error: None,
         receiver_configuration: ReceiverConfiguration {
             integrate: false,
@@ -109,7 +111,7 @@ impl Telescope for FakeTelescope {
                 elevation: -1.0,
             });
         let target_horizontal = apply_offset(raw, az_offset_rad, el_offset_rad);
-        if target_horizontal.elevation < LOWEST_ALLOWED_ELEVATION {
+        if target_horizontal.elevation < inner.min_elevation_rad {
             log::info!(
                 "Refusing to set target for telescope {} to {:?}. Target is below horizon",
                 &inner.name,
@@ -239,7 +241,7 @@ impl Inner {
             };
             let target_horizontal = apply_offset(raw, self.az_offset_rad, self.el_offset_rad);
 
-            if target_horizontal.elevation < LOWEST_ALLOWED_ELEVATION {
+            if target_horizontal.elevation < self.min_elevation_rad {
                 log::info!(
                     "Stopping telescope since target {:?} set below horizon.",
                     &target
