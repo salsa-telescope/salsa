@@ -36,12 +36,14 @@ struct Inner {
     stow_position: Option<Direction>,
     location: Location,
     min_elevation_rad: f64,
+    t_rec_k: f64,
 }
 
 pub struct SalsaTelescope {
     inner: Arc<Mutex<Inner>>,
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn create(
     name: String,
     controller_address: String,
@@ -49,6 +51,9 @@ pub fn create(
     stow_position: Option<Direction>,
     location: Location,
     min_elevation_rad: f64,
+    default_ref_freq_hz: f64,
+    default_gain_db: f64,
+    t_rec_k: f64,
     tle_cache: TleCacheHandle,
 ) -> SalsaTelescope {
     let inner = Arc::new(Mutex::new(Inner {
@@ -62,6 +67,8 @@ pub fn create(
         ),
         receiver_configuration: ReceiverConfiguration {
             integrate: false,
+            ref_freq_hz: default_ref_freq_hz,
+            gain_db: default_gain_db,
             ..Default::default()
         },
         measurements: Arc::new(Mutex::new(Vec::new())),
@@ -69,6 +76,7 @@ pub fn create(
         stow_position,
         location,
         min_elevation_rad,
+        t_rec_k,
     }));
 
     let task_inner = inner.clone();
@@ -124,12 +132,14 @@ impl Telescope for SalsaTelescope {
                 let address = inner.receiver_address.clone();
                 let measurements = inner.measurements.clone();
                 let cancellation_token = cancellation_token.clone();
+                let t_rec_k = inner.t_rec_k;
                 tokio::spawn(async move {
                     measure(
                         address,
                         measurements,
                         cancellation_token,
                         receiver_configuration,
+                        t_rec_k,
                     )
                     .await;
                 })
@@ -232,6 +242,7 @@ fn measure_switched(
     avg_pts: usize,
     srate: f64,
     rfi_filter: bool,
+    tsys: f64,
     spec: &mut Vec<f64>,
 ) {
     let mut spec_sig: Vec<f64> = vec![];
@@ -257,8 +268,6 @@ fn measure_switched(
         &mut spec_ref,
     );
     // Form sig-ref difference and scale with Tsys
-    // Hard coded Tsys for now
-    let tsys = 285.0;
     for i in 0..avg_pts {
         spec.push(tsys * (spec_sig[i] - spec_ref[i]) / spec_ref[i]);
     }
@@ -362,11 +371,43 @@ fn median(mut xs: Vec<f64>) -> f64 {
     }
 }
 
+const AMBIENT_TEMP_FALLBACK_K: f64 = 285.0;
+
+async fn fetch_ambient_temp_k() -> f64 {
+    let url = "https://www.oso.chalmers.se/weather/onsala.txt";
+    let result: Option<f64> = async {
+        let text = reqwest::get(url).await.ok()?.text().await.ok()?;
+        let mut parts = text.split_whitespace();
+        let timestamp: i64 = parts.next()?.parse().ok()?;
+        let temp_celsius: f64 = parts.next()?.parse().ok()?;
+        let age_secs = chrono::Utc::now().timestamp() - timestamp;
+        if age_secs > 120 || !(-30.0..=50.0).contains(&temp_celsius) {
+            return None;
+        }
+        Some(temp_celsius + 273.15)
+    }
+    .await;
+    match result {
+        Some(t) => {
+            log::info!("Ambient temperature: {:.1} K", t);
+            t
+        }
+        None => {
+            log::warn!(
+                "Could not fetch ambient temperature, using fallback {} K",
+                AMBIENT_TEMP_FALLBACK_K
+            );
+            AMBIENT_TEMP_FALLBACK_K
+        }
+    }
+}
+
 async fn measure(
     address: String,
     measurements: Arc<Mutex<Vec<Measurement>>>,
     cancellation_token: CancellationToken,
     config: ReceiverConfiguration,
+    t_rec_k: f64,
 ) {
     let tint: f64 = 1.0; // integration time per cycle, seconds
     let srate: f64 = config.bandwidth_hz;
@@ -387,6 +428,9 @@ async fn measure(
     usrp.set_rx_dc_offset_enabled(true, 0).unwrap();
 
     usrp.set_rx_sample_rate(srate, 0).unwrap();
+
+    let tsys = fetch_ambient_temp_k().await + t_rec_k;
+    log::info!("Tsys = {:.1} K (T_rec = {:.1} K)", tsys, t_rec_k);
 
     {
         let mut measurements = measurements.clone().lock_owned().await;
@@ -416,6 +460,7 @@ async fn measure(
                 avg_pts,
                 srate,
                 config.rfi_filter,
+                tsys,
                 &mut spec,
             ),
             ObservationMode::Raw => measure_single(
