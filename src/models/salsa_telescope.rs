@@ -101,15 +101,21 @@ pub fn create(
     tokio::spawn(async move {
         loop {
             let addr = ping_address.clone();
-            let reachable = tokio::task::spawn_blocking(move || {
-                std::process::Command::new("ping")
-                    .args(["-c", "1", "-W", "1", &addr])
-                    .output()
-                    .map(|o| o.status.success())
-                    .unwrap_or(false)
-            })
-            .await
-            .unwrap_or(false);
+            let reachable =
+                tokio::task::spawn_blocking(move || {
+                    match std::process::Command::new("/usr/bin/ping")
+                        .args(["-c", "1", "-W", "1", &addr])
+                        .output()
+                    {
+                        Ok(o) => o.status.success(),
+                        Err(err) => {
+                            tracing::warn!("Failed to run ping for {addr}: {err}");
+                            false
+                        }
+                    }
+                })
+                .await
+                .unwrap_or(false);
             *ping_reachable.lock().await = reachable;
             tokio::time::sleep(Duration::from_secs(5)).await;
         }
