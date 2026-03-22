@@ -1,6 +1,6 @@
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
-use log::error;
+use tracing::error;
 
 #[derive(Debug)]
 pub struct InternalError {

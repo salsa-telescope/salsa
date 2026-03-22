@@ -8,13 +8,13 @@ use crate::models::telescope_types::{
 use crate::tle_cache::TleCacheHandle;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use log::debug;
 use rand::Rng;
 use rand_distr::StandardNormal;
 use std::f64::consts::PI;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Mutex;
+use tracing::{debug, error, info, trace};
 
 const FAKE_TELESCOPE_PARKING_HORIZONTAL: Direction = Direction {
     azimuth: 0.0,
@@ -85,7 +85,7 @@ pub fn create(
             {
                 let mut inner = task_inner.lock().await;
                 if let Err(error) = inner.update(TELESCOPE_UPDATE_INTERVAL) {
-                    log::error!("Failed to update telescope: {}", error);
+                    error!("Failed to update telescope: {}", error);
                 }
             }
             tokio::time::sleep(TELESCOPE_UPDATE_INTERVAL).await;
@@ -116,17 +116,15 @@ impl Telescope for FakeTelescope {
             });
         let target_horizontal = apply_offset(raw, az_offset_rad, el_offset_rad);
         if target_horizontal.elevation < inner.min_elevation_rad {
-            log::info!(
+            info!(
                 "Refusing to set target for telescope {} to {:?}. Target is below minimum elevation",
-                &inner.name,
-                &target
+                &inner.name, &target
             );
             Err(TelescopeError::TargetBelowMinElevation)
         } else {
-            log::info!(
+            info!(
                 "Setting target for telescope {} to {:?}",
-                &inner.name,
-                &target
+                &inner.name, &target
             );
             inner.az_offset_rad = az_offset_rad;
             inner.el_offset_rad = el_offset_rad;
@@ -137,7 +135,7 @@ impl Telescope for FakeTelescope {
 
     async fn stop(&self) -> Result<(), TelescopeError> {
         let mut inner = self.inner.lock().await;
-        log::info!("Stopping telescope {}", &inner.name);
+        info!("Stopping telescope {}", &inner.name);
         inner.target = None;
         Ok(())
     }
@@ -149,11 +147,11 @@ impl Telescope for FakeTelescope {
         let mut inner = self.inner.lock().await;
 
         if receiver_configuration.integrate && !inner.receiver_configuration.integrate {
-            log::info!("Starting integration");
+            info!("Starting integration");
             inner.current_spectra.clear();
             inner.receiver_configuration.integrate = true;
         } else if !receiver_configuration.integrate && inner.receiver_configuration.integrate {
-            log::info!("Stopping integration");
+            info!("Stopping integration");
             inner.receiver_configuration.integrate = false;
         }
         Ok(inner.receiver_configuration)
@@ -247,7 +245,7 @@ impl Inner {
             let target_horizontal = apply_offset(raw, self.az_offset_rad, self.el_offset_rad);
 
             if target_horizontal.elevation < self.min_elevation_rad {
-                log::info!(
+                info!(
                     "Stopping telescope since target {:?} is below minimum elevation.",
                     &target
                 );
@@ -263,7 +261,7 @@ impl Inner {
         }
 
         if self.receiver_configuration.integrate {
-            log::trace!("Pushing spectum...");
+            trace!("Pushing spectum...");
             self.current_spectra.push(create_fake_spectra(delta_time))
         }
 

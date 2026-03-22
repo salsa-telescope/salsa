@@ -2,6 +2,7 @@ use crate::coords::{Direction, Location, horizontal_from_elements};
 use chrono::{DateTime, Utc};
 use std::sync::{Arc, RwLock};
 use tokio::time::{Duration, interval};
+use tracing::{error, info};
 
 const TLE_REFRESH_INTERVAL: Duration = Duration::from_secs(24 * 60 * 60);
 const CELESTRAK_URL: &str = "https://celestrak.org/NORAD/elements/gp.php";
@@ -112,16 +113,16 @@ async fn fetch_elements(client: &reqwest::Client) -> Vec<sgp4::Elements> {
         {
             Ok(resp) => match resp.json::<Vec<sgp4::Elements>>().await {
                 Ok(elements) => {
-                    log::info!(
+                    info!(
                         "TLE: fetched {} elements for group {}",
                         elements.len(),
                         group
                     );
                     all.extend(elements);
                 }
-                Err(e) => log::error!("TLE: failed to parse group {}: {}", group, e),
+                Err(e) => error!("TLE: failed to parse group {}: {}", group, e),
             },
-            Err(e) => log::error!("TLE: failed to fetch group {}: {}", group, e),
+            Err(e) => error!("TLE: failed to fetch group {}: {}", group, e),
         }
     }
     all
@@ -138,7 +139,7 @@ pub fn start_tle_refresh(cache: TleCacheHandle) {
             if !elements.is_empty() {
                 let n = elements.len();
                 *cache.elements.write().unwrap() = elements;
-                log::info!("TLE cache updated: {} satellites total", n);
+                info!("TLE cache updated: {} satellites total", n);
             }
         }
     });

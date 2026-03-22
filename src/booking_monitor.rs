@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::time::Duration;
 
 use chrono::Utc;
-use log::error;
+use tracing::error;
 
 use crate::app::AppState;
 use crate::models::booking::Booking;

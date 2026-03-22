@@ -9,7 +9,7 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use tower_http::services::ServeDir;
 use tower_http::trace::TraceLayer;
-use tracing::debug_span;
+use tracing::{debug, debug_span};
 
 use serde::Deserialize;
 
@@ -144,7 +144,7 @@ pub async fn create_app(config_dir: &Path, database_dir: &Path) -> (Router, AppS
         .route_layer(middleware::from_fn(cookies_middleware));
 
     let assets_path = "assets";
-    log::debug!("serving asserts from {}", assets_path);
+    debug!("serving asserts from {}", assets_path);
     let assets_service = ServeDir::new(assets_path);
     app = app.fallback_service(assets_service);
     (app, state)

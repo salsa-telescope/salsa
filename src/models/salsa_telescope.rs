@@ -8,11 +8,11 @@ use crate::telescope_tracker::TelescopeTracker;
 use crate::tle_cache::TleCacheHandle;
 use async_trait::async_trait;
 use chrono::Utc;
-use log::debug;
 use std::iter::zip;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
+use tracing::{debug, error, info, warn};
 
 use std::time::Duration;
 
@@ -85,7 +85,7 @@ pub fn create(
             {
                 let mut inner = task_inner.lock().await;
                 if let Err(error) = inner.update(TELESCOPE_UPDATE_INTERVAL).await {
-                    log::error!("Failed to update telescope: {}", error);
+                    error!("Failed to update telescope: {}", error);
                 }
             }
             tokio::time::sleep(TELESCOPE_UPDATE_INTERVAL).await;
@@ -124,7 +124,7 @@ impl Telescope for SalsaTelescope {
                 return Err(ReceiverError::IntegrationAlreadyRunning);
             }
 
-            log::info!("Starting integration");
+            info!("Starting integration");
             inner.receiver_configuration.integrate = true;
             inner.measurements.lock().await.clear();
             let cancellation_token = CancellationToken::new();
@@ -149,7 +149,7 @@ impl Telescope for SalsaTelescope {
                 measurement_task,
             });
         } else if !receiver_configuration.integrate && inner.receiver_configuration.integrate {
-            log::info!("Stopping integration");
+            info!("Stopping integration");
             if let Some(active_integration) = &mut inner.active_integration {
                 active_integration.cancellation_token.cancel();
             }
@@ -206,7 +206,7 @@ impl Inner {
         if let Some(active_integration) = self.active_integration.take() {
             if active_integration.measurement_task.is_finished() {
                 if let Err(error) = active_integration.measurement_task.await {
-                    log::error!("Error while waiting for measurement task: {}", error);
+                    error!("Error while waiting for measurement task: {}", error);
                 }
             } else {
                 self.active_integration = Some(active_integration);
@@ -389,11 +389,11 @@ async fn fetch_ambient_temp_k() -> f64 {
     .await;
     match result {
         Some(t) => {
-            log::info!("Ambient temperature: {:.1} K", t);
+            info!("Ambient temperature: {:.1} K", t);
             t
         }
         None => {
-            log::warn!(
+            warn!(
                 "Could not fetch ambient temperature, using fallback {} K",
                 AMBIENT_TEMP_FALLBACK_K
             );
@@ -430,7 +430,7 @@ async fn measure(
     usrp.set_rx_sample_rate(srate, 0).unwrap();
 
     let tsys = fetch_ambient_temp_k().await + t_rec_k;
-    log::info!("Tsys = {:.1} K (T_rec = {:.1} K)", tsys, t_rec_k);
+    info!("Tsys = {:.1} K (T_rec = {:.1} K)", tsys, t_rec_k);
 
     {
         let mut measurements = measurements.clone().lock_owned().await;

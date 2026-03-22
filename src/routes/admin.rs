@@ -7,8 +7,8 @@ use axum::{
     routing::{get, post},
 };
 use chrono::{NaiveDate, TimeZone, Utc};
-use log::info;
 use serde::Deserialize;
+use tracing::info;
 
 use crate::app::AppState;
 use crate::models::booking::Booking;

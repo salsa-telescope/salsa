@@ -6,6 +6,7 @@ use axum::{
     response::{Html, IntoResponse, Response},
     routing::{get, post},
 };
+use tracing::{error, info};
 
 use crate::app::AppState;
 use crate::middleware::session::SESSION_COOKIE_NAME;
@@ -46,16 +47,14 @@ async fn delete_account(
     State(state): State<AppState>,
 ) -> Result<impl IntoResponse, StatusCode> {
     let user = user.ok_or(StatusCode::UNAUTHORIZED)?;
-    log::info!(
+    info!(
         "Deleting account for user {} ({}, provider: {})",
-        user.id,
-        user.name,
-        user.provider
+        user.id, user.name, user.provider
     );
     user.delete(state.database_connection)
         .await
         .map_err(|err| {
-            log::error!("Failed to delete account: {err:?}");
+            error!("Failed to delete account: {err:?}");
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
     let clear_cookie =
