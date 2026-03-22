@@ -249,9 +249,9 @@ fn update_direction(
     if target_horizontal.elevation < min_elevation_rad {
         let mut state_guard = state.lock().unwrap();
         state_guard.current_direction = Some(current_horizontal);
-        state_guard.most_recent_error = Some(TelescopeError::TargetBelowHorizon);
+        state_guard.most_recent_error = Some(TelescopeError::TargetBelowMinElevation);
         state_guard.commanded_horizontal = None;
-        return Err(TelescopeError::TargetBelowHorizon);
+        return Err(TelescopeError::TargetBelowMinElevation);
     }
 
     // Check if more than 1 tolerance off, if so we need to send track command

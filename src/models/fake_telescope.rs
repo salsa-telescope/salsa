@@ -113,11 +113,11 @@ impl Telescope for FakeTelescope {
         let target_horizontal = apply_offset(raw, az_offset_rad, el_offset_rad);
         if target_horizontal.elevation < inner.min_elevation_rad {
             log::info!(
-                "Refusing to set target for telescope {} to {:?}. Target is below horizon",
+                "Refusing to set target for telescope {} to {:?}. Target is below minimum elevation",
                 &inner.name,
                 &target
             );
-            Err(TelescopeError::TargetBelowHorizon)
+            Err(TelescopeError::TargetBelowMinElevation)
         } else {
             log::info!(
                 "Setting target for telescope {} to {:?}",
@@ -243,10 +243,10 @@ impl Inner {
 
             if target_horizontal.elevation < self.min_elevation_rad {
                 log::info!(
-                    "Stopping telescope since target {:?} set below horizon.",
+                    "Stopping telescope since target {:?} is below minimum elevation.",
                     &target
                 );
-                self.most_recent_error = Some(TelescopeError::TargetBelowHorizon);
+                self.most_recent_error = Some(TelescopeError::TargetBelowMinElevation);
             } else {
                 let max_delta_angle = FAKE_TELESCOPE_SLEWING_SPEED * delta_time.as_secs_f64();
                 self.horizontal.azimuth += (target_horizontal.azimuth - current_horizontal.azimuth)

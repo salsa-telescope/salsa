@@ -79,7 +79,7 @@ pub struct TelescopesConfig {
 
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub enum TelescopeError {
-    TargetBelowHorizon,
+    TargetBelowMinElevation,
     TelescopeIOError(String),
     TelescopeNotConnected,
 }
@@ -87,8 +87,8 @@ pub enum TelescopeError {
 impl Display for TelescopeError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            TelescopeError::TargetBelowHorizon => {
-                f.write_str("Failed to set target, target is below horizon.")
+            TelescopeError::TargetBelowMinElevation => {
+                f.write_str("Failed to set target, target is below minimum elevation.")
             }
             TelescopeError::TelescopeIOError(message) => f.write_str(&format!(
                 "Error in communication with telescope: {}",

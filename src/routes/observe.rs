@@ -356,7 +356,7 @@ async fn set_target(
         .set_target(telescope_target, az_offset_rad, el_offset_rad)
         .await
     {
-        Err(TelescopeError::TargetBelowHorizon) => {
+        Err(TelescopeError::TargetBelowMinElevation) => {
             return Ok(error_response("Target is below the horizon.".to_string()));
         }
         Err(err) => {
