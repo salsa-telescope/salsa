@@ -69,6 +69,10 @@ pub struct TelescopeDefinition {
     pub telescope_type: TelescopeType,
     pub controller_address: Option<String>,
     pub receiver_address: Option<String>,
+    #[serde(default = "default_ref_freq_mhz")]
+    pub default_ref_freq_mhz: f64, // default reference frequency in MHz (for freq-switched mode)
+    #[serde(default = "default_gain_db")]
+    pub default_gain_db: f64, // default receiver gain in dB
 }
 
 #[derive(Deserialize, PartialEq, Debug, Clone)]
@@ -130,6 +134,10 @@ fn default_center_freq_hz() -> f64 {
 
 fn default_ref_freq_hz() -> f64 {
     1.4179e9
+}
+
+fn default_ref_freq_mhz() -> f64 {
+    default_ref_freq_hz() / 1e6
 }
 
 fn default_bandwidth_hz() -> f64 {

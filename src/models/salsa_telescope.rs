@@ -45,6 +45,8 @@ pub fn create(
     controller_address: String,
     receiver_address: String,
     stow_position: Option<Direction>,
+    default_ref_freq_hz: f64,
+    default_gain_db: f64,
     tle_cache: TleCacheHandle,
 ) -> SalsaTelescope {
     let inner = Arc::new(Mutex::new(Inner {
@@ -53,6 +55,8 @@ pub fn create(
         controller: TelescopeTracker::new(controller_address, tle_cache),
         receiver_configuration: ReceiverConfiguration {
             integrate: false,
+            ref_freq_hz: default_ref_freq_hz,
+            gain_db: default_gain_db,
             ..Default::default()
         },
         measurements: Arc::new(Mutex::new(Vec::new())),
