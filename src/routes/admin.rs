@@ -56,7 +56,13 @@ async fn get_admin(
         .from
         .unwrap_or_else(|| (now - chrono::Duration::days(365)).date_naive());
     let from_dt = Utc.from_utc_datetime(&usage_from.and_hms_opt(0, 0, 0).unwrap());
-    let to_dt = Utc.from_utc_datetime(&usage_to.succ_opt().unwrap().and_hms_opt(0, 0, 0).unwrap());
+    let to_dt = Utc.from_utc_datetime(
+        &usage_to
+            .succ_opt()
+            .unwrap_or(usage_to)
+            .and_hms_opt(0, 0, 0)
+            .unwrap(),
+    );
 
     let telescope_names = state.telescopes.get_names().await;
     let maintenance = fetch_maintenance_set(state.database_connection.clone())

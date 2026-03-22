@@ -337,8 +337,7 @@ fn measure_single(
 }
 
 fn median(mut xs: Vec<f64>) -> f64 {
-    // sort in ascending order, panic on f64::NaN
-    xs.sort_by(|x, y| x.partial_cmp(y).unwrap());
+    xs.sort_by(|x, y| x.partial_cmp(y).unwrap_or(std::cmp::Ordering::Equal));
     let n = xs.len();
     if n.is_multiple_of(2) {
         (xs[n / 2] + xs[n / 2 - 1]) / 2.0
@@ -417,7 +416,9 @@ async fn measure(
         n += 1.0;
 
         let mut measurements = measurements.lock().await;
-        let measurement = measurements.last_mut().unwrap();
+        let Some(measurement) = measurements.last_mut() else {
+            break;
+        };
         for (amp, spec_val) in zip(measurement.amps.iter_mut(), spec.iter()).take(avg_pts) {
             *amp = (*amp * (n - 1.0) + spec_val) / n;
         }
