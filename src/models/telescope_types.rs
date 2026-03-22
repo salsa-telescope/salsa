@@ -52,6 +52,7 @@ pub struct TelescopeInfo {
     pub az_offset_rad: f64,
     pub el_offset_rad: f64,
     pub location: Location,
+    pub min_elevation_rad: f64,
 }
 
 #[derive(Deserialize, PartialEq, Debug, Clone)]

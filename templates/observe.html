@@ -103,6 +103,9 @@
         hx-trigger="load, every 1s"
         hx-include="[name='coordinate_system'],[name='x'],[name='y'],[name='az_offset_deg'],[name='el_offset_deg']">
       </div>
+      <p class="text-xs text-gray-400">
+        Minimum elevation: {{ info.min_elevation_rad.to_degrees() as u32 }}&deg;, recommended &gt; 15&deg;
+      </p>
 
       <!-- Measurement controls -->
       <div>

@@ -35,6 +35,7 @@ struct Inner {
     active_integration: Option<ActiveIntegration>,
     stow_position: Option<Direction>,
     location: Location,
+    min_elevation_rad: f64,
 }
 
 pub struct SalsaTelescope {
@@ -67,6 +68,7 @@ pub fn create(
         active_integration: None,
         stow_position,
         location,
+        min_elevation_rad,
     }));
 
     let task_inner = inner.clone();
@@ -179,6 +181,7 @@ impl Telescope for SalsaTelescope {
             az_offset_rad: controller_info.az_offset_rad,
             el_offset_rad: controller_info.el_offset_rad,
             location: inner.location,
+            min_elevation_rad: inner.min_elevation_rad,
         })
     }
     async fn shutdown(&self) {

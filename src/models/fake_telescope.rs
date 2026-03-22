@@ -217,6 +217,7 @@ impl Telescope for FakeTelescope {
             az_offset_rad: inner.az_offset_rad,
             el_offset_rad: inner.el_offset_rad,
             location: inner.location,
+            min_elevation_rad: inner.min_elevation_rad,
         })
     }
     async fn shutdown(&self) {
