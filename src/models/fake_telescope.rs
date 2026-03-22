@@ -220,6 +220,7 @@ impl Telescope for FakeTelescope {
             el_offset_rad: inner.el_offset_rad,
             location: inner.location,
             min_elevation_rad: inner.min_elevation_rad,
+            receiver_reachable: None,
         })
     }
     async fn shutdown(&self) {

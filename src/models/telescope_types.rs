@@ -53,6 +53,7 @@ pub struct TelescopeInfo {
     pub el_offset_rad: f64,
     pub location: Location,
     pub min_elevation_rad: f64,
+    pub receiver_reachable: Option<bool>,
 }
 
 #[derive(Deserialize, PartialEq, Debug, Clone)]

@@ -599,6 +599,12 @@ async fn start_observe(
             "Telescope is not tracking. Please wait until it has reached the target.".to_string(),
         ));
     }
+    if info.receiver_reachable == Some(false) {
+        return Ok(error_response(
+            "Receiver is not reachable. Check the receiver address and network connection."
+                .to_string(),
+        ));
+    }
 
     let (freq_min, freq_max) = if user.is_admin {
         (FREQ_MIN_ADMIN_MHZ, FREQ_MAX_ADMIN_MHZ)
