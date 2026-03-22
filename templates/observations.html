@@ -16,7 +16,7 @@
   <p>No observations yet.</p>
   {% else %}
   <div class="flex flex-col lg:flex-row gap-4">
-    <div class="lg:w-2/5">
+    <div class="lg:w-1/3">
       <h2 class="mt-4 mb-3">My observations</h2>
       <p class="text-xs text-gray-400 mb-2">{{ total_count }} observations · click to view spectrum · ✕ to delete selected</p>
       <div class="space-y-1">
@@ -65,14 +65,14 @@
       </div>
       {% endif %}
     </div>
-    <div class="lg:w-3/5">
-      <div id="observation-chart" style="display: none; max-width: 640px;">
+    <div class="lg:w-2/3 flex flex-wrap gap-4 items-start">
+      <div id="observation-chart" style="display: none; max-width: 640px; flex-shrink: 0;">
         <h2 class="mt-4 mb-3 text-center">Spectrum</h2>
-<button id="observation-axis-toggle" style="display: none;"
+        <button id="observation-axis-toggle" style="display: none;"
           class="px-2 py-1 mt-1 bg-gray-200 text-sm rounded hover:bg-gray-300 mx-auto block">
           Show frequency
         </button>
-        <p class="text-xs text-gray-400 text-center mt-2">Hover to show coordinates · draw a box to zoom · double-click to reset</p>
+        <p id="chart-hint" class="text-xs text-gray-400 text-center mt-2">Hover to show coordinates · draw a box to zoom · double-click to reset</p>
         <div id="observation-downloads" class="hidden flex gap-2 justify-center mt-3">
           <button id="download-png"
             class="px-3 py-1 bg-gray-200 text-sm rounded hover:bg-gray-300">
@@ -89,6 +89,48 @@
             Save FITS
           </a>
         </div>
+      </div>
+      <div id="analysis-panel" style="display: none;" class="min-w-48 text-sm space-y-3 mt-4">
+        <div class="flex items-center justify-between">
+          <h3 class="font-semibold text-gray-700">Analysis</h3>
+          <button onclick="resetAnalysis()" class="text-xs px-2 py-1 bg-gray-200 rounded hover:bg-gray-300">Reset all</button>
+        </div>
+        <details open class="border rounded p-2">
+          <summary class="cursor-pointer font-medium text-gray-600 text-xs uppercase tracking-wide select-none">Baseline</summary>
+          <div class="mt-2 space-y-2">
+            <div class="flex gap-2 items-center">
+              <button id="btn-pick-baseline" onclick="togglePickMode('baseline')" class="text-xs px-2 py-1 bg-gray-200 rounded hover:bg-gray-300">Pick ranges</button>
+              <span id="baseline-count" class="text-xs text-gray-400">0 ranges</span>
+            </div>
+            <div class="flex gap-2 items-center">
+              <label class="text-xs text-gray-500">Order:</label>
+              <select id="baseline-order" class="text-xs border rounded px-1 py-0.5">
+                <option value="1">1 (linear)</option>
+                <option value="2">2 (quadratic)</option>
+              </select>
+            </div>
+            <div class="flex gap-2">
+              <button id="btn-fit-baseline" onclick="fitAndSubtractBaseline()" disabled
+                class="text-xs px-2 py-1 bg-indigo-100 text-indigo-700 rounded hover:bg-indigo-200 disabled:opacity-40 disabled:cursor-not-allowed">Fit &amp; subtract</button>
+              <button onclick="clearBaseline()" class="text-xs px-2 py-1 bg-gray-100 rounded hover:bg-gray-200">Clear</button>
+            </div>
+          </div>
+        </details>
+        <details open class="border rounded p-2">
+          <summary class="cursor-pointer font-medium text-gray-600 text-xs uppercase tracking-wide select-none">Gaussian fit</summary>
+          <div class="mt-2 space-y-2">
+            <div class="flex gap-2 items-center">
+              <button id="btn-pick-gaussian" onclick="togglePickMode('gaussian')" class="text-xs px-2 py-1 bg-gray-200 rounded hover:bg-gray-300">Pick peaks</button>
+              <span id="gaussian-count" class="text-xs text-gray-400">0 seeds</span>
+            </div>
+            <div class="flex gap-2">
+              <button id="btn-fit-gaussian" onclick="fitGaussians()" disabled
+                class="text-xs px-2 py-1 bg-indigo-100 text-indigo-700 rounded hover:bg-indigo-200 disabled:opacity-40 disabled:cursor-not-allowed">Fit</button>
+              <button onclick="clearGaussians()" class="text-xs px-2 py-1 bg-gray-100 rounded hover:bg-gray-200">Clear</button>
+            </div>
+            <div id="gaussian-results" class="text-xs text-gray-600 space-y-1 font-mono"></div>
+          </div>
+        </details>
       </div>
     </div>
   </div>

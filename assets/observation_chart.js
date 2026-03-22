@@ -1,3 +1,411 @@
+// --- Module-level analysis state ---
+let analysisState = null;
+let chartRefs = null;
+
+// --- Math helpers ---
+
+function solveLinear(A, b) {
+  const n = b.length;
+  const M = A.map((row, i) => [...row, b[i]]);
+  for (let col = 0; col < n; col++) {
+    let maxRow = col;
+    for (let row = col + 1; row < n; row++) {
+      if (Math.abs(M[row][col]) > Math.abs(M[maxRow][col])) maxRow = row;
+    }
+    [M[col], M[maxRow]] = [M[maxRow], M[col]];
+    if (Math.abs(M[col][col]) < 1e-15) return null;
+    for (let row = 0; row < n; row++) {
+      if (row === col) continue;
+      const factor = M[row][col] / M[col][col];
+      for (let j = col; j <= n; j++) M[row][j] -= factor * M[col][j];
+    }
+  }
+  return M.map((row, i) => row[n] / row[i]);
+}
+
+// Polynomial least-squares fit. Returns coefficients [a0, a1, ...] (lowest degree first).
+function polyFit(xs, ys, degree) {
+  const m = degree + 1;
+  const A = Array.from({ length: m }, () => new Array(m).fill(0));
+  const b = new Array(m).fill(0);
+  for (let i = 0; i < xs.length; i++) {
+    const powers = Array.from({ length: m }, (_, k) => Math.pow(xs[i], k));
+    for (let j = 0; j < m; j++) {
+      b[j] += powers[j] * ys[i];
+      for (let l = 0; l < m; l++) A[j][l] += powers[j] * powers[l];
+    }
+  }
+  return solveLinear(A, b);
+}
+
+function evalPoly(coeffs, x) {
+  return coeffs.reduce((sum, c, k) => sum + c * Math.pow(x, k), 0);
+}
+
+// Multi-Gaussian Levenberg–Marquardt fit.
+// seeds: [{amplitude, center, sigma}] in display units
+// Returns [{amplitude, center, sigma, fwhm}]
+function lmFitGaussians(xs, ys, seeds) {
+  let params = seeds.flatMap((s) => [s.amplitude, s.center, s.sigma]);
+  const n = xs.length;
+  const m = params.length;
+
+  function model(p, x) {
+    let sum = 0;
+    for (let k = 0; k < p.length; k += 3) {
+      const dx = x - p[k + 1];
+      sum += p[k] * Math.exp((-dx * dx) / (2 * p[k + 2] * p[k + 2]));
+    }
+    return sum;
+  }
+
+  function residuals(p) {
+    return xs.map((x, i) => ys[i] - model(p, x));
+  }
+
+  function jacobian(p) {
+    return xs.map((x) => {
+      const row = new Array(m).fill(0);
+      for (let k = 0; k < p.length; k += 3) {
+        const A = p[k], mu = p[k + 1], sig = p[k + 2];
+        const dx = x - mu;
+        const g = Math.exp((-dx * dx) / (2 * sig * sig));
+        row[k] = -g;
+        row[k + 1] = -A * g * dx / (sig * sig);
+        row[k + 2] = -A * g * dx * dx / (sig * sig * sig);
+      }
+      return row;
+    });
+  }
+
+  let lambda = 1e-3;
+  for (let iter = 0; iter < 200; iter++) {
+    const r = residuals(params);
+    const J = jacobian(params);
+    const JtJ = Array.from({ length: m }, () => new Array(m).fill(0));
+    const Jtr = new Array(m).fill(0);
+    for (let i = 0; i < n; i++) {
+      for (let j = 0; j < m; j++) {
+        Jtr[j] += J[i][j] * r[i];
+        for (let l = 0; l < m; l++) JtJ[j][l] += J[i][j] * J[i][l];
+      }
+    }
+    const Aug = JtJ.map((row, j) =>
+      row.map((v, l) => (j === l ? v * (1 + lambda) : v))
+    );
+    const delta = solveLinear(Aug, Jtr);
+    if (!delta) break;
+    const newParams = params.map((p, j) => p + delta[j]);
+    const oldCost = r.reduce((s, v) => s + v * v, 0);
+    const newCost = residuals(newParams).reduce((s, v) => s + v * v, 0);
+    if (newCost < oldCost) {
+      params = newParams;
+      lambda /= 10;
+      if (Math.sqrt(delta.reduce((s, v) => s + v * v, 0)) < 1e-10) break;
+    } else {
+      lambda *= 10;
+      if (lambda > 1e10) break;
+    }
+  }
+
+  return Array.from({ length: params.length / 3 }, (_, k) => ({
+    amplitude: params[k * 3],
+    center: params[k * 3 + 1],
+    sigma: Math.abs(params[k * 3 + 2]),
+    fwhm: Math.abs(params[k * 3 + 2]) * 2 * Math.sqrt(2 * Math.log(2)),
+  }));
+}
+
+// --- Analysis UI functions (called from HTML) ---
+
+function togglePickMode(mode) {
+  if (!analysisState) return;
+  if (analysisState.clickMode === mode) {
+    analysisState.clickMode = null;
+  } else {
+    analysisState.clickMode = mode;
+  }
+  updateAnalysisUI();
+}
+
+function updateAnalysisUI() {
+  if (!analysisState) return;
+  const mode = analysisState.clickMode;
+
+  const btnBaseline = document.getElementById("btn-pick-baseline");
+  const btnGaussian = document.getElementById("btn-pick-gaussian");
+  const btnFit = document.getElementById("btn-fit-baseline");
+  const hint = document.getElementById("chart-hint");
+
+  if (btnBaseline) {
+    btnBaseline.classList.toggle("bg-orange-200", mode === "baseline");
+    btnBaseline.classList.toggle("bg-gray-200", mode !== "baseline");
+    btnBaseline.textContent = mode === "baseline" ? "Done picking" : "Pick ranges";
+  }
+  if (btnGaussian) {
+    btnGaussian.classList.toggle("bg-orange-200", mode === "gaussian");
+    btnGaussian.classList.toggle("bg-gray-200", mode !== "gaussian");
+    btnGaussian.textContent = mode === "gaussian" ? "Done picking" : "Pick peaks";
+  }
+  if (btnFit) {
+    btnFit.disabled = analysisState.baselineRanges.length === 0;
+  }
+  const btnFitGaussian = document.getElementById("btn-fit-gaussian");
+  if (btnFitGaussian) {
+    btnFitGaussian.disabled = analysisState.gaussianSeeds.length === 0;
+  }
+  if (hint) {
+    const pending = analysisState.pendingRangeStart !== null;
+    hint.textContent =
+      mode === "baseline"
+        ? pending
+          ? "Click to set the end of this range"
+          : "Click to start a baseline range · click Done when finished"
+        : mode === "gaussian"
+        ? "Click on peak centers to add Gaussian seeds · click Done when finished"
+        : "Hover to show coordinates · draw a box to zoom · double-click to reset";
+  }
+
+  const baselineCount = document.getElementById("baseline-count");
+  if (baselineCount) {
+    const n = analysisState.baselineRanges.length;
+    const pending = analysisState.pendingRangeStart !== null ? " (picking…)" : "";
+    baselineCount.textContent = `${n} range${n !== 1 ? "s" : ""}${pending}`;
+  }
+
+  const gaussianCount = document.getElementById("gaussian-count");
+  if (gaussianCount)
+    gaussianCount.textContent = `${analysisState.gaussianSeeds.length} seed${analysisState.gaussianSeeds.length !== 1 ? "s" : ""}`;
+
+  // Enable/disable brush based on pick mode
+  if (chartRefs) {
+    chartRefs.brushG.select("rect.overlay").style("pointer-events", mode ? "none" : null);
+    chartRefs.brushG.select("rect.selection").style("pointer-events", mode ? "none" : null);
+    chartRefs.clickOverlay.style("pointer-events", mode ? null : "none");
+  }
+}
+
+function fitAndSubtractBaseline() {
+  if (!analysisState || analysisState.baselineRanges.length === 0) return;
+  const { freqsHz, correctedAmps } = analysisState;
+  const degree = parseInt(document.getElementById("baseline-order").value, 10);
+
+  // Collect data points that fall within any baseline range
+  const xs = [], ys = [];
+  freqsHz.forEach((f, i) => {
+    const xd = chartRefs.freqToDisplay(f);
+    for (const r of analysisState.baselineRanges) {
+      if (xd >= r.x0 && xd <= r.x1) {
+        xs.push(xd);
+        ys.push(correctedAmps[i]);
+        break;
+      }
+    }
+  });
+
+  if (xs.length < degree + 1) {
+    alert("Not enough data points in selected ranges for this polynomial order.");
+    return;
+  }
+  const coeffs = polyFit(xs, ys, degree);
+  if (!coeffs) {
+    alert("Baseline fit failed (singular matrix).");
+    return;
+  }
+  analysisState.baselineCoeffs = coeffs;
+  analysisState.correctedAmps = correctedAmps.map((amp, i) => {
+    const xd = chartRefs.freqToDisplay(freqsHz[i]);
+    return amp - evalPoly(coeffs, xd);
+  });
+  analysisState.baselineRanges = [];
+  analysisState.pendingRangeStart = null;
+  chartRefs.rescaleAndRedraw();
+  updateAnalysisUI();
+  updateCsvLink();
+}
+
+function clearBaseline() {
+  if (!analysisState) return;
+  analysisState.baselineRanges = [];
+  analysisState.pendingRangeStart = null;
+  updateAnalysisUI();
+  updateOverlays();
+}
+
+function fitGaussians() {
+  if (!analysisState || analysisState.gaussianSeeds.length === 0) {
+    alert("Pick at least one peak seed first.");
+    return;
+  }
+  const { freqsHz, correctedAmps } = analysisState;
+  const xs = freqsHz.map((f) => chartRefs.freqToDisplay(f));
+  const xRange = xs[xs.length - 1] - xs[0];
+  const defaultSigma = Math.abs(xRange) / 20;
+
+  const seeds = analysisState.gaussianSeeds.map((s) => ({
+    amplitude: s.y,
+    center: s.xDisplay,
+    sigma: defaultSigma,
+  }));
+
+  try {
+    const fits = lmFitGaussians(xs, correctedAmps, seeds);
+    analysisState.gaussianFits = fits;
+    updateOverlays();
+    renderGaussianResults(fits);
+  } catch (e) {
+    alert("Gaussian fit failed: " + e.message);
+  }
+}
+
+function renderGaussianResults(fits) {
+  const el = document.getElementById("gaussian-results");
+  if (!el) return;
+  const unit = chartRefs ? chartRefs.xUnit() : "MHz";
+  el.innerHTML = fits
+    .map(
+      (f, i) =>
+        `<div class="border-t pt-1 mt-1">` +
+        `<span class="font-semibold">G${i + 1}</span><br>` +
+        `Ctr: ${f.center.toFixed(2)} ${unit}<br>` +
+        `Amp: ${f.amplitude.toFixed(3)}<br>` +
+        `FWHM: ${f.fwhm.toFixed(2)} ${unit}` +
+        `</div>`
+    )
+    .join("");
+}
+
+function clearGaussians() {
+  if (!analysisState) return;
+  analysisState.gaussianSeeds = [];
+  analysisState.gaussianFits = [];
+  document.getElementById("gaussian-results").innerHTML = "";
+  updateAnalysisUI();
+  updateOverlays();
+}
+
+function resetAnalysis() {
+  if (!analysisState) return;
+  analysisState.correctedAmps = analysisState.rawAmps.slice();
+  analysisState.baselineRanges = [];
+  analysisState.pendingRangeStart = null;
+  analysisState.gaussianSeeds = [];
+  analysisState.gaussianFits = [];
+  analysisState.baselineCoeffs = null;
+  analysisState.clickMode = null;
+  document.getElementById("gaussian-results").innerHTML = "";
+  chartRefs.rescaleAndRedraw();
+  updateAnalysisUI();
+  updateOverlays();
+  updateCsvLink();
+}
+
+function updateOverlays() {
+  if (!chartRefs || !analysisState) return;
+  const { x, y, baselineDotsG, baselineCurveG, gaussianDotsG, gaussianCurvesG,
+          freqToDisplay, xUnit } = chartRefs;
+
+  // Baseline range shading
+  baselineDotsG.selectAll("*").remove();
+  // Complete ranges: shaded rects
+  baselineDotsG.selectAll("rect")
+    .data(analysisState.baselineRanges)
+    .join("rect")
+    .attr("x", (d) => x(d.x0))
+    .attr("y", (r) => { const [, yMax] = y.domain(); return y(yMax); })
+    .attr("width", (d) => Math.max(0, x(d.x1) - x(d.x0)))
+    .attr("height", (r) => { const [yMin, yMax] = y.domain(); return y(yMin) - y(yMax); })
+    .attr("fill", "orange")
+    .attr("opacity", 0.2)
+    .attr("clip-path", "url(#plot-clip)");
+  // Pending range start: vertical dashed line
+  if (analysisState.pendingRangeStart !== null) {
+    const px = x(analysisState.pendingRangeStart);
+    const [yMin, yMax] = y.domain();
+    baselineDotsG.append("line")
+      .attr("x1", px).attr("x2", px)
+      .attr("y1", y(yMax)).attr("y2", y(yMin))
+      .attr("stroke", "darkorange")
+      .attr("stroke-width", 1.5)
+      .attr("stroke-dasharray", "4,3")
+      .attr("clip-path", "url(#plot-clip)");
+  }
+
+  // Fitted baseline curve
+  baselineCurveG.selectAll("path").remove();
+  if (analysisState.baselineCoeffs) {
+    const { freqsHz } = analysisState;
+    const curvePoints = freqsHz.map((f) => {
+      const xd = freqToDisplay(f);
+      return { x: xd, y: evalPoly(analysisState.baselineCoeffs, xd) };
+    });
+    const lineFn = d3.line().x((d) => x(d.x)).y((d) => y(d.y));
+    baselineCurveG.append("path")
+      .datum(curvePoints)
+      .attr("fill", "none")
+      .attr("stroke", "orange")
+      .attr("stroke-width", 1.5)
+      .attr("stroke-dasharray", "4,3")
+      .attr("clip-path", "url(#plot-clip)")
+      .attr("d", lineFn);
+  }
+
+  // Gaussian seed dots
+  gaussianDotsG.selectAll("circle").remove();
+  gaussianDotsG.selectAll("circle")
+    .data(analysisState.gaussianSeeds)
+    .join("circle")
+    .attr("cx", (d) => x(d.xDisplay))
+    .attr("cy", (d) => y(d.y))
+    .attr("r", 4)
+    .attr("fill", "crimson")
+    .attr("stroke", "darkred")
+    .attr("stroke-width", 1)
+    .attr("clip-path", "url(#plot-clip)");
+
+  // Fitted Gaussian curves
+  gaussianCurvesG.selectAll("path").remove();
+  if (analysisState.gaussianFits.length > 0) {
+    const { freqsHz } = analysisState;
+    const xs = freqsHz.map((f) => freqToDisplay(f));
+    const colors = ["crimson", "darkorchid", "teal", "chocolate", "steelblue"];
+
+    analysisState.gaussianFits.forEach((fit, idx) => {
+      const curvePoints = xs.map((xd) => {
+        const dx = xd - fit.center;
+        return { x: xd, y: fit.amplitude * Math.exp((-dx * dx) / (2 * fit.sigma * fit.sigma)) };
+      });
+      const lineFn = d3.line().x((d) => x(d.x)).y((d) => y(d.y));
+      gaussianCurvesG.append("path")
+        .datum(curvePoints)
+        .attr("fill", "none")
+        .attr("stroke", colors[idx % colors.length])
+        .attr("stroke-width", 2)
+        .attr("clip-path", "url(#plot-clip)")
+        .attr("d", lineFn);
+    });
+  }
+}
+
+function updateCsvLink() {
+  if (!analysisState || !chartRefs) return;
+  const { freqsHz } = analysisState;
+  const rows = ["frequency_hz,amplitude", ...freqsHz.map((f, i) => `${f},${analysisState.correctedAmps[i]}`)];
+  const blob = new Blob([rows.join("\n")], { type: "text/csv" });
+  const dlCsv = document.getElementById("download-csv");
+  if (dlCsv && dlCsv.dataset.originalHref) {
+    // keep original server href when correctedAmps === rawAmps
+    const isReset = analysisState.correctedAmps.every((v, i) => v === analysisState.rawAmps[i]);
+    if (isReset) {
+      dlCsv.href = dlCsv.dataset.originalHref;
+    } else {
+      dlCsv.href = URL.createObjectURL(blob);
+    }
+  }
+}
+
+// --- PNG export ---
+
 function exportPng(id, telescopeId, startTime) {
   const svg = document.querySelector("#observation-chart svg");
   if (!svg) return;
@@ -72,11 +480,28 @@ function loadObservation(id) {
       const container = document.getElementById("observation-chart");
       container.style.display = "block";
 
+      // Init analysis state for this observation
+      analysisState = {
+        rawAmps: data.amplitudes.slice(),
+        correctedAmps: data.amplitudes.slice(),
+        freqsHz: data.frequencies.slice(),
+        baselineRanges: [],
+        pendingRangeStart: null,
+        gaussianSeeds: [],
+        gaussianFits: [],
+        baselineCoeffs: null,
+        clickMode: null,
+      };
+      chartRefs = null;
+
       // Wire up download buttons
       const downloads = document.getElementById("observation-downloads");
       if (downloads) downloads.classList.remove("hidden");
       const dlCsv = document.getElementById("download-csv");
-      if (dlCsv) dlCsv.href = `/observations/${id}/csv`;
+      if (dlCsv) {
+        dlCsv.href = `/observations/${id}/csv`;
+        dlCsv.dataset.originalHref = `/observations/${id}/csv`;
+      }
       const dlFits = document.getElementById("download-fits");
       if (dlFits) dlFits.href = `/observations/${id}/fits`;
       const dlPng = document.getElementById("download-png");
@@ -113,26 +538,23 @@ function loadObservation(id) {
       const vlsrCorrection = data.vlsr_correction_mps;
       let showVlsr = vlsrCorrection !== null && vlsrCorrection !== undefined;
 
-      // Store raw frequency data (Hz)
-      const rawData = data.frequencies.map((f, i) => ({
-        freqHz: f,
-        y: data.amplitudes[i],
-      }));
-
       function freqToVlsr(freqHz) {
         return (C * (F_REST - freqHz) / F_REST + vlsrCorrection) / 1000;
       }
 
+      function freqToDisplay(freqHz) {
+        return showVlsr ? freqToVlsr(freqHz) : freqHz / 1e6;
+      }
+
+      function xUnit() {
+        return showVlsr ? "km/s" : "MHz";
+      }
+
       function getDisplayData() {
-        if (showVlsr) {
-          return rawData.map((d) => ({
-            x: freqToVlsr(d.freqHz),
-            y: d.y,
-          }));
-        }
-        return rawData.map((d) => ({
-          x: d.freqHz / 1e6,
-          y: d.y,
+        const corrected = analysisState ? analysisState.correctedAmps : data.amplitudes;
+        return data.frequencies.map((f, i) => ({
+          x: freqToDisplay(f),
+          y: corrected[i],
         }));
       }
 
@@ -233,6 +655,12 @@ function loadObservation(id) {
         .attr("clip-path", "url(#plot-clip)")
         .attr("d", lineFn);
 
+      // Overlay groups (drawn above line, below tooltip)
+      const baselineDotsG = svg.append("g").attr("class", "baseline-dots");
+      const baselineCurveG = svg.append("g").attr("class", "baseline-curve");
+      const gaussianDotsG = svg.append("g").attr("class", "gaussian-dots");
+      const gaussianCurvesG = svg.append("g").attr("class", "gaussian-curves");
+
       // Tooltip
       const tooltip = svg
         .append("text")
@@ -261,6 +689,20 @@ function loadObservation(id) {
         yAxisG.call(d3.axisLeft(y).ticks(height / 80))
           .call((g) => g.selectAll("text").attr("font-size", "13px"));
         path.datum(currentData).attr("d", lineFn);
+        updateOverlays();
+      }
+
+      function refreshLine() {
+        const currentData = getDisplayData();
+        path.datum(currentData).attr("d", lineFn);
+      }
+
+      function rescaleAndRedraw() {
+        const currentData = getDisplayData();
+        const yExtentNew = d3.extent(currentData, (d) => d.y);
+        const yPad = (yExtentNew[1] - yExtentNew[0]) * 0.05 || 1;
+        fullYDomain = [yExtentNew[0] - yPad, yExtentNew[1] + yPad];
+        redraw(currentData, fullXDomain, fullYDomain);
       }
 
       // Brush for zoom
@@ -270,7 +712,7 @@ function loadObservation(id) {
           if (!event.selection) return;
           const [[px0, py0], [px1, py1]] = event.selection;
           const x0 = x.invert(px0), x1 = x.invert(px1);
-          const y0 = y.invert(py1), y1 = y.invert(py0); // py inverted: top is max
+          const y0 = y.invert(py1), y1 = y.invert(py0);
           const currentData = getDisplayData();
           redraw(currentData, [x0, x1], [y0, y1]);
           brushG.call(brush.move, null);
@@ -280,14 +722,45 @@ function loadObservation(id) {
         .attr("class", "brush")
         .call(brush);
 
+      // Transparent click overlay for pick mode (covers plot area, disabled when not in pick mode)
+      const clickOverlay = svg.append("rect")
+        .attr("x", margin)
+        .attr("y", margin)
+        .attr("width", width - 2 * margin)
+        .attr("height", height - 2 * margin)
+        .attr("fill", "transparent")
+        .style("pointer-events", "none")
+        .on("click", function (event) {
+          if (!analysisState || !analysisState.clickMode) return;
+          const [mouseX, mouseY] = d3.pointer(event);
+          const xDisplay = x.invert(mouseX);
+          const yVal = y.invert(mouseY);
+          const freqHz = showVlsr
+            ? F_REST - (xDisplay * 1000 - vlsrCorrection) * F_REST / C
+            : xDisplay * 1e6;
+          if (analysisState.clickMode === "baseline") {
+            if (analysisState.pendingRangeStart === null) {
+              analysisState.pendingRangeStart = xDisplay;
+            } else {
+              const x0 = Math.min(analysisState.pendingRangeStart, xDisplay);
+              const x1 = Math.max(analysisState.pendingRangeStart, xDisplay);
+              analysisState.baselineRanges.push({ x0, x1 });
+              analysisState.pendingRangeStart = null;
+            }
+          } else if (analysisState.clickMode === "gaussian") {
+            analysisState.gaussianSeeds.push({ xDisplay, y: yVal, freqHz });
+          }
+          updateAnalysisUI();
+          updateOverlays();
+        });
+
       // Tooltip on brush overlay
       brushG.select("rect.overlay")
         .on("mousemove", function (event) {
           const [mouseX, mouseY] = d3.pointer(event);
           const xValue = x.invert(mouseX).toFixed(2);
           const yValue = y.invert(mouseY).toFixed(2);
-          const xUnit = showVlsr ? "km/s" : "MHz";
-          tooltip.text(`X: ${xValue} ${xUnit}, Y: ${yValue}`);
+          tooltip.text(`X: ${xValue} ${xUnit()}, Y: ${yValue}`);
         })
         .on("mouseout", function () {
           tooltip.text("");
@@ -302,6 +775,14 @@ function loadObservation(id) {
       // Keep tooltip text on top
       tooltip.raise();
 
+      // Store refs for analysis functions
+      chartRefs = {
+        x, y, brushG, clickOverlay,
+        baselineDotsG, baselineCurveG, gaussianDotsG, gaussianCurvesG,
+        freqToDisplay, xUnit,
+        refreshLine, rescaleAndRedraw,
+      };
+
       // Insert SVG before the toggle button so the button appears below the chart
       const btn = document.getElementById("observation-axis-toggle");
       if (btn) {
@@ -309,6 +790,12 @@ function loadObservation(id) {
       } else {
         container.appendChild(svg.node());
       }
+
+      // Show analysis panel and reset its UI
+      const analysisPanel = document.getElementById("analysis-panel");
+      if (analysisPanel) analysisPanel.style.display = "";
+      document.getElementById("gaussian-results").innerHTML = "";
+      updateAnalysisUI();
 
       // Toggle button
       if (btn) {
