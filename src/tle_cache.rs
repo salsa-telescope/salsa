@@ -84,8 +84,6 @@ impl TleCacheHandle {
             .find(|el| el.norad_id == norad_id)
             .and_then(|el| el.object_name.as_deref().map(|s| s.trim().to_string()))
     }
-
-
 }
 
 /// Estimate primary L-band frequency for a GNSS satellite by name.
