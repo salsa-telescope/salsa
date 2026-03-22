@@ -376,7 +376,7 @@ async fn fetch_ambient_temp_k() -> f64 {
     .await;
     match result {
         Some(t) => {
-            log::debug!("Ambient temperature: {:.1} K", t);
+            log::info!("Ambient temperature: {:.1} K", t);
             t
         }
         None => {
