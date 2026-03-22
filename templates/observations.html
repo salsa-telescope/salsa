@@ -89,12 +89,14 @@
             Save FITS
           </a>
         </div>
+        <p class="text-xs text-gray-400 text-center mt-1">PNG and CSV export the corrected spectrum · FITS always exports raw data</p>
       </div>
       <div id="analysis-panel" style="display: none;" class="min-w-48 text-sm space-y-3 mt-4">
         <div class="flex items-center justify-between">
-          <h3 class="font-semibold text-gray-700">Analysis</h3>
+          <span style="font-size: 1.3rem;">Analysis</span>
           <button onclick="resetAnalysis()" class="text-xs px-2 py-1 bg-gray-200 rounded hover:bg-gray-300">Reset all</button>
         </div>
+        <p class="text-xs text-gray-400 max-w-48">Analysis is session-only and not saved — take notes of any important findings.</p>
         <details open class="border rounded p-2">
           <summary class="cursor-pointer font-medium text-gray-600 text-xs uppercase tracking-wide select-none">Baseline</summary>
           <div class="mt-2 space-y-2">
