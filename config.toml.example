@@ -12,7 +12,7 @@ name = "fake1"
 enabled = true
 location = [ 11.9188, 57.3934 ]  # [longitude, latitude] in degrees
 min_elevation = 5.0  # in degrees
-stow_position = [ 90.0, 90.0 ]
+stow_position = [ 90.0, 90.0 ]  # [azimuth, elevation] in degrees
 telescope_type = "Fake"
 
 [[telescopes]]
@@ -20,7 +20,7 @@ name = "fake2"
 enabled = true
 location = [ 11.9188, 57.3934 ]  # [longitude, latitude] in degrees
 min_elevation = 5.0  # in degrees
-stow_position = [ 90.0, 90.0 ]
+stow_position = [ 90.0, 90.0 ]  # [azimuth, elevation] in degrees
 telescope_type = "Fake"
 
 # --- Real SALSA telescopes ---
@@ -30,7 +30,7 @@ telescope_type = "Fake"
 # enabled = true
 # location = [ 11.9188, 57.3934 ]  # [longitude, latitude] in degrees
 # min_elevation = 5.0  # in degrees
-# stow_position = [ 90.0, 90.0 ]
+# stow_position = [ 90.0, 90.0 ]  # [azimuth, elevation] in degrees
 # telescope_type = "Salsa"
 # controller_address = "192.168.5.11:23"
 # receiver_address = "192.168.5.31"
