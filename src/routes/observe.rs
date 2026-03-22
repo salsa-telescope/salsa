@@ -82,11 +82,17 @@ async fn get_preview(
     Path(telescope_id): Path<String>,
     Query(query): Query<PreviewQuery>,
 ) -> impl IntoResponse {
-    // TODO: get location from telescope definition instead of hardcoding
-    let location = Location {
-        longitude: 0.20802143022,
-        latitude: 1.00170457462,
+    let telescope_info = match state.telescopes.get(&telescope_id).await {
+        Some(telescope) => telescope.get_info().await.ok(),
+        None => None,
     };
+    let location = telescope_info
+        .as_ref()
+        .map(|i| i.location)
+        .unwrap_or(Location {
+            longitude: 0.0,
+            latitude: 0.0,
+        });
 
     let x = query.x.as_deref().and_then(|s| s.parse::<f64>().ok());
     let y = query.y.as_deref().and_then(|s| s.parse::<f64>().ok());
@@ -95,14 +101,7 @@ async fn get_preview(
     let el_offset_rad = query.el_offset_deg.to_radians();
 
     let calculated = if query.coordinate_system.as_deref() == Some("stow") {
-        match state.telescopes.get(&telescope_id).await {
-            Some(telescope) => telescope
-                .get_info()
-                .await
-                .ok()
-                .and_then(|i| i.stow_position),
-            None => None,
-        }
+        telescope_info.and_then(|i| i.stow_position)
     } else if query.coordinate_system.as_deref() == Some("sun") {
         Some(horizontal_from_sun(location, Utc::now()))
     } else if query.coordinate_system.as_deref() == Some("gnss") {
@@ -187,11 +186,23 @@ async fn get_preview(
     ))
 }
 
-async fn get_satellites(State(state): State<AppState>) -> impl IntoResponse {
-    // TODO: get location from telescope definition instead of hardcoding
-    let location = Location {
-        longitude: 0.20802143022,
-        latitude: 1.00170457462,
+async fn get_satellites(
+    State(state): State<AppState>,
+    Path(telescope_id): Path<String>,
+) -> impl IntoResponse {
+    let location = match state.telescopes.get(&telescope_id).await {
+        Some(telescope) => telescope
+            .get_info()
+            .await
+            .map(|i| i.location)
+            .unwrap_or(Location {
+                longitude: 0.0,
+                latitude: 0.0,
+            }),
+        None => Location {
+            longitude: 0.0,
+            latitude: 0.0,
+        },
     };
     let satellites = state.tle_cache.visible_satellites(location, Utc::now());
     let json: Vec<_> = satellites
@@ -394,11 +405,7 @@ pub(crate) async fn save_latest_observation(
     } else {
         None
     };
-    // TODO: get location from telescope definition instead of hardcoding
-    let location = Location {
-        longitude: 0.20802143022,
-        latitude: 1.00170457462,
-    };
+    let location = info.location;
     let (coordinate_system, target_x, target_y, vlsr_correction_mps): (
         String,
         f64,

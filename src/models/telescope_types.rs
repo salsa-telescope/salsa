@@ -51,6 +51,7 @@ pub struct TelescopeInfo {
     pub stow_position: Option<Direction>,
     pub az_offset_rad: f64,
     pub el_offset_rad: f64,
+    pub location: Location,
 }
 
 #[derive(Deserialize, PartialEq, Debug, Clone)]
@@ -63,7 +64,7 @@ pub enum TelescopeType {
 pub struct TelescopeDefinition {
     pub name: String,
     pub enabled: bool,
-    pub location: Location,
+    pub location: [f64; 2], // [longitude, latitude] in degrees
     pub min_elevation: f64,
     pub stow_position: Option<[f64; 2]>, // [azimuth, elevation] in degrees
     pub telescope_type: TelescopeType,

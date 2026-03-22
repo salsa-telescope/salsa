@@ -10,7 +10,7 @@ user_ids = [1]
 [[telescopes]]
 name = "fake1"
 enabled = true
-location = [ 0.20802143022, 1.00170457462 ]
+location = [ 11.9188, 57.3934 ]  # [longitude, latitude] in degrees
 min_elevation = 0.087
 stow_position = [ 90.0, 90.0 ]
 telescope_type = "Fake"
@@ -18,7 +18,7 @@ telescope_type = "Fake"
 [[telescopes]]
 name = "fake2"
 enabled = true
-location = [ 0.20802143022, 1.00170457462 ]
+location = [ 11.9188, 57.3934 ]  # [longitude, latitude] in degrees
 min_elevation = 0.087
 stow_position = [ 90.0, 90.0 ]
 telescope_type = "Fake"
@@ -28,7 +28,7 @@ telescope_type = "Fake"
 # [[telescopes]]
 # name = "vale"
 # enabled = true
-# location = [ 0.20802143022, 1.00170457462 ]
+# location = [ 11.9188, 57.3934 ]  # [longitude, latitude] in degrees
 # min_elevation = 0.087
 # stow_position = [ 90.0, 90.0 ]
 # telescope_type = "Salsa"

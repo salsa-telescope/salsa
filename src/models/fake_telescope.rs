@@ -52,6 +52,7 @@ pub struct FakeTelescope {
 pub fn create(
     name: String,
     stow_position: Option<Direction>,
+    location: Location,
     tle_cache: TleCacheHandle,
 ) -> FakeTelescope {
     let inner = Arc::new(Mutex::new(Inner {
@@ -59,12 +60,7 @@ pub fn create(
         az_offset_rad: 0.0,
         el_offset_rad: 0.0,
         horizontal: FAKE_TELESCOPE_PARKING_HORIZONTAL,
-        location: Location {
-            //(11.0+55.0/60.0+7.5/3600.0) * PI / 180.0. Sign positive, handled in gmst calc
-            longitude: 0.20802143022,
-            //(57.0+23.0/60.0+36.4/3600.0) * PI / 180.0
-            latitude: 1.00170457462,
-        },
+        location,
         most_recent_error: None,
         receiver_configuration: ReceiverConfiguration {
             integrate: false,
@@ -218,6 +214,7 @@ impl Telescope for FakeTelescope {
             stow_position: inner.stow_position,
             az_offset_rad: inner.az_offset_rad,
             el_offset_rad: inner.el_offset_rad,
+            location: inner.location,
         })
     }
     async fn shutdown(&self) {

@@ -1,4 +1,4 @@
-use crate::coords::Direction;
+use crate::coords::{Direction, Location};
 use crate::models::telescope::Telescope;
 use crate::models::telescope_types::{
     Measurement, ObservationMode, ObservedSpectra, ReceiverConfiguration, ReceiverError,
@@ -34,6 +34,7 @@ struct Inner {
     measurements: Arc<Mutex<Vec<Measurement>>>,
     active_integration: Option<ActiveIntegration>,
     stow_position: Option<Direction>,
+    location: Location,
 }
 
 pub struct SalsaTelescope {
@@ -45,12 +46,13 @@ pub fn create(
     controller_address: String,
     receiver_address: String,
     stow_position: Option<Direction>,
+    location: Location,
     tle_cache: TleCacheHandle,
 ) -> SalsaTelescope {
     let inner = Arc::new(Mutex::new(Inner {
         name,
         receiver_address,
-        controller: TelescopeTracker::new(controller_address, tle_cache),
+        controller: TelescopeTracker::new(controller_address, location, tle_cache.clone()),
         receiver_configuration: ReceiverConfiguration {
             integrate: false,
             ..Default::default()
@@ -58,6 +60,7 @@ pub fn create(
         measurements: Arc::new(Mutex::new(Vec::new())),
         active_integration: None,
         stow_position,
+        location,
     }));
 
     let task_inner = inner.clone();
@@ -169,6 +172,7 @@ impl Telescope for SalsaTelescope {
             stow_position: inner.stow_position,
             az_offset_rad: controller_info.az_offset_rad,
             el_offset_rad: controller_info.el_offset_rad,
+            location: inner.location,
         })
     }
     async fn shutdown(&self) {
