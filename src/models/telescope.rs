@@ -1,4 +1,4 @@
-use crate::coords::Direction;
+use crate::coords::{Direction, Location};
 use crate::models::telescope_types::{
     ReceiverConfiguration, ReceiverError, TelescopeDefinition, TelescopeError, TelescopeInfo,
     TelescopeTarget, TelescopeType, TelescopesConfig,
@@ -67,10 +67,15 @@ impl TelescopeCollectionHandle {
 
 fn create_telescope(def: TelescopeDefinition, tle_cache: TleCacheHandle) -> Arc<dyn Telescope> {
     log::info!("Creating telescope {}", def.name);
+    let location = Location {
+        longitude: def.location[0].to_radians(),
+        latitude: def.location[1].to_radians(),
+    };
     let stow_position = def.stow_position.map(|p| Direction {
         azimuth: p[0].to_radians(),
         elevation: p[1].to_radians(),
     });
+    let min_elevation_rad = def.min_elevation.to_radians();
     let default_ref_freq_hz = def.default_ref_freq_mhz * 1e6;
     let default_gain_db = def.default_gain_db;
     let t_rec_k = def.t_rec_k;
@@ -84,6 +89,8 @@ fn create_telescope(def: TelescopeDefinition, tle_cache: TleCacheHandle) -> Arc<
                 .expect("Telescope of type Salsa should have receiver_address.")
                 .clone(),
             stow_position,
+            location,
+            min_elevation_rad,
             default_ref_freq_hz,
             default_gain_db,
             t_rec_k,
@@ -92,6 +99,8 @@ fn create_telescope(def: TelescopeDefinition, tle_cache: TleCacheHandle) -> Arc<
         TelescopeType::Fake => Arc::new(fake_telescope::create(
             def.name.clone(),
             stow_position,
+            location,
+            min_elevation_rad,
             default_ref_freq_hz,
             default_gain_db,
             tle_cache,

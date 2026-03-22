@@ -20,7 +20,6 @@ const FAKE_TELESCOPE_PARKING_HORIZONTAL: Direction = Direction {
     azimuth: 0.0,
     elevation: PI / 2.0,
 };
-pub const LOWEST_ALLOWED_ELEVATION: f64 = 5.0 / 180. * PI;
 
 pub const FAKE_TELESCOPE_SLEWING_SPEED: f64 = PI / 10.0;
 pub const FAKE_TELESCOPE_CHANNELS: usize = 400;
@@ -36,6 +35,7 @@ struct Inner {
     el_offset_rad: f64,
     horizontal: Direction,
     location: Location,
+    min_elevation_rad: f64,
     most_recent_error: Option<TelescopeError>,
     receiver_configuration: ReceiverConfiguration,
     current_spectra: Vec<ObservedSpectra>,
@@ -52,6 +52,8 @@ pub struct FakeTelescope {
 pub fn create(
     name: String,
     stow_position: Option<Direction>,
+    location: Location,
+    min_elevation_rad: f64,
     default_ref_freq_hz: f64,
     default_gain_db: f64,
     tle_cache: TleCacheHandle,
@@ -61,12 +63,8 @@ pub fn create(
         az_offset_rad: 0.0,
         el_offset_rad: 0.0,
         horizontal: FAKE_TELESCOPE_PARKING_HORIZONTAL,
-        location: Location {
-            //(11.0+55.0/60.0+7.5/3600.0) * PI / 180.0. Sign positive, handled in gmst calc
-            longitude: 0.20802143022,
-            //(57.0+23.0/60.0+36.4/3600.0) * PI / 180.0
-            latitude: 1.00170457462,
-        },
+        location,
+        min_elevation_rad,
         most_recent_error: None,
         receiver_configuration: ReceiverConfiguration {
             integrate: false,
@@ -117,13 +115,13 @@ impl Telescope for FakeTelescope {
                 elevation: -1.0,
             });
         let target_horizontal = apply_offset(raw, az_offset_rad, el_offset_rad);
-        if target_horizontal.elevation < LOWEST_ALLOWED_ELEVATION {
+        if target_horizontal.elevation < inner.min_elevation_rad {
             log::info!(
-                "Refusing to set target for telescope {} to {:?}. Target is below horizon",
+                "Refusing to set target for telescope {} to {:?}. Target is below minimum elevation",
                 &inner.name,
                 &target
             );
-            Err(TelescopeError::TargetBelowHorizon)
+            Err(TelescopeError::TargetBelowMinElevation)
         } else {
             log::info!(
                 "Setting target for telescope {} to {:?}",
@@ -222,6 +220,8 @@ impl Telescope for FakeTelescope {
             stow_position: inner.stow_position,
             az_offset_rad: inner.az_offset_rad,
             el_offset_rad: inner.el_offset_rad,
+            location: inner.location,
+            min_elevation_rad: inner.min_elevation_rad,
         })
     }
     async fn shutdown(&self) {
@@ -246,12 +246,12 @@ impl Inner {
             };
             let target_horizontal = apply_offset(raw, self.az_offset_rad, self.el_offset_rad);
 
-            if target_horizontal.elevation < LOWEST_ALLOWED_ELEVATION {
+            if target_horizontal.elevation < self.min_elevation_rad {
                 log::info!(
-                    "Stopping telescope since target {:?} set below horizon.",
+                    "Stopping telescope since target {:?} is below minimum elevation.",
                     &target
                 );
-                self.most_recent_error = Some(TelescopeError::TargetBelowHorizon);
+                self.most_recent_error = Some(TelescopeError::TargetBelowMinElevation);
             } else {
                 let max_delta_angle = FAKE_TELESCOPE_SLEWING_SPEED * delta_time.as_secs_f64();
                 self.horizontal.azimuth += (target_horizontal.azimuth - current_horizontal.azimuth)
