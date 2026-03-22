@@ -64,7 +64,6 @@ pub enum TelescopeType {
 #[derive(Deserialize, PartialEq, Debug, Clone)]
 pub struct TelescopeDefinition {
     pub name: String,
-    pub enabled: bool,
     pub location: [f64; 2],              // [longitude, latitude] in degrees
     pub min_elevation: f64,              // in degrees
     pub stow_position: Option<[f64; 2]>, // [azimuth, elevation] in degrees

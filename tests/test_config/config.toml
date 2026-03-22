@@ -6,16 +6,14 @@ user_ids = []
 
 [[telescopes]]
 name = "fake1"
-enabled = true
-location = [ 0.20802143022, 1.00170457462 ]
-min_elevation = 0.087
+location = [ 11.9188, 57.3934 ]  # [longitude, latitude] in degrees
+min_elevation = 5.0  # in degrees
 stow_position = [ 90.0, 90.0 ]
 telescope_type = "Fake"
 
 [[telescopes]]
 name = "fake2"
-enabled = true
-location = [ 0.20802143022, 1.00170457462 ]
-min_elevation = 0.087
+location = [ 11.9188, 57.3934 ]  # [longitude, latitude] in degrees
+min_elevation = 5.0  # in degrees
 stow_position = [ 90.0, 90.0 ]
 telescope_type = "Fake"
