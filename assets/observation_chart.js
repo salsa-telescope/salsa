@@ -86,7 +86,7 @@ function lmFitGaussians(xs, ys, seeds) {
     const Jtr = new Array(m).fill(0);
     for (let i = 0; i < n; i++) {
       for (let j = 0; j < m; j++) {
-        Jtr[j] += J[i][j] * r[i];
+        Jtr[j] -= J[i][j] * r[i];
         for (let l = 0; l < m; l++) JtJ[j][l] += J[i][j] * J[i][l];
       }
     }
