@@ -5,6 +5,7 @@ use crate::models::telescope_types::{
     TelescopeError, TelescopeInfo, TelescopeTarget,
 };
 use crate::telescope_tracker::TelescopeTracker;
+use crate::tle_cache::TleCacheHandle;
 use async_trait::async_trait;
 use chrono::Utc;
 use log::debug;
@@ -44,11 +45,12 @@ pub fn create(
     controller_address: String,
     receiver_address: String,
     stow_position: Option<Direction>,
+    tle_cache: TleCacheHandle,
 ) -> SalsaTelescope {
     let inner = Arc::new(Mutex::new(Inner {
         name,
         receiver_address,
-        controller: TelescopeTracker::new(controller_address),
+        controller: TelescopeTracker::new(controller_address, tle_cache),
         receiver_configuration: ReceiverConfiguration {
             integrate: false,
             ..Default::default()

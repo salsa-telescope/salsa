@@ -14,6 +14,7 @@ use crate::models::telescope_types::{
 use crate::models::user::User;
 use crate::routes::index::render_main;
 use crate::routes::telescope::telescope_state;
+use crate::tle_cache::TleCacheHandle;
 
 use askama::Template;
 use axum::body::Body;
@@ -42,7 +43,8 @@ pub fn routes(state: AppState) -> Router {
         .route("/set-target", post(set_target))
         .route("/stop-telescope", post(stop_telescope))
         .route("/observe", post(start_observe))
-        .route("/stop", post(stop_observe));
+        .route("/stop", post(stop_observe))
+        .route("/satellites", get(get_satellites));
     Router::new()
         .nest("/{telescope_id}", observe_routes)
         .with_state(state)
@@ -103,6 +105,16 @@ async fn get_preview(
         }
     } else if query.coordinate_system.as_deref() == Some("sun") {
         Some(horizontal_from_sun(location, Utc::now()))
+    } else if query.coordinate_system.as_deref() == Some("gnss") {
+        query
+            .x
+            .as_deref()
+            .and_then(|s| s.parse::<u64>().ok())
+            .and_then(|norad_id| {
+                state
+                    .tle_cache
+                    .satellite_direction(norad_id, location, Utc::now())
+            })
     } else {
         match (&query.coordinate_system, x, y) {
             (Some(cs), Some(x), Some(y)) => {
@@ -175,6 +187,28 @@ async fn get_preview(
     ))
 }
 
+async fn get_satellites(State(state): State<AppState>) -> impl IntoResponse {
+    // TODO: get location from telescope definition instead of hardcoding
+    let location = Location {
+        longitude: 0.20802143022,
+        latitude: 1.00170457462,
+    };
+    let satellites = state.tle_cache.visible_satellites(location, Utc::now());
+    let json: Vec<_> = satellites
+        .iter()
+        .map(|s| {
+            serde_json::json!({
+                "norad_id": s.norad_id,
+                "name": s.name,
+                "elevation_deg": s.direction.elevation.to_degrees(),
+                "azimuth_deg": s.direction.azimuth.to_degrees(),
+                "freq_mhz": s.freq_mhz,
+            })
+        })
+        .collect();
+    axum::Json(json)
+}
+
 #[derive(Deserialize, Debug)]
 struct Target {
     x: Option<String>, // Degrees; not required when coordinate_system == "sun" or "stow"
@@ -238,7 +272,13 @@ async fn set_target(
             error!("No stow position configured for telescope {telescope_id}");
             StatusCode::NOT_FOUND
         })?;
-        save_latest_observation(state.database_connection, &user, telescope.as_ref()).await;
+        save_latest_observation(
+            state.database_connection,
+            &user,
+            telescope.as_ref(),
+            &state.tle_cache,
+        )
+        .await;
         telescope
             .set_receiver_configuration(ReceiverConfiguration {
                 integrate: false,
@@ -255,6 +295,11 @@ async fn set_target(
         }
     } else if target.coordinate_system == "sun" {
         TelescopeTarget::Sun
+    } else if target.coordinate_system == "gnss" {
+        let Some(norad_id) = target.x.as_deref().and_then(|s| s.parse::<u64>().ok()) else {
+            return Ok(error_response("Please select a satellite.".to_string()));
+        };
+        TelescopeTarget::Satellite { norad_id }
     } else {
         let Some(x_rad) = target
             .x
@@ -316,6 +361,7 @@ pub(crate) async fn save_latest_observation(
     connection: Arc<Mutex<Connection>>,
     user: &User,
     telescope: &dyn Telescope,
+    tle_cache: &TleCacheHandle,
 ) {
     let info = match telescope.get_info().await {
         Ok(info) => info,
@@ -348,12 +394,22 @@ pub(crate) async fn save_latest_observation(
     } else {
         None
     };
-    let (coordinate_system, target_x, target_y, vlsr_correction_mps) = match current_target {
+    // TODO: get location from telescope definition instead of hardcoding
+    let location = Location {
+        longitude: 0.20802143022,
+        latitude: 1.00170457462,
+    };
+    let (coordinate_system, target_x, target_y, vlsr_correction_mps): (
+        String,
+        f64,
+        f64,
+        Option<f64>,
+    ) = match current_target {
         TelescopeTarget::Equatorial {
             right_ascension,
             declination,
         } => (
-            "equatorial",
+            "equatorial".into(),
             right_ascension.to_degrees(),
             declination.to_degrees(),
             None,
@@ -362,30 +418,35 @@ pub(crate) async fn save_latest_observation(
             longitude,
             latitude,
         } => (
-            "galactic",
+            "galactic".into(),
             longitude.to_degrees(),
             latitude.to_degrees(),
             Some(vlsrcorr_from_galactic(longitude, latitude, start_time)),
         ),
         TelescopeTarget::Horizontal { azimuth, elevation } => (
-            "horizontal",
+            "horizontal".into(),
             azimuth.to_degrees(),
             elevation.to_degrees(),
             None,
         ),
         TelescopeTarget::Sun => {
-            // TODO: get location from telescope definition instead of hardcoding
-            let location = Location {
-                longitude: 0.20802143022,
-                latitude: 1.00170457462,
-            };
             let sun = horizontal_from_sun(location, start_time);
             (
-                "sun",
+                "sun".into(),
                 sun.azimuth.to_degrees(),
                 sun.elevation.to_degrees(),
                 None,
             )
+        }
+        TelescopeTarget::Satellite { norad_id } => {
+            let (az, el) = tle_cache
+                .satellite_direction(norad_id, location, start_time)
+                .map(|d| (d.azimuth.to_degrees(), d.elevation.to_degrees()))
+                .unwrap_or((0.0, 0.0));
+            let name = tle_cache
+                .satellite_name(norad_id)
+                .unwrap_or_else(|| norad_id.to_string());
+            (format!("gnss:{name}"), az, el, None)
         }
     };
 
@@ -409,7 +470,7 @@ pub(crate) async fn save_latest_observation(
         user,
         &info.id,
         start_time,
-        coordinate_system,
+        &coordinate_system,
         target_x,
         target_y,
         integration_time_secs,
@@ -439,7 +500,13 @@ async fn stop_telescope(
         .get(&telescope_id)
         .await
         .ok_or(StatusCode::NOT_FOUND)?;
-    save_latest_observation(state.database_connection, &user, telescope.as_ref()).await;
+    save_latest_observation(
+        state.database_connection,
+        &user,
+        telescope.as_ref(),
+        &state.tle_cache,
+    )
+    .await;
     telescope
         .set_receiver_configuration(ReceiverConfiguration {
             integrate: false,
@@ -582,7 +649,13 @@ async fn stop_observe(
         .await
         .ok_or(StatusCode::NOT_FOUND)?;
 
-    save_latest_observation(state.database_connection.clone(), &user, telescope.as_ref()).await;
+    save_latest_observation(
+        state.database_connection.clone(),
+        &user,
+        telescope.as_ref(),
+        &state.tle_cache,
+    )
+    .await;
 
     telescope
         .set_receiver_configuration(ReceiverConfiguration {
@@ -720,6 +793,7 @@ async fn observe(
         Some(TelescopeTarget::Galactic { .. }) => "galactic",
         Some(TelescopeTarget::Horizontal { .. }) => "horizontal",
         Some(TelescopeTarget::Sun) => "sun",
+        Some(TelescopeTarget::Satellite { .. }) => "gnss",
         None => "galactic",
     }
     .to_string();
@@ -742,7 +816,9 @@ async fn observe(
             fmt_deg(azimuth.to_degrees()),
             fmt_deg(elevation.to_degrees()),
         ),
-        Some(TelescopeTarget::Sun) | None => (String::new(), String::new()),
+        Some(TelescopeTarget::Sun) | Some(TelescopeTarget::Satellite { .. }) | None => {
+            (String::new(), String::new())
+        }
     };
     let state_html = telescope_state(&info.id, telescope).await;
     let (freq_min_mhz, freq_max_mhz) = if is_admin {

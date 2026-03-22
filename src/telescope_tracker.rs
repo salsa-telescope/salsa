@@ -2,6 +2,7 @@ use crate::coords::{Direction, Location};
 use crate::coords::{horizontal_from_equatorial, horizontal_from_galactic, horizontal_from_sun};
 use crate::models::telescope_types::{TelescopeError, TelescopeStatus, TelescopeTarget};
 use crate::telescope_controller::{TelescopeCommand, TelescopeController, TelescopeResponse};
+use crate::tle_cache::TleCacheHandle;
 use chrono::{DateTime, Utc};
 use log::{debug, error, info};
 use std::sync::{Arc, Mutex};
@@ -26,7 +27,7 @@ pub struct TelescopeTracker {
 }
 
 impl TelescopeTracker {
-    pub fn new(controller_address: String) -> TelescopeTracker {
+    pub fn new(controller_address: String, tle_cache: TleCacheHandle) -> TelescopeTracker {
         let state = Arc::new(Mutex::new(TelescopeTrackerState {
             target: None,
             az_offset_rad: 0.0,
@@ -36,6 +37,7 @@ impl TelescopeTracker {
             most_recent_error: None,
             should_restart: false,
             quit: false,
+            tle_cache: tle_cache.clone(),
         }));
         let task = tokio::spawn(tracker_task_function(state.clone(), controller_address));
         TelescopeTracker {
@@ -135,6 +137,7 @@ struct TelescopeTrackerState {
     most_recent_error: Option<TelescopeError>,
     should_restart: bool,
     quit: bool,
+    tle_cache: TleCacheHandle,
 }
 
 async fn tracker_task_function(
@@ -209,13 +212,14 @@ fn update_direction(
         latitude: 1.00170457462,  //(57.0+23.0/60.0+36.4/3600.0) * PI / 180.0
     };
 
-    // Read target and offsets from state, then release the lock
-    let (target, az_offset_rad, el_offset_rad) = {
+    // Read target, offsets, and tle_cache from state, then release the lock
+    let (target, az_offset_rad, el_offset_rad, tle_cache) = {
         let state_guard = state.lock().unwrap();
         (
             state_guard.target,
             state_guard.az_offset_rad,
             state_guard.el_offset_rad,
+            state_guard.tle_cache.clone(),
         )
     };
 
@@ -231,11 +235,13 @@ fn update_direction(
         return Ok(());
     };
 
-    let target_horizontal = apply_offset(
-        calculate_target_horizontal(target, location, when),
-        az_offset_rad,
-        el_offset_rad,
-    );
+    let Some(raw_horizontal) = calculate_target_horizontal(target, location, when, &tle_cache)
+    else {
+        // Satellite not yet in TLE cache — skip this update cycle
+        state.lock().unwrap().current_direction = Some(current_horizontal);
+        return Ok(());
+    };
+    let target_horizontal = apply_offset(raw_horizontal, az_offset_rad, el_offset_rad);
 
     // FIXME: How to handle static configuration like this?
     if target_horizontal.elevation < LOWEST_ALLOWED_ELEVATION {
@@ -262,24 +268,28 @@ fn calculate_target_horizontal(
     target: TelescopeTarget,
     location: Location,
     when: DateTime<Utc>,
-) -> Direction {
+    tle_cache: &TleCacheHandle,
+) -> Option<Direction> {
     match target {
         TelescopeTarget::Equatorial {
             right_ascension: ra,
             declination: dec,
-        } => horizontal_from_equatorial(location, when, ra, dec),
+        } => Some(horizontal_from_equatorial(location, when, ra, dec)),
         TelescopeTarget::Galactic {
             longitude: l,
             latitude: b,
-        } => horizontal_from_galactic(location, when, l, b),
+        } => Some(horizontal_from_galactic(location, when, l, b)),
         TelescopeTarget::Horizontal {
             azimuth: az,
             elevation: el,
-        } => Direction {
+        } => Some(Direction {
             azimuth: az,
             elevation: el,
-        },
-        TelescopeTarget::Sun => horizontal_from_sun(location, when),
+        }),
+        TelescopeTarget::Sun => Some(horizontal_from_sun(location, when)),
+        TelescopeTarget::Satellite { norad_id } => {
+            tle_cache.satellite_direction(norad_id, location, when)
+        }
     }
 }
 

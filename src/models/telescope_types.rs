@@ -19,6 +19,9 @@ pub enum TelescopeTarget {
         elevation: f64, // in radians
     },
     Sun,
+    Satellite {
+        norad_id: u64,
+    },
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Debug, Copy, Clone)]
