@@ -36,3 +36,4 @@ telescope_type = "Fake"
 # receiver_address = "192.168.5.31"
 # default_ref_freq_mhz = 1417.9  # default reference frequency in MHz (for freq-switched mode)
 # default_gain_db = 60.0          # default receiver gain in dB
+# t_rec_k = 0.0                   # receiver noise temperature in Kelvin (added to ambient for Tsys)

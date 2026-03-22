@@ -73,6 +73,7 @@ fn create_telescope(def: TelescopeDefinition, tle_cache: TleCacheHandle) -> Arc<
     });
     let default_ref_freq_hz = def.default_ref_freq_mhz * 1e6;
     let default_gain_db = def.default_gain_db;
+    let t_rec_k = def.t_rec_k;
     match def.telescope_type {
         TelescopeType::Salsa => Arc::new(salsa_telescope::create(
             def.name.clone(),
@@ -85,6 +86,7 @@ fn create_telescope(def: TelescopeDefinition, tle_cache: TleCacheHandle) -> Arc<
             stow_position,
             default_ref_freq_hz,
             default_gain_db,
+            t_rec_k,
             tle_cache,
         )),
         TelescopeType::Fake => Arc::new(fake_telescope::create(

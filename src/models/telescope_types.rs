@@ -73,6 +73,8 @@ pub struct TelescopeDefinition {
     pub default_ref_freq_mhz: f64, // default reference frequency in MHz (for freq-switched mode)
     #[serde(default = "default_gain_db")]
     pub default_gain_db: f64, // default receiver gain in dB
+    #[serde(default)]
+    pub t_rec_k: f64, // receiver noise temperature in Kelvin (added to ambient temp for Tsys)
 }
 
 #[derive(Deserialize, PartialEq, Debug, Clone)]
