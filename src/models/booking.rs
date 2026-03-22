@@ -44,7 +44,11 @@ impl Booking {
             .map_err(|err| {
                 InternalError::new(format!("Failed to delete booking from db: {err}"))
             })?;
-        assert!(rows_deleted < 2);
+        if rows_deleted >= 2 {
+            return Err(InternalError::new(format!(
+                "Unexpected number of rows deleted: {rows_deleted}"
+            )));
+        }
         Ok(rows_deleted > 0)
     }
 
