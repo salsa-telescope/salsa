@@ -238,7 +238,9 @@ async fn authenticate_from_oauth2(
     let cookie = session.token;
     // Note: We reuse the same session cookie name here. So we don't need to
     // reset that cookie.
-    let cookie = format!("{SESSION_COOKIE_NAME}={cookie}; SameSite=Lax; HttpOnly; Secure; Path=/; Max-Age=2592000");
+    let cookie = format!(
+        "{SESSION_COOKIE_NAME}={cookie}; SameSite=Lax; HttpOnly; Secure; Path=/; Max-Age=2592000"
+    );
 
     let mut headers = HeaderMap::new();
     headers.insert(
