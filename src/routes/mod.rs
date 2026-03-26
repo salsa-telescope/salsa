@@ -1,3 +1,4 @@
+pub mod about;
 pub mod account;
 pub mod admin;
 pub mod authentication;
