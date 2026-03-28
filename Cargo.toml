@@ -6,6 +6,7 @@ edition = "2024"
 default-run = "backend"
 
 [dependencies]
+argon2 = "0.5.*"
 askama = "0.15"
 async-trait = "0.1.*"
 axum = { version = "0.8.*", features = ["json", "ws"] }

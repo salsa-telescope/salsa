@@ -1,10 +1,10 @@
 use askama::Template;
 use axum::{
     Extension, Router,
-    extract::{Path, Query, State},
+    extract::{Form, Path, Query, State},
     http::{HeaderMap, HeaderValue, StatusCode, header::SET_COOKIE},
     response::{Html, IntoResponse, Redirect, Response},
-    routing::get,
+    routing::{get, post},
 };
 use oauth2::{
     AuthUrl, AuthorizationCode, ClientId, ClientSecret, CsrfToken, RedirectUrl, Scope,
@@ -31,6 +31,7 @@ pub fn routes(state: AppState) -> Router {
     Router::new()
         .route("/authorized", get(authenticate_from_oauth2))
         .route("/login", get(login))
+        .route("/local", post(local_login))
         .route("/logout", get(logout))
         .route("/redirect/{provider_name}", get(redirect_to_auth_provider))
         .with_state(state)
@@ -63,15 +64,62 @@ async fn logout(
 #[template(path = "login.html")]
 struct SelectAuthProvider {
     provider_names: Vec<String>,
+    error: bool,
+}
+
+#[derive(Deserialize)]
+struct LoginQuery {
+    error: Option<String>,
 }
 
 // 1. User is prompted to select oauth2 provider.
-async fn login(State(state): State<AppState>) -> Result<impl IntoResponse, InternalError> {
+async fn login(
+    State(state): State<AppState>,
+    Query(query): Query<LoginQuery>,
+) -> Result<impl IntoResponse, InternalError> {
     let provider_names = state.secrets.get_auth_provider_names();
-    let content = SelectAuthProvider { provider_names }
-        .render()
-        .expect("Template rendering should always succeed");
+    let error = query.error.is_some();
+    let content = SelectAuthProvider {
+        provider_names,
+        error,
+    }
+    .render()
+    .expect("Template rendering should always succeed");
     Ok(Html(render_main(None, content)))
+}
+
+#[derive(Deserialize)]
+struct LocalLoginForm {
+    username: String,
+    password: String,
+}
+
+async fn local_login(
+    State(state): State<AppState>,
+    Form(form): Form<LocalLoginForm>,
+) -> Result<Response, InternalError> {
+    let user = User::fetch_local_with_password(
+        state.database_connection.clone(),
+        &form.username,
+        &form.password,
+    )
+    .await?;
+    match user {
+        Some(user) => {
+            let session = Session::create(state.database_connection.clone(), &user).await?;
+            let cookie = format!(
+                "{SESSION_COOKIE_NAME}={}; SameSite=Lax; HttpOnly; Secure; Path=/; Max-Age=2592000",
+                session.token
+            );
+            let mut headers = HeaderMap::new();
+            headers.insert(
+                SET_COOKIE,
+                cookie.parse().expect("Cookie should be parseable always."),
+            );
+            Ok((headers, Redirect::to("/")).into_response())
+        }
+        None => Ok(Redirect::to("/auth/login?error=1").into_response()),
+    }
 }
 
 // 2. We redirect the user to auth provider (e.g. Discord) where they authorize our app.
