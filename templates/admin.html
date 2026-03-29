@@ -90,6 +90,7 @@
       <tr class="text-left text-gray-500 border-b">
         <th class="pb-2 pr-8">Username</th>
         <th class="pb-2 pr-8">Comment</th>
+        <th class="pb-2 pr-8">Set password</th>
         <th class="pb-2"></th>
       </tr>
     </thead>
@@ -98,6 +99,16 @@
       <tr class="border-b last:border-0">
         <td class="py-2 pr-8 font-medium">{{ username }}</td>
         <td class="py-2 pr-8 text-gray-500">{{ comment }}</td>
+        <td class="py-2 pr-8">
+          <form method="post" action="/admin/local-users/{{ id }}/password" class="flex gap-2">
+            <input type="password" name="password" placeholder="New password" required
+              class="border rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-400 w-36" />
+            <button type="submit"
+              class="px-3 py-1 text-sm rounded-md bg-gray-600 hover:bg-gray-500 text-white">
+              Set
+            </button>
+          </form>
+        </td>
         <td class="py-2">
           <form method="post" action="/admin/local-users/{{ id }}/delete"
             onsubmit="return confirm('Delete local user {{ username }}?')">

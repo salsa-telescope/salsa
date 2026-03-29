@@ -17,6 +17,18 @@ pub struct User {
     pub is_admin: bool,
 }
 
+async fn hash_password(password: String) -> Result<String, InternalError> {
+    tokio::task::spawn_blocking(move || {
+        let salt = SaltString::generate(&mut OsRng);
+        Argon2::default()
+            .hash_password(password.as_bytes(), &salt)
+            .map(|h| h.to_string())
+            .map_err(|e| InternalError::new(format!("Failed to hash password: {e}")))
+    })
+    .await
+    .map_err(|e| InternalError::new(format!("Task join error: {e}")))?
+}
+
 impl User {
     pub async fn create_from_external(
         connection: Arc<Mutex<Connection>>,
@@ -62,15 +74,7 @@ impl User {
             }
         }
 
-        let hash = tokio::task::spawn_blocking(move || {
-            let salt = SaltString::generate(&mut OsRng);
-            Argon2::default()
-                .hash_password(password.as_bytes(), &salt)
-                .map(|h| h.to_string())
-                .map_err(|e| InternalError::new(format!("Failed to hash password: {e}")))
-        })
-        .await
-        .map_err(|e| InternalError::new(format!("Task join error: {e}")))??;
+        let hash = hash_password(password).await?;
 
         let conn = connection.lock().await;
         conn.execute(
@@ -171,6 +175,25 @@ impl User {
             result.push(row.map_err(|e| InternalError::new(format!("Failed to map row: {e}")))?);
         }
         Ok(result)
+    }
+
+    pub async fn set_local_password(
+        connection: Arc<Mutex<Connection>>,
+        user_id: i64,
+        new_password: String,
+    ) -> Result<(), InternalError> {
+        let hash = hash_password(new_password).await?;
+        let conn = connection.lock().await;
+        let updated = conn
+            .execute(
+                "UPDATE local_user SET password_hash = ?1 WHERE user_id = ?2",
+                (&hash, user_id),
+            )
+            .map_err(|e| InternalError::new(format!("Failed to update password: {e}")))?;
+        if updated == 0 {
+            return Err(InternalError::new("Not a local user".to_string()));
+        }
+        Ok(())
     }
 
     pub async fn delete_local_by_id(

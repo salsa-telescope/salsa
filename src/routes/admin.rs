@@ -23,6 +23,10 @@ pub fn routes(state: AppState) -> Router {
         .route("/telescope/{name}/toggle", post(toggle_maintenance))
         .route("/local-users", post(create_local_user_handler))
         .route("/local-users/{id}/delete", post(delete_local_user_handler))
+        .route(
+            "/local-users/{id}/password",
+            post(set_local_password_handler),
+        )
         .with_state(state)
 }
 
@@ -181,6 +185,24 @@ async fn delete_local_user_handler(
 ) -> Result<Response, StatusCode> {
     require_admin(user)?;
     User::delete_local_by_id(state.database_connection, id)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(Redirect::to("/admin").into_response())
+}
+
+#[derive(Deserialize)]
+struct SetPasswordForm {
+    password: String,
+}
+
+async fn set_local_password_handler(
+    Extension(user): Extension<Option<User>>,
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+    Form(form): Form<SetPasswordForm>,
+) -> Result<Response, StatusCode> {
+    require_admin(user)?;
+    User::set_local_password(state.database_connection, id, form.password)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     Ok(Redirect::to("/admin").into_response())
