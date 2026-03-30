@@ -184,6 +184,13 @@ function get_telescope_from_location() {
     updateChart();
   };
 
+  window.setObserveLogScale = function (log) {
+    showLog = log;
+    const btn = document.getElementById("observe-yscale-toggle");
+    if (btn) btn.textContent = showLog ? "Linear scale" : "Log scale";
+    updateChart();
+  };
+
   window.toggleObserveAxis = function () {
     if (vlsrCorrection === null) return;
     showVlsr = !showVlsr;

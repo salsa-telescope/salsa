@@ -336,6 +336,7 @@
       } else {
           modeFreqSwitched.checked = true;
       }
+      if (window.setObserveLogScale) window.setObserveLogScale(isGnss);
       updateRefFreqVisibility();
       switch (e.target.value) {
       case "galactic":
