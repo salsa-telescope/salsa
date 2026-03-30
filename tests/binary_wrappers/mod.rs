@@ -3,7 +3,7 @@ use std::io::{BufRead, BufReader};
 use std::process::{Child, Command, Stdio};
 use std::thread;
 use std::time::Duration;
-use tempdir::TempDir;
+use tempfile::TempDir;
 
 pub struct SalsaTestServer {
     process: Child,
@@ -14,7 +14,7 @@ pub struct SalsaTestServer {
 impl SalsaTestServer {
     pub fn spawn() -> Self {
         let database_dir =
-            TempDir::new("database_dir").expect("Need to be able to create tempdir in test");
+            TempDir::new().expect("Need to be able to create tempdir in test");
         let backend_executable = env!("CARGO_BIN_EXE_backend");
         let mut process = Command::new(backend_executable)
             .args([

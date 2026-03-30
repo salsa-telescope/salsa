@@ -37,4 +37,4 @@ tracing-subscriber = {version = "0.3.22", features = ["env-filter"]}
 uhd = "0.3.*"
 
 [dev-dependencies]
-tempdir = "*"
+tempfile = "*"
