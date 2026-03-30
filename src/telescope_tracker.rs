@@ -211,10 +211,12 @@ async fn tracker_task_function(
             debug!("Target set to None, sending Stop to controller");
             if let Err(err) = ctrl.execute(TelescopeCommand::Stop) {
                 state.lock().unwrap().most_recent_error = Some(err);
-                controller = None;
             } else {
                 state.lock().unwrap().commanded_horizontal = None;
             }
+            // Controller closes the TCP connection after responding to Stop,
+            // so reconnect fresh on the next iteration.
+            controller = None;
             continue;
         }
 
