@@ -1,0 +1,216 @@
+<div class="section light space-y-8">
+
+  <div class="space-y-2">
+    <p class="text-sm text-gray-500">
+      <a href="/technical" hx-get="/technical" hx-target="#page" hx-push-url="/technical" class="underline">← Technical specifications</a>
+    </p>
+    <h2 class="text-3xl font-semibold">ROT2PROG protocol</h2>
+    <p class="text-sm text-gray-500">TCP command protocol used by the SPID MD01 rotor controller.</p>
+  </div>
+
+  <div class="space-y-2 text-gray-700">
+    <p>
+      The MD01 controller accepts commands over a TCP connection (default port 23).
+      All packets are 13 bytes in the command direction and 12 bytes in the response direction.
+      The protocol is binary; all values are raw bytes, not ASCII.
+    </p>
+    <p>
+      Each command–response exchange completes synchronously: the client sends 13 bytes,
+      then reads a 12-byte response before sending the next command.
+    </p>
+  </div>
+
+  <!-- Command packet -->
+  <div class="space-y-3">
+    <h3 class="text-lg font-semibold text-gray-800">Command packet (13 bytes)</h3>
+    <div class="overflow-x-auto">
+      <table class="text-sm border-collapse w-full">
+        <thead>
+          <tr class="bg-gray-100 text-gray-700">
+            <th class="border border-gray-300 px-3 py-2 text-left">Byte(s)</th>
+            <th class="border border-gray-300 px-3 py-2 text-left">Field</th>
+            <th class="border border-gray-300 px-3 py-2 text-left">Value</th>
+            <th class="border border-gray-300 px-3 py-2 text-left">Notes</th>
+          </tr>
+        </thead>
+        <tbody class="text-gray-700">
+          <tr>
+            <td class="border border-gray-300 px-3 py-2">0</td>
+            <td class="border border-gray-300 px-3 py-2">S (start)</td>
+            <td class="border border-gray-300 px-3 py-2"><code>0x57</code></td>
+            <td class="border border-gray-300 px-3 py-2">Always <code>'W'</code></td>
+          </tr>
+          <tr class="bg-gray-50">
+            <td class="border border-gray-300 px-3 py-2">1–4</td>
+            <td class="border border-gray-300 px-3 py-2">H1–H4 (azimuth)</td>
+            <td class="border border-gray-300 px-3 py-2">encoded angle</td>
+            <td class="border border-gray-300 px-3 py-2">Ignored for Stop. See encoding below.</td>
+          </tr>
+          <tr>
+            <td class="border border-gray-300 px-3 py-2">5</td>
+            <td class="border border-gray-300 px-3 py-2">PH</td>
+            <td class="border border-gray-300 px-3 py-2">controller setting</td>
+            <td class="border border-gray-300 px-3 py-2">Ignored for Stop. Use <code>0x00</code>.</td>
+          </tr>
+          <tr class="bg-gray-50">
+            <td class="border border-gray-300 px-3 py-2">6–9</td>
+            <td class="border border-gray-300 px-3 py-2">V1–V4 (elevation)</td>
+            <td class="border border-gray-300 px-3 py-2">encoded angle</td>
+            <td class="border border-gray-300 px-3 py-2">Ignored for Stop. See encoding below.</td>
+          </tr>
+          <tr>
+            <td class="border border-gray-300 px-3 py-2">10</td>
+            <td class="border border-gray-300 px-3 py-2">PV</td>
+            <td class="border border-gray-300 px-3 py-2">controller setting</td>
+            <td class="border border-gray-300 px-3 py-2">Ignored for Stop. Use <code>0x00</code>.</td>
+          </tr>
+          <tr class="bg-gray-50">
+            <td class="border border-gray-300 px-3 py-2">11</td>
+            <td class="border border-gray-300 px-3 py-2">K (command)</td>
+            <td class="border border-gray-300 px-3 py-2">see table below</td>
+            <td class="border border-gray-300 px-3 py-2">Determines the command type.</td>
+          </tr>
+          <tr>
+            <td class="border border-gray-300 px-3 py-2">12</td>
+            <td class="border border-gray-300 px-3 py-2">END</td>
+            <td class="border border-gray-300 px-3 py-2"><code>0x20</code></td>
+            <td class="border border-gray-300 px-3 py-2">Always <code>' '</code> (space)</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="overflow-x-auto mt-3">
+      <table class="text-sm border-collapse">
+        <thead>
+          <tr class="bg-gray-100 text-gray-700">
+            <th class="border border-gray-300 px-3 py-2 text-left">K byte</th>
+            <th class="border border-gray-300 px-3 py-2 text-left">Command</th>
+          </tr>
+        </thead>
+        <tbody class="text-gray-700">
+          <tr>
+            <td class="border border-gray-300 px-3 py-2"><code>0x0F</code></td>
+            <td class="border border-gray-300 px-3 py-2">Stop — stop rotation and return current position</td>
+          </tr>
+          <tr class="bg-gray-50">
+            <td class="border border-gray-300 px-3 py-2"><code>0x6F</code></td>
+            <td class="border border-gray-300 px-3 py-2">Get position — return current position without moving</td>
+          </tr>
+          <tr>
+            <td class="border border-gray-300 px-3 py-2"><code>0x5F</code></td>
+            <td class="border border-gray-300 px-3 py-2">Set position — move to the azimuth/elevation in H1–H4, V1–V4</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Response packet -->
+  <div class="space-y-3">
+    <h3 class="text-lg font-semibold text-gray-800">Response packet (12 bytes)</h3>
+    <p class="text-gray-700">
+      All three commands return a 12-byte position response:
+    </p>
+    <div class="overflow-x-auto">
+      <table class="text-sm border-collapse w-full">
+        <thead>
+          <tr class="bg-gray-100 text-gray-700">
+            <th class="border border-gray-300 px-3 py-2 text-left">Byte(s)</th>
+            <th class="border border-gray-300 px-3 py-2 text-left">Field</th>
+            <th class="border border-gray-300 px-3 py-2 text-left">Value</th>
+            <th class="border border-gray-300 px-3 py-2 text-left">Notes</th>
+          </tr>
+        </thead>
+        <tbody class="text-gray-700">
+          <tr>
+            <td class="border border-gray-300 px-3 py-2">0</td>
+            <td class="border border-gray-300 px-3 py-2">S (start)</td>
+            <td class="border border-gray-300 px-3 py-2"><code>0x58</code></td>
+            <td class="border border-gray-300 px-3 py-2">
+              Always <code>'X'</code> for a position response. Stop may also
+              respond with <code>0x57</code> (<code>'W'</code>) as an ACK when
+              the rotor was actively moving.
+            </td>
+          </tr>
+          <tr class="bg-gray-50">
+            <td class="border border-gray-300 px-3 py-2">1–4</td>
+            <td class="border border-gray-300 px-3 py-2">H1–H4 (azimuth)</td>
+            <td class="border border-gray-300 px-3 py-2">encoded angle</td>
+            <td class="border border-gray-300 px-3 py-2">Current azimuth. See encoding below.</td>
+          </tr>
+          <tr>
+            <td class="border border-gray-300 px-3 py-2">5</td>
+            <td class="border border-gray-300 px-3 py-2">PH</td>
+            <td class="border border-gray-300 px-3 py-2">controller setting</td>
+            <td class="border border-gray-300 px-3 py-2">Reflects the controller's internal resolution setting.</td>
+          </tr>
+          <tr class="bg-gray-50">
+            <td class="border border-gray-300 px-3 py-2">6–9</td>
+            <td class="border border-gray-300 px-3 py-2">V1–V4 (elevation)</td>
+            <td class="border border-gray-300 px-3 py-2">encoded angle</td>
+            <td class="border border-gray-300 px-3 py-2">Current elevation. See encoding below.</td>
+          </tr>
+          <tr>
+            <td class="border border-gray-300 px-3 py-2">10</td>
+            <td class="border border-gray-300 px-3 py-2">PV</td>
+            <td class="border border-gray-300 px-3 py-2">controller setting</td>
+            <td class="border border-gray-300 px-3 py-2">Reflects the controller's internal resolution setting.</td>
+          </tr>
+          <tr class="bg-gray-50">
+            <td class="border border-gray-300 px-3 py-2">11</td>
+            <td class="border border-gray-300 px-3 py-2">END</td>
+            <td class="border border-gray-300 px-3 py-2"><code>0x20</code></td>
+            <td class="border border-gray-300 px-3 py-2">Always <code>' '</code> (space)</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Angle encoding -->
+  <div class="space-y-3">
+    <h3 class="text-lg font-semibold text-gray-800">Angle encoding</h3>
+    <p class="text-gray-700">
+      Angles are encoded as a 4-byte big-endian integer representing
+      <code>(angle_degrees + 360) × 100</code>, with each byte being one decimal
+      digit of that integer (not ASCII — raw byte values 0–9):
+    </p>
+    <div class="bg-gray-50 border border-gray-200 rounded p-4 font-mono text-sm text-gray-800 space-y-1">
+      <div>value = H1×1000 + H2×100 + H3×10 + H4</div>
+      <div>angle_degrees = value / 100.0 − 360.0</div>
+    </div>
+    <p class="text-gray-700">
+      For example, azimuth 5.54° is encoded as
+      <code>(5.54 + 360) × 100 = 36554</code>, giving bytes
+      <code>[3, 6, 5, 5, 4]</code>. Note: the SPID MD01 documentation describes
+      ASCII encoding (bytes <code>0x30</code>–<code>0x39</code>), but the
+      hardware returns raw digit bytes (0–9). The SALSA backend uses raw bytes.
+    </p>
+  </div>
+
+  <!-- Connection -->
+  <div class="space-y-2 text-gray-700">
+    <h3 class="text-lg font-semibold text-gray-800">TCP connection</h3>
+    <p>
+      The controller accepts a single persistent TCP connection on port 23.
+      The SALSA backend keeps the connection alive across commands to avoid
+      re-connection delays during active tracking. A 1-second timeout is applied
+      to both reads and writes. On connection failure the backend reconnects
+      automatically on the next control loop cycle (1 Hz).
+    </p>
+    <p>
+      A Stop command is issued once when the backend first connects, to ensure
+      the rotor is not moving from a previous session.
+    </p>
+  </div>
+
+  <div class="space-y-2 text-gray-700">
+    <h3 class="text-lg font-semibold text-gray-800">References</h3>
+    <ul class="list-disc list-inside space-y-1">
+      <li><a href="/SPID_MD-0x_MANUAL_ENG.pdf" class="underline">SPID MD01 controller manual</a> — official hardware documentation including ROT2PROG protocol appendix</li>
+      <li><a href="https://ryeng.name/blog/3" class="underline">ryeng.name/blog/3</a> — reverse-engineered protocol description with worked examples</li>
+    </ul>
+  </div>
+
+</div>
