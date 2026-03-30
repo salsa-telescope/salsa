@@ -89,6 +89,6 @@ fn main() {
     println!("cargo:rerun-if-changed=.git/HEAD");
     println!("cargo:rerun-if-changed=.git/refs/heads");
     println!("cargo:rerun-if-changed=assets/style.src.css");
-    println!("cargo:rerun-if-changed=assets/welcome.html");
+    println!("cargo:rerun-if-changed=assets/");
     println!("cargo:rerun-if-changed=templates/");
 }
