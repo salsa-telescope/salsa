@@ -38,6 +38,7 @@ struct Inner {
     min_elevation_rad: f64,
     t_rec_k: f64,
     receiver_reachable: Arc<tokio::sync::Mutex<bool>>,
+    controller_connected: bool,
 }
 
 pub struct SalsaTelescope {
@@ -83,6 +84,7 @@ pub fn create(
         min_elevation_rad,
         t_rec_k,
         receiver_reachable,
+        controller_connected: false,
     }));
 
     let task_inner = inner.clone();
@@ -99,6 +101,7 @@ pub fn create(
     });
 
     tokio::spawn(async move {
+        let mut prev_reachable = false;
         loop {
             let addr = ping_address.clone();
             let reachable =
@@ -116,6 +119,14 @@ pub fn create(
                 })
                 .await
                 .unwrap_or(false);
+            if reachable != prev_reachable {
+                if reachable {
+                    info!("Receiver at {} is reachable", ping_address);
+                } else {
+                    warn!("Receiver at {} is no longer reachable", ping_address);
+                }
+                prev_reachable = reachable;
+            }
             *ping_reachable.lock().await = reachable;
             tokio::time::sleep(Duration::from_secs(5)).await;
         }
@@ -242,6 +253,20 @@ impl Inner {
             } else {
                 self.active_integration = Some(active_integration);
             }
+        }
+        let connected = !matches!(
+            self.controller.info().map(|i| i.most_recent_error),
+            Ok(Some(
+                TelescopeError::TelescopeIOError(_) | TelescopeError::TelescopeNotConnected
+            )) | Err(TelescopeError::TelescopeIOError(_) | TelescopeError::TelescopeNotConnected)
+        );
+        if connected != self.controller_connected {
+            if connected {
+                info!("Controller for {} is now connected", self.name);
+            } else {
+                warn!("Controller for {} is no longer connected", self.name);
+            }
+            self.controller_connected = connected;
         }
         Ok(())
     }
