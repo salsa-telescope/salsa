@@ -1,9 +1,9 @@
 use askama::Template;
 use axum::{
     Extension, Router,
-    extract::{Path, Query, State},
+    extract::{Form, Path, Query, State},
     http::{HeaderMap, HeaderValue, StatusCode},
-    response::{Html, IntoResponse, Response},
+    response::{Html, IntoResponse, Redirect, Response},
     routing::{get, post},
 };
 use chrono::{NaiveDate, TimeZone, Utc};
@@ -21,6 +21,12 @@ pub fn routes(state: AppState) -> Router {
     Router::new()
         .route("/", get(get_admin))
         .route("/telescope/{name}/toggle", post(toggle_maintenance))
+        .route("/local-users", post(create_local_user_handler))
+        .route("/local-users/{id}/delete", post(delete_local_user_handler))
+        .route(
+            "/local-users/{id}/password",
+            post(set_local_password_handler),
+        )
         .with_state(state)
 }
 
@@ -41,16 +47,19 @@ struct AdminTemplate {
     total_bookings: usize,
     total_hours: i64,
     unique_users: usize,
+    local_users: Vec<(i64, String, String)>, // (id, username, comment)
+    local_user_error: Option<String>,
 }
 
 async fn get_admin(
     Extension(user): Extension<Option<User>>,
     State(state): State<AppState>,
-    Query(query): Query<UsageQuery>,
+    Query(query): Query<AdminQuery>,
     headers: HeaderMap,
 ) -> Result<impl IntoResponse, StatusCode> {
     let user = require_admin(user)?;
     let now = Utc::now();
+    let local_user_error = query.error.clone();
     let usage_to = query.to.unwrap_or(now.date_naive());
     let usage_from = query
         .from
@@ -96,7 +105,7 @@ async fn get_admin(
         ));
     }
 
-    let bookings = Booking::fetch_in_range(state.database_connection, from_dt, to_dt)
+    let bookings = Booking::fetch_in_range(state.database_connection.clone(), from_dt, to_dt)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     let total_bookings = bookings.len();
@@ -109,6 +118,9 @@ async fn get_admin(
         .map(|b| b.user_id)
         .collect::<std::collections::HashSet<_>>()
         .len();
+    let local_users = User::fetch_all_local(state.database_connection)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     let content = AdminTemplate {
         telescopes,
@@ -117,6 +129,8 @@ async fn get_admin(
         total_bookings,
         total_hours,
         unique_users,
+        local_users,
+        local_user_error,
     }
     .render()
     .expect("Template rendering should always succeed");
@@ -129,9 +143,69 @@ async fn get_admin(
 }
 
 #[derive(Deserialize)]
-struct UsageQuery {
+struct AdminQuery {
     from: Option<NaiveDate>,
     to: Option<NaiveDate>,
+    error: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct CreateLocalUserForm {
+    username: String,
+    password: String,
+    comment: String,
+}
+
+async fn create_local_user_handler(
+    Extension(user): Extension<Option<User>>,
+    State(state): State<AppState>,
+    Form(form): Form<CreateLocalUserForm>,
+) -> Result<Response, StatusCode> {
+    require_admin(user)?;
+    match User::create_local(
+        state.database_connection,
+        form.username.trim().to_string(),
+        form.password,
+        form.comment.trim().to_string(),
+    )
+    .await
+    {
+        Ok(_) => Ok(Redirect::to("/admin").into_response()),
+        Err(err) if err.message.contains("already exists") => {
+            Ok(Redirect::to("/admin?error=username_taken").into_response())
+        }
+        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
+    }
+}
+
+async fn delete_local_user_handler(
+    Extension(user): Extension<Option<User>>,
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+) -> Result<Response, StatusCode> {
+    require_admin(user)?;
+    User::delete_local_by_id(state.database_connection, id)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(Redirect::to("/admin").into_response())
+}
+
+#[derive(Deserialize)]
+struct SetPasswordForm {
+    password: String,
+}
+
+async fn set_local_password_handler(
+    Extension(user): Extension<Option<User>>,
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+    Form(form): Form<SetPasswordForm>,
+) -> Result<Response, StatusCode> {
+    require_admin(user)?;
+    User::set_local_password(state.database_connection, id, form.password)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(Redirect::to("/admin").into_response())
 }
 
 async fn toggle_maintenance(

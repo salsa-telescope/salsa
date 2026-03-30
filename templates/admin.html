@@ -71,6 +71,72 @@
     </tbody>
   </table>
 
+  <h3 class="font-semibold mt-12 mb-2">Local users</h3>
+  <p class="text-gray-500 text-sm mb-4">Local accounts for demonstrations and exceptional cases. Users log in with username and password via the login page.</p>
+  {% if let Some(error) = local_user_error %}
+  <p class="text-red-600 text-sm mb-3 font-medium">
+    {% if error == "username_taken" %}
+    That username is already taken by another local user.
+    {% else %}
+    An error occurred: {{ error }}
+    {% endif %}
+  </p>
+  {% endif %}
+  {% if local_users.is_empty() %}
+  <p class="text-gray-400 text-sm mb-4">No local users yet.</p>
+  {% else %}
+  <table class="text-sm w-full max-w-md mb-4">
+    <thead>
+      <tr class="text-left text-gray-500 border-b">
+        <th class="pb-2 pr-8">Username</th>
+        <th class="pb-2 pr-8">Comment</th>
+        <th class="pb-2 pr-8">Set password</th>
+        <th class="pb-2"></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for (id, username, comment) in local_users %}
+      <tr class="border-b last:border-0">
+        <td class="py-2 pr-8 font-medium">{{ username }}</td>
+        <td class="py-2 pr-8 text-gray-500">{{ comment }}</td>
+        <td class="py-2 pr-8">
+          <form method="post" action="/admin/local-users/{{ id }}/password" class="flex gap-2">
+            <input type="password" name="password" placeholder="New password" required
+              class="border rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-400 w-36" />
+            <button type="submit"
+              class="px-3 py-1 text-sm rounded-md bg-gray-600 hover:bg-gray-500 text-white">
+              Set
+            </button>
+          </form>
+        </td>
+        <td class="py-2">
+          <form method="post" action="/admin/local-users/{{ id }}/delete"
+            onsubmit="return confirm('Delete local user {{ username }}?')">
+            <button type="submit"
+              class="px-3 py-1 text-sm rounded-md bg-red-600 hover:bg-red-500 text-white">
+              Delete
+            </button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+  <form method="post" action="/admin/local-users" class="flex flex-col gap-2 max-w-xs">
+    <h4 class="font-medium text-sm text-gray-700">Add local user</h4>
+    <input type="text" name="username" placeholder="Username" required
+      class="border rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-400" />
+    <input type="password" name="password" placeholder="Password" required
+      class="border rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-400" />
+    <input type="text" name="comment" placeholder="Comment (optional)"
+      class="border rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-400" />
+    <button type="submit"
+      class="px-3 py-1 text-sm rounded-md bg-indigo-600 hover:bg-indigo-500 text-white self-start">
+      Create
+    </button>
+  </form>
+
   <h3 class="font-semibold mt-12 mb-2">Usage report</h3>
   <p class="text-gray-500 text-sm mb-4">Summarise user activity in a given time range.</p>
   <form hx-get="/admin" hx-target="#page" hx-push-url="true" class="flex items-center gap-3 mb-4 text-sm">
