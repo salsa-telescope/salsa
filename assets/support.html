@@ -1,9 +1,79 @@
-<div class="section light">
-  <h2 class="font-semibold mb-4">Support</h2>
-  <p class="text-gray-700 mb-3">
-    For help with SALSA, please reach out via the channels below.
-  </p>
-  <p class="text-gray-500 text-sm">
-    (This page can be edited by the administrator in <code>assets/support.html</code>.)
-  </p>
+<div class="section light space-y-8">
+  <h2 class="text-3xl font-semibold">Support &amp; documentation</h2>
+
+  <!-- Contact -->
+  <div class="space-y-3 text-gray-700">
+    <h3 class="text-xl font-semibold text-gray-800">Contact</h3>
+    <p>If you have any questions or run into problems, please first read the User's manual
+    and experiment instructions below. If you still need help, contact us at
+    <a href="mailto:salsa.onsala@gmail.com" class="underline">salsa.onsala@gmail.com</a>.</p>
+  </div>
+
+  <!-- User manual -->
+  <div class="space-y-3 text-gray-700">
+    <h3 class="text-xl font-semibold text-gray-800">User's manual</h3>
+    <p>The user's manual describes how to operate the SALSA telescope — scheduling observations,
+    pointing, recording spectra, and downloading data.</p>
+    <p class="text-gray-500 italic">To be written.</p>
+  </div>
+
+  <!-- Experiments -->
+  <div class="space-y-4 text-gray-700">
+    <h3 class="text-xl font-semibold text-gray-800">Experiments</h3>
+    <p>Step-by-step lab guides covering the scientific background, observing procedure,
+    and data analysis for each experiment.</p>
+
+    <div class="space-y-3">
+      <div class="border border-gray-200 rounded-lg p-5 bg-white space-y-2">
+        <h4 class="font-semibold text-gray-800">
+          <a href="/experiments/hi" hx-get="/experiments/hi" hx-target="#page" hx-push-url="/experiments/hi" class="underline">Mapping the Milky Way with the 21 cm hydrogen line</a>
+        </h4>
+        <p class="text-sm text-gray-600">Observe neutral hydrogen across the Milky Way, measure
+        Doppler-shifted 21 cm emission, derive the rotation curve, and reconstruct the positions
+        of the spiral arms.</p>
+      </div>
+
+      <div class="border border-gray-200 rounded-lg p-5 bg-white space-y-2">
+        <h4 class="font-semibold text-gray-800">GNSS satellite tracking</h4>
+        <p class="text-sm text-gray-600">Global Navigation Satellite Systems provide positioning,
+        navigation and timing services. SALSA can be used to track these satellites and observe
+        their transmissions.</p>
+        <p class="text-xs text-gray-400 italic">Instructions coming soon.</p>
+      </div>
+
+      <div class="border border-gray-200 rounded-lg p-5 bg-white space-y-2 opacity-50">
+        <h4 class="font-semibold text-gray-800">Measuring the Sun's radio emission</h4>
+        <p class="text-sm text-gray-600">To be written.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Comparative data -->
+  <div class="space-y-3 text-gray-700">
+    <h3 class="text-xl font-semibold text-gray-800">Comparative HI data</h3>
+    <p>For comparison with your SALSA observations, the
+    <a href="https://www.astro.uni-bonn.de/hisurvey/profile/" class="underline" target="_blank">Bonn University HI profile server</a>
+    provides HI spectra from the GASS and LAB surveys covering the full sky. When querying,
+    set the effective beam size to 7° for results comparable to SALSA.</p>
+  </div>
+
+  <!-- Publications -->
+  <div class="space-y-3 text-gray-700">
+    <h3 class="text-xl font-semibold text-gray-800">Publications</h3>
+    <ul class="space-y-4 list-disc list-inside">
+      <li>
+        A popular science description of SALSA was published by Cathy Horellou and Daniel Johansson
+        in the Swedish magazine <em>Populär astronomi</em> in 2008.
+        <a href="/2008-4_salsa.pdf" class="underline" target="_blank">PDF (in Swedish)</a>.
+      </li>
+      <li>
+        SALSA was mentioned in the article <em>A Radio Astronomical Star Party for those "On The Verge"</em>,
+        describing a star party in Onsala, Sweden in 2012. Published in
+        <a href="http://www.capjournal.org" class="underline" target="_blank"><em>CAPjournal</em></a>
+        (issue 13, 2013) by Eva Wirström and Robert Cumming.
+        <a href="/13_06.pdf" class="underline" target="_blank">PDF</a>.
+      </li>
+    </ul>
+  </div>
+
 </div>

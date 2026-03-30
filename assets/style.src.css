@@ -616,3 +616,11 @@ a.action:visited {
 figure img {
     cursor: zoom-in;
 }
+
+/* Content links */
+.section a {
+    color: #4f46e5;
+}
+.section a:hover {
+    color: #3730a3;
+}
