@@ -13,8 +13,7 @@ pub struct SalsaTestServer {
 
 impl SalsaTestServer {
     pub fn spawn() -> Self {
-        let database_dir =
-            TempDir::new().expect("Need to be able to create tempdir in test");
+        let database_dir = TempDir::new().expect("Need to be able to create tempdir in test");
         let backend_executable = env!("CARGO_BIN_EXE_backend");
         let mut process = Command::new(backend_executable)
             .args([
