@@ -75,7 +75,10 @@ impl TelescopeCommand {
 
     fn parse_response(&self, bytes: &[u8]) -> Result<TelescopeResponse, TelescopeError> {
         match self {
-            TelescopeCommand::Stop => parse_ack_response(bytes, "stop"),
+            // Stop returns a direction response (0x58) when idle, or an ACK
+            // (0x57) when actively stopping a moving rotor.
+            TelescopeCommand::Stop => parse_direction_response(bytes, "stop")
+                .or_else(|_| parse_ack_response(bytes, "stop")),
             TelescopeCommand::Restart => parse_ack_response(bytes, "restart"),
             TelescopeCommand::GetDirection => parse_direction_response(bytes, "get direction"),
             TelescopeCommand::SetDirection(_) => parse_direction_response(bytes, "set direction"),
