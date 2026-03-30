@@ -6,28 +6,34 @@
     <div class="flex-1 space-y-6 text-gray-700">
 
       <p>This page contains detailed technical specifications for the SALSA
-      Onsala telescopes. There are three telescopes: Torre, Vale, Brage (in order
-      from left to right as displayed on the webcam). In principle they have
-      identical hardware, although there are differences in cable lengths and
-      connections. </p>
+Onsala telescopes. There are three telescopes: Torre, Vale, Brage (in order
+from left to right as displayed on the webcam). In principle they have
+identical hardware, although there are differences in cable lengths and
+connections. The diagrams to the right show the signal path from the sky to a
+spectrum (left column, top to bottom) and the control path from the webserver
+to the rotor (right column, bottom to top). The telescopes are located at
+Onsala Space Observatory, 57°24'N, 11°55'E, approximately 5 m above sea level.
+</p>
 
-      <div class="space-y-2">
-        <h3 class="text-lg font-semibold text-gray-800">Site</h3>
+      <div class="space-y-1">
+        <h3 class="text-lg font-semibold text-gray-800">Key specifications</h3>
         <ul class="list-disc list-inside space-y-1">
-          <li>Location: Onsala Space Observatory, 57°24'N, 11°55'E</li>
-          <li>Elevation: approximately 5 m above sea level</li>
-          <li>Observable declinations: above &minus;33° (targets above +33° are circumpolar)</li>
+          <li>Dish diameter: 2.3 m (main beam ~6° at 21 cm)</li>
+          <li>Frequency range: 1400–1700 MHz (up to 25 MHz instantaneous bandwidth)</li>
+          <li>Rotation speed: 1.5°/s</li>
         </ul>
       </div>
 
       <div class="space-y-2">
         <h3 class="text-lg font-semibold text-gray-800">Dish, horn and optics</h3>
-        <p>The dish is 2.3 m in diameter. The surface has holes of about 5 mm in
-diameter, letting air through to reduce wind resistance. The holes do limit
-the frequency range (too short waves pass through rather than reflect) to less than about 6
-GHz, but this is not a problem for the longer waves observed by SALSA. The horn is
-placed at a focal distance optimised for the 21 cm hydrogen line. Observing
-significantly off 1420 MHz degrades sensitivity more than the holes do.</p>
+	<p>The dish is 2.3 m in diameter. The surface has holes of about 5 mm
+in diameter, letting air through to reduce wind resistance. The holes do limit
+the frequency range (too short waves pass through rather than reflect) to less
+than about 6 GHz, but this is not a problem for the longer waves observed by
+SALSA. The horn is placed at a focal distance optimised for the 21 cm hydrogen
+line. Observing significantly off 1420 MHz degrades sensitivity more than the
+holes do. However, the frequency range is also restricted by filters, see
+below.</p>
       </div>
 
       <div class="space-y-2">
@@ -37,8 +43,27 @@ significantly off 1420 MHz degrades sensitivity more than the holes do.</p>
       </div>
 
       <div class="space-y-2">
+        <h3 class="text-lg font-semibold text-gray-800">SALSA webserver</h3>
+        <p>The telescope control and booking system is a web application written in
+        <a href="https://www.rust-lang.org" class="underline">Rust</a>, running on a
+        server at Onsala. The web framework is
+        <a href="https://github.com/tokio-rs/axum" class="underline">Axum</a> on the
+        <a href="https://tokio.rs" class="underline">Tokio</a> async runtime, with
+        <a href="https://htmx.org" class="underline">HTMX</a> for dynamic page updates
+        and <a href="https://tailwindcss.com" class="underline">Tailwind CSS</a> for
+        styling. Observations and bookings are stored in a
+        <a href="https://www.sqlite.org" class="underline">SQLite</a> database,
+        and authentication is via configurable OAuth2 providers or local accounts.
+        The server communicates with each telescope's USRP sampler via the
+        <a href="https://files.ettus.com/manual/index.html" class="underline">UHD driver</a>
+        to acquire spectra, and with the MD01 rotor controller to point and track targets.
+        The webserver source code is openly available on
+        <a href="https://github.com/salsa-telescope/salsa" class="underline">GitHub</a>.</p>
+      </div>
+
+      <div class="space-y-2">
         <h3 class="text-lg font-semibold text-gray-800">Rotor and controller</h3>
-        <p>The rotor and controller are manufactured by <a href="http://spid.net.pl" class="underline">SPID Elektronik</a>. The rotor model is <a href="/Manual-BIG-RAS-HR-EN.pdf" class="underline">BIG RAS/HR</a> with 0.1 degrees resolution and 1.5 degrees / second rotation speed. The rotor is powered by a <a href="/SPID_MD-0x_MANUAL_ENG.pdf" class="underline">MD01</a> control unit which also reads the current rotor position. The SALSA webserver communicates with the rotor via ethernet, sending ROT2PROG commands via telnet port 25. The current rotor position is read once per second.</p>
+        <p>The rotor and controller are manufactured by <a href="http://spid.net.pl" class="underline">SPID Elektronik</a>. The rotor model is <a href="/Manual-BIG-RAS-HR-EN.pdf" class="underline">BIG RAS/HR</a> with 0.1 degrees resolution and 1.5 degrees / second rotation speed. The rotor is powered by a <a href="/SPID_MD-0x_MANUAL_ENG.pdf" class="underline">MD01</a> control unit which also reads the current rotor position. The MD01 accepts azimuth/elevation commands via the ROT2PROG protocol over a TCP connection. All coordinate conversions (galactic, equatorial, horizontal) are handled by the SALSA webserver before commanding the rotor.</p>
       </div>
 
     </div>
@@ -60,7 +85,9 @@ significantly off 1420 MHz degrades sensitivity more than the holes do.</p>
           <div style="color: #6b7280; font-size: 1.4em; line-height: 1.2;">↓</div>
           <div style="border: 1px solid #9ca3af; border-radius: 6px; padding: 6px 20px; background: #fff; text-align: center;">Parabolic dish<br><span style="font-size:0.85em; color:#6b7280;">2.3 m diameter</span></div>
           <div style="color: #6b7280; font-size: 1.4em; line-height: 1.2;">↓</div>
-          <div style="border: 1px solid #9ca3af; border-radius: 6px; padding: 6px 20px; background: #fff; text-align: center;">Horn &amp; feed</div>
+          <div style="border: 1px solid #9ca3af; border-radius: 6px; padding: 6px 20px; background: #fff; text-align: center;">Horn with probe</div>
+          <div style="color: #6b7280; font-size: 1.4em; line-height: 1.2;">↓</div>
+          <div style="border: 1px solid #9ca3af; border-radius: 6px; padding: 6px 20px; background: #fff; text-align: center;">Coaxial cable CNT-400 (30 cm)</div>
           <div style="color: #6b7280; font-size: 1.4em; line-height: 1.2;">↓</div>
           <div style="border: 1px solid #9ca3af; border-radius: 6px; padding: 6px 20px; background: #fff; text-align: center;">LNA<br><span style="font-size:0.85em; color:#6b7280;">filter 1400–1700 MHz, 12V via Bias-T</span></div>
           <div style="color: #6b7280; font-size: 1.4em; line-height: 1.2;">↓</div>
@@ -77,6 +104,10 @@ significantly off 1420 MHz degrades sensitivity more than the holes do.</p>
         <!-- Top-right: control path from rotor down to MD01, bottom-aligned to touch webserver -->
         <div style="display: flex; flex-direction: column; align-items: center; align-self: end;">
           <div style="border: 1px solid #9ca3af; border-radius: 6px; padding: 6px 20px; background: #fff; text-align: center;">Rotor BIG RAS/HR<br><span style="font-size:0.85em; color:#6b7280;">→ moves parabolic dish</span></div>
+          <div style="color: #6b7280; font-size: 1.4em; line-height: 1.2;">↑</div>
+          <div style="border: 1px solid #9ca3af; border-radius: 6px; padding: 6px 20px; background: #fff; text-align: center;">Cables (5 m)<br><span style="font-size:0.85em; color:#6b7280;">motor current &amp; sensor readings</span></div>
+          <div style="color: #6b7280; font-size: 1.4em; line-height: 1.2;">↑</div>
+          <div style="border: 1px solid #9ca3af; border-radius: 6px; padding: 6px 20px; background: #fff; text-align: center;">Junction box</div>
           <div style="color: #6b7280; font-size: 1.4em; line-height: 1.2;">↑</div>
           <div style="border: 1px solid #9ca3af; border-radius: 6px; padding: 6px 20px; background: #fff; text-align: center;">Multi-core cable (30 m)</div>
           <div style="color: #6b7280; font-size: 1.4em; line-height: 1.2;">↑</div>
@@ -97,7 +128,7 @@ significantly off 1420 MHz degrades sensitivity more than the holes do.</p>
           <div style="color: #6b7280; font-size: 1.4em; line-height: 1.2;">↓</div>
           <div style="border: 1px solid #9ca3af; border-radius: 6px; padding: 6px 20px; background: #fff; text-align: center;">FFT<br><span style="font-size:0.85em; color:#6b7280;">8192 points</span></div>
           <div style="color: #6b7280; font-size: 1.4em; line-height: 1.2;">↓</div>
-          <div style="border: 1px solid #9ca3af; border-radius: 6px; padding: 6px 20px; background: #fff; text-align: center;">Resolution selected by user</div>
+          <div style="border: 1px solid #9ca3af; border-radius: 6px; padding: 6px 20px; background: #fff; text-align: center;">Bandwidth &amp; resolution<br><span style="font-size:0.85em; color:#6b7280;">selected by user</span></div>
           <div style="color: #6b7280; font-size: 1.4em; line-height: 1.2;">↓</div>
           <div style="border: 1px solid #9ca3af; border-radius: 6px; padding: 6px 20px; background: #ecfdf5; text-align: center;">Spectrum</div>
         </div>
@@ -121,6 +152,7 @@ significantly off 1420 MHz degrades sensitivity more than the holes do.</p>
       <li><a href="/Manual-BIG-RAS-HR-EN.pdf" class="underline">BIG RAS/HR rotor manual</a> — parabolic dish rotor</li>
       <li><a href="/SPID_MD-0x_MANUAL_ENG.pdf" class="underline">MD01 controller manual</a> — rotor controller and ROT2PROG interface</li>
       <li>LNA measurements: <a href="#" class="underline">Torre</a>, <a href="#" class="underline">Vale</a>, <a href="#" class="underline">Brage</a> (links to be added)</li>
+      <li><a href="https://github.com/salsa-telescope/salsa" class="underline">SALSA webserver source code</a> on GitHub</li>
     </ul>
   </div>
 
