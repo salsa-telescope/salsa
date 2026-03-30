@@ -1,0 +1,311 @@
+<div class="section light space-y-8">
+
+  <div class="space-y-2">
+    <p class="text-sm text-gray-500">
+      <a href="/support" hx-get="/support" hx-target="#page" hx-push-url="/support" class="underline">← Support &amp; documentation</a>
+    </p>
+    <h2 class="text-3xl font-semibold">Measuring the SALSA antenna beam</h2>
+    <p class="text-sm text-gray-500">
+      Based on earlier work by Eskil Varenius, Onsala Space Observatory
+    </p>
+  </div>
+
+  <!-- Abstract -->
+  <div class="space-y-4 text-gray-700">
+    <figure style="float: right; width: 28%; margin: 0 0 1rem 2rem;">
+      <img src="/experiments-sun/sidelobes.svg" alt="Diagram of antenna main lobe and sidelobes" class="rounded-lg w-full bg-white p-2">
+      <figcaption class="text-sm text-gray-500 mt-1">A radio telescope beam has a central main lobe and smaller sidelobes at larger angles. Credit: Wikimedia Commons.</figcaption>
+    </figure>
+    <p>Every radio telescope has a characteristic <em>beam</em> — a description of how sensitive it is in different
+    directions on the sky. Knowing the beam shape is essential for interpreting any measurement made with the telescope.
+    In this experiment, you use the Sun as a bright radio source to map the beam of SALSA directly, by measuring how
+    the received power changes as the telescope is pointed progressively further away from the Sun.</p>
+    <p>The Sun is an ideal calibration source for this purpose: it is far brighter than the background sky at radio
+    wavelengths, it is small enough relative to SALSA's beam to act as a point source, and the telescope can track it
+    automatically. A set of short measurements at different angular offsets is all that is needed to trace out the
+    beam profile.</p>
+    <p class="text-sm text-gray-500">Note: this guide focuses on the theory and scientific interpretation. Instructions
+    for operating the telescope can be found in the
+    <a href="/support/manual" hx-get="/support/manual" hx-target="#page" hx-push-url="/support/manual" class="underline">User's manual</a>.</p>
+
+    <nav class="bg-gray-50 border border-gray-200 rounded-lg p-5 text-sm">
+      <p class="font-semibold text-gray-800 mb-3">Contents</p>
+      <ol class="space-y-1 list-none">
+        <li><a href="#ch1" class="underline text-gray-700 hover:text-gray-900">1. The radio telescope beam</a>
+          <ol class="ml-4 mt-1 space-y-1 list-none text-gray-600">
+            <li><a href="#s1-1" class="underline hover:text-gray-900">1.1 Angular resolution</a></li>
+            <li><a href="#s1-2" class="underline hover:text-gray-900">1.2 The beam of a circular aperture</a></li>
+            <li><a href="#s1-3" class="underline hover:text-gray-900">1.3 Why use the Sun?</a></li>
+          </ol>
+        </li>
+        <li><a href="#ch2" class="underline text-gray-700 hover:text-gray-900">2. Observing with SALSA</a>
+          <ol class="ml-4 mt-1 space-y-1 list-none text-gray-600">
+            <li><a href="#s2-1" class="underline hover:text-gray-900">2.1 When to observe</a></li>
+            <li><a href="#s2-2" class="underline hover:text-gray-900">2.2 Tracking the Sun and offset positions</a></li>
+            <li><a href="#s2-3" class="underline hover:text-gray-900">2.3 Receiver settings</a></li>
+            <li><a href="#s2-4" class="underline hover:text-gray-900">2.4 Measuring and recording power</a></li>
+          </ol>
+        </li>
+        <li><a href="#ch3" class="underline text-gray-700 hover:text-gray-900">3. Analysing the beam</a>
+          <ol class="ml-4 mt-1 space-y-1 list-none text-gray-600">
+            <li><a href="#s3-1" class="underline hover:text-gray-900">3.1 Plotting the beam pattern</a></li>
+            <li><a href="#s3-2" class="underline hover:text-gray-900">3.2 Measuring the beam width</a></li>
+            <li><a href="#s3-3" class="underline hover:text-gray-900">3.3 Comparing to theory</a></li>
+          </ol>
+        </li>
+        <li><a href="#questions" class="underline text-gray-700 hover:text-gray-900">Questions</a></li>
+      </ol>
+    </nav>
+    <div style="clear: both;"></div>
+  </div>
+
+  <!-- Chapter 1 -->
+  <details open class="space-y-6 text-gray-700">
+    <summary class="cursor-pointer"><h3 id="ch1" class="text-2xl font-semibold text-gray-800 inline">1. The radio telescope beam</h3></summary>
+
+    <h4 id="s1-1" class="text-xl font-semibold text-gray-800 mt-4">1.1 Angular resolution</h4>
+
+    <p>Any optical instrument — a camera lens, a pair of binoculars, or a telescope — can only separate two nearby
+    objects on the sky if they are more than some minimum angle apart. This minimum angle is the <strong>angular
+    resolution</strong> of the instrument, and it is ultimately set by the wave nature of light through a phenomenon
+    called diffraction.</p>
+
+    <p>When waves pass through a circular opening of diameter <em>D</em>, they spread out by diffraction. The smaller
+    the opening relative to the wavelength λ, the more the waves spread, and the worse the angular resolution. The
+    Rayleigh criterion gives the minimum resolvable angle as:</p>
+
+    <p class="font-mono text-center my-4">θ ≈ 1.22 λ / D</p>
+
+    <p>where θ is in radians, λ is the observing wavelength, and D is the aperture diameter. A larger telescope
+    or a shorter wavelength gives better (smaller) angular resolution.</p>
+
+    <p>Radio telescopes observe at much longer wavelengths than optical telescopes — centimetres or metres rather than
+    hundreds of nanometres. This means that to achieve the same angular resolution, a radio telescope must be vastly
+    larger. SALSA's dish is 2.3 m in diameter, and it observes near 1420 MHz (λ ≈ 21 cm). Applying the formula:</p>
+
+    <p class="font-mono text-center my-4">θ ≈ 1.22 × 0.21 m / 2.3 m ≈ 0.11 rad ≈ 6°</p>
+
+    <p>So SALSA can only distinguish features separated by about 5–6° on the sky. This is quite coarse by optical
+    standards — the full Moon is only 0.5° across — but it is sufficient to map the large-scale structure of the
+    Milky Way's hydrogen emission, as in the HI experiment.</p>
+
+    <h4 id="s1-2" class="text-xl font-semibold text-gray-800 mt-6">1.2 The beam of a circular aperture</h4>
+
+    <p>The <strong>antenna beam</strong> (or beam pattern, or response function) is a complete description of the
+    telescope's sensitivity as a function of direction. It is not simply a sharp cutoff at the angular resolution
+    limit — instead it has a smooth main lobe with a peak at the pointing direction, falling off on either side,
+    and a series of smaller <strong>sidelobes</strong> at larger angles.</p>
+
+    <p>For a uniformly illuminated circular aperture, the beam pattern is an <strong>Airy function</strong> — the
+    same pattern seen in optics when light passes through a circular hole. In the central region the beam closely
+    resembles a Gaussian, and the full width at half maximum (FWHM) is:</p>
+
+    <p class="font-mono text-center my-4">FWHM ≈ 1.02 λ / D</p>
+
+    <p>Note that the related <strong>Rayleigh criterion</strong> (θ ≈ 1.22 λ/D) gives the angle to the <em>first
+    null</em> of the Airy pattern, traditionally used as the resolution limit for separating two point sources.
+    The FWHM is about 16% smaller — a more direct measure of the beam width itself.</p>
+
+    <p>For SALSA at 1410 MHz (λ = 21.3 cm) this gives FWHM ≈ 1.02 × 0.213 / 2.3 ≈ 0.094 rad ≈ 5.4°.</p>
+
+    <p>Beyond the main lobe, the Airy pattern has sidelobes at roughly 1.7%, 0.4%, and 0.2% of the peak sensitivity.
+    Although small in relative terms, sidelobes can pick up emission from directions far from where the telescope
+    is nominally pointed, which is important to keep in mind when interpreting observations.</p>
+
+    <h4 id="s1-3" class="text-xl font-semibold text-gray-800 mt-6">1.3 Why use the Sun?</h4>
+
+    <p>To measure the beam we need a compact, bright radio source — ideally a point source much smaller than the beam,
+    so that the measured response traces the beam shape directly rather than being blurred by the source's own extent.</p>
+
+    <p>The Sun is an excellent choice for SALSA for several reasons:</p>
+    <ul class="list-disc list-inside space-y-1 ml-2">
+      <li><strong>Bright</strong>: The Sun is by far the strongest radio source in the sky accessible to SALSA —
+      a short integration of just a few seconds gives a clear detection, making it practical to measure many offset
+      positions without a long observing session.</li>
+      <li><strong>Small enough</strong>: The Sun's angular diameter is about 0.5°, which is much smaller than SALSA's
+      ~5° beam. It is not a perfect point source, but small enough that it barely broadens the measured beam pattern.</li>
+      <li><strong>Easy to track</strong>: The Sun moves across the sky predictably, and SALSA can track it automatically
+      — no coordinates need to be entered manually.</li>
+    </ul>
+
+    <p>The main limitation is that the Sun is only observable during daytime, and the experiment requires the Sun to
+    be well above the horizon.</p>
+
+  </details>
+
+  <!-- Chapter 2 -->
+  <details open class="space-y-6 text-gray-700">
+    <summary class="cursor-pointer"><h3 id="ch2" class="text-2xl font-semibold text-gray-800 inline">2. Observing with SALSA</h3></summary>
+
+    <h4 id="s2-1" class="text-xl font-semibold text-gray-800 mt-4">2.1 When to observe</h4>
+
+    <p>This experiment requires the Sun to be above the horizon at Onsala, Sweden — so observations must be made
+    during daytime. To get the strongest, cleanest signal, observe when the Sun is as high as possible in the sky.
+    The Sun reaches its highest elevation around 11:00 UT (noon local Swedish time). Earlier or later times also
+    work well, particularly during the long Swedish summer days. Avoid observing when the Sun is below about 15°
+    elevation, as the signal becomes weaker and ground emission starts to contaminate the beam sidelobes.</p>
+
+    <p class="text-sm text-gray-500">You can check the Sun's current elevation using a planetarium app or website
+    before booking your observation slot.</p>
+
+    <h4 id="s2-2" class="text-xl font-semibold text-gray-800 mt-6">2.2 Tracking the Sun and offset positions</h4>
+
+    <p>In the observe page, select <strong>Sun</strong> from the Target dropdown. SALSA will automatically calculate
+    the Sun's position on the sky and track it — no coordinates need to be entered. Click <strong>Track</strong> and
+    wait for the telescope to reach the Sun's position.</p>
+
+    <p>To map the beam you need to measure not only on the Sun itself, but also at a series of offset positions
+    in different directions from the Sun. Use the <em>Advanced tracking settings</em> section to enter azimuth and
+    elevation offsets in degrees. For example, entering an azimuth offset of +3° will point the telescope to a
+    position 3° away from the Sun in azimuth.</p>
+
+    <p>A typical scan strategy is to hold the elevation offset at 0° and step the azimuth offset from −10° to +10°
+    in steps of 0.5° or 1°, making one measurement at each position. This gives a one-dimensional cut through the
+    beam. You can also scan in elevation, or make a two-dimensional grid to map the full beam shape.</p>
+
+    <p class="bg-amber-50 border-l-4 border-amber-300 rounded px-4 py-2 text-sm">
+      <strong>Screenshot:</strong> The observe page with Sun selected as target, and the Advanced tracking settings
+      panel expanded showing an azimuth offset of e.g. +3° entered, with the elevation offset at 0°.
+    </p>
+
+    <p class="text-sm text-gray-500">Each time you want to change the offset, click Stop, enter the new offset
+    values, and click Track again. Wait for the telescope to settle before starting the measurement.</p>
+
+    <h4 id="s2-3" class="text-xl font-semibold text-gray-800 mt-6">2.3 Receiver settings</h4>
+
+    <p>When you select Sun as the target, SALSA automatically switches to <em>Raw</em> mode, which measures total
+    received power directly — exactly what is needed for this experiment. The default bandwidth and frequency are
+    also fine, so no changes to the receiver settings are needed. The Sun is very bright at radio wavelengths;
+    just click <strong>Start</strong> and 1 second of integration is enough to get a clear measurement.</p>
+
+    <h4 id="s2-4" class="text-xl font-semibold text-gray-800 mt-6">2.4 Measuring and recording power</h4>
+
+    <p>For each offset position, click <strong>Start</strong>, wait a few seconds, then click <strong>Stop</strong>.
+    The key quantity to record is the <strong>average power</strong>, shown in the chart subtitle as "Avg. power: …".
+    This is the mean antenna temperature across the observed bandwidth, and it is what
+    you will plot against the offset angle to get the beam pattern.</p>
+
+    <p>Keep a table of your measurements as you go, for example:</p>
+
+    <div class="overflow-x-auto">
+      <table class="text-sm border-collapse mt-2">
+        <thead>
+          <tr class="border-b border-gray-300 text-left text-gray-800">
+            <th class="pr-8 py-2">Az. offset [°]</th>
+            <th class="pr-8 py-2">El. offset [°]</th>
+            <th class="py-2">Avg. power [K]</th>
+          </tr>
+        </thead>
+        <tbody class="text-gray-600">
+          <tr class="border-b border-gray-100"><td class="pr-8 py-1">−10</td><td class="pr-8 py-1">0</td><td class="py-1">…</td></tr>
+          <tr class="border-b border-gray-100"><td class="pr-8 py-1">−9</td><td class="pr-8 py-1">0</td><td class="py-1">…</td></tr>
+          <tr class="border-b border-gray-100"><td class="pr-8 py-1">…</td><td class="pr-8 py-1">…</td><td class="py-1">…</td></tr>
+          <tr class="border-b border-gray-100"><td class="pr-8 py-1">0</td><td class="pr-8 py-1">0</td><td class="py-1">…</td></tr>
+          <tr class="border-b border-gray-100"><td class="pr-8 py-1">…</td><td class="pr-8 py-1">…</td><td class="py-1">…</td></tr>
+          <tr><td class="pr-8 py-1">+10</td><td class="pr-8 py-1">0</td><td class="py-1">…</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p class="mt-3">A complete azimuth scan from −10° to +10° in 1° steps takes about 25 minutes including
+    telescope slewing time. Plan your observation slot accordingly.</p>
+
+    <p class="bg-amber-50 border-l-4 border-amber-300 rounded px-4 py-2 text-sm mt-2">
+      <strong>Screenshot:</strong> The live spectrum chart after a 10 s integration on the Sun at offset 0°,
+      showing the chart subtitle "Avg. power: [value] K" that should be noted for the beam map.
+    </p>
+
+  </details>
+
+  <!-- Chapter 3 -->
+  <details open class="space-y-6 text-gray-700">
+    <summary class="cursor-pointer"><h3 id="ch3" class="text-2xl font-semibold text-gray-800 inline">3. Analysing the beam</h3></summary>
+
+    <h4 id="s3-1" class="text-xl font-semibold text-gray-800 mt-4">3.1 Plotting the beam pattern</h4>
+
+    <p>Once you have a table of average power values at each offset, plot them: put the azimuth offset (in degrees)
+    on the horizontal axis and the average power (in K) on the vertical axis. You can use any spreadsheet or
+    plotting tool — LibreOffice Calc, Python with matplotlib, or similar.</p>
+
+    <p>The result should show a clear central peak at offset 0° (the telescope pointed directly at the Sun) with the
+    power falling off on both sides. If your scan extends far enough you should also see the sidelobes — smaller
+    bumps at roughly ±8–10° from centre. Fig. 3.1 shows a measured beam from the SALSA telescope.</p>
+
+    <figure class="my-4 max-w-xl">
+      <img src="/experiments-sun/beam_pattern.png" alt="Measured beam pattern of the SALSA Vale telescope" class="rounded-lg w-full">
+      <figcaption class="text-sm text-gray-500 mt-1">Fig. 3.1 — The measured beam of the SALSA Vale telescope at 1410 MHz, obtained by scanning the Sun in azimuth. A Gaussian fit gives FWHM = 5.4°. The sidelobes of the Airy pattern are clearly visible on either side of the main lobe. Credit: Eskil Varenius / Onsala Space Observatory.</figcaption>
+    </figure>
+
+    <h4 id="s3-2" class="text-xl font-semibold text-gray-800 mt-6">3.2 Measuring the beam width</h4>
+
+    <p>The most important number to extract from the beam pattern is the <strong>full width at half maximum
+    (FWHM)</strong> of the main lobe — the angular width of the beam measured at half the peak power.</p>
+
+    <p>Your measurements will include a non-zero baseline — the background sky power received even when the telescope
+    is not pointing at the Sun. Before estimating the FWHM, subtract this baseline level from all your power values.
+    A good estimate for the baseline is the average power measured at your largest offsets (e.g. ±10°), where the
+    Sun contributes negligibly. Once subtracted, the peak at offset 0° represents the Sun's contribution alone.</p>
+
+    <p>To find the FWHM from your baseline-subtracted data:</p>
+    <ol class="list-decimal list-inside space-y-1 ml-2">
+      <li>Find the peak power value (at offset 0°).</li>
+      <li>Calculate half that value.</li>
+      <li>Find the two offset angles where the measured power crosses the half-power level (one on each side of the peak).</li>
+      <li>The FWHM is the difference between those two angles.</li>
+    </ol>
+
+    <p class="mt-2">For a more precise estimate, fit a Gaussian curve to the main lobe. A Gaussian has the form:</p>
+    <p class="font-mono text-center my-4">P(θ) = P₀ × exp(−4 ln 2 × θ² / FWHM²)</p>
+    <p>where P₀ is the peak power and θ is the offset from the peak. Many spreadsheet and plotting tools have
+    curve-fitting capabilities, or you can fit by eye.</p>
+
+    <h4 id="s3-3" class="text-xl font-semibold text-gray-800 mt-6">3.3 Comparing to theory</h4>
+
+    <p>Compare your measured FWHM to the theoretical prediction. At 1410 MHz (λ = 21.3 cm) for a 2.3 m dish:</p>
+
+    <p class="font-mono text-center my-4">FWHM<sub>theory</sub> ≈ 1.02 × λ / D = 1.02 × 0.213 / 2.3 ≈ 0.094 rad ≈ 5.4°</p>
+
+    <p>Your measured value may differ slightly from this for a few reasons:</p>
+    <ul class="list-disc list-inside space-y-1 ml-2">
+      <li>The dish illumination is not perfectly uniform — the feed horn illuminates the dish with a taper towards
+      the edges, which widens the effective beam slightly.</li>
+      <li>The Sun is not a perfect point source (it is ~0.5° in diameter), which broadens the measured beam
+      by a small amount.</li>
+      <li>Surface irregularities and imperfect alignment of the dish panels also affect the beam shape.</li>
+    </ul>
+
+    <p>Despite these effects, SALSA's measured beam width is typically very close to the theoretical value, as
+    shown in Fig. 3.1 (measured FWHM = 5.4°, consistent with theory).</p>
+
+    <p>If you measured sidelobes, compare their positions and heights to the theoretical Airy pattern. The first
+    sidelobe of the Airy function peaks at roughly 1.63 × (λ/D) from centre, with about 1.7% of the main lobe
+    power — or about −17.6 dB below the peak.</p>
+
+  </details>
+
+  <!-- Questions -->
+  <details open class="space-y-4 text-gray-700">
+    <summary class="cursor-pointer"><h3 id="questions" class="text-2xl font-semibold text-gray-800 inline">Questions</h3></summary>
+
+    <ol class="list-decimal list-inside space-y-3 ml-2 mt-4">
+      <li>What is the theoretical FWHM of SALSA's beam at 1420 MHz (the hydrogen line frequency)? How does it
+      compare to the FWHM at 1410 MHz?</li>
+
+      <li>The Sun's angular diameter is about 0.5°. How significant is this compared to SALSA's beam width?
+      In what way does the finite size of the Sun affect the measured beam pattern?</li>
+
+      <li>From your measurements, what is the FWHM of SALSA's main beam? Does it agree with the theoretical
+      prediction? If not, suggest reasons for any difference.</li>
+
+      <li>Could you measure the SALSA beam using the Moon instead of the Sun? What advantages or disadvantages
+      would that have? (Hint: consider the Moon's radio brightness and its angular diameter.)</li>
+
+      <li>Why is it important to observe when the Sun is high in the sky rather than near the horizon?
+      How might a low Sun affect both the signal strength and the beam shape you measure?</li>
+
+      <li>The FWHM of a radio telescope scales as λ/D. If you wanted to achieve the same angular resolution as
+      SALSA at 1410 MHz, but observing at a wavelength of 6 cm (5 GHz), how large would the dish need to be?</li>
+    </ol>
+  </details>
+
+</div>

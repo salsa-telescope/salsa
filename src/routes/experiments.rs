@@ -14,6 +14,21 @@ pub fn routes() -> Router {
     Router::new()
         .route("/hi", get(get_experiments_hi))
         .route("/gnss", get(get_experiments_gnss))
+        .route("/sun", get(get_experiments_sun))
+}
+
+async fn get_experiments_sun(
+    Extension(user): Extension<Option<User>>,
+    headers: HeaderMap,
+) -> impl IntoResponse {
+    let content = read_to_string("assets/experiments-sun.html")
+        .unwrap_or_else(|_| "<p>Sun experiment page not available.</p>".to_string());
+    let content = if headers.get("hx-request").is_some() {
+        content
+    } else {
+        render_main(user, content)
+    };
+    Html(content)
 }
 
 async fn get_experiments_gnss(
