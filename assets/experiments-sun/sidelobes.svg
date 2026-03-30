@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:ev="http://www.w3.org/2001/xml-events" version="1.1" baseProfile="full" width="360" height="360">
+    <style type="text/css">
+        <![CDATA[
+    text.main {font-size:25px; font-weight:bold;}
+  ]]>
+    </style>
+    <title>Antenna Radiation Diagram</title>
+    <desc>
+        This diagram illustrates the strength of electro magnetic waves emitted by an antenna.
+        This diagram shows the line where the energy is less than 3dB compared to an isotropic emitter.
+    </desc>
+
+    <defs>
+        <g id="lobe">        
+            <path d="M 0 0 c  0  0 140 40  160 0"/>
+            <path d="M 0 0 c  0  0 140 -40  160 0 "/>
+        </g>
+        <g id="arrow-tip">        
+            <polyline points="0 0 0 10 30 0 0 -10 0 0"/>
+        </g>
+    </defs>
+
+    <!-- diagram background -->
+    <g stroke="gray" stroke-width="1px" fill="white" fill-opacity="0">
+        <line x1="0" y1="180" x2="360" y2="180"/>
+        <line x1="180" y1="0" x2="180" y2="360"/>
+        <circle cx="180" cy="180" r="40"/>
+        <circle cx="180" cy="180" r="80"/>
+        <circle cx="180" cy="180" r="120"/>
+        <circle cx="180" cy="180" r="160"/>
+    </g>
+   <!-- diagram numbers -->
+    <g stroke="green">
+        <switch><text x="345" y="185.5" id="trsvg9-ca" systemLanguage="ca"><tspan id="trsvg1-ca">0°</tspan></text><text x="345" y="185.5" id="trsvg9"><tspan id="trsvg1">
+            0°
+        </tspan></text></switch>
+        <switch><text x="167" y="1em" id="trsvg10-ca" systemLanguage="ca"><tspan id="trsvg2-ca">270°</tspan></text><text x="167" y="1em" id="trsvg10"><tspan id="trsvg2">
+            270°
+        </tspan></text></switch>
+        <switch><text x="0" y="185.5" id="trsvg11-ca" systemLanguage="ca"><tspan id="trsvg3-ca">180°</tspan></text><text x="0" y="185.5" id="trsvg11"><tspan id="trsvg3">
+            180°
+        </tspan></text></switch>
+        <switch><text x="170" y="357" id="trsvg12-ca" systemLanguage="ca"><tspan id="trsvg4-ca">90°</tspan></text><text x="170" y="357" id="trsvg12"><tspan id="trsvg4">
+            90°
+        </tspan></text></switch>
+    </g>
+    <!-- diagram comment-->
+    <switch style="font-size:9pt"><text x="200" y="358" style="font-size:9pt" id="trsvg13-ca" systemLanguage="ca"><tspan id="trsvg5-ca">l'antena està orientada a 0°</tspan></text><text x="200" y="358" style="font-size:9pt" id="trsvg13"><tspan id="trsvg5">
+        antenna faces to 0°
+    </tspan></text></switch>
+
+    <!-- main lobe-->
+    <g stroke="red" fill="red" fill-opacity="0.5" stroke-width="3px">        
+        <use xlink:href="#lobe" transform="translate(180,180)"/>
+    </g>
+    <!-- side lobes -->
+    <g stroke="black" fill="gray" fill-opacity="0.5" stroke-width="3px">        
+        <use xlink:href="#lobe" transform=" translate(180,180) rotate(30) scale(.3)"/>
+        <use xlink:href="#lobe" transform=" translate(180,180) rotate(55) scale(.27)"/>
+        <use xlink:href="#lobe" transform=" translate(180,180) rotate(80) scale(.35)"/>
+        <use xlink:href="#lobe" transform=" translate(180,180) rotate(100) scale(.2)"/>
+        <use xlink:href="#lobe" transform=" translate(180,180) rotate(120) scale(.3)"/>
+        <use xlink:href="#lobe" transform=" translate(180,180) rotate(140) scale(.25)"/>
+        <use xlink:href="#lobe" transform=" translate(180,180) rotate(160) scale(.3)"/>
+        <use xlink:href="#lobe" transform=" translate(180,180) rotate(-30) scale(.3)"/>
+        <use xlink:href="#lobe" transform=" translate(180,180) rotate(-55) scale(.35)"/>
+        <use xlink:href="#lobe" transform=" translate(180,180) rotate(-80) scale(.25)"/>
+        <use xlink:href="#lobe" transform=" translate(180,180) rotate(-100) scale(.3)"/>
+        <use xlink:href="#lobe" transform=" translate(180,180) rotate(-120) scale(.33)"/>
+        <use xlink:href="#lobe" transform=" translate(180,180) rotate(-140) scale(.25)"/>
+        <use xlink:href="#lobe" transform=" translate(180,180) rotate(-160) scale(.3)"/>
+    </g>
+    <!-- opposite side lobe -->
+    <g stroke="black" fill="blue" fill-opacity="0.5" stroke-width="3px">        
+        <use xlink:href="#lobe" transform=" translate(180,180) rotate(180) scale(.7)"/>
+    </g>
+
+
+    <!-- remarks -->
+    <switch style="fill:red;"><text class="main" x="220" y="115" style="fill:red;" id="trsvg14-ca" systemLanguage="ca"><tspan id="trsvg6-ca">lòbul principal</tspan></text><text class="main" x="220" y="115" style="fill:red;" id="trsvg14"><tspan id="trsvg6">
+        main lobe
+    </tspan></text></switch>
+    <switch style="fill:black;"><text class="side" x="105" y="95" style="fill:black;" id="trsvg15-ca" systemLanguage="ca"><tspan id="trsvg7-ca">lòbuls laterals</tspan></text><text class="side" x="105" y="95" style="fill:black;" id="trsvg15"><tspan id="trsvg7">
+        side lobes
+    </tspan></text></switch>
+    <switch style="fill:blue;font-size:15pt"><text class="side" x="40" y="130" style="fill:blue;font-size:15pt" id="trsvg16-ca" systemLanguage="ca">
+        <tspan x="20" y="13em" id="trsvg8-ca">lòbul posterior</tspan>
+    </text><text class="side" x="40" y="130" style="fill:blue;font-size:15pt" id="trsvg16">
+        <tspan x="20" y="13em" id="trsvg8">
+            back lobe
+        </tspan>
+    </text></switch>
+
+    <!-- arrows -->
+    <!-- main lobe arrow -->
+    <g stroke="darkred" fill="darkred" stroke-width="3px" transform="translate(280,140) rotate(80)">        
+        <use xlink:href="#arrow-tip" transform="  scale(.5)"/>
+        <!-- in the line primitive the x2 attribute is negative so the same rotation cam be applied as to the arrow tip -->
+        <line x1="0" y1="0" x2="-20" y2="0"/>
+    </g>
+
+    <!-- 2 side lobe arrows -->
+    <g stroke="darkgray" fill="darkgray" stroke-width="3px" transform=" translate(140,140) rotate(80)">        
+        <use xlink:href="#arrow-tip" transform="scale(.5)"/>
+        <line x1="0" y1="0" x2="-43" y2="0"/>
+    </g>
+    <g stroke="darkgray" fill="darkgray" stroke-width="3px" transform=" translate(187,128) rotate(55)">        
+        <use xlink:href="#arrow-tip" transform="scale(.5)"/>
+        <line x1="0" y1="0" x2="-37" y2="0"/>
+    </g>
+
+    <!-- opposite side  lobe arrow -->
+    <g stroke="darkblue" fill="darkblue" stroke-width="3px" transform=" translate(105,210) rotate(-60)">        
+        <use xlink:href="#arrow-tip" transform="scale(.5)"/>
+        <line x1="0" y1="0" x2="-30" y2="0"/>
+    </g>
+</svg>

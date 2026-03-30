@@ -537,6 +537,7 @@ function loadObservation(id) {
 
       const vlsrCorrection = data.vlsr_correction_mps;
       let showVlsr = vlsrCorrection !== null && vlsrCorrection !== undefined;
+      let showLog = data.coordinate_system === "gnss" || data.coordinate_system.startsWith("gnss:");
 
       function freqToVlsr(freqHz) {
         return (C * (F_REST - freqHz) / F_REST + vlsrCorrection) / 1000;
@@ -568,11 +569,7 @@ function loadObservation(id) {
       let fullYDomain = [yExtent[0] - yPadding, yExtent[1] + yPadding];
 
       const x = d3.scaleLinear().domain(fullXDomain).range([margin, width - margin]);
-      const y = d3
-        .scaleLinear()
-        .domain(fullYDomain)
-        .nice()
-        .range([height - margin, margin]);
+      let y = makeYScale(fullYDomain);
 
       const svg = d3
         .create("svg")
@@ -626,7 +623,7 @@ function loadObservation(id) {
       const yAxisG = svg
         .append("g")
         .attr("transform", `translate(${margin},0)`)
-        .call(d3.axisLeft(y).ticks(height / 80))
+        .call(showLog ? d3.axisLeft(y).ticks(6, ".2~e") : d3.axisLeft(y).ticks(height / 80))
         .call((g) => g.selectAll("text").attr("font-size", "13px"));
 
       // y-axis label
@@ -646,9 +643,12 @@ function loadObservation(id) {
         .x((d) => x(d.x))
         .y((d) => y(d.y));
 
+      const initialPoints = showLog
+        ? points.map((d) => ({ x: d.x, y: Math.max(d.y, y.domain()[0]) }))
+        : points;
       const path = svg
         .append("path")
-        .datum(points)
+        .datum(initialPoints)
         .attr("fill", "none")
         .attr("stroke", "steelblue")
         .attr("stroke-width", 1.5)
@@ -681,14 +681,28 @@ function loadObservation(id) {
         return [yMin - pad, yMax + pad];
       }
 
+      function makeYScale(yDom) {
+        if (showLog) {
+          const yMax = yDom[1];
+          const yFloor = Math.max(yMax * 1e-4, 1e-6);
+          return d3.scaleLog().domain([yFloor, yMax]).range([height - margin, margin]).clamp(true);
+        }
+        return d3.scaleLinear().domain(yDom).nice().range([height - margin, margin]);
+      }
+
       function redraw(currentData, xDom, yDom) {
         x.domain(xDom);
-        y.domain(yDom).nice();
+        y = makeYScale(yDom);
         xAxisG.call(d3.axisBottom(x).ticks(width / 160).tickSizeOuter(0))
           .call((g) => g.selectAll("text").attr("font-size", "13px"));
-        yAxisG.call(d3.axisLeft(y).ticks(height / 80))
+        yAxisG.call(showLog
+          ? d3.axisLeft(y).ticks(6, ".2~e")
+          : d3.axisLeft(y).ticks(height / 80))
           .call((g) => g.selectAll("text").attr("font-size", "13px"));
-        path.datum(currentData).attr("d", lineFn);
+        const drawData = showLog
+          ? currentData.map((d) => ({ x: d.x, y: Math.max(d.y, y.domain()[0]) }))
+          : currentData;
+        path.datum(drawData).attr("d", lineFn);
         updateOverlays();
       }
 
@@ -783,8 +797,8 @@ function loadObservation(id) {
         refreshLine, rescaleAndRedraw,
       };
 
-      // Insert SVG before the toggle button so the button appears below the chart
-      const btn = document.getElementById("observation-axis-toggle");
+      // Insert SVG before the button row so buttons appear below the chart
+      const btn = document.getElementById("observation-chart-buttons") || document.getElementById("observation-axis-toggle");
       if (btn) {
         container.insertBefore(svg.node(), btn);
       } else {
@@ -797,14 +811,15 @@ function loadObservation(id) {
       document.getElementById("gaussian-results").innerHTML = "";
       updateAnalysisUI();
 
-      // Toggle button
-      if (btn) {
+      // x-axis toggle button
+      const axisBtn = document.getElementById("observation-axis-toggle");
+      if (axisBtn) {
         if (vlsrCorrection !== null && vlsrCorrection !== undefined) {
-          btn.style.display = "";
-          btn.textContent = showVlsr ? "Show frequency" : "Show VLSR";
-          btn.onclick = function () {
+          axisBtn.style.display = "";
+          axisBtn.textContent = showVlsr ? "Show frequency" : "Show VLSR";
+          axisBtn.onclick = function () {
             showVlsr = !showVlsr;
-            btn.textContent = showVlsr ? "Show frequency" : "Show VLSR";
+            axisBtn.textContent = showVlsr ? "Show frequency" : "Show VLSR";
             const newData = getDisplayData();
             const newXExtent = d3.extent(newData, (d) => d.x);
             const newYExtent = d3.extent(newData, (d) => d.y);
@@ -815,8 +830,19 @@ function loadObservation(id) {
             redraw(newData, fullXDomain, fullYDomain);
           };
         } else {
-          btn.style.display = "none";
+          axisBtn.style.display = "none";
         }
+      }
+
+      // y-scale toggle button
+      const yscaleBtn = document.getElementById("observation-yscale-toggle");
+      if (yscaleBtn) {
+        yscaleBtn.textContent = showLog ? "Linear scale" : "Log scale";
+        yscaleBtn.onclick = function () {
+          showLog = !showLog;
+          yscaleBtn.textContent = showLog ? "Linear scale" : "Log scale";
+          rescaleAndRedraw();
+        };
       }
     });
 }

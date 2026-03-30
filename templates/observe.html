@@ -229,11 +229,18 @@
       <div id="chart" class="-mt-4">
         <!-- FIXME: maybe don't reload this javascript on each htmx fetch of this page? -->
         <script src="/observe_chart.js"></script>
-        <button id="observe-axis-toggle" style="display: none;"
-          onclick="toggleObserveAxis()"
-          class="px-2 py-1 mt-1 bg-gray-200 text-sm rounded hover:bg-gray-300 mx-auto block">
-          Show frequency
-        </button>
+        <div class="flex gap-2 justify-center mt-1">
+          <button id="observe-axis-toggle" style="display: none;"
+            onclick="toggleObserveAxis()"
+            class="px-2 py-1 bg-gray-200 text-sm rounded hover:bg-gray-300">
+            Show frequency
+          </button>
+          <button id="observe-yscale-toggle"
+            onclick="toggleObserveYScale()"
+            class="px-2 py-1 bg-gray-200 text-sm rounded hover:bg-gray-300">
+            Log scale
+          </button>
+        </div>
       </div>
     </div>
 
@@ -329,6 +336,7 @@
       } else {
           modeFreqSwitched.checked = true;
       }
+      if (window.setObserveLogScale) window.setObserveLogScale(isGnss);
       updateRefFreqVisibility();
       switch (e.target.value) {
       case "galactic":

@@ -611,3 +611,16 @@ a.action:visited {
     opacity: 0.5;
     pointer-events: none;
 }
+
+/* Lightbox */
+figure img {
+    cursor: zoom-in;
+}
+
+/* Content links */
+.section a:not(.btn) {
+    color: #4f46e5;
+}
+.section a:not(.btn):hover {
+    color: #3730a3;
+}

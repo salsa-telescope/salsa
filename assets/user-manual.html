@@ -1,0 +1,242 @@
+<div class="section light space-y-8">
+
+  <div class="space-y-2">
+    <p class="text-sm text-gray-500">
+      <a href="/support" hx-get="/support" hx-target="#page" hx-push-url="/support" class="underline">← Support &amp; documentation</a>
+    </p>
+    <h2 class="text-3xl font-semibold">User's manual</h2>
+    <p class="text-sm text-gray-500">How to book and operate the SALSA telescopes. NOTE: Screenshots below are suggestions and may be added later.</p>
+  </div>
+
+  <!-- ToC -->
+  <nav class="bg-gray-50 border border-gray-200 rounded-lg p-5 text-sm">
+    <p class="font-semibold text-gray-800 mb-3">Contents</p>
+    <ol class="space-y-1 list-none">
+      <li><a href="#account" class="underline text-gray-700 hover:text-gray-900">1. Creating an account</a></li>
+      <li><a href="#booking" class="underline text-gray-700 hover:text-gray-900">2. Booking a telescope</a></li>
+      <li><a href="#observe" class="underline text-gray-700 hover:text-gray-900">3. Making an observation</a>
+        <ol class="ml-4 mt-1 space-y-1 list-none text-gray-600">
+          <li><a href="#pointing" class="underline hover:text-gray-900">3.1 Pointing the telescope</a></li>
+          <li><a href="#receiver" class="underline hover:text-gray-900">3.2 Receiver settings</a></li>
+          <li><a href="#integrating" class="underline hover:text-gray-900">3.3 Integrating</a></li>
+        </ol>
+      </li>
+      <li><a href="#archive" class="underline text-gray-700 hover:text-gray-900">4. Observation archive</a>
+        <ol class="ml-4 mt-1 space-y-1 list-none text-gray-600">
+          <li><a href="#export" class="underline hover:text-gray-900">4.1 Exporting data</a></li>
+          <li><a href="#analysis" class="underline hover:text-gray-900">4.2 Spectral analysis tools</a></li>
+        </ol>
+      </li>
+    </ol>
+  </nav>
+
+  <!-- 1. Account -->
+  <details open class="space-y-4 text-gray-700">
+    <summary class="cursor-pointer"><h3 id="account" class="text-2xl font-semibold text-gray-800 inline">1. Creating an account</h3></summary>
+
+    <p>To use SALSA you need to log in. Click <strong>Login</strong> in the top navigation bar
+    and follow the instructions to authenticate. SALSA supports several login providers —
+    choose whichever you already have an account with.</p>
+
+    <p>Once logged in your name will appear in the top navigation bar. Clicking it reveals
+    account settings and a log out link.</p>
+
+    <p class="bg-amber-50 border-l-4 border-amber-300 rounded px-4 py-2 text-sm">
+      <strong>Note:</strong> screenshot of the login screen and the account menu would be helpful here.
+    </p>
+  </details>
+
+  <!-- 2. Booking -->
+  <details open class="space-y-4 text-gray-700">
+    <summary class="cursor-pointer"><h3 id="booking" class="text-2xl font-semibold text-gray-800 inline">2. Booking a telescope</h3></summary>
+
+    <p>Go to <strong>Bookings</strong> in the navigation bar. You will see a weekly calendar
+    showing all available telescopes. Scroll down to see more telescopes.</p>
+
+    <p class="bg-amber-50 border-l-4 border-amber-300 rounded px-4 py-2 text-sm">
+      <strong>Screenshot:</strong> the bookings calendar showing different slot colours.
+    </p>
+
+    <p>Slot colours indicate availability:</p>
+    <ul class="list-disc list-inside space-y-1">
+      <li><strong>Green</strong> — free, click to book</li>
+      <li><strong>Blue</strong> — your existing booking, click to cancel</li>
+      <li><strong>Grey</strong> — booked by another user</li>
+      <li><strong>Yellow</strong> — telescope in maintenance, not available</li>
+    </ul>
+
+    <p>Click a green slot to book it. Bookings are one hour long. You can have up to a
+    limited number of upcoming bookings at a time. To cancel a booking, click your blue slot
+    and confirm the cancellation.</p>
+
+    <p>The page shows the current UTC time so you can plan accordingly. All times in the
+    calendar are in UTC.</p>
+
+    <p>Your bookings are shown at the top of the bookings page, under <em>Upcoming bookings</em>. When your booking starts, an <strong>Observe</strong> button will appear
+    on the slot under upcoming bookings. Click the button to go to the telescope control interface.</p>
+
+    <p class="bg-amber-50 border-l-4 border-amber-300 rounded px-4 py-2 text-sm">
+      <strong>Screenshot:</strong> the "Observe" button appearing for an active booking.
+    </p>
+  </details>
+
+  <!-- 3. Observing -->
+  <details open class="space-y-4 text-gray-700">
+    <summary class="cursor-pointer"><h3 id="observe" class="text-2xl font-semibold text-gray-800 inline">3. Making an observation</h3></summary>
+
+    <p>The observation page is only accessible during your booked time slot. It shows the
+    current telescope status, pointing controls, receiver settings, and a live spectrum
+    display.</p>
+
+    <p class="bg-amber-50 border-l-4 border-amber-300 rounded px-4 py-2 text-sm">
+      <strong>Screenshot:</strong> the full observation control page with labels for each section.
+    </p>
+
+    <p>A countdown timer at the top of the page shows how much time remains in your booking.
+    You will receive a warning five minutes before your slot ends.</p>
+
+    <div class="space-y-3">
+      <h4 id="pointing" class="text-lg font-semibold text-gray-800">3.1 Pointing the telescope</h4>
+
+      <p>Choose a coordinate system from the dropdown, then enter the target
+coordinates and click <strong>Track</strong>. The telescope will slew to the
+target position.  The Calculated and Current azimuth and elevation angles are
+displayed below the input coordinates. Once you select a target position, the
+<em>Calculated</em> row will update to show the calculated horizontal (az/el)
+coordinates needed to reach your desired position. If this is too low, you
+cannot track the desired position. A negative elevation angle means that your
+target is below the horizon. Some targets are only visible during some time
+ranges. The calculated coordinates update once per second, due to the Earth
+movement through space. </p>
+
+      <p>Available coordinate systems:</p>
+      <ul class="list-disc list-inside space-y-1 text-sm">
+        <li><strong>Galactic</strong> — Galactic longitude (l) and latitude (b) in degrees.
+        Recommended for HI observations of the Milky Way.</li>
+        <li><strong>Equatorial</strong> — Right Ascension (h m s) and Declination (° ′ ″).</li>
+        <li><strong>Horizontal</strong> — Azimuth and elevation in degrees.</li>
+        <li><strong>Sun</strong> — Automatically tracks the Sun. The SALSA software automatically calculates the current position of the Sun.</li>
+        <li><strong>GNSS satellite</strong> — Select a visible satellite from the dropdown. The SALSA software updates the satellite orbits automatically once per day.</li>
+        <li><strong>Stow</strong> — Parks the telescope in its resting position.</li>
+      </ul>
+
+      <p>In the <em>Advanced section</em> you can also apply small <strong>azimuth and elevation offsets</strong> (in degrees)
+      to fine-tune the pointing, for example when measuring the beam pattern. These will be added to the calculation after your input coordinates have been converted to a horizontal position.</p>
+
+      <p class="bg-amber-50 border-l-4 border-amber-300 rounded px-4 py-2 text-sm">
+        <strong>Screenshot:</strong> the pointing controls with Galactic coordinates entered
+        and the position status panel.
+      </p>
+
+      <p>The telescope will not move below its minimum elevation limit. If your target is
+      too low, an error will be shown.</p>
+    </div>
+
+    <div class="space-y-3">
+      <h4 id="receiver" class="text-lg font-semibold text-gray-800">3.2 Receiver settings</h4>
+
+      <p>The receiver settings control the frequency, bandwidth, and signal
+processing. The default values are optimised for 21 cm hydrogen line
+observations and are a good starting point for most experiments. If you select
+"The sun" or "GNSS satellites" as targets, the receiver settings will
+automatically update to sensible default values. After selecting the target,
+you may also change the settings if you want.</p>
+
+      <p class="bg-amber-50 border-l-4 border-amber-300 rounded px-4 py-2 text-sm">
+        <strong>Screenshot:</strong> the receiver settings panel with default values.
+      </p>
+
+      <ul class="list-disc list-inside space-y-2 text-sm">
+        <li><strong>Center frequency</strong> — The frequency tuned to by the receiver,
+        in MHz. The hydrogen line rest frequency is 1420.4 MHz.</li>
+        <li><strong>Bandwidth</strong> — The total frequency range recorded: 1.0, 2.5, 5.0,
+        10.0, or 25.0 MHz. Wider bandwidth covers more velocity range; narrower gives
+        better resolution for a given number of channels.</li>
+        <li><strong>Channels</strong> — Number of spectral channels: 64 to 8192. More channels
+        give finer frequency resolution. The resulting resolution in MHz is shown
+        automatically.</li>
+        <li><strong>Gain</strong> — Receiver gain in dB (0–60). Reduce if the signal is
+        saturating; increase if it is too weak.</li>
+        <li><strong>Observation mode</strong> — <em>Frequency-switched</em> mode alternates
+        between the target frequency and a reference frequency to subtract background and
+        standing waves. <em>Raw</em> mode records without switching.</li>
+        <li><strong>RFI filter</strong> — A median filter to reduce radio frequency
+        interference. Enable if you see narrow spikes in your spectrum.</li>
+      </ul>
+    </div>
+
+    <div class="space-y-3">
+      <h4 id="integrating" class="text-lg font-semibold text-gray-800">3.3 Integrating</h4>
+
+      <p>Once the telescope is on target and the receiver is configured, click
+<strong>Start</strong> to begin integrating. The live spectrum updates
+continuously as data accumulates. The elapsed integration time and average
+power level are shown below the spectrum. The longer you integrate, the weaker
+the noise becomes since the random fluctuations cancel each other. For HI
+observations, about 30 seconds is usually enough to get reasonable results, but
+you can try different values to see what gives good results for your specific
+target. </p>
+
+      <p class="bg-amber-50 border-l-4 border-amber-300 rounded px-4 py-2 text-sm">
+        <strong>Screenshot:</strong> a live spectrum during integration, showing the
+        hydrogen line peak.
+      </p>
+
+      <p>Click <strong>Stop</strong> to end the integration. The observation is automatically
+      saved to your <a href="/observations" hx-get="/observations" hx-target="#page" hx-push-url="/observations" class="underline">observation archive</a>.</p>
+
+      <p>For HI observations, you can toggle the horizontal axis between <strong>frequency (MHz)</strong> and
+      <strong> VLSR (km/s)</strong> using the button below the chart.</p>
+    </div>
+  </details>
+
+  <!-- 4. Archive -->
+  <details open class="space-y-4 text-gray-700">
+    <summary class="cursor-pointer"><h3 id="archive" class="text-2xl font-semibold text-gray-800 inline">4. Observation archive</h3></summary>
+
+    <p>Go to <strong>Observation archive</strong> in the navigation bar to view all your
+    saved observations. Each entry shows the start time, telescope, coordinate system,
+    target position, and integration time. Click an observation to load its spectrum.</p>
+
+    <p class="bg-amber-50 border-l-4 border-amber-300 rounded px-4 py-2 text-sm">
+      <strong>Screenshot:</strong> the observation archive list with a spectrum loaded.
+    </p>
+
+    <p>You can zoom into a region of the spectrum by drawing a box with the mouse.
+    Double-click to reset the zoom.</p>
+
+    <div class="space-y-3">
+      <h4 id="export" class="text-lg font-semibold text-gray-800">4.1 Exporting data</h4>
+      <p>Three export formats are available:</p>
+      <ul class="list-disc list-inside space-y-1 text-sm">
+        <li><strong>PNG</strong> — An image of the corrected spectrum as displayed.</li>
+        <li><strong>CSV</strong> — Frequency and amplitude columns for use in a
+        spreadsheet or analysis tool such as LibreOffice Calc or Matlab.</li>
+        <li><strong>FITS</strong> — The raw uncorrected spectrum in the standard
+        astronomical FITS format, suitable for use with tools such as Astropy.</li>
+      </ul>
+    </div>
+
+    <div class="space-y-3">
+      <h4 id="analysis" class="text-lg font-semibold text-gray-800">4.2 Spectral analysis tools</h4>
+
+      <p>The archive page includes built-in tools for basic spectral analysis. Note that
+      analysis results are not saved — take notes or export before leaving the page.</p>
+
+      <p><strong>Baseline correction</strong> — Select a frequency range on the spectrum
+      that contains only noise (no signal), then choose a polynomial order (linear or
+      quadratic) and click <em>Fit baseline</em>. The fitted baseline is subtracted from
+      the spectrum.</p>
+
+      <p><strong>Gaussian fitting</strong> — After baseline correction, click on a peak
+      in the spectrum to select it, then click <em>Fit Gaussian</em>. The fitted peak
+      parameters (centre frequency, amplitude, width) are displayed.</p>
+
+      <p class="bg-amber-50 border-l-4 border-amber-300 rounded px-4 py-2 text-sm">
+        <strong>Screenshot:</strong> a spectrum after baseline subtraction with a Gaussian
+        fit overlaid, and the fit parameters shown.
+      </p>
+    </div>
+  </details>
+
+</div>

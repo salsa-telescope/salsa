@@ -68,10 +68,16 @@
     <div class="lg:w-2/3 flex flex-wrap gap-4 items-start">
       <div id="observation-chart" style="display: none; max-width: 640px; flex-shrink: 0;">
         <h2 class="mt-4 mb-3 text-center">Spectrum</h2>
-        <button id="observation-axis-toggle" style="display: none;"
-          class="px-2 py-1 mt-1 bg-gray-200 text-sm rounded hover:bg-gray-300 mx-auto block">
-          Show frequency
-        </button>
+        <div id="observation-chart-buttons" class="flex gap-2 justify-center mt-1">
+          <button id="observation-axis-toggle" style="display: none;"
+            class="px-2 py-1 bg-gray-200 text-sm rounded hover:bg-gray-300">
+            Show frequency
+          </button>
+          <button id="observation-yscale-toggle"
+            class="px-2 py-1 bg-gray-200 text-sm rounded hover:bg-gray-300">
+            Log scale
+          </button>
+        </div>
         <p id="chart-hint" class="text-xs text-gray-400 text-center mt-2">Hover to show coordinates · draw a box to zoom · double-click to reset</p>
         <div id="observation-downloads" class="hidden flex gap-2 justify-center mt-3">
           <button id="download-png"
