@@ -225,9 +225,8 @@
 
     <!-- Right column: live spectrum chart -->
     <div class="lg:w-2/3">
-      <h2 class="font-semibold">Live spectrum</h2>
+      <h2 class="text-xl font-semibold mb-3">Live spectrum</h2>
       <div id="chart" class="-mt-4">
-        <!-- FIXME: maybe don't reload this javascript on each htmx fetch of this page? -->
         <script src="/observe_chart.js"></script>
         <div class="flex gap-2 justify-center mt-1">
           <button id="observe-axis-toggle" style="display: none;"
