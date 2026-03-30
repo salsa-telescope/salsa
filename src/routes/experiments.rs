@@ -11,8 +11,7 @@ use crate::models::user::User;
 use crate::routes::index::render_main;
 
 pub fn routes() -> Router {
-    Router::new()
-        .route("/hi", get(get_experiments_hi))
+    Router::new().route("/hi", get(get_experiments_hi))
 }
 
 async fn get_experiments_hi(
