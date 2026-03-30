@@ -17,6 +17,7 @@ function get_telescope_from_location() {
 
   let vlsrCorrection = null;
   let showVlsr = false;
+  let showLog = false;
   let latestData = null; // store raw frequency (Hz) data
 
   function freqToVlsr(freqHz) {
@@ -27,7 +28,7 @@ function get_telescope_from_location() {
     .scaleLinear()
     .domain([0, 100]) // These values will be replaced.
     .range([margin, width - margin]);
-  const y = d3
+  let y = d3
     .scaleLinear()
     .domain([0, 20]) // These values are completely arbitrary.
     .range([height - margin, margin]);
@@ -144,18 +145,23 @@ function get_telescope_from_location() {
   function updateChart() {
     if (!latestData) return;
     const data = getDisplayData(latestData);
-    const yRange = d3.extent(data, (d) => d.y);
-    const padding = (yRange[1] - yRange[0]) * 0.05;
-    y.domain([yRange[0] - padding, yRange[1] + padding]).nice();
-    yAxis.call(d3.axisLeft(y).ticks(height / 80).tickFormat(yTickFormat));
+    if (showLog) {
+      const yMax = d3.max(data, (d) => d.y);
+      const yFloor = Math.max(yMax * 1e-4, 1e-6);
+      const clipped = data.map((d) => ({ x: d.x, y: Math.max(d.y, yFloor) }));
+      y = d3.scaleLog().domain([yFloor, yMax]).range([height - margin, margin]).clamp(true);
+      yAxis.call(d3.axisLeft(y).ticks(6, ".2~e"));
+      svg.select(".line").datum(clipped).attr("d", d3.line().x((d) => x(d.x)).y((d) => y(d.y)));
+    } else {
+      const yRange = d3.extent(data, (d) => d.y);
+      const padding = (yRange[1] - yRange[0]) * 0.05;
+      y = d3.scaleLinear().domain([yRange[0] - padding, yRange[1] + padding]).range([height - margin, margin]).nice();
+      yAxis.call(d3.axisLeft(y).ticks(height / 80).tickFormat(yTickFormat));
+      svg.select(".line").datum(data).attr("d", d3.line().x((d) => x(d.x)).y((d) => y(d.y)));
+    }
     const xRange = d3.extent(data, (d) => d.x);
     x.domain(xRange);
     xAxis.call(d3.axisBottom(x));
-    const lineFn = d3
-      .line()
-      .x((d) => x(d.x))
-      .y((d) => y(d.y));
-    svg.select(".line").datum(data).attr("d", lineFn);
     xLabel.text(showVlsr ? "VLSR (km/s)" : "Frequency (MHz)");
 
     // Update power level: average of center 50% of spectrum
@@ -170,7 +176,14 @@ function get_telescope_from_location() {
     chartTitle.text(text);
   };
 
-  // Expose toggle function for the button
+  // Expose toggle functions for the buttons
+  window.toggleObserveYScale = function () {
+    showLog = !showLog;
+    const btn = document.getElementById("observe-yscale-toggle");
+    if (btn) btn.textContent = showLog ? "Linear scale" : "Log scale";
+    updateChart();
+  };
+
   window.toggleObserveAxis = function () {
     if (vlsrCorrection === null) return;
     showVlsr = !showVlsr;
