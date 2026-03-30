@@ -151,7 +151,7 @@ async fn tracker_task_function(
     state: Arc<Mutex<TelescopeTrackerState>>,
     controller_address: String,
 ) {
-    let mut connection_established = false;
+    let mut controller: Option<TelescopeController> = None;
     let mut prev_target: Option<TelescopeTarget> = None;
 
     while !state.lock().unwrap().quit {
@@ -164,47 +164,60 @@ async fn tracker_task_function(
         let need_stop = prev_target.is_some() && target.is_none();
         prev_target = target;
 
-        let mut controller = match TelescopeController::connect(&controller_address) {
-            Ok(controller) => controller,
-            Err(err) => {
-                error!(
-                    "Failed to connect to contoller at {}: {}",
-                    &controller_address, err
-                );
+        // Establish connection if not already connected
+        if controller.is_none() {
+            controller = match TelescopeController::connect(&controller_address) {
+                Ok(c) => Some(c),
+                Err(err) => {
+                    error!(
+                        "Failed to connect to controller at {}: {}",
+                        &controller_address, err
+                    );
+                    state.lock().unwrap().most_recent_error = Some(err);
+                    continue;
+                }
+            };
+            // Send initial stop on fresh connection
+            let ctrl = controller.as_mut().unwrap();
+            if let Err(err) = ctrl.execute(TelescopeCommand::Stop) {
                 state.lock().unwrap().most_recent_error = Some(err);
+                controller = None;
                 continue;
             }
-        };
-
-        if !connection_established {
-            let err = controller.execute(TelescopeCommand::Stop).err();
-            let mut state_guard = state.lock().unwrap();
-            state_guard.most_recent_error = err;
-            state_guard.commanded_horizontal = None;
-            connection_established = true;
+            state.lock().unwrap().commanded_horizontal = None;
         }
+
+        let ctrl = controller.as_mut().unwrap();
 
         if need_stop {
             debug!("Target set to None, sending Stop to controller");
-            let err = controller.execute(TelescopeCommand::Stop).err();
-            let mut state_guard = state.lock().unwrap();
-            state_guard.most_recent_error = err;
-            state_guard.commanded_horizontal = None;
+            if let Err(err) = ctrl.execute(TelescopeCommand::Stop) {
+                state.lock().unwrap().most_recent_error = Some(err);
+                controller = None;
+            } else {
+                state.lock().unwrap().commanded_horizontal = None;
+            }
             continue;
         }
 
         if state.lock().unwrap().should_restart {
-            info!("Controller for restarting");
-            let err = controller.execute(TelescopeCommand::Restart).err();
-            state.lock().unwrap().most_recent_error = err;
-            connection_established = false;
+            info!("Restarting controller");
+            if let Err(err) = ctrl.execute(TelescopeCommand::Restart) {
+                state.lock().unwrap().most_recent_error = Some(err);
+            }
+            controller = None;
             sleep_until(Instant::now() + Duration::from_secs(10)).await;
             state.lock().unwrap().should_restart = false;
             continue;
         }
 
-        let res = update_direction(&state, Utc::now(), &mut controller);
-        state.lock().unwrap().most_recent_error = res.err();
+        let res = update_direction(&state, Utc::now(), ctrl);
+        if let Err(err) = res {
+            state.lock().unwrap().most_recent_error = Some(err);
+            controller = None;
+        } else {
+            state.lock().unwrap().most_recent_error = None;
+        }
     }
 }
 
