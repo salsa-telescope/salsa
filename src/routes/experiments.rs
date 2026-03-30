@@ -11,7 +11,23 @@ use crate::models::user::User;
 use crate::routes::index::render_main;
 
 pub fn routes() -> Router {
-    Router::new().route("/hi", get(get_experiments_hi))
+    Router::new()
+        .route("/hi", get(get_experiments_hi))
+        .route("/gnss", get(get_experiments_gnss))
+}
+
+async fn get_experiments_gnss(
+    Extension(user): Extension<Option<User>>,
+    headers: HeaderMap,
+) -> impl IntoResponse {
+    let content = read_to_string("assets/experiments-gnss.html")
+        .unwrap_or_else(|_| "<p>GNSS experiment page not available.</p>".to_string());
+    let content = if headers.get("hx-request").is_some() {
+        content
+    } else {
+        render_main(user, content)
+    };
+    Html(content)
 }
 
 async fn get_experiments_hi(
