@@ -7,7 +7,7 @@ use chrono::{DateTime, Utc};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::time::{Instant, sleep_until};
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 
 pub struct TelescopeTrackerInfo {
     pub target: Option<TelescopeTarget>,
@@ -179,14 +179,17 @@ async fn tracker_task_function(
             };
             // Send initial stop on fresh connection
             let ctrl = controller.as_mut().unwrap();
-            if let Err(err) = ctrl.execute(TelescopeCommand::Stop) {
-                state.lock().unwrap().most_recent_error = Some(err);
-                controller = None;
-                continue;
-            }
             let mut state_guard = state.lock().unwrap();
+            match ctrl.execute(TelescopeCommand::Stop) {
+                Ok(_) => {
+                    state_guard.most_recent_error = None;
+                }
+                Err(err) => {
+                    warn!("Stop command failed on fresh connection: {}", err);
+                    state_guard.most_recent_error = Some(err);
+                }
+            }
             state_guard.commanded_horizontal = None;
-            state_guard.most_recent_error = None;
         }
 
         let ctrl = controller.as_mut().unwrap();
