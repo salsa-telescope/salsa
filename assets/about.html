@@ -1,55 +1,47 @@
 <div class="section light space-y-6">
-  <h2>About the telescopes</h2>
+  <h2 class="text-3xl font-semibold">About the telescopes</h2>
 
-  <div class="max-w-2xl space-y-4 text-gray-700">
-    <p>
-      SALSA (Such A Lovely Small Antenna) is a set of small radio telescopes located at the
-      <a href="https://www.chalmers.se/en/infrastructure/oso/" class="underline">Onsala Space Observatory</a>
-      on the west coast of Sweden, operated by Chalmers University of Technology.
-      They are available free of charge to anyone who wants to explore radio astronomy.
-    </p>
+  <div class="flex flex-col sm:flex-row gap-6 items-start">
+    <div class="flex-1 space-y-6 text-gray-700">
 
-    <p>
-      The telescopes are parabolic dish antennas about 2.3 metres in diameter,
-      equipped with receivers tuned to the 21 cm wavelength (around 1420 MHz).
-      This frequency corresponds to the hyperfine transition of neutral hydrogen,
-      making the telescopes well suited for mapping the Milky Way and studying
-      the large-scale structure of our Galaxy.
-    </p>
+      <div class="space-y-4">
+        <p>
+          SALSA (<em>Such A Lovely Small Antenna</em>, or <em>Sicken Attans Liten Söt Antenn</em> in Swedish)
+          is a set of small radio telescopes at the
+          <a href="https://www.chalmers.se/en/infrastructure/oso/" class="underline">Onsala Space Observatory</a>
+          (57°24'N, 11°55'E) on the west coast of Sweden, operated by Chalmers University of Technology.
+          They are available free of charge to anyone who wants to explore radio astronomy.
+        </p>
+        <p>
+          The telescopes are parabolic dish antennas about 2.3 metres in diameter,
+          equipped with receivers tuned to the 21 cm wavelength (around 1420 MHz) —
+          the hyperfine transition of neutral hydrogen.
+        </p>
+      </div>
 
-    <p>
-      Each telescope can be pointed at any position above the local horizon,
-      and can track targets as they move across the sky.
-      The system is fully remote-controlled through this web interface —
-      no special software or hardware is required on your end.
-    </p>
-  </div>
+      <div class="space-y-2">
+        <h3 class="text-lg font-semibold text-gray-800">What can I observe?</h3>
+        <ul class="list-disc list-inside space-y-1">
+          <li>Neutral hydrogen — map the Milky Way's spiral arms and rotation curve</li>
+          <li>The Sun — map the antenna beam pattern using the Sun as a bright radio source</li>
+          <li>GNSS satellites — detect signals from GPS, Galileo, GLONASS, and BeiDou</li>
+        </ul>
+        <p>Any position on the sky can be targeted — though the small dish size means only bright sources are easy to detect.</p>
+      </div>
 
-  <div class="max-w-2xl space-y-4 text-gray-700">
-    <h3 class="text-lg font-semibold text-gray-800">What can I observe?</h3>
-    <ul class="list-disc list-inside space-y-1">
-      <li>Neutral hydrogen in the Milky Way — map the Galaxy's spiral arms and measure its rotation curve</li>
-      <li>The Sun — measure the antenna beam pattern and study solar radio emission</li>
-      <li>GNSS satellites — detect signals from GPS, Galileo, GLONASS, and BeiDou</li>
-      <li>Any position on the sky above the horizon, in galactic, equatorial, or horizontal coordinates</li>
-    </ul>
-  </div>
+      <div class="space-y-2">
+        <h3 class="text-lg font-semibold text-gray-800">Further reading</h3>
+        <ul class="list-disc list-inside space-y-1">
+          <li><a href="https://www.chalmers.se/en/infrastructure/oso/" class="underline">Onsala Space Observatory</a></li>
+          <li><a href="/technical" hx-get="/technical" hx-target="#page" hx-push-url="/technical" class="underline">Detailed technical specifications</a></li>
+          <li><a href="/support" hx-get="/support" hx-target="#page" hx-push-url="/support" class="underline">Support &amp; documentation</a> — how to use the telescopes</li>
+        </ul>
+      </div>
 
-  <div class="max-w-2xl space-y-4 text-gray-700">
-    <h3 class="text-lg font-semibold text-gray-800">Location</h3>
-    <p>
-      The telescopes are located at Onsala Space Observatory,
-      coordinates 57°24'N, 11°55'E, at an elevation of approximately 20 m above sea level.
-      Targets with declination above &minus;33° can be observed, and targets above +33° are circumpolar
-      (never set below the horizon).
-    </p>
-  </div>
+    </div>
 
-  <div class="max-w-2xl space-y-4 text-gray-700">
-    <h3 class="text-lg font-semibold text-gray-800">Further reading</h3>
-    <ul class="list-disc list-inside space-y-1">
-      <li><a href="https://www.chalmers.se/en/infrastructure/oso/" class="underline">Onsala Space Observatory</a></li>
-      <li><a href="/support" hx-get="/support" hx-target="#page" hx-push-url="/support" class="underline">Support &amp; documentation</a> — how to use the telescopes</li>
-    </ul>
+    <div class="flex-1">
+      <img src="/telescope1.png" class="rounded-lg w-full" alt="SALSA telescope">
+    </div>
   </div>
 </div>

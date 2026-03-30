@@ -1,0 +1,127 @@
+<div class="section light space-y-6">
+  <h2 class="text-3xl font-semibold">Technical specifications</h2>
+
+  <div class="flex flex-col sm:flex-row gap-8 items-start">
+
+    <div class="flex-1 space-y-6 text-gray-700">
+
+      <p>This page contains detailed technical specifications for the SALSA
+      Onsala telescopes. There are three telescopes: Torre, Vale, Brage (in order
+      from left to right as displayed on the webcam). In principle they have
+      identical hardware, although there are differences in cable lengths and
+      connections. </p>
+
+      <div class="space-y-2">
+        <h3 class="text-lg font-semibold text-gray-800">Site</h3>
+        <ul class="list-disc list-inside space-y-1">
+          <li>Location: Onsala Space Observatory, 57°24'N, 11°55'E</li>
+          <li>Elevation: approximately 5 m above sea level</li>
+          <li>Observable declinations: above &minus;33° (targets above +33° are circumpolar)</li>
+        </ul>
+      </div>
+
+      <div class="space-y-2">
+        <h3 class="text-lg font-semibold text-gray-800">Dish, horn and optics</h3>
+        <p>The dish is 2.3 m in diameter. The surface has holes of about 5 mm in
+diameter, letting air through to reduce wind resistance. The holes do limit
+the frequency range (too short waves pass through rather than reflect) to less than about 6
+GHz, but this is not a problem for the longer waves observed by SALSA. The horn is
+placed at a focal distance optimised for the 21 cm hydrogen line. Observing
+significantly off 1420 MHz degrades sensitivity more than the holes do.</p>
+      </div>
+
+      <div class="space-y-2">
+        <h3 class="text-lg font-semibold text-gray-800">Signal path and sampler</h3>
+        <p>The incoming electromagnetic waves are reflected in the parabolic dish and summed coherently (in-phase for 21 cm wavelength) at the feed horn. Inside the horn is a small (5 cm) metal probe which is the actual antenna, sensitive to a single linear polarisation. The probe has an N-type connector on the outside of the horn, and a short (30 cm) CNT-400 cable connects it to a small box mounted on the horn. This box contains a Low Noise Amplifier (LNA) with a Bias-T that feeds the LNA 12 V DC through the coax. The LNA is custom built by Tommy Henderson (formerly with Radio Astronomy Supplies) in the US — LNA measurement documents: <a href="#" class="underline">Torre</a>, <a href="#" class="underline">Vale</a>, <a href="#" class="underline">Brage</a> (links to be added).</p>
+        <p>After the LNA, the signal travels down the telescope through approximately 10 m of RG-400 cable to a junction box. Here a second Bias-T injects the 12 V supply onto the cable feeding the LNA above. After the junction box, the signal continues via approximately 30 m of CNT-400 coax into the building where the sampler is located. The sampler is a <a href="https://files.ettus.com/manual/page_usrp2.html" class="underline">USRP N210</a> equipped with a <a href="https://kb.ettus.com/DBSRX2" class="underline">DBSRX2</a> daughter board, which digitizes the waveform and sends samples via 1 Gbps Ethernet to the control computer. The DBSRX2 card covers 0.8–2.3 GHz, but due to strong interference above 1.8 GHz the LNAs include additional filters limiting the usable range to 1400–1700 MHz. The USRP supports up to 25 MHz instantaneous bandwidth; for standard HI observations the default 2.5 MHz is sufficient. Both bandwidth and channel resolution are selectable by the user.</p>
+      </div>
+
+      <div class="space-y-2">
+        <h3 class="text-lg font-semibold text-gray-800">Rotor and controller</h3>
+        <p>The rotor and controller are manufactured by <a href="http://spid.net.pl" class="underline">SPID Elektronik</a>. The rotor model is <a href="/Manual-BIG-RAS-HR-EN.pdf" class="underline">BIG RAS/HR</a> with 0.1 degrees resolution and 1.5 degrees / second rotation speed. The rotor is powered by a <a href="/SPID_MD-0x_MANUAL_ENG.pdf" class="underline">MD01</a> control unit which also reads the current rotor position. The SALSA webserver communicates with the rotor via ethernet, sending ROT2PROG commands via telnet port 25. The current rotor position is read once per second.</p>
+      </div>
+
+    </div>
+
+    <div style="font-size: 0.875rem; color: #374151; width: fit-content; margin-left: auto;">
+
+      <!-- Column headers -->
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0 32px; margin-bottom: 4px;">
+        <p style="text-align: center; font-weight: 600; color: #6b7280;">Signal path ↓</p>
+        <p style="text-align: center; font-weight: 600; color: #6b7280;">Control path ↑</p>
+      </div>
+
+      <!-- Main grid: top rows, webserver, bottom rows -->
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0 32px;">
+
+        <!-- Top-left: signal path from HI cloud to USRP, bottom-aligned to touch webserver -->
+        <div style="display: flex; flex-direction: column; align-items: center; align-self: end;">
+          <div style="border: 1px solid #9ca3af; border-radius: 6px; padding: 6px 20px; background: #f0f9ff; text-align: center;">HI cloud / radio source</div>
+          <div style="color: #6b7280; font-size: 1.4em; line-height: 1.2;">↓</div>
+          <div style="border: 1px solid #9ca3af; border-radius: 6px; padding: 6px 20px; background: #fff; text-align: center;">Parabolic dish<br><span style="font-size:0.85em; color:#6b7280;">2.3 m diameter</span></div>
+          <div style="color: #6b7280; font-size: 1.4em; line-height: 1.2;">↓</div>
+          <div style="border: 1px solid #9ca3af; border-radius: 6px; padding: 6px 20px; background: #fff; text-align: center;">Horn &amp; feed</div>
+          <div style="color: #6b7280; font-size: 1.4em; line-height: 1.2;">↓</div>
+          <div style="border: 1px solid #9ca3af; border-radius: 6px; padding: 6px 20px; background: #fff; text-align: center;">LNA<br><span style="font-size:0.85em; color:#6b7280;">filter 1400–1700 MHz, 12V via Bias-T</span></div>
+          <div style="color: #6b7280; font-size: 1.4em; line-height: 1.2;">↓</div>
+          <div style="border: 1px solid #9ca3af; border-radius: 6px; padding: 6px 20px; background: #fff; text-align: center;">Coaxial cable RG-400 (10 m)</div>
+          <div style="color: #6b7280; font-size: 1.4em; line-height: 1.2;">↓</div>
+          <div style="border: 1px solid #9ca3af; border-radius: 6px; padding: 6px 20px; background: #fff; text-align: center;">Junction box<br><span style="font-size:0.85em; color:#6b7280;">12V supply to LNA</span></div>
+          <div style="color: #6b7280; font-size: 1.4em; line-height: 1.2;">↓</div>
+          <div style="border: 1px solid #9ca3af; border-radius: 6px; padding: 6px 20px; background: #fff; text-align: center;">Coaxial cable CNT-400 (30 m)</div>
+          <div style="color: #6b7280; font-size: 1.4em; line-height: 1.2;">↓</div>
+          <div style="border: 1px solid #9ca3af; border-radius: 6px; padding: 6px 20px; background: #fff; text-align: center;">USRP N210<br><span style="font-size:0.85em; color:#6b7280;">software-defined radio, with DBSRX2</span></div>
+          <div style="color: #6b7280; font-size: 1.4em; line-height: 1.2;">↓</div>
+        </div>
+
+        <!-- Top-right: control path from rotor down to MD01, bottom-aligned to touch webserver -->
+        <div style="display: flex; flex-direction: column; align-items: center; align-self: end;">
+          <div style="border: 1px solid #9ca3af; border-radius: 6px; padding: 6px 20px; background: #fff; text-align: center;">Rotor BIG RAS/HR<br><span style="font-size:0.85em; color:#6b7280;">→ moves parabolic dish</span></div>
+          <div style="color: #6b7280; font-size: 1.4em; line-height: 1.2;">↑</div>
+          <div style="border: 1px solid #9ca3af; border-radius: 6px; padding: 6px 20px; background: #fff; text-align: center;">Multi-core cable (30 m)</div>
+          <div style="color: #6b7280; font-size: 1.4em; line-height: 1.2;">↑</div>
+          <div style="border: 1px solid #9ca3af; border-radius: 6px; padding: 6px 20px; background: #fff; text-align: center;">MD01 rotor controller</div>
+          <div style="color: #6b7280; font-size: 1.4em; line-height: 1.2;">↑</div>
+        </div>
+
+        <!-- Webserver: one box per column -->
+        <div style="display: flex; flex-direction: column; align-items: center;">
+          <div style="border: 2px solid #6366f1; border-radius: 8px; padding: 10px 48px; background: #eef2ff; text-align: center; font-weight: 600; color: #4338ca;">SALSA webserver</div>
+        </div>
+        <div style="display: flex; flex-direction: column; align-items: center;">
+          <div style="border: 2px solid #6366f1; border-radius: 8px; padding: 10px 48px; background: #eef2ff; text-align: center; font-weight: 600; color: #4338ca;">SALSA webserver</div>
+        </div>
+
+        <!-- Bottom-left: FFT and Spectrum -->
+        <div style="display: flex; flex-direction: column; align-items: center; align-self: start;">
+          <div style="color: #6b7280; font-size: 1.4em; line-height: 1.2;">↓</div>
+          <div style="border: 1px solid #9ca3af; border-radius: 6px; padding: 6px 20px; background: #fff; text-align: center;">FFT<br><span style="font-size:0.85em; color:#6b7280;">8192 points</span></div>
+          <div style="color: #6b7280; font-size: 1.4em; line-height: 1.2;">↓</div>
+          <div style="border: 1px solid #9ca3af; border-radius: 6px; padding: 6px 20px; background: #fff; text-align: center;">Resolution selected by user</div>
+          <div style="color: #6b7280; font-size: 1.4em; line-height: 1.2;">↓</div>
+          <div style="border: 1px solid #9ca3af; border-radius: 6px; padding: 6px 20px; background: #ecfdf5; text-align: center;">Spectrum</div>
+        </div>
+
+        <!-- Bottom-right: Selected coordinates -->
+        <div style="display: flex; flex-direction: column; align-items: center; align-self: start;">
+          <div style="color: #6b7280; font-size: 1.4em; line-height: 1.2;">↑</div>
+          <div style="border: 1px solid #9ca3af; border-radius: 6px; padding: 6px 20px; background: #f0f9ff; text-align: center;">Selected coordinates</div>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+
+  <div class="space-y-2 text-gray-700">
+    <h3 class="text-lg font-semibold text-gray-800">Further reading</h3>
+    <ul class="list-disc list-inside space-y-1">
+      <li><a href="https://files.ettus.com/manual/page_usrp2.html" class="underline">USRP N210 manual</a> — software-defined radio sampler</li>
+      <li><a href="https://kb.ettus.com/DBSRX2" class="underline">DBSRX2 daughter board</a> — receiver daughtercard for the USRP N210</li>
+      <li><a href="/Manual-BIG-RAS-HR-EN.pdf" class="underline">BIG RAS/HR rotor manual</a> — parabolic dish rotor</li>
+      <li><a href="/SPID_MD-0x_MANUAL_ENG.pdf" class="underline">MD01 controller manual</a> — rotor controller and ROT2PROG interface</li>
+      <li>LNA measurements: <a href="#" class="underline">Torre</a>, <a href="#" class="underline">Vale</a>, <a href="#" class="underline">Brage</a> (links to be added)</li>
+    </ul>
+  </div>
+
+</div>

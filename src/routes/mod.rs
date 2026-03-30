@@ -7,5 +7,6 @@ pub mod index;
 pub mod observations;
 pub mod observe;
 pub mod support;
+pub mod technical;
 pub mod telescope;
 pub mod webcam;

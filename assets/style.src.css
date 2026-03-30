@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @source "../templates/";
+@source "../assets/";
 
 header *,
 header *::before,
