@@ -618,9 +618,9 @@ figure img {
 }
 
 /* Content links */
-.section a {
+.section a:not(.btn) {
     color: #4f46e5;
 }
-.section a:hover {
+.section a:not(.btn):hover {
     color: #3730a3;
 }
