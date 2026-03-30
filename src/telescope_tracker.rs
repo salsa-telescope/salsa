@@ -184,7 +184,9 @@ async fn tracker_task_function(
                 controller = None;
                 continue;
             }
-            state.lock().unwrap().commanded_horizontal = None;
+            let mut state_guard = state.lock().unwrap();
+            state_guard.commanded_horizontal = None;
+            state_guard.most_recent_error = None;
         }
 
         let ctrl = controller.as_mut().unwrap();
@@ -212,11 +214,19 @@ async fn tracker_task_function(
         }
 
         let res = update_direction(&state, Utc::now(), ctrl);
-        if let Err(err) = res {
-            state.lock().unwrap().most_recent_error = Some(err);
-            controller = None;
-        } else {
-            state.lock().unwrap().most_recent_error = None;
+        match res {
+            Ok(()) => {
+                state.lock().unwrap().most_recent_error = None;
+            }
+            Err(
+                err @ (TelescopeError::TelescopeIOError(_) | TelescopeError::TelescopeNotConnected),
+            ) => {
+                state.lock().unwrap().most_recent_error = Some(err);
+                controller = None;
+            }
+            Err(err) => {
+                state.lock().unwrap().most_recent_error = Some(err);
+            }
         }
     }
 }
