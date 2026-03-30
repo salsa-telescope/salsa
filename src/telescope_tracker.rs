@@ -153,6 +153,10 @@ async fn tracker_task_function(
 ) {
     let mut controller: Option<TelescopeController> = None;
     let mut prev_target: Option<TelescopeTarget> = None;
+    // The MD01 controller closes the TCP connection after responding to Stop.
+    // So we send Stop once on first startup on its own connection, then reconnect
+    // for all subsequent communication. On later reconnects we skip Stop.
+    let mut initial_stop_done = false;
 
     while !state.lock().unwrap().quit {
         // 1 Hz update freq
@@ -177,19 +181,28 @@ async fn tracker_task_function(
                     continue;
                 }
             };
-            // Send initial stop on fresh connection
-            let ctrl = controller.as_mut().unwrap();
-            let mut state_guard = state.lock().unwrap();
-            match ctrl.execute(TelescopeCommand::Stop) {
-                Ok(_) => {
-                    state_guard.most_recent_error = None;
+
+            if !initial_stop_done {
+                // Send Stop once on first startup to ensure the rotor is not
+                // moving from a previous session. The controller closes the TCP
+                // connection after responding to Stop, so we drop this connection
+                // and reconnect fresh on the next iteration for actual work.
+                let ctrl = controller.as_mut().unwrap();
+                match ctrl.execute(TelescopeCommand::Stop) {
+                    Ok(_) => {
+                        state.lock().unwrap().most_recent_error = None;
+                    }
+                    Err(err) => {
+                        warn!("Initial stop command failed: {}", err);
+                        state.lock().unwrap().most_recent_error = Some(err);
+                    }
                 }
-                Err(err) => {
-                    warn!("Stop command failed on fresh connection: {}", err);
-                    state_guard.most_recent_error = Some(err);
-                }
+                initial_stop_done = true;
+                controller = None; // Reconnect fresh; controller closed after Stop
+                continue;
             }
-            state_guard.commanded_horizontal = None;
+
+            state.lock().unwrap().commanded_horizontal = None;
         }
 
         let ctrl = controller.as_mut().unwrap();
