@@ -3,6 +3,7 @@ pub mod account;
 pub mod admin;
 pub mod authentication;
 pub mod booking;
+pub mod experiments;
 pub mod index;
 pub mod observations;
 pub mod observe;

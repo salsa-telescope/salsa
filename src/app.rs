@@ -116,6 +116,7 @@ pub async fn create_app(config_dir: &Path, database_dir: &Path) -> (Router, AppS
         .nest("/account", routes::account::routes(state.clone()))
         .nest("/admin", routes::admin::routes(state.clone()))
         .nest("/about", routes::about::routes())
+        .nest("/experiments", routes::experiments::routes())
         .nest("/support", routes::support::routes())
         .nest("/technical", routes::technical::routes())
         .nest("/auth", routes::authentication::routes(state.clone()))

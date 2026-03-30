@@ -46,6 +46,7 @@
                 <a href="#" class="nav-link" hx-get="/about" hx-target="#page" hx-push-url="/about" onclick="closeAllPanels()">About</a>
                 <a href="#" class="nav-link" hx-get="/bookings" hx-target="#page" hx-push-url="/bookings" onclick="closeAllPanels()">Bookings</a>
                 <a href="#" class="nav-link" hx-get="/observations" hx-target="#page" hx-push-url="/observations" onclick="closeAllPanels()">Observations</a>
+                <a href="#" class="nav-link" hx-get="/experiments" hx-target="#page" hx-push-url="/experiments" onclick="closeAllPanels()">Experiments</a>
                 <a href="#" class="nav-link" hx-get="/support" hx-target="#page" hx-push-url="/support" onclick="closeAllPanels()">Support</a>
                 <a href="#" class="nav-link" hx-get="/webcam" hx-target="#page" hx-push-url="/webcam" onclick="closeAllPanels()">Webcam</a>
                 {% if is_admin %}
@@ -74,5 +75,19 @@
         <footer>
             Made by weirdos 🦆 ({% if build_url == "" %} {{version_description}} {% else %} <a href={{build_url}}>build</a> {% endif %})
         </footer>
+        <div id="lightbox" onclick="this.style.display='none'" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.85); z-index:1000; cursor:zoom-out; align-items:center; justify-content:center; padding:2rem;">
+            <img id="lightbox-img" style="max-width:90vw; max-height:90vh; object-fit:contain; border-radius:4px; box-shadow:0 0 60px rgba(0,0,0,0.5);">
+        </div>
+        <script>
+            document.addEventListener('click', function(e) {
+                if (e.target.tagName === 'IMG' && e.target.closest('figure')) {
+                    document.getElementById('lightbox-img').src = e.target.src;
+                    document.getElementById('lightbox').style.display = 'flex';
+                }
+            });
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape') document.getElementById('lightbox').style.display = 'none';
+            });
+        </script>
     </body>
 </html>

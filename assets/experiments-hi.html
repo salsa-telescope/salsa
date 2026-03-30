@@ -1,0 +1,602 @@
+<div class="section light space-y-8">
+
+  <div class="space-y-2">
+    <p class="text-sm text-gray-500">
+      <a href="/experiments" hx-get="/experiments" hx-target="#page" hx-push-url="/experiments" class="underline">← Experiments</a>
+    </p>
+    <h2 class="text-3xl font-semibold">Mapping the Milky Way</h2>
+    <p class="text-sm text-gray-500">
+      Written by Cathy Horellou, Daniel Johansson &amp; Eskil Varenius
+    </p>
+  </div>
+
+  <!-- Abstract -->
+  <div class="space-y-4 text-gray-700">
+    <figure style="float: right; width: 30%; margin: 0 0 1rem 2rem;">
+      <img src="/experiments-hi/milkyway_cover.jpg" alt="Artist's conception of the spiral structure of the Milky Way" class="rounded-lg w-full">
+      <figcaption class="text-sm text-gray-500 mt-1">Artist's conception of the spiral structure of the Milky Way with two major stellar arms and a central bar. Credit: NASA/JPL-Caltech/ESO/R. Hurt.</figcaption>
+    </figure>
+<p>In this document we first review some properties of the Milky Way, starting by
+    describing the Galactic coordinate system and the geometry of a rotating disk. Then,
+    we describe how to use data from SALSA to understand how fast gas rotates at different
+    distances from the galactic center, i.e. how to make a <em>rotation curve</em>. Finally,
+    we use additional measurements, and our knowledge of the kinematics, to make a map of
+    the spiral arms.</p>
+    <p class="text-sm text-gray-500">Note: this document is focused on the scientific
+    interpretation. Instructions for operating the SALSA telescope can be found on the
+    <a href="/support" hx-get="/support" hx-target="#page" hx-push-url="/support" class="underline">Support &amp; documentation</a> page.</p>
+    <nav class="bg-gray-50 border border-gray-200 rounded-lg p-5 text-sm">
+      <p class="font-semibold text-gray-800 mb-3">Contents</p>
+      <ol class="space-y-1 list-none">
+        <li><a href="#ch1" class="underline text-gray-700 hover:text-gray-900">1. Welcome to the Galaxy</a>
+          <ol class="ml-4 mt-1 space-y-1 list-none text-gray-600">
+            <li><a href="#s1-1" class="underline hover:text-gray-900">1.1 Our place in the Milky Way</a></li>
+            <li><a href="#s1-2" class="underline hover:text-gray-900">1.2 Galactic coordinates: longitude and latitude</a></li>
+            <li><a href="#s1-3" class="underline hover:text-gray-900">1.3 Radio emission from atomic hydrogen</a></li>
+            <li><a href="#s1-4" class="underline hover:text-gray-900">1.4 The Doppler effect</a></li>
+          </ol>
+        </li>
+        <li><a href="#ch2" class="underline text-gray-700 hover:text-gray-900">2. The structure and kinematics of the Milky Way</a>
+          <ol class="ml-4 mt-1 space-y-1 list-none text-gray-600">
+            <li><a href="#s2-1" class="underline hover:text-gray-900">2.1 The rotation curve of the Milky Way</a></li>
+            <li><a href="#s2-2" class="underline hover:text-gray-900">2.2 Mapping the Milky Way</a></li>
+          </ol>
+        </li>
+        <li><a href="#appendices" class="underline text-gray-700 hover:text-gray-900">Appendices</a>
+          <ol class="ml-4 mt-1 space-y-1 list-none text-gray-600">
+            <li><a href="#app-a" class="underline hover:text-gray-900">A. Rotation curves</a></li>
+            <li><a href="#app-b" class="underline hover:text-gray-900">B. Early history of 21 cm line observations</a></li>
+          </ol>
+        </li>
+        <li><a href="#bibliography" class="underline text-gray-700 hover:text-gray-900">Bibliography</a></li>
+      </ol>
+    </nav>
+    <div style="clear: both;"></div>
+  </div>
+
+  <!-- Chapter 1 -->
+  <details open class="space-y-6 text-gray-700">
+    <summary class="cursor-pointer"><h3 id="ch1" class="text-2xl font-semibold text-gray-800 inline">1. Welcome to the Galaxy</h3></summary>
+
+    <p>Looking up on a clear, dark night, our eyes are able to discern a luminous band
+    stretching across the sky. Observe it with binoculars or a small telescope and you
+    will discover, like Galileo in 1609, that it is made up of a myriad of stars. This
+    is the <strong>Milky Way</strong>: our own Galaxy, as it appears from Earth. It
+    contains about a hundred billions of stars, and our Sun is just one of them. There
+    are many other galaxies in the universe. We also refer to the Milky Way as just
+    <strong>the Galaxy</strong>.</p>
+
+    <p>It took astronomers a long time to figure out what the Galaxy really looks like.
+    One would like to be able to embark on a spaceship and see the Galaxy from outside.
+    Unfortunately, traveling in and around the Galaxy is (and will always be) out of the
+    question because of the huge distances. We are condemned to observe the Galaxy from
+    the vicinity of the Sun.</p>
+
+    <p>Observations of the Galaxy, as well as of other galaxies, using both optical and
+    radio telescopes, have helped unveil the structure of our galaxy. Today, astronomers
+    think they have good knowledge of how the stars and gas clouds are distributed. Our
+    galaxy seems to be a thin disk of stars and gas, which are distributed in a spiral
+    pattern.</p>
+
+    <p>But a new mystery has arisen: that of the so-called <strong>dark matter</strong>.
+    Most of the mass of our galaxy seems to be in the form of dark matter, a mysterious
+    component that has, so far, escaped all means of identification. Its existence has
+    been inferred only indirectly. Imagine a couple of dancers, in a dark room. The man
+    is black, dressed in black clothes, and the woman wears a fluorescent dress. You
+    can't see the man. But from the motion of the woman dancer, you can infer his
+    presence: somebody must be holding onto her, otherwise, with such speed, she would
+    simply fly away! Similarly, the stars and the gas in our galaxy rotate <em>too
+    fast</em>, compared to the amount of mass observed. There must therefore be <em>more
+    matter</em>, invisible to our eyes and to the most sensitive instruments, but which,
+    through the force of gravity, holds the stars together in our galaxy and prevents
+    them from flying away. The key argument in favor of the existence of dark matter
+    comes from the measured velocities in the outer part of our galaxy. Radio
+    measurements of the type described in this document have played an important role
+    in revealing the presence of dark matter in the Milky Way. But what dark matter
+    really is remains an open question.</p>
+
+    <div class="space-y-3">
+      <h4 id="s1-1" class="text-lg font-semibold text-gray-800">1.1 Our place in the Milky Way</h4>
+      <p>Our star, the Sun, is located in the outer part of the Galaxy, at a distance
+      of about 8.5 kpc<sup>1</sup> (about 25 000 light years<sup>2</sup>) from the
+      Galactic center. Most of the stars and the gas lie in a thin disk and rotate
+      around the Galactic center. The Sun has a circular speed of about 220 km/s, and
+      performs a full revolution around the center of the Galaxy in about 240 million
+      years.</p>
+      <p class="text-sm text-gray-500">
+        <sup>1</sup> 1 kpc = 1 kiloparsec = 10<sup>3</sup> pc; 1 parallax-second
+        (parsec, pc) = 3.086·10<sup>16</sup> m. A parsec is the distance from which
+        the radius of Earth's orbit subtends an angle of 1″ (1 arcsec).<br>
+        <sup>2</sup> 1 light year (ly) = 9.4605·10<sup>15</sup> m.
+      </p>
+    </div>
+
+    <div class="space-y-3">
+      <h4 id="s1-2" class="text-lg font-semibold text-gray-800">1.2 Galactic coordinates: longitude and latitude</h4>
+      <p>To describe the position of a star or a gas cloud in the Galaxy, it is
+      convenient to use the so-called <strong>Galactic coordinate system</strong>,
+      (l, b), where l is the Galactic longitude and b the Galactic latitude. The
+      Galactic coordinate system is centered on the Sun. b = 0 corresponds to the
+      Galactic plane. The direction b = 90° is called the North Galactic Pole. The
+      longitude l is measured <em>counterclockwise</em> from the direction from the
+      Sun toward the Galactic center. The Galactic center thus has the coordinates
+      (l = 0, b = 0). There is, in fact, something very special at the Galactic
+      center: a very large concentration of mass in the form of a black hole
+      containing approximately three million times the mass of the Sun. Surrounding
+      it is a brilliant source of radio waves and X-rays called Sagittarius A*.</p>
+
+      <figure class="my-3" style="max-width: 480px;">
+        <img src="/experiments-hi/galdisc.png" alt="Galactic coordinate system" class="rounded border border-gray-200 w-full">
+        <figcaption class="text-sm text-gray-500 mt-1"><strong>Fig. 1.1.</strong> Illustration of the Galactic coordinate system, with longitude (l) and latitude (b). <strong>C</strong> indicates the location of the Galactic center, <strong>S</strong> the location of the Sun.</figcaption>
+      </figure>
+
+      <p>The Galaxy has been divided into four quadrants, labeled by Roman numbers:</p>
+      <table class="text-sm border-collapse w-full max-w-sm">
+        <thead>
+          <tr class="bg-gray-100">
+            <th class="border border-gray-300 px-3 py-1 text-left">Quadrant</th>
+            <th class="border border-gray-300 px-3 py-1 text-left">Range</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td class="border border-gray-300 px-3 py-1">I</td><td class="border border-gray-300 px-3 py-1">0° &lt; l &lt; 90°</td></tr>
+          <tr><td class="border border-gray-300 px-3 py-1">II</td><td class="border border-gray-300 px-3 py-1">90° &lt; l &lt; 180°</td></tr>
+          <tr><td class="border border-gray-300 px-3 py-1">III</td><td class="border border-gray-300 px-3 py-1">180° &lt; l &lt; 270°</td></tr>
+          <tr><td class="border border-gray-300 px-3 py-1">IV</td><td class="border border-gray-300 px-3 py-1">270° &lt; l &lt; 360°</td></tr>
+        </tbody>
+      </table>
+      <figure class="my-3" style="max-width: 480px;">
+        <img src="/experiments-hi/mwsketch.png" alt="Sketch of the spiral structure of the Galaxy" class="rounded border border-gray-200 w-full">
+        <figcaption class="text-sm text-gray-500 mt-1"><strong>Fig. 1.2.</strong> Sketch of the spiral structure of the Galaxy. <strong>C</strong> indicates the location of the Galactic center. The approximate locations of the main spiral arms and the four quadrants are shown.</figcaption>
+      </figure>
+      <p>In Quadrants I and IV we observe mainly the inner part of our Galaxy.
+      Quadrants II and III contain material lying at galacto-centric radii which are
+      always <em>larger</em> than the Solar radius (the radius of the orbit of the
+      Sun around the Galactic center).</p>
+    </div>
+
+    <div class="space-y-3">
+      <h4 id="s1-3" class="text-lg font-semibold text-gray-800">1.3 Radio emission from atomic hydrogen</h4>
+      <p>Most of the gas in the Galaxy is atomic hydrogen (H). H is the simplest
+      atom: it has only one proton and one electron. Atomic hydrogen emits a radio
+      line at a wavelength λ = 21 cm (or a frequency f = c/λ = 1420 MHz, where
+      c ≅ 300 000 km/s is the speed of light). This is the signal we want to detect.</p>
+      <div class="bg-gray-50 border-l-4 border-indigo-300 rounded px-4 py-2 font-mono text-sm my-2">
+        λ = 21 cm &nbsp;⟹&nbsp; f = c/λ = 1420 MHz &nbsp;&nbsp;&nbsp; (1.1)
+      </div>
+      <figure class="my-4" style="max-width: 480px;">
+        <img src="/experiments-hi/hyperfine.png" alt="21 cm transition of the hydrogen atom" class="rounded border border-gray-200 w-full">
+        <figcaption class="text-sm text-gray-500 mt-1"><strong>Fig. 1.3.</strong> Illustration of the 21 cm transition of the hydrogen atom, caused by the energy change when the electron's spin changes from parallel with the proton's spin to antiparallel.</figcaption>
+      </figure>
+      <p>The 21 cm hydrogen signal is emitted when the electron's spin flips from
+      being parallel to being antiparallel with the proton's spin, bringing the atom
+      to a lower energy state. Although this happens spontaneously only about once
+      every ten million years for a given hydrogen atom, the enormous quantity of
+      hydrogen in the Milky Way makes the 21 cm line detectable. The line was
+      predicted by the Dutch astronomer H.C. van de Hulst in 1945, who determined
+      its frequency theoretically. The line was observed for the first time in 1951
+      by three groups, in the U.S.A., in the Netherlands and in Australia (see
+      Appendix B).</p>
+    </div>
+
+    <div class="space-y-3">
+      <h4 id="s1-4" class="text-lg font-semibold text-gray-800">1.4 The Doppler effect</h4>
+      <p>By observing radio emission from hydrogen, we can learn about the motion of
+      the hydrogen gas clouds in our Galaxy. Indeed, it is possible to relate the
+      observed <em>frequency</em> of the signal to the <em>velocity of the emitting
+      gas</em>, thanks to the so-called <em>Doppler effect</em>.</p>
+      <p>This effect, named after the Austrian physicist Christian Johann Doppler
+      (1803–1853), is also present in our everyday life; for example if you are
+      standing still in the street and an ambulance <em>approaches</em> you, it
+      appears as if the pitch of the ambulance's siren <em>increases</em>. Similarly,
+      when the ambulance <em>is receding</em>, the pitch of the siren <em>decreases</em>.
+      Because sound waves travel through a medium (the air), when the ambulance is
+      approaching the waves will be 'squeezed' together by the forward motion. Shorter
+      wavelengths mean higher frequency, and thus the pitch of the siren increases.
+      This effect, that the frequency of the waves changes because of motion, is the
+      Doppler effect.</p>
+      <p>We can use the Doppler effect to relate the frequency we observe to the
+      velocity of the emitting hydrogen gas cloud, but to do so we need a formula.
+      We chose to omit the rather long derivation and just state the important
+      relation between the observed frequency shift and the velocity:</p>
+      <div class="bg-gray-50 border-l-4 border-indigo-300 rounded px-4 py-2 font-mono text-sm my-2">
+        Δf / f₀ = −v / c &nbsp;&nbsp;&nbsp; (1.2)
+      </div>
+      <p>where:</p>
+      <ul class="list-none space-y-1 text-sm font-mono pl-4">
+        <li>Δf = f − f₀ &nbsp; is the frequency shift,</li>
+        <li>f &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; is the observed frequency,</li>
+        <li>f₀ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; is the rest frequency of the line we are observing,</li>
+        <li>v &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; is the velocity: &gt; 0 if the object is receding, &lt; 0 if it is approaching.</li>
+      </ul>
+      <p>To observe hydrogen emission from gas clouds in the Galaxy we tune the
+      receiver of our radio telescope to record frequencies near the rest frequency
+      of the hydrogen line, i.e. the frequency we would measure if there was no
+      relative motion. Clouds with different velocities will then appear at different
+      frequencies. The frequency will be shifted up or down when the signal reaches
+      us, depending on whether the gas cloud that we observe is approaching us or
+      receding from us.</p>
+    </div>
+  </details>
+
+  <!-- Chapter 2 -->
+  <details open class="space-y-6 text-gray-700">
+    <summary class="cursor-pointer"><h3 id="ch2" class="text-2xl font-semibold text-gray-800 inline">2. The structure and kinematics of the Milky Way</h3></summary>
+    <p>In this chapter we describe how SALSA can be used to measure the structure and
+    kinematics of the Milky Way. First we explain how to measure the rotation curve,
+    i.e. the rotational speed of the gas at different distances from the galactic
+    center. Then we build on these results to make a map of the spiral arms.</p>
+
+    <div class="space-y-4">
+      <h4 id="s2-1" class="text-lg font-semibold text-gray-800">2.1 The rotation curve of the Milky Way</h4>
+      <p>A rotation curve is a function which describes the rotational speed of the
+      galaxy at different distances from the center, usually denoted V(R). To construct
+      a rotation curve we first need to understand how the velocity we measure (through
+      Doppler shift) is related to the movement of gas clouds in the Milky Way. Let us
+      imagine that we point our radio telescope towards a gas cloud in the Galaxy, i.e.
+      we observe along the line of sight in Fig. 2.1. For future reference we list some
+      variables used in this figure:</p>
+
+      <table class="text-sm border-collapse w-full max-w-md">
+        <thead>
+          <tr class="bg-gray-100">
+            <th class="border border-gray-300 px-3 py-1 text-left">Symbol</th>
+            <th class="border border-gray-300 px-3 py-1 text-left">Meaning</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td class="border border-gray-300 px-3 py-1 font-mono">V₀</td><td class="border border-gray-300 px-3 py-1">Sun's velocity around the Galactic center, i.e. 220 km/s</td></tr>
+          <tr><td class="border border-gray-300 px-3 py-1 font-mono">R₀</td><td class="border border-gray-300 px-3 py-1">Distance of the Sun to the Galactic center, i.e. 8.5 kpc</td></tr>
+          <tr><td class="border border-gray-300 px-3 py-1 font-mono">l</td><td class="border border-gray-300 px-3 py-1">Galactic longitude of observation</td></tr>
+          <tr><td class="border border-gray-300 px-3 py-1 font-mono">V</td><td class="border border-gray-300 px-3 py-1">Velocity of a cloud of gas</td></tr>
+          <tr><td class="border border-gray-300 px-3 py-1 font-mono">R</td><td class="border border-gray-300 px-3 py-1">Cloud's distance to the Galactic center</td></tr>
+        </tbody>
+      </table>
+
+      <figure class="my-4 max-w-md">
+        <img src="/experiments-hi/galgeom.png" alt="Geometry of the Galaxy" class="rounded border border-gray-200 w-full">
+        <figcaption class="text-sm text-gray-500 mt-1"><strong>Fig. 2.1.</strong> Geometry of the Galaxy. <strong>C</strong> is the location of the Galactic center, <strong>S</strong> that of the Sun, <strong>M</strong> that of a gas cloud that we want to observe. The SM line is the line-of-sight. Arrows indicate the direction of rotation and the velocities of the Sun (V₀) and the gas cloud (V).</figcaption>
+      </figure>
+      <p>There may be many clouds in this direction, but for the purpose of this
+      derivation we only care about a single cloud located at position M in Fig. 2.1.
+      Since both the Sun and the cloud are moving, we do not measure the cloud velocity
+      directly. Instead, we measure the relative velocity, V<sub>r</sub>, between us
+      and the cloud, projected on the line-of-sight. Using the angles in Fig. 2.1 we
+      can write this down as</p>
+      <div class="bg-gray-50 border-l-4 border-indigo-300 rounded px-4 py-2 font-mono text-sm my-2">
+        V<sub>r</sub> = V cos α − V₀ sin c &nbsp;&nbsp;&nbsp; (2.1)
+      </div>
+
+      <p>For this expression to be useful we need to relate the angles to the galactic
+      coordinates we discussed in Sect. 1.2. We know that the sum of angles in the
+      upper right triangle must be 180°, which means that we can relate the angle c to
+      galactic longitude l as</p>
+      <div class="bg-gray-50 border-l-4 border-indigo-300 rounded px-4 py-2 font-mono text-sm my-2">
+        (90 − l) + 90 + c = 180 &nbsp;⟹&nbsp; c = l &nbsp;&nbsp;&nbsp; (2.2)
+      </div>
+
+      <p>We now want to relate also the angle α to the longitude l. We note that the
+      angle between V and R is 90° and can be written as the sum of a and α, i.e.
+      90° = b + α. From the triangle CMT we also note that b = 90° − a. Put together
+      we get</p>
+      <div class="bg-gray-50 border-l-4 border-indigo-300 rounded px-4 py-2 font-mono text-sm my-2">
+        90 = 90 − a + α &nbsp;⟹&nbsp; a = α &nbsp;&nbsp;&nbsp; (2.3)
+      </div>
+
+      <p>Looking at the triangles CST and CMT we find that the distance between the
+      Galactic Center (C) and the tangential point (T) can be expressed in two
+      different ways:</p>
+      <div class="bg-gray-50 border-l-4 border-indigo-300 rounded px-4 py-2 font-mono text-sm my-2">
+        CT = R₀ sin l = R cos a &nbsp;⟹&nbsp; cos a = R₀ sin l / R &nbsp;&nbsp;&nbsp; (2.4)
+      </div>
+
+      <p>Using equations 2.2, 2.3, and 2.4 we can now re-write equation 2.1 as</p>
+      <div class="bg-gray-50 border-l-4 border-indigo-300 rounded px-4 py-2 font-mono text-sm my-2">
+        V<sub>r</sub> = V (R₀/R) sin l − V₀ sin l &nbsp;&nbsp;&nbsp; (2.5)
+      </div>
+
+      <p>This equation is valid for all longitudes l. However, measuring V<sub>r</sub>
+      alone for any given l is not enough to solve this equation to derive both V and R.
+      A solution is to restrict the range of possible l to the first quadrant, and using
+      only the maximum velocity detected in our calculations. We now explain how this
+      simplifies the problem.</p>
+
+      <figure class="my-4 max-w-md">
+        <img src="/experiments-hi/vmax.png" alt="Multiple velocity components in spectrum" class="rounded border border-gray-200 w-full">
+        <figcaption class="text-sm text-gray-500 mt-1"><strong>Fig. 2.2.</strong> There can be multiple velocity components in the observed spectrum; each peak corresponds to a cloud with some relative velocity.</figcaption>
+      </figure>
+      <p>In any given direction we may observe emission from multiple clouds at once.
+      Since the clouds move with different relative velocities, we measure multiple
+      components in the spectrum, as illustrated in Fig. 2.2. We now assume that clouds
+      at larger distances from the center move with equal or lower speed than clouds
+      closer to the center, as expected from standard Keplerian motion (see Appendix A).
+      In this case, the <strong>largest velocity component</strong>,
+      V<sub>r,max</sub>, comes from the cloud <strong>at the tangential point (T)</strong>,
+      since the maximum possible projected velocity happens when the projection angle is 0.
+      For a cloud at the tangent point we see from Fig. 2.1 that the cloud location is
+      given by</p>
+      <div class="bg-gray-50 border-l-4 border-indigo-300 rounded px-4 py-2 font-mono text-sm my-2">
+        R = R₀ sin l &nbsp;&nbsp;&nbsp; (2.6)
+      </div>
+
+      <p>This simplifies equation 2.5 so that, at the tangential point, we have:</p>
+      <div class="bg-gray-50 border-l-4 border-indigo-300 rounded px-4 py-2 font-mono text-sm my-2">
+        V = V<sub>r,max</sub> + V₀ sin l &nbsp;&nbsp;&nbsp; (2.7)
+      </div>
+
+      <p>We may now use SALSA to measure V<sub>r,max</sub> at different l in the first
+      quadrant. Using equations 2.6 and 2.7 we may then calculate the rotation curve
+      V(R). It is reasonable to assume the measured rotation curve to be valid also in
+      the other three quadrants.</p>
+
+      <div class="space-y-3">
+        <h5 id="s2-1-1" class="font-semibold text-gray-800">2.1.1 Measure the rotation curve with SALSA</h5>
+        <p>After reading the previous section you should have an idea about how to measure
+        the rotation curve of the Milky Way using SALSA. Instructions for how to operate
+        the telescope are given on the
+        <a href="/support" hx-get="/support" hx-target="#page" hx-push-url="/support" class="underline">Support &amp; documentation</a>
+        page. Once you have obtained spectra at a few selected longitudes, extract the
+        maximum velocity of each spectrum and plot the rotation curve. The simplest way
+        is to use the cursor to inspect the spectrum directly in the control program, but
+        you can also use more advanced tools such as Matlab.</p>
+        <p>To make the final plot of the rotation curve you may use your favourite
+        plotting program. A simple free solution is to use the Excel-like program
+        LibreOffice Calc, where you can put your calculated values of V and R in a
+        spreadsheet and then use the xy-chart to plot the data. Your final plot should
+        look similar to Fig. 2.3. Note that the rotation curve is almost flat! This is
+        an indirect evidence for dark matter in our galaxy. You may also want to compare
+        with the results in Appendix A.</p>
+        <figure class="my-4 max-w-md">
+          <img src="/experiments-hi/SALSA_rotcurve.png" alt="Example rotation curve measured with SALSA" class="rounded border border-gray-200 w-full">
+          <figcaption class="text-sm text-gray-500 mt-1"><strong>Fig. 2.3.</strong> Example of a rotation curve measured with SALSA.</figcaption>
+        </figure>
+      </div>
+    </div>
+
+    <div class="space-y-4">
+      <h4 id="s2-2" class="text-lg font-semibold text-gray-800">2.2 Mapping the Milky Way</h4>
+      <p>Now we would like to find out <em>where</em> the HI gas that we have detected
+      is located. Let us therefore return to equation 2.5. When finding the rotation
+      curve, we used only the maximum velocity component in the spectrum, and assumed
+      that it came from gas at the tangential point. This assumption made it possible
+      to solve equation 2.5 in the first quadrant. Now, we shall use <em>all the
+      velocity components</em> that we see in our spectra, and we want to be able to
+      map in all observable directions, not only in the first quadrant. We can now
+      use our knowledge about the rotation curve obtained in Sect. 2.1.1. Motivated
+      by the shape of our measured rotation curve we now assume that the gas in our
+      Milky Way obeys <em>differential rotation</em>, i.e. the rotational speed is
+      constant with radius and is the same as the rotational speed of the Sun, i.e.</p>
+      <div class="bg-gray-50 border-l-4 border-indigo-300 rounded px-4 py-2 font-mono text-sm my-2">
+        V(R) = constant = V₀ &nbsp;&nbsp;&nbsp; (2.8)
+      </div>
+      <p>With this assumption, equation 2.5 simplifies to</p>
+      <div class="bg-gray-50 border-l-4 border-indigo-300 rounded px-4 py-2 font-mono text-sm my-2">
+        V<sub>r</sub> = V₀ sin l (R₀/R − 1) &nbsp;&nbsp;&nbsp; (2.9)
+      </div>
+      <p>This equation can be re-written as an expression for the cloud distance R as
+      a function of known (or observable, in the case of V<sub>r</sub>) quantities:</p>
+      <div class="bg-gray-50 border-l-4 border-indigo-300 rounded px-4 py-2 font-mono text-sm my-2">
+        R = R₀ V₀ sin l / (V₀ sin l + V<sub>r</sub>) &nbsp;&nbsp;&nbsp; (2.10)
+      </div>
+
+      <p>Now we would like to make a map of the Milky Way and place the position of
+      the cloud that we have detected. From our measurement of the radial velocity
+      V<sub>r</sub> we have just calculated the distance of the cloud to the Galactic
+      center, R, and we know in which direction we have observed (the Galactic
+      longitude l).</p>
+
+      <p>Please note that if you observe in Quadrants II or III, then the position of
+      the emitting gas clouds can be determined uniquely. But, if observing in Quadrants
+      I or IV, there may be <em>two possible locations</em> corresponding to given
+      values of l and R: closer to us than the tangential point T (the actual point M
+      on the figure), or farther away, at the intersection of the ST line and the inner
+      circle (see Fig. 2.1). <strong>You may want to make a drawing to convince yourself
+      that this is true.</strong></p>
+
+      <p>This distance ambiguity can also be shown mathematically. Let r denote the
+      distance from the Sun to the cloud, i.e. the distance between the points S and M
+      in Fig. 2.1. Using the law of cosines on the triangle CSM we obtain the following
+      relation:</p>
+      <div class="bg-gray-50 border-l-4 border-indigo-300 rounded px-4 py-2 font-mono text-sm my-2">
+        R² = R₀² + r² − 2 R₀ r cos l &nbsp;&nbsp;&nbsp; (2.11)
+      </div>
+      <p>This is a second-order equation in r, which has two possible solutions. If we
+      denote these solutions r = r<sub>+</sub> and r = r<sub>−</sub>, we can write the
+      solutions as</p>
+      <div class="bg-gray-50 border-l-4 border-indigo-300 rounded px-4 py-2 font-mono text-sm my-2">
+        r<sub>±</sub> = ±√(R² − R₀² sin²l) + R₀ cos l &nbsp;&nbsp;&nbsp; (2.12)
+      </div>
+
+      <p>We note a couple of things regarding the above equation. For some data points
+      one finds one positive and one negative solution for r. The negative solution is
+      not meaningful (it would mean on the other side of the Sun) and should be
+      discarded. In Quadrants II or III, R is always larger than R₀ and cos l &lt; 0,
+      meaning there is one and only one positive solution, r<sub>+</sub>. In Quadrants
+      I or IV, there may be two positive, and therefore possible, solutions. In cases
+      with two possible solutions it is not possible to determine which one is the
+      correct one without additional observations. To resolve this ambiguity, one can
+      observe again towards the same galactic longitude but towards a small (a few
+      degrees) non-zero galactic latitude. If the ambiguous cloud is far away, it
+      should no longer be seen. If the cloud is close, it should still appear even if
+      observing slightly out of the plane. Some experimenting may be necessary here
+      to find out the appropriate galactic latitude.</p>
+
+      <div class="space-y-3">
+        <h5 id="s2-2-1" class="font-semibold text-gray-800">2.2.1 Converting from r and l to Cartesian coordinates</h5>
+        <p>For plotting it may be inconvenient to use the coordinates r (distance to
+        cloud from the Sun) and l (galactic longitude) to describe the cloud positions.
+        Instead it is usually more convenient to transform to a Cartesian system of
+        perpendicular coordinates x and y. To convert to x–y coordinates we need to
+        relate them to r and l.</p>
+        <p>You are probably familiar with <em>polar coordinates</em>, usually defined as</p>
+        <div class="bg-gray-50 border-l-4 border-indigo-300 rounded px-4 py-2 font-mono text-sm my-2">
+          x = r cos θ<br>
+          y = r sin θ &nbsp;&nbsp;&nbsp; (2.13)
+        </div>
+        <p>where r is the distance from the origin and θ is the rotation angle, and x
+        and y are Cartesian coordinates.</p>
+        <figure class="my-4 max-w-xs">
+          <img src="/experiments-hi/coordinate.png" alt="Polar vs Galactic coordinates" class="rounded border border-gray-200 w-full">
+          <figcaption class="text-sm text-gray-500 mt-1"><strong>Fig. 2.4.</strong> Illustration of polar (r, θ) versus Galactic (r, l) coordinates.</figcaption>
+        </figure>
+        <p>It is clear that polar coordinates are very similar to our r, l-system. We
+        find that θ = 270° + l, or θ = l − 90°. This means that we can convert our
+        positions given as r, l to Cartesian x–y coordinates by:</p>
+        <div class="bg-gray-50 border-l-4 border-indigo-300 rounded px-4 py-2 font-mono text-sm my-2">
+          x = r cos(l − 90°)<br>
+          y = r sin(l − 90°) &nbsp;&nbsp;&nbsp; (2.14)
+        </div>
+        <p>This format is usually the most convenient to plot the positions. Note that
+        this will show the map with Earth in the center, at position (0, 0). If you
+        instead want the Galactic center to be at (0, 0), add R₀ to the y-coordinate
+        of each point.</p>
+      </div>
+
+      <div class="space-y-3">
+        <h5 id="s2-2-2" class="font-semibold text-gray-800">2.2.2 Make a map with SALSA</h5>
+        <p>After reading the previous section you should have an idea about how to
+        construct a map from measured velocities. The measurements are done in the same
+        way as you did in Sect. 2.1.1, but now you do not have to measure in the first
+        quadrant. Also, you should extract all velocity components in your spectra, not
+        only the maximum one. Again, instructions for how to operate the telescope are
+        given on the
+        <a href="/support" hx-get="/support" hx-target="#page" hx-push-url="/support" class="underline">Support &amp; documentation</a>
+        page. The simplest way to obtain velocities from a spectrum is to use the cursor
+        to inspect the spectrum directly in the control program, but you can also use
+        more advanced tools such as Matlab.</p>
+        <p>Once you have a list of measured velocities for multiple longitudes you can
+        use equation 2.12 to find the position of the clouds. Note that observations in
+        Quadrants I or IV may need additional observations to resolve possible distance
+        ambiguities, as discussed in the previous section.</p>
+        <p>To make the final map you may use your favourite plotting program. Again, a
+        simple free solution is to use the Excel-like program LibreOffice Calc, where
+        you can put your calculated positions (x, y) in a spreadsheet and then use the
+        xy-chart to plot the data. Your final map may look similar to Fig. 2.5, although
+        it will depend on in which directions you have been observing. You may also want
+        to compare with the cover image at the top of this page.</p>
+        <figure class="my-4 max-w-sm">
+          <img src="/experiments-hi/galaxopenoffice1.png" alt="Map of the Milky Way spiral arms" class="rounded border border-gray-200 w-full">
+          <figcaption class="text-sm text-gray-500 mt-1"><strong>Fig. 2.5.</strong> Snapshot of the xy-chart in OpenOffice. You can clearly see the spiral arms in the Galaxy. The blue circle represents the area of the Galaxy, which has diameter of 50 kpc.</figcaption>
+        </figure>
+      </div>
+    </div>
+  </details>
+
+  <!-- Appendices -->
+  <details open class="space-y-6 text-gray-700">
+    <summary class="cursor-pointer"><h3 id="appendices" class="text-2xl font-semibold text-gray-800 inline">Appendices</h3></summary>
+
+    <div class="space-y-4">
+      <h4 id="app-a" class="text-lg font-semibold text-gray-800">A. Rotation curves</h4>
+      <p>A rotation curve shows the circular velocity as a function of radius. We
+      discuss here three different types of rotation curves.</p>
+
+      <div class="space-y-2">
+        <h5 id="app-a1" class="font-semibold text-gray-800">A.1 Solid-body rotation</h5>
+        <p>Think of a solid turntable, or a rotating DVD-disc. It rotates with a constant
+        angular speed Ω = V/R = constant. The circular velocity is therefore proportional
+        to the radius:</p>
+        <div class="bg-gray-50 border-l-4 border-indigo-300 rounded px-4 py-2 font-mono text-sm my-2">
+          V ∝ R &nbsp;&nbsp;&nbsp; (A.1)
+        </div>
+      </div>
+
+      <div class="flex flex-col sm:flex-row gap-4 my-4">
+        <figure class="flex-1">
+          <img src="/experiments-hi/cdrot.png" alt="Solid body rotation curve" class="rounded border border-gray-200 w-full">
+          <figcaption class="text-sm text-gray-500 mt-1"><strong>Fig. A.1 (top left).</strong> Solid body rotation (e.g. a rotating CD disc).</figcaption>
+        </figure>
+        <figure class="flex-1">
+          <img src="/experiments-hi/solsystrot.png" alt="Solar system rotation curve" class="rounded border border-gray-200 w-full">
+          <figcaption class="text-sm text-gray-500 mt-1"><strong>Fig. A.1 (top right).</strong> Rotational velocities of the planets of the Solar system. The line corresponds to Kepler's law (eq. A.3), to which the planets show excellent agreement. 1 AU = 150·10<sup>6</sup> km.</figcaption>
+        </figure>
+        <figure class="flex-1">
+          <img src="/experiments-hi/mwrot.png" alt="Milky Way rotation curve" class="rounded border border-gray-200 w-full">
+          <figcaption class="text-sm text-gray-500 mt-1"><strong>Fig. A.1 (bottom).</strong> The actual rotation curve of the Milky Way (dots) and a model (solid line). Because the mass in the Milky Way is distributed across the galaxy, the rotation curve does not follow the Keplerian case, as it would if all the mass were concentrated at the center. Data from Sofue et al., 2009.</figcaption>
+        </figure>
+      </div>
+      <div class="space-y-2">
+        <h5 id="app-a2" class="font-semibold text-gray-800">A.2 Keplerian rotation: the Solar system</h5>
+        <p>In the Solar system, the planets have a negligible mass compared to the mass
+        of the Sun. Therefore the center of mass of the Solar system is very close to
+        the center of the Sun. The centrifugal acceleration from the planet's circular
+        velocities counterbalances the gravitational acceleration:</p>
+        <div class="bg-gray-50 border-l-4 border-indigo-300 rounded px-4 py-2 font-mono text-sm my-2">
+          V²/R = GM/R² &nbsp;&nbsp;&nbsp; (A.2)
+        </div>
+        <p>where M is the mass and G the gravitational constant. The rotation curve is
+        said to be <em>Keplerian</em>, and the velocities decrease with increasing
+        radius:</p>
+        <div class="bg-gray-50 border-l-4 border-indigo-300 rounded px-4 py-2 font-mono text-sm my-2">
+          V<sub>Keplerian</sub>(R) = √(GM/R) &nbsp;&nbsp;&nbsp; (A.3)
+        </div>
+      </div>
+
+      <div class="space-y-2">
+        <h5 id="app-a3" class="font-semibold text-gray-800">A.3 The rotation curve of a spiral galaxy</h5>
+        <p>Similarly, the rotation curve of a galaxy V(R) shows the circular velocity
+        as a function of galacto-centric radius. In contrast to the rotation curve of
+        systems like the Solar system with a large central mass, most galaxies exhibit
+        flat rotation curves, that is, V(R) doesn't depend on R beyond a certain radius:</p>
+        <div class="bg-gray-50 border-l-4 border-indigo-300 rounded px-4 py-2 font-mono text-sm my-2">
+          V<sub>Galaxy</sub>(R) ~ constant &nbsp;&nbsp;&nbsp; (A.4)
+        </div>
+        <p>The angular velocity varies as Ω ∝ 1/R. Matter near the center rotates with
+        a larger angular speed than matter farther away.</p>
+        <p>At large radii, the velocities are <em>significantly larger</em> than in the
+        Keplerian case, and this is an indication of the existence of additional matter
+        at large radii. This is an indirect way to show the existence of dark matter in
+        galaxies.</p>
+      </div>
+    </div>
+
+    <div class="space-y-3">
+      <h4 id="app-b" class="text-lg font-semibold text-gray-800">B. Early history of 21 cm line observations</h4>
+      <p>The story of the discovery of the 21 cm line of hydrogen is a fascinating one
+      because it began during the Second World War, when international scientific contacts
+      were disrupted and some scientists were struggling to carry out research.</p>
+      <p>In 1944, H.C. van de Hulst, a student in Holland, scientifically isolated because
+      of the Nazi occupation of his country, presented a paper at a colloquium in Leiden
+      in which he showed that the hyperfine levels of the ground state of the hydrogen atom
+      produce a spectral line at a wavelength of about 21 cm, and that it could be
+      detectable in the Galaxy. An article was published in a Dutch journal (Bakker and
+      van de Hulst 1945).</p>
+      <p>After the war, efforts were made in several countries to design and construct
+      equipment to detect the spectral line. It was first observed in the United States
+      by Ewen and Purcell on 21 March 1951; in May the same year, it was observed by
+      Muller and Oort (1951) in Holland. Both papers were published in the same issue of
+      the journal <em>Nature</em>. Within two months Christiansen and Hindman (1952) in
+      Australia had detected the line.</p>
+      <p>The first systematic investigation of HI in the Galaxy was made in Holland by
+      van de Hulst, Muller, and Oort (1954). The Dutch group used a reflector from a
+      German radar receiver of the "Great Würzburg" type, 7.5 m in diameter. The
+      beamwidth at λ21 cm was 1°.9 in the horizontal direction and 2°.7 in the vertical
+      direction.</p>
+      <p>Christiansen and Hindman used a section of a paraboloidal reflector, with a
+      beamwidth of about 2°.</p>
+      <figure class="my-4 max-w-xs">
+        <img src="/experiments-hi/ev2.png" alt="H.I. Ewen with his antenna" class="rounded border border-gray-200 w-full">
+        <figcaption class="text-sm text-gray-500 mt-1"><strong>Fig. B.1.</strong> H.I. ("Doc") Ewen together with his antenna during a visit to NRAO-Green Bank in May, 2001. He had not seen his antenna since 1956! Credit: NRAO / AUI / NSF.</figcaption>
+      </figure>
+    </div>
+  </details>
+
+  <!-- Bibliography -->
+  <details open class="space-y-3 text-gray-700">
+    <summary class="cursor-pointer"><h3 id="bibliography" class="text-xl font-semibold text-gray-800 inline">Bibliography</h3></summary>
+    <ol class="list-decimal list-inside space-y-1 text-sm">
+      <li>Bakker, C.J., van de Hulst, H.C., 1945, <em>Nederl. Tijds. v. Natuurkunde</em> 11, 201. (Bakker, "Ontvangst [reception] der radiogolven"; van de Hulst, "Herkomst [origin] der radiogolven".)</li>
+      <li>Burton, W.B., in <em>Galactic and Extragalactic Radio Astronomy</em>, 1988, Verschuur G.L., Kellermann, K.I. (eds.), Springer-Verlag.</li>
+      <li>Cohen-Tannoudji, C., Diu, B., Laloë, F., 1986, <em>Quantum Mechanics</em>, Vol. 1 and 2, Wiley-VCH. (See Chapters VII.C and XII.D about the hydrogen atom.)</li>
+      <li>Ewen, H.I., Purcell, E.M., 1951, <em>Nature</em> 168, 356, "Radiation from galactic hydrogen at 1420 Mc/s".</li>
+      <li>Hulst, H.C. van de, Muller, C.A., Oort, J.H., 1954, <em>B.A.N.</em> 12, 117, "The spiral structure of the outer part of the galactic system derived from the hydrogen emission at 21-cm wavelength".</li>
+      <li>Lang, K.R., 1999, <em>Astrophysical Formulae, Volume II: Space, Time, Matter, and Cosmology</em>, Springer-Verlag.</li>
+      <li>Muller, C.A., Oort, J.H., 1951, <em>Nature</em> 168, 357, "The interstellar hydrogen line at 1420 Mc/s, and an estimate of galactic rotation".</li>
+      <li>Peebles, P.J.E., 1992, <em>Quantum Mechanics</em>, Princeton University Press, p. 273–303.</li>
+      <li>Rigden, J.S., 2003, <em>Hydrogen, The Essential Element</em>, chap. 7, Harvard University Press.</li>
+      <li>Shklovsky, I.S., 1960, <em>Cosmic Radio Waves</em>, translated by R.B. Rodman and C.M. Varsavsky, Harvard University Press.</li>
+      <li>Sofue, Y., Honma, M., Omodaka, T. (2009). "Unified Rotation Curve of the Galaxy — Decomposition into de Vaucouleurs Bulge, Disk, Dark Halo, and the 9-kpc Rotation Dip." <em>PASJ</em>, 61:227.</li>
+    </ol>
+  </details>
+
+</div>
