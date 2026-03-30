@@ -537,7 +537,7 @@ function loadObservation(id) {
 
       const vlsrCorrection = data.vlsr_correction_mps;
       let showVlsr = vlsrCorrection !== null && vlsrCorrection !== undefined;
-      let showLog = data.coordinate_system === "gnss";
+      let showLog = data.coordinate_system === "gnss" || data.coordinate_system.startsWith("gnss:");
 
       function freqToVlsr(freqHz) {
         return (C * (F_REST - freqHz) / F_REST + vlsrCorrection) / 1000;
