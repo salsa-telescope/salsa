@@ -148,7 +148,7 @@ function updateAnalysisUI() {
     btnGaussian.textContent = mode === "gaussian" ? "Done picking" : "Pick peaks";
   }
   if (btnFit) {
-    btnFit.disabled = analysisState.baselineRanges.length === 0;
+    btnFit.disabled = analysisState.baselineRanges.length === 0 || mode === "baseline";
   }
   const btnFitGaussian = document.getElementById("btn-fit-gaussian");
   if (btnFitGaussian) {
