@@ -35,7 +35,7 @@
     <body>
         <header>
             <div class="header-bar">
-                <div id="logo" hx-get="/welcome.html" hx-push-url="/" hx-target="#page"><a href="#">SALSA</a></div>
+                <div id="logo"><a href="/" hx-get="/welcome.html" hx-push-url="/" hx-target="#page">SALSA</a></div>
                 <button class="hamburger" onclick="toggleNav()" aria-label="Menu">
                     <svg viewBox="0 0 24 24" fill="currentColor" width="28" height="28">
                         <path d="M3 6h18v2H3V6zm0 5h18v2H3v-2zm0 5h18v2H3v-2z"/>
@@ -43,13 +43,13 @@
                 </button>
             </div>
             <nav id="main-nav">
-                <a href="#" class="nav-link" hx-get="/about" hx-target="#page" hx-push-url="/about" onclick="closeAllPanels()">About</a>
-                <a href="#" class="nav-link" hx-get="/bookings" hx-target="#page" hx-push-url="/bookings" onclick="closeAllPanels()">Bookings</a>
-                <a href="#" class="nav-link" hx-get="/observations" hx-target="#page" hx-push-url="/observations" onclick="closeAllPanels()">Observation archive</a>
-<a href="#" class="nav-link" hx-get="/support" hx-target="#page" hx-push-url="/support" onclick="closeAllPanels()">Support</a>
-                <a href="#" class="nav-link" hx-get="/webcam" hx-target="#page" hx-push-url="/webcam" onclick="closeAllPanels()">Webcam</a>
+                <a href="/about" class="nav-link" hx-get="/about" hx-target="#page" hx-push-url="/about" onclick="closeAllPanels()">About</a>
+                <a href="/bookings" class="nav-link" hx-get="/bookings" hx-target="#page" hx-push-url="/bookings" onclick="closeAllPanels()">Bookings</a>
+                <a href="/observations" class="nav-link" hx-get="/observations" hx-target="#page" hx-push-url="/observations" onclick="closeAllPanels()">Observation archive</a>
+                <a href="/support" class="nav-link" hx-get="/support" hx-target="#page" hx-push-url="/support" onclick="closeAllPanels()">Support</a>
+                <a href="/webcam" class="nav-link" hx-get="/webcam" hx-target="#page" hx-push-url="/webcam" onclick="closeAllPanels()">Webcam</a>
                 {% if is_admin %}
-                <a href="#" class="nav-link" hx-get="/admin" hx-target="#page" hx-push-url="/admin" onclick="closeAllPanels()">Admin</a>
+                <a href="/admin" class="nav-link" hx-get="/admin" hx-target="#page" hx-push-url="/admin" onclick="closeAllPanels()">Admin</a>
                 {% endif %}
                 <span class="nav-spacer"></span>
                 {% if name == "" %}
@@ -62,7 +62,7 @@
                     {{ name }}
                 </button>
                 <div class="nav-user-dropdown">
-                    <a href="#" class="nav-link" hx-get="/account" hx-target="#page" hx-push-url="/account" onclick="closeAllPanels()">Account</a>
+                    <a href="/account" class="nav-link" hx-get="/account" hx-target="#page" hx-push-url="/account" onclick="closeAllPanels()">Account</a>
                     <a href="/auth/logout" class="nav-link">Log out</a>
                 </div>
                 {% endif %}
