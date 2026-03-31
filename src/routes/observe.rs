@@ -382,6 +382,10 @@ pub(crate) async fn save_latest_observation(
         }
     };
 
+    if !info.measurement_in_progress {
+        return;
+    }
+
     let Some(spectra) = &info.latest_observation else {
         return;
     };
