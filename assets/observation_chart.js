@@ -152,7 +152,7 @@ function updateAnalysisUI() {
   }
   const btnFitGaussian = document.getElementById("btn-fit-gaussian");
   if (btnFitGaussian) {
-    btnFitGaussian.disabled = analysisState.gaussianSeeds.length === 0;
+    btnFitGaussian.disabled = analysisState.gaussianSeeds.length === 0 || mode === "gaussian";
   }
   if (hint) {
     const pending = analysisState.pendingRangeStart !== null;
