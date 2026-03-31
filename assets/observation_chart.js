@@ -693,6 +693,7 @@ function loadObservation(id) {
       function redraw(currentData, xDom, yDom) {
         x.domain(xDom);
         y = makeYScale(yDom);
+        if (chartRefs) chartRefs.y = y;
         xAxisG.call(d3.axisBottom(x).ticks(width / 160).tickSizeOuter(0))
           .call((g) => g.selectAll("text").attr("font-size", "13px"));
         yAxisG.call(showLog
