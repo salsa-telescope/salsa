@@ -248,19 +248,21 @@
       <div class="flex-shrink-0">
         <h2 class="text-xl font-semibold mb-3">Webcam</h2>
         <div style="width:200px;height:150px;overflow:hidden;position:relative;border-radius:4px;background:#000;">
-          <img id="wcam-a" src="/webcam/snapshot" style="position:absolute;transition:opacity 0.3s;">
-          <img id="wcam-b" src=""                 style="position:absolute;transition:opacity 0.3s;opacity:0;">
+          <img id="wcam-a" src="/webcam/snapshot" style="position:absolute;max-width:none;">
+          <img id="wcam-b" src=""                 style="position:absolute;max-width:none;opacity:0;">
         </div>
         <script>
         (function() {
           const crop = [{{ crop[0] }}, {{ crop[1] }}, {{ crop[2] }}, {{ crop[3] }}];
           const DW = 200, DH = 150;
           function applyStyle(el) {
+            // Crop fractions are relative to the 32:9 display viewport in webcam.html.
+            // x fractions map directly to image width; y fractions map to 9/32 of image width.
             const imgW = DW / crop[2];
-            const imgH = imgW * 9 / 32;
-            const cropH = crop[3] * imgH;
+            const viewH = imgW * 9 / 32; // height of the 32:9 viewport at this scale
+            const cropH = crop[3] * viewH;
             const left = -(crop[0] * imgW);
-            const top  = -(crop[1] * imgH) - Math.max(0, cropH - DH) / 2;
+            const top  = -(crop[1] * viewH) - Math.max(0, cropH - DH) / 2;
             el.style.width = imgW + 'px';
             el.style.left  = left + 'px';
             el.style.top   = top  + 'px';
@@ -268,12 +270,11 @@
           const a = document.getElementById('wcam-a');
           const b = document.getElementById('wcam-b');
           applyStyle(a);
-          applyStyle(b);
           let useA = true;
           setInterval(() => {
             const next = useA ? b : a;
             const curr = useA ? a : b;
-            next.onload = () => { next.style.opacity = 1; curr.style.opacity = 0; useA = !useA; };
+            next.onload = () => { applyStyle(next); next.style.opacity = '1'; curr.style.transition = 'opacity 0.3s'; curr.style.opacity = '0'; useA = !useA; };
             next.src = '/webcam/snapshot?t=' + Date.now();
           }, 2000);
         })();
