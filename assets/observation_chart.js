@@ -390,13 +390,14 @@ function updateOverlays() {
 function updateCsvLink() {
   if (!analysisState || !chartRefs) return;
   const { freqsHz } = analysisState;
-  const rows = ["frequency_hz,amplitude", ...freqsHz.map((f, i) => `${f},${analysisState.correctedAmps[i]}`)];
+  const xHeader = chartRefs.xUnit() === "km/s" ? "vlsr_km_s" : "frequency_hz";
+  const rows = [`${xHeader},amplitude`, ...freqsHz.map((f, i) => `${chartRefs.freqToDisplay(f)},${analysisState.correctedAmps[i]}`)];
   const blob = new Blob([rows.join("\n")], { type: "text/csv" });
   const dlCsv = document.getElementById("download-csv");
   if (dlCsv && dlCsv.dataset.originalHref) {
-    // keep original server href when correctedAmps === rawAmps
+    // Use server href only when showing raw frequency with no baseline subtraction
     const isReset = analysisState.correctedAmps.every((v, i) => v === analysisState.rawAmps[i]);
-    if (isReset) {
+    if (isReset && xHeader === "frequency_hz") {
       dlCsv.href = dlCsv.dataset.originalHref;
     } else {
       dlCsv.href = URL.createObjectURL(blob);
@@ -829,6 +830,7 @@ function loadObservation(id) {
             fullYDomain = [newYExtent[0] - newPad, newYExtent[1] + newPad];
             xLabel.text(showVlsr ? "VLSR (km/s)" : "Frequency (MHz)");
             redraw(newData, fullXDomain, fullYDomain);
+            updateCsvLink();
           };
         } else {
           axisBtn.style.display = "none";
