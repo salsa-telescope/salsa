@@ -24,15 +24,16 @@ pub struct AuthProvider {
 
 #[derive(Deserialize)]
 pub struct Secrets {
+    #[serde(default)]
     auth_provider: HashMap<String, AuthProvider>,
     pub webcam: Option<WebcamCredentials>,
 }
 
 impl Secrets {
     pub fn read(filename: &str) -> Result<Secrets, InternalError> {
-        let contents = read_to_string(filename).map_err(|err| {
-            InternalError::new(format!("Failed to read from '{filename}': {err}"))
-        })?;
+        let contents = read_to_string(filename)
+            .map_err(|err| InternalError::new(format!("Failed to read from '{filename}': {err}")))
+            .unwrap_or_default();
         let secrets: Secrets = toml::from_str(&contents).map_err(|err| {
             InternalError::new(format!("Failed to parse toml from {filename}: {err}"))
         })?;
