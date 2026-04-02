@@ -339,6 +339,10 @@ body.user-open .nav-user-dropdown {
         padding: 16px 24px;
     }
 
+    .calendar-nav {
+        flex-wrap: wrap;
+    }
+
 }
 
 footer {
@@ -485,6 +489,7 @@ footer {
 }
 .calendar-legend {
     display: flex;
+    flex-wrap: wrap;
     gap: 16px;
     font-size: 13px;
 }

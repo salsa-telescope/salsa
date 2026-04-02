@@ -1,7 +1,7 @@
 <div class="section light">
   {% if is_admin %}
   <p class="text-gray-500 text-sm mb-3">As admin, you can view upcoming bookings for any user and cancel any booking. New bookings are always made as yourself. Admins can book an unlimited number of slots.</p>
-  <form hx-get="/bookings" hx-target="#page" hx-push-url="true" class="flex items-center gap-3 mb-4 text-sm">
+  <form hx-get="/bookings" hx-target="#page" hx-push-url="true" class="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-4 text-sm">
     <select name="user_id" class="border rounded px-2 py-1">
       {% for u in all_users %}
       <option value="{{ u.id }}" {% if u.id == viewed_user_id %}selected{% endif %}>{{ u.id }}: {{ u.name }} ({{ u.provider }})</option>

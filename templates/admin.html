@@ -8,6 +8,7 @@
 
   <h3 class="font-semibold mt-12 mb-2">Telescope maintenance</h3>
   <p class="text-gray-500 text-sm mb-4">Press Set maintenance to disable any upcoming bookings. If currently booked, the user has access until the current slot ends.</p>
+  <div class="overflow-x-auto">
   <table class="text-sm w-full max-w-md">
     <thead>
       <tr class="text-left text-gray-500 border-b">
@@ -70,6 +71,7 @@
       {% endfor %}
     </tbody>
   </table>
+  </div>
 
   <h3 class="font-semibold mt-12 mb-2">Local users</h3>
   <p class="text-gray-500 text-sm mb-4">Local accounts for demonstrations and exceptional cases. Users log in with username and password via the login page.</p>
@@ -85,6 +87,7 @@
   {% if local_users.is_empty() %}
   <p class="text-gray-400 text-sm mb-4">No local users yet.</p>
   {% else %}
+  <div class="overflow-x-auto">
   <table class="text-sm w-full max-w-md mb-4">
     <thead>
       <tr class="text-left text-gray-500 border-b">
@@ -122,6 +125,7 @@
       {% endfor %}
     </tbody>
   </table>
+  </div>
   {% endif %}
   <form method="post" action="/admin/local-users" class="flex flex-col gap-2 max-w-xs">
     <h4 class="font-medium text-sm text-gray-700">Add local user</h4>
@@ -139,13 +143,14 @@
 
   <h3 class="font-semibold mt-12 mb-2">Usage report</h3>
   <p class="text-gray-500 text-sm mb-4">Summarise user activity in a given time range.</p>
-  <form hx-get="/admin" hx-target="#page" hx-push-url="true" class="flex items-center gap-3 mb-4 text-sm">
+  <form hx-get="/admin" hx-target="#page" hx-push-url="true" class="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-4 text-sm">
     <label class="text-gray-600">From</label>
     <input type="date" name="from" value="{{ usage_from }}" class="border rounded px-2 py-1" />
     <label class="text-gray-600">To</label>
     <input type="date" name="to" value="{{ usage_to }}" class="border rounded px-2 py-1" />
     <button type="submit" class="px-3 py-1 bg-indigo-600 text-white rounded-md hover:bg-indigo-500">Update</button>
   </form>
+  <div class="overflow-x-auto">
   <table class="text-sm w-full max-w-md">
     <tbody>
       <tr class="border-b">
@@ -162,4 +167,5 @@
       </tr>
     </tbody>
   </table>
+  </div>
 </div>

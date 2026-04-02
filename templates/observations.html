@@ -1,7 +1,7 @@
 <div class="section light">
   {% if is_admin %}
   <p class="text-gray-500 text-sm mb-3">As admin, you can view, export, and delete observations for any user.</p>
-  <form hx-get="/observations" hx-target="#page" hx-push-url="true" class="flex items-center gap-3 mb-4 text-sm">
+  <form hx-get="/observations" hx-target="#page" hx-push-url="true" class="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-4 text-sm">
     <select name="user_id" class="border rounded px-2 py-1">
       {% for u in all_users %}
       <option value="{{ u.id }}" {% if u.id == viewed_user_id %}selected{% endif %}>{{ u.id }} &ndash; {{ u.name }} ({{ u.provider }})</option>
@@ -23,7 +23,7 @@
           {% for obs in observations %}
           <div
             id="obs-row-{{ obs.id }}"
-            class="hover:bg-gray-100 p-2 rounded border border-transparent text-sm flex justify-between items-center"
+            class="hover:bg-gray-100 p-2 rounded border border-transparent text-sm flex flex-col sm:flex-row justify-between items-start sm:items-center"
           >
             <span class="cursor-pointer" onclick="loadObservation({{ obs.id }})">
               {{ obs.start_time.naive_local() }} &mdash;
