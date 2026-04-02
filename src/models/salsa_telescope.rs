@@ -36,6 +36,7 @@ struct Inner {
     stow_position: Option<Direction>,
     location: Location,
     min_elevation_rad: f64,
+    max_elevation_rad: f64,
     t_rec_k: f64,
     receiver_reachable: Arc<tokio::sync::Mutex<bool>>,
     controller_connected: bool,
@@ -53,6 +54,7 @@ pub fn create(
     stow_position: Option<Direction>,
     location: Location,
     min_elevation_rad: f64,
+    max_elevation_rad: f64,
     default_ref_freq_hz: f64,
     default_gain_db: f64,
     t_rec_k: f64,
@@ -69,6 +71,7 @@ pub fn create(
             controller_address,
             location,
             min_elevation_rad,
+            max_elevation_rad,
             tle_cache.clone(),
         ),
         receiver_configuration: ReceiverConfiguration {
@@ -82,6 +85,7 @@ pub fn create(
         stow_position,
         location,
         min_elevation_rad,
+        max_elevation_rad,
         t_rec_k,
         receiver_reachable,
         controller_connected: false,
@@ -233,6 +237,7 @@ impl Telescope for SalsaTelescope {
             el_offset_rad: controller_info.el_offset_rad,
             location: inner.location,
             min_elevation_rad: inner.min_elevation_rad,
+            max_elevation_rad: inner.max_elevation_rad,
             receiver_reachable: Some(receiver_reachable),
         })
     }

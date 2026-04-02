@@ -36,6 +36,7 @@ struct Inner {
     horizontal: Direction,
     location: Location,
     min_elevation_rad: f64,
+    max_elevation_rad: f64,
     most_recent_error: Option<TelescopeError>,
     receiver_configuration: ReceiverConfiguration,
     current_spectra: Vec<ObservedSpectra>,
@@ -49,11 +50,13 @@ pub struct FakeTelescope {
     inner: Arc<Mutex<Inner>>,
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn create(
     name: String,
     stow_position: Option<Direction>,
     location: Location,
     min_elevation_rad: f64,
+    max_elevation_rad: f64,
     default_ref_freq_hz: f64,
     default_gain_db: f64,
     tle_cache: TleCacheHandle,
@@ -65,6 +68,7 @@ pub fn create(
         horizontal: FAKE_TELESCOPE_PARKING_HORIZONTAL,
         location,
         min_elevation_rad,
+        max_elevation_rad,
         most_recent_error: None,
         receiver_configuration: ReceiverConfiguration {
             integrate: false,
@@ -115,12 +119,17 @@ impl Telescope for FakeTelescope {
                 elevation: -1.0,
             });
         let target_horizontal = apply_offset(raw, az_offset_rad, el_offset_rad);
-        if target_horizontal.elevation < inner.min_elevation_rad {
+        if target_horizontal.elevation < inner.min_elevation_rad
+            || target_horizontal.elevation > inner.max_elevation_rad
+        {
             info!(
-                "Refusing to set target for telescope {} to {:?}. Target is below minimum elevation",
+                "Refusing to set target for telescope {} to {:?}. Target is out of elevation range",
                 &inner.name, &target
             );
-            Err(TelescopeError::TargetBelowMinElevation)
+            Err(TelescopeError::TargetOutOfElevationRange {
+                min_deg: inner.min_elevation_rad.to_degrees(),
+                max_deg: inner.max_elevation_rad.to_degrees(),
+            })
         } else {
             info!(
                 "Setting target for telescope {} to {:?}",
@@ -220,6 +229,7 @@ impl Telescope for FakeTelescope {
             el_offset_rad: inner.el_offset_rad,
             location: inner.location,
             min_elevation_rad: inner.min_elevation_rad,
+            max_elevation_rad: inner.max_elevation_rad,
             receiver_reachable: None,
         })
     }
@@ -245,12 +255,17 @@ impl Inner {
             };
             let target_horizontal = apply_offset(raw, self.az_offset_rad, self.el_offset_rad);
 
-            if target_horizontal.elevation < self.min_elevation_rad {
+            if target_horizontal.elevation < self.min_elevation_rad
+                || target_horizontal.elevation > self.max_elevation_rad
+            {
                 info!(
-                    "Stopping telescope since target {:?} is below minimum elevation.",
+                    "Stopping telescope since target {:?} is out of elevation range.",
                     &target
                 );
-                self.most_recent_error = Some(TelescopeError::TargetBelowMinElevation);
+                self.most_recent_error = Some(TelescopeError::TargetOutOfElevationRange {
+                    min_deg: self.min_elevation_rad.to_degrees(),
+                    max_deg: self.max_elevation_rad.to_degrees(),
+                });
             } else {
                 let max_delta_angle = FAKE_TELESCOPE_SLEWING_SPEED * delta_time.as_secs_f64();
                 self.horizontal.azimuth += (target_horizontal.azimuth - current_horizontal.azimuth)

@@ -29,6 +29,7 @@ impl TelescopeTracker {
         controller_address: String,
         location: Location,
         min_elevation_rad: f64,
+        max_elevation_rad: f64,
         tle_cache: TleCacheHandle,
     ) -> TelescopeTracker {
         let state = Arc::new(Mutex::new(TelescopeTrackerState {
@@ -43,6 +44,7 @@ impl TelescopeTracker {
             tle_cache: tle_cache.clone(),
             location,
             min_elevation_rad,
+            max_elevation_rad,
         }));
         let task = tokio::spawn(tracker_task_function(state.clone(), controller_address));
         TelescopeTracker {
@@ -145,6 +147,7 @@ struct TelescopeTrackerState {
     tle_cache: TleCacheHandle,
     location: Location,
     min_elevation_rad: f64,
+    max_elevation_rad: f64,
 }
 
 async fn tracker_task_function(
@@ -254,8 +257,16 @@ fn update_direction(
     when: DateTime<Utc>,
     controller: &mut TelescopeController,
 ) -> Result<(), TelescopeError> {
-    // Read target, offsets, location, min_elevation, and tle_cache from state, then release the lock
-    let (target, az_offset_rad, el_offset_rad, location, min_elevation_rad, tle_cache) = {
+    // Read target, offsets, location, elevation limits, and tle_cache from state, then release the lock
+    let (
+        target,
+        az_offset_rad,
+        el_offset_rad,
+        location,
+        min_elevation_rad,
+        max_elevation_rad,
+        tle_cache,
+    ) = {
         let state_guard = state.lock().unwrap();
         (
             state_guard.target,
@@ -263,6 +274,7 @@ fn update_direction(
             state_guard.el_offset_rad,
             state_guard.location,
             state_guard.min_elevation_rad,
+            state_guard.max_elevation_rad,
             state_guard.tle_cache.clone(),
         )
     };
@@ -287,12 +299,18 @@ fn update_direction(
     };
     let target_horizontal = apply_offset(raw_horizontal, az_offset_rad, el_offset_rad);
 
-    if target_horizontal.elevation < min_elevation_rad {
+    if target_horizontal.elevation < min_elevation_rad
+        || target_horizontal.elevation > max_elevation_rad
+    {
+        let err = TelescopeError::TargetOutOfElevationRange {
+            min_deg: min_elevation_rad.to_degrees(),
+            max_deg: max_elevation_rad.to_degrees(),
+        };
         let mut state_guard = state.lock().unwrap();
         state_guard.current_direction = Some(current_horizontal);
-        state_guard.most_recent_error = Some(TelescopeError::TargetBelowMinElevation);
+        state_guard.most_recent_error = Some(err.clone());
         state_guard.commanded_horizontal = None;
-        return Err(TelescopeError::TargetBelowMinElevation);
+        return Err(err);
     }
 
     // Check if more than 1 tolerance off, if so we need to send track command

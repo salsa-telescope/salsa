@@ -53,6 +53,7 @@ pub struct TelescopeInfo {
     pub el_offset_rad: f64,
     pub location: Location,
     pub min_elevation_rad: f64,
+    pub max_elevation_rad: f64,
     pub receiver_reachable: Option<bool>,
 }
 
@@ -67,6 +68,7 @@ pub struct TelescopeDefinition {
     pub name: String,
     pub location: [f64; 2],              // [longitude, latitude] in degrees
     pub min_elevation: f64,              // in degrees
+    pub max_elevation: f64,              // in degrees
     pub stow_position: Option<[f64; 2]>, // [azimuth, elevation] in degrees
     pub telescope_type: TelescopeType,
     pub controller_address: Option<String>,
@@ -87,7 +89,7 @@ pub struct TelescopesConfig {
 
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub enum TelescopeError {
-    TargetBelowMinElevation,
+    TargetOutOfElevationRange { min_deg: f64, max_deg: f64 },
     TelescopeIOError(String),
     TelescopeNotConnected,
 }
@@ -95,9 +97,9 @@ pub enum TelescopeError {
 impl Display for TelescopeError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            TelescopeError::TargetBelowMinElevation => {
-                f.write_str("Failed to set target, target is below minimum elevation.")
-            }
+            TelescopeError::TargetOutOfElevationRange { min_deg, max_deg } => f.write_str(
+                &format!("Failed to set target, target is out of elevation range ({min_deg:.0}–{max_deg:.0}°).")
+            ),
             TelescopeError::TelescopeIOError(message) => f.write_str(&format!(
                 "Error in communication with telescope: {}",
                 message

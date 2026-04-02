@@ -167,8 +167,8 @@ pub async fn telescope_state(telescope_id: &str, telescope: &dyn Telescope) -> S
             },
             error: match &info.most_recent_error {
                 Some(err) => match err {
-                    TelescopeError::TargetBelowMinElevation => {
-                        "target is below minimum elevation".to_string()
+                    TelescopeError::TargetOutOfElevationRange { min_deg, max_deg } => {
+                        format!("target is out of elevation range ({min_deg:.0}–{max_deg:.0}°)")
                     }
                     TelescopeError::TelescopeIOError(_) => {
                         "io error in communication with telescope".to_string()

@@ -77,6 +77,7 @@ fn create_telescope(def: TelescopeDefinition, tle_cache: TleCacheHandle) -> Arc<
         elevation: p[1].to_radians(),
     });
     let min_elevation_rad = def.min_elevation.to_radians();
+    let max_elevation_rad = def.max_elevation.to_radians();
     let default_ref_freq_hz = def.default_ref_freq_mhz * 1e6;
     let default_gain_db = def.default_gain_db;
     let t_rec_k = def.t_rec_k;
@@ -92,6 +93,7 @@ fn create_telescope(def: TelescopeDefinition, tle_cache: TleCacheHandle) -> Arc<
             stow_position,
             location,
             min_elevation_rad,
+            max_elevation_rad,
             default_ref_freq_hz,
             default_gain_db,
             t_rec_k,
@@ -102,6 +104,7 @@ fn create_telescope(def: TelescopeDefinition, tle_cache: TleCacheHandle) -> Arc<
             stow_position,
             location,
             min_elevation_rad,
+            max_elevation_rad,
             default_ref_freq_hz,
             default_gain_db,
             tle_cache,
