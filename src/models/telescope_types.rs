@@ -81,6 +81,7 @@ pub struct TelescopeDefinition {
 
 #[derive(Deserialize, PartialEq, Debug, Clone)]
 pub struct TelescopesConfig {
+    #[serde(default)]
     pub telescopes: Vec<TelescopeDefinition>,
 }
 

@@ -113,11 +113,9 @@ pub fn create_telescope_collection(
     config_filepath: impl Into<PathBuf>,
     tle_cache: TleCacheHandle,
 ) -> TelescopeCollectionHandle {
-    let config: TelescopesConfig = toml::from_str(
-        &fs::read_to_string(config_filepath.into())
-            .expect("telescopes config file should exist and be readable."),
-    )
-    .expect("telescope config file should be valid toml.");
+    let config: TelescopesConfig =
+        toml::from_str(&fs::read_to_string(config_filepath.into()).unwrap_or_default())
+            .expect("telescope config file should be valid toml.");
     let telescopes: HashMap<_, _> = config
         .telescopes
         .into_iter()
