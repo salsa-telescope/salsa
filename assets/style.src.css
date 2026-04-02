@@ -349,19 +349,6 @@ footer {
     font-size: 90%;
 }
 
-.telescope-receiver {
-    border: 1px solid black;
-    margin: 4px;
-    width: 100%;
-    height: 100%;
-}
-
-.telescope-target-control {
-    border: 1px solid black;
-    margin: 4px;
-    width: 100%;
-}
-
 .notification-area {
     padding: 10px;
     margin-bottom: 30px;
@@ -379,11 +366,6 @@ footer {
     border-color: #E57373;
     background-color: #FFEBEE;
     display: block;
-}
-
-a.action:link,
-a.action:visited {
-    color: #ce54c4;
 }
 
 /* My bookings list */
