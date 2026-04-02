@@ -373,8 +373,20 @@
       const modeFreqSwitched = document.getElementById('obs-mode-freqswitched');
       if (isSun || isGnss) {
           modeRaw.checked = true;
+          if (isSun) {
+              const centerFreqInput = document.querySelector("details input[name='center_freq_mhz']");
+              const bwSelect = document.querySelector("details select[name='bandwidth_mhz']");
+              if (centerFreqInput) centerFreqInput.value = '1410.0';
+              if (bwSelect) bwSelect.value = '2.5';
+          }
       } else {
           modeFreqSwitched.checked = true;
+          const centerFreqInput = document.querySelector("details input[name='center_freq_mhz']");
+          const refFreqInput = document.querySelector("details input[name='ref_freq_mhz']");
+          const bwSelect = document.querySelector("details select[name='bandwidth_mhz']");
+          if (centerFreqInput) centerFreqInput.value = centerFreqInput.defaultValue;
+          if (refFreqInput) refFreqInput.value = refFreqInput.defaultValue;
+          if (bwSelect) bwSelect.value = bwSelect.defaultValue;
       }
       if (window.setObserveLogScale) window.setObserveLogScale(isGnss);
       updateRefFreqVisibility();
