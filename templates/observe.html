@@ -246,7 +246,7 @@
 
       {% if let Some(crop) = info.webcam_crop %}
       <div class="flex-shrink-0">
-        <h2 class="text-xl font-semibold mb-3">Webcam</h2>
+        <h2 class="text-xl font-semibold mb-3">Live Webcam</h2>
         <div style="width:200px;height:150px;overflow:hidden;position:relative;border-radius:4px;background:#000;">
           <img id="wcam-a" src="/webcam/snapshot" style="position:absolute;max-width:none;">
           <img id="wcam-b" src=""                 style="position:absolute;max-width:none;opacity:0;">
@@ -279,6 +279,7 @@
           }, 2000);
         })();
         </script>
+        <p class="text-gray-500 text-xs mt-2" style="width:200px;">Image updated every 2 seconds. The telescopes have no lights and are not visible after dark, but can still be controlled.</p>
       </div>
       {% endif %}
     </div>
