@@ -54,6 +54,7 @@ pub struct TelescopeInfo {
     pub location: Location,
     pub min_elevation_rad: f64,
     pub max_elevation_rad: f64,
+    pub webcam_crop: Option<[f64; 4]>, // [x, y, w, h] as fractions of image, top-left origin
     pub receiver_reachable: Option<bool>,
 }
 
@@ -70,6 +71,8 @@ pub struct TelescopeDefinition {
     pub min_elevation: f64, // in degrees
     #[serde(default = "default_max_elevation")]
     pub max_elevation: f64, // in degrees
+    #[serde(default)]
+    pub webcam_crop: Option<[f64; 4]>, // [x, y, w, h] fractions of image, top-left origin
     pub stow_position: Option<[f64; 2]>, // [azimuth, elevation] in degrees
     pub telescope_type: TelescopeType,
     pub controller_address: Option<String>,

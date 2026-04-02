@@ -37,6 +37,7 @@ struct Inner {
     location: Location,
     min_elevation_rad: f64,
     max_elevation_rad: f64,
+    webcam_crop: Option<[f64; 4]>,
     t_rec_k: f64,
     receiver_reachable: Arc<tokio::sync::Mutex<bool>>,
     controller_connected: bool,
@@ -55,6 +56,7 @@ pub fn create(
     location: Location,
     min_elevation_rad: f64,
     max_elevation_rad: f64,
+    webcam_crop: Option<[f64; 4]>,
     default_ref_freq_hz: f64,
     default_gain_db: f64,
     t_rec_k: f64,
@@ -86,6 +88,7 @@ pub fn create(
         location,
         min_elevation_rad,
         max_elevation_rad,
+        webcam_crop,
         t_rec_k,
         receiver_reachable,
         controller_connected: false,
@@ -238,6 +241,7 @@ impl Telescope for SalsaTelescope {
             location: inner.location,
             min_elevation_rad: inner.min_elevation_rad,
             max_elevation_rad: inner.max_elevation_rad,
+            webcam_crop: inner.webcam_crop,
             receiver_reachable: Some(receiver_reachable),
         })
     }

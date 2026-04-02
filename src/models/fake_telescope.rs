@@ -37,6 +37,7 @@ struct Inner {
     location: Location,
     min_elevation_rad: f64,
     max_elevation_rad: f64,
+    webcam_crop: Option<[f64; 4]>,
     most_recent_error: Option<TelescopeError>,
     receiver_configuration: ReceiverConfiguration,
     current_spectra: Vec<ObservedSpectra>,
@@ -57,6 +58,7 @@ pub fn create(
     location: Location,
     min_elevation_rad: f64,
     max_elevation_rad: f64,
+    webcam_crop: Option<[f64; 4]>,
     default_ref_freq_hz: f64,
     default_gain_db: f64,
     tle_cache: TleCacheHandle,
@@ -69,6 +71,7 @@ pub fn create(
         location,
         min_elevation_rad,
         max_elevation_rad,
+        webcam_crop,
         most_recent_error: None,
         receiver_configuration: ReceiverConfiguration {
             integrate: false,
@@ -230,6 +233,7 @@ impl Telescope for FakeTelescope {
             location: inner.location,
             min_elevation_rad: inner.min_elevation_rad,
             max_elevation_rad: inner.max_elevation_rad,
+            webcam_crop: inner.webcam_crop,
             receiver_reachable: None,
         })
     }

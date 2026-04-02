@@ -24,16 +24,49 @@ stow_position = [ 90.0, 90.0 ]  # [azimuth, elevation] in degrees
 telescope_type = "Fake"
 
 # --- Real SALSA telescopes ---
+#
+# webcam_crop = [x, y, w, h]  — fractions of the full webcam image (top-left origin).
+# Crops the webcam snapshot to the telescope's position and displays it on the observe page.
+# Omit or comment out to disable the webcam panel for that telescope.
+
+# [[telescopes]]
+# name = "torre"
+# location = [ 11.9188, 57.3934 ]  # [longitude, latitude] in degrees
+# min_elevation = 5.0    # in degrees
+# max_elevation = 175.0  # in degrees
+# webcam_crop = [ 0.096, 0.467, 0.077, 0.400 ]  # [x, y, w, h] fractions, top-left origin
+# stow_position = [ 90.0, 90.0 ]  # [azimuth, elevation] in degrees
+# telescope_type = "Salsa"
+# controller_address = "192.168.5.11:23"
+# receiver_address = "192.168.5.31"
+# default_ref_freq_mhz = 1417.9
+# default_gain_db = 60.0
+# t_rec_k = 0.0
 
 # [[telescopes]]
 # name = "vale"
 # location = [ 11.9188, 57.3934 ]  # [longitude, latitude] in degrees
 # min_elevation = 5.0    # in degrees
 # max_elevation = 175.0  # in degrees
+# webcam_crop = [ 0.231, 0.133, 0.231, 0.733 ]  # [x, y, w, h] fractions, top-left origin
 # stow_position = [ 90.0, 90.0 ]  # [azimuth, elevation] in degrees
 # telescope_type = "Salsa"
 # controller_address = "192.168.5.11:23"
 # receiver_address = "192.168.5.31"
-# default_ref_freq_mhz = 1417.9  # default reference frequency in MHz (for freq-switched mode)
-# default_gain_db = 60.0          # default receiver gain in dB
-# t_rec_k = 0.0                   # receiver noise temperature in Kelvin (added to ambient for Tsys)
+# default_ref_freq_mhz = 1417.9
+# default_gain_db = 60.0
+# t_rec_k = 0.0
+
+# [[telescopes]]
+# name = "brage"
+# location = [ 11.9188, 57.3934 ]  # [longitude, latitude] in degrees
+# min_elevation = 5.0    # in degrees
+# max_elevation = 175.0  # in degrees
+# webcam_crop = [ 0.654, 0.200, 0.192, 0.600 ]  # [x, y, w, h] fractions, top-left origin
+# stow_position = [ 90.0, 90.0 ]  # [azimuth, elevation] in degrees
+# telescope_type = "Salsa"
+# controller_address = "192.168.5.11:23"
+# receiver_address = "192.168.5.31"
+# default_ref_freq_mhz = 1417.9
+# default_gain_db = 60.0
+# t_rec_k = 0.0
