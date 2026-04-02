@@ -66,9 +66,10 @@ pub enum TelescopeType {
 #[derive(Deserialize, PartialEq, Debug, Clone)]
 pub struct TelescopeDefinition {
     pub name: String,
-    pub location: [f64; 2],              // [longitude, latitude] in degrees
-    pub min_elevation: f64,              // in degrees
-    pub max_elevation: f64,              // in degrees
+    pub location: [f64; 2], // [longitude, latitude] in degrees
+    pub min_elevation: f64, // in degrees
+    #[serde(default = "default_max_elevation")]
+    pub max_elevation: f64, // in degrees
     pub stow_position: Option<[f64; 2]>, // [azimuth, elevation] in degrees
     pub telescope_type: TelescopeType,
     pub controller_address: Option<String>,
@@ -133,6 +134,10 @@ pub enum ObservationMode {
     #[default]
     FreqSwitched,
     Raw,
+}
+
+fn default_max_elevation() -> f64 {
+    175.0
 }
 
 fn default_center_freq_hz() -> f64 {
