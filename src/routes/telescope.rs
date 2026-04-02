@@ -176,6 +176,9 @@ pub async fn telescope_state(telescope_id: &str, telescope: &dyn Telescope) -> S
                     TelescopeError::TelescopeNotConnected => {
                         "telescope is not connected".to_string()
                     }
+                    TelescopeError::ReceiverFailed(msg) => {
+                        format!("receiver failed: {msg}")
+                    }
                 },
                 None => "".to_string(),
             },

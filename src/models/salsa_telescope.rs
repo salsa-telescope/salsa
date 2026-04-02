@@ -33,6 +33,7 @@ struct Inner {
     receiver_configuration: ReceiverConfiguration,
     measurements: Arc<Mutex<Vec<Measurement>>>,
     active_integration: Option<ActiveIntegration>,
+    last_receiver_error: Option<TelescopeError>,
     stow_position: Option<Direction>,
     location: Location,
     min_elevation_rad: f64,
@@ -84,6 +85,7 @@ pub fn create(
         },
         measurements: Arc::new(Mutex::new(Vec::new())),
         active_integration: None,
+        last_receiver_error: None,
         stow_position,
         location,
         min_elevation_rad,
@@ -173,6 +175,7 @@ impl Telescope for SalsaTelescope {
 
             info!("Starting integration");
             inner.receiver_configuration.integrate = true;
+            inner.last_receiver_error = None;
             inner.measurements.lock().await.clear();
             let cancellation_token = CancellationToken::new();
             let measurement_task = {
@@ -232,7 +235,10 @@ impl Telescope for SalsaTelescope {
             current_horizontal: controller_info.current_horizontal,
             commanded_horizontal: controller_info.commanded_horizontal,
             current_target: controller_info.target,
-            most_recent_error: controller_info.most_recent_error,
+            most_recent_error: inner
+                .last_receiver_error
+                .clone()
+                .or(controller_info.most_recent_error),
             measurement_in_progress: inner.active_integration.is_some(),
             latest_observation,
             stow_position: inner.stow_position,
@@ -258,6 +264,8 @@ impl Inner {
             if active_integration.measurement_task.is_finished() {
                 if let Err(error) = active_integration.measurement_task.await {
                     error!("Error while waiting for measurement task: {}", error);
+                    self.last_receiver_error =
+                        Some(TelescopeError::ReceiverFailed(error.to_string()));
                 }
             } else {
                 self.active_integration = Some(active_integration);

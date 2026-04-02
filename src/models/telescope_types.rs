@@ -96,6 +96,7 @@ pub enum TelescopeError {
     TargetOutOfElevationRange { min_deg: f64, max_deg: f64 },
     TelescopeIOError(String),
     TelescopeNotConnected,
+    ReceiverFailed(String),
 }
 
 impl Display for TelescopeError {
@@ -109,6 +110,10 @@ impl Display for TelescopeError {
                 message
             )),
             TelescopeError::TelescopeNotConnected => f.write_str("Telescope is not connected."),
+            TelescopeError::ReceiverFailed(message) => f.write_str(&format!(
+                "Receiver failed: {}",
+                message
+            )),
         }
     }
 }
