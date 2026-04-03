@@ -245,19 +245,27 @@
       </div>
 
       {% if let Some(crop) = info.webcam_crop %}
-      <div class="flex-shrink-0">
+      <div class="w-full xl:w-72 xl:flex-shrink-0">
         <h2 class="text-xl font-semibold mb-3">Live Webcam</h2>
-        <div style="width:200px;height:150px;overflow:hidden;position:relative;border-radius:4px;background:#000;">
+        <div id="wcam-box" style="width:100%;overflow:hidden;position:relative;border-radius:4px;background:#000;">
           <img id="wcam-a" src="/webcam/snapshot" style="position:absolute;max-width:none;">
           <img id="wcam-b" src=""                 style="position:absolute;max-width:none;opacity:0;">
         </div>
         <script>
         (function() {
           const crop = [{{ crop[0] }}, {{ crop[1] }}, {{ crop[2] }}, {{ crop[3] }}];
-          const DW = 200, DH = 150;
+          const box = document.getElementById('wcam-box');
+          function getDims() {
+            const DW = box.offsetWidth;
+            // Height follows the crop's aspect ratio within the 32:9 viewport
+            const DH = Math.round(DW * crop[3] * 9 / (crop[2] * 32));
+            box.style.height = DH + 'px';
+            return { DW, DH };
+          }
           function applyStyle(el) {
             // Crop fractions are relative to the 32:9 display viewport in webcam.html.
             // x fractions map directly to image width; y fractions map to 9/32 of image width.
+            const { DW, DH } = getDims();
             const imgW = DW / crop[2];
             const viewH = imgW * 9 / 32; // height of the 32:9 viewport at this scale
             const cropH = crop[3] * viewH;
@@ -269,6 +277,7 @@
           }
           const a = document.getElementById('wcam-a');
           const b = document.getElementById('wcam-b');
+          getDims();
           applyStyle(a);
           let useA = true;
           setInterval(() => {
@@ -279,7 +288,7 @@
           }, 2000);
         })();
         </script>
-        <p class="text-gray-500 text-xs mt-2" style="width:200px;">Image updated every 2 seconds. The telescopes have no lights and are not visible after dark, but can still be controlled.</p>
+        <p class="text-gray-500 text-xs mt-2">Image updated every 2 seconds. The telescopes have no lights and are not visible after dark, but can still be controlled.</p>
       </div>
       {% endif %}
     </div>
