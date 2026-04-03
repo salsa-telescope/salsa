@@ -5,7 +5,7 @@ use crate::models::user::User;
 use crate::routes::index::render_main;
 use askama::Template;
 use axum::extract::{Path, Query};
-use axum::http::HeaderMap;
+use axum::http::{HeaderMap, HeaderValue, header};
 use axum::response::{Html, IntoResponse, Redirect, Response};
 use axum::{Extension, Form};
 use axum::{
@@ -20,6 +20,7 @@ use serde::Deserialize;
 pub fn routes(state: AppState) -> Router {
     Router::new()
         .route("/", get(get_bookings).post(create_booking))
+        .route("/export.ics", get(export_bookings_ical))
         .route("/{booking_id}", delete(delete_booking))
         .with_state(state)
 }
@@ -296,6 +297,51 @@ async fn delete_booking(
         render_main(Some(user), content)
     };
     Ok(Html(content).into_response())
+}
+
+async fn export_bookings_ical(
+    Extension(user): Extension<Option<User>>,
+    State(state): State<AppState>,
+) -> Result<Response, StatusCode> {
+    let Some(user) = user else {
+        return Err(StatusCode::UNAUTHORIZED);
+    };
+
+    let now = Utc::now();
+    let bookings = Booking::fetch_for_user(state.database_connection.clone(), &user)
+        .await?
+        .into_iter()
+        .filter(|b| b.end_time > now)
+        .collect::<Vec<_>>();
+
+    let dtstamp = now.format("%Y%m%dT%H%M%SZ");
+    let mut ical = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//SALSA//SALSA Telescope//EN\r\nCALSCALE:GREGORIAN\r\nMETHOD:PUBLISH\r\n".to_string();
+    for booking in &bookings {
+        ical.push_str(&format!(
+            "BEGIN:VEVENT\r\nUID:salsa-booking-{}@salsa\r\nDTSTAMP:{}\r\nDTSTART:{}\r\nDTEND:{}\r\nSUMMARY:Telescope booking: {}\r\nEND:VEVENT\r\n",
+            booking.id,
+            dtstamp,
+            booking.start_time.format("%Y%m%dT%H%M%SZ"),
+            booking.end_time.format("%Y%m%dT%H%M%SZ"),
+            booking.telescope_name,
+        ));
+    }
+    ical.push_str("END:VCALENDAR\r\n");
+
+    Ok((
+        [
+            (
+                header::CONTENT_TYPE,
+                HeaderValue::from_static("text/calendar; charset=utf-8"),
+            ),
+            (
+                header::CONTENT_DISPOSITION,
+                HeaderValue::from_static("attachment; filename=\"bookings.ics\""),
+            ),
+        ],
+        ical,
+    )
+        .into_response())
 }
 
 async fn build_bookings_page(
