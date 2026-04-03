@@ -188,14 +188,30 @@ target. </p>
       <p>The archive page includes built-in tools for basic spectral analysis. Note that
       analysis results are not saved — take notes or export before leaving the page.</p>
 
-      <p><strong>Baseline correction</strong> — Select a frequency range on the spectrum
+      <h5 class="font-semibold text-gray-800">Baseline correction</h5>
+      <p>Select a frequency range on the spectrum
       that contains only noise (no signal), then choose a polynomial order (linear or
       quadratic) and click <em>Fit baseline</em>. The fitted baseline is subtracted from
       the spectrum.</p>
 
-      <p><strong>Gaussian fitting</strong> — After baseline correction, click on a peak
-      in the spectrum to select it, then click <em>Fit Gaussian</em>. The fitted peak
-      parameters (centre frequency, amplitude, width) are displayed.</p>
+      <figure class="my-2 max-w-xl">
+        <img src="/baseline_example.png" alt="Baseline regions selected on a spectrum before fitting" class="rounded-lg w-full">
+        <figcaption class="text-sm text-gray-500 mt-1">Baseline regions selected on either side of the signal peak, ready to fit and subtract.</figcaption>
+      </figure>
+
+      <h5 class="font-semibold text-gray-800">Gaussian fitting</h5>
+      <p>After baseline correction, click on a peak in the spectrum to select it, then
+      click <em>Fit Gaussian</em>. The fitted peak parameters (centre frequency, amplitude,
+      width) are displayed.</p>
+
+      <p>Getting the fitter to converge on the right peaks can be tricky. For best results,
+      click as close as possible to the very centre of each peak — both horizontally and
+      vertically — during the peak-picking phase. See the example below.</p>
+
+      <figure class="my-2 max-w-xl">
+        <img src="/gauss_example.png" alt="Three Gaussian components fitted to a spectrum" class="rounded-lg w-full">
+        <figcaption class="text-sm text-gray-500 mt-1">The result after fitting three Gaussian components to a spectrum. Fitted parameters such as central velocity for each peak are shown in the lower right as G1, G2, G3.</figcaption>
+      </figure>
     </div>
   </details>
 
