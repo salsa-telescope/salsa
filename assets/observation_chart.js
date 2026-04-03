@@ -624,7 +624,7 @@ function loadObservation(id) {
       const yAxisG = svg
         .append("g")
         .attr("transform", `translate(${margin},0)`)
-        .call(showLog ? d3.axisLeft(y).ticks(6, ".2~e") : d3.axisLeft(y).ticks(height / 80))
+        .call(showLog ? d3.axisLeft(y).ticks(6, ".2~e") : d3.axisLeft(y).ticks(height / 80).tickFormat(d3.format(".3~s")))
         .call((g) => g.selectAll("text").attr("font-size", "13px"));
 
       // y-axis label
@@ -699,7 +699,7 @@ function loadObservation(id) {
           .call((g) => g.selectAll("text").attr("font-size", "13px"));
         yAxisG.call(showLog
           ? d3.axisLeft(y).ticks(6, ".2~e")
-          : d3.axisLeft(y).ticks(height / 80))
+          : d3.axisLeft(y).ticks(height / 80).tickFormat(d3.format(".3~s")))
           .call((g) => g.selectAll("text").attr("font-size", "13px"));
         const drawData = showLog
           ? currentData.map((d) => ({ x: d.x, y: Math.max(d.y, y.domain()[0]) }))
