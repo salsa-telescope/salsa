@@ -65,8 +65,8 @@
       </div>
       {% endif %}
     </div>
-    <div class="lg:w-2/3 flex flex-wrap gap-4 items-start">
-      <div id="observation-chart" style="display: none; max-width: 640px; flex-shrink: 0;">
+    <div class="lg:w-2/3 flex flex-col lg:flex-row gap-4 items-start">
+      <div id="observation-chart" style="display: none;" class="w-full max-w-[640px] lg:shrink-0">
         <h2 class="text-xl font-semibold mb-3 text-center">Spectrum</h2>
         <div id="observation-chart-buttons" class="flex gap-2 justify-center mt-1">
           <button id="observation-axis-toggle" style="display: none;"
