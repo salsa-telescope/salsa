@@ -249,7 +249,6 @@
         <h2 class="text-xl font-semibold mb-3">Live Webcam</h2>
         <div id="wcam-box" style="width:100%;overflow:hidden;position:relative;border-radius:4px;background:#000;">
           <img id="wcam-a" src="/webcam/snapshot" style="position:absolute;max-width:none;">
-          <img id="wcam-b" src=""                 style="position:absolute;max-width:none;opacity:0;">
         </div>
         <script>
         (function() {
@@ -276,15 +275,10 @@
             el.style.top   = top  + 'px';
           }
           const a = document.getElementById('wcam-a');
-          const b = document.getElementById('wcam-b');
           getDims();
           applyStyle(a);
-          let useA = true;
           setInterval(() => {
-            const next = useA ? b : a;
-            const curr = useA ? a : b;
-            next.onload = () => { applyStyle(next); next.style.opacity = '1'; curr.style.transition = 'opacity 0.3s'; curr.style.opacity = '0'; useA = !useA; };
-            next.src = '/webcam/snapshot?t=' + Date.now();
+            a.src = '/webcam/snapshot?t=' + Date.now();
           }, 2000);
         })();
         </script>
