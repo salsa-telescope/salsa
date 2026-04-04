@@ -69,7 +69,19 @@
       <span class="legend-item"><span class="legend-swatch calendar-slot-past"></span> Past</span>
       <span class="legend-item"><span class="legend-swatch calendar-slot-maintenance"></span> Maintenance</span>
     </div>
-    <p class="calendar-help">All times are in UTC. Click a green slot to book it. Click a blue slot to cancel. Scroll down for more telescopes.</p>
+    <p class="calendar-help">All times are in UTC. Click a green slot to book it. Click a blue slot to cancel.</p>
+  </div>
+
+  <div class="telescope-tabs">
+  <span class="text-sm text-gray-600">Select telescope:</span>
+  {% for tel_idx in 0..telescope_names.len() %}
+  <button class="telescope-tab-btn" onclick="selectTelescope({{ tel_idx }})">
+    {{ telescope_names[tel_idx] }}
+    {% if maintenance_telescopes[tel_idx] %}
+    <span class="text-xs font-semibold text-yellow-700 bg-yellow-100 px-2 py-0.5 rounded ml-2">Maintenance</span>
+    {% endif %}
+  </button>
+  {% endfor %}
   </div>
 
   <script>
@@ -84,16 +96,22 @@
     }
     updateClock();
     setInterval(updateClock, 1000);
+
+    function selectTelescope(idx) {
+      document.querySelectorAll('.telescope-panel').forEach(function(p) {
+        p.style.display = parseInt(p.dataset.idx) === idx ? '' : 'none';
+      });
+      document.querySelectorAll('.telescope-tab-btn').forEach(function(b, i) {
+        b.classList.toggle('active', i === idx);
+      });
+      sessionStorage.setItem('bookings.telescope', idx);
+    }
+    window.selectTelescope = selectTelescope;
   })();
   </script>
 
   {% for tel_idx in 0..telescope_names.len() %}
-  <details {% if tel_idx == 0 %}open{% endif %} class="mt-4">
-  <summary class="cursor-pointer font-semibold text-lg mb-2 select-none">Telescope: {{ telescope_names[tel_idx] }}
-  {% if maintenance_telescopes[tel_idx] %}
-  <span class="text-xs font-semibold text-yellow-700 bg-yellow-100 px-2 py-0.5 rounded ml-2">Maintenance</span>
-  {% endif %}
-  </summary>
+  <div class="telescope-panel mt-4" data-idx="{{ tel_idx }}"{% if tel_idx != 0 %} style="display:none"{% endif %}>
   <div class="calendar-grid-wrapper">
     <table class="calendar-grid">
       <thead>
@@ -164,6 +182,14 @@
       </tbody>
     </table>
   </div>
-  </details>
+  </div>
   {% endfor %}
+
+  <script>
+  (function() {
+    var _telCount = {{ telescope_names.len() }};
+    var _saved = parseInt(sessionStorage.getItem('bookings.telescope') || '0');
+    selectTelescope(Math.min(_saved, _telCount - 1));
+  })();
+  </script>
 </div>
