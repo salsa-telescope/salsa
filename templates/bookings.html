@@ -48,7 +48,7 @@
   <div class="notification-area error">{{ e }}</div>
   {% endfor %}
 
-  <div class="calendar-nav mt-4">
+  <div class="calendar-nav">
     <span class="calendar-nav-title">Book telescope &mdash; weekly view</span>
     <button hx-get="/bookings?week={{ prev_week }}{% if is_admin %}&user_id={{ viewed_user_id }}{% endif %}" hx-target="#page" class="calendar-nav-btn">&larr; Prev</button>
     <button hx-get="/bookings{% if is_admin %}?user_id={{ viewed_user_id }}{% endif %}" hx-target="#page" class="calendar-nav-btn calendar-today-btn">Today</button>
