@@ -163,6 +163,16 @@
     in steps of 0.5° or 1°, making one measurement at each position. This gives a one-dimensional cut through the
     beam. You can also scan in elevation, or make a two-dimensional grid to map the full beam shape.</p>
 
+    <p><strong>Azimuth vs. elevation offsets:</strong> Elevation offsets directly equal the angular distance on the
+    sky — a +2° elevation offset moves the pointing 2° up. Azimuth offsets behave differently: because lines of
+    constant azimuth converge toward the zenith (just as lines of longitude converge at the poles), the actual
+    angular separation on the sky is <em>smaller</em> than the entered value:</p>
+    <p class="ml-6 my-2">θ = cos(el) × Δaz</p>
+    <p>For example, if the Sun is at elevation 45°, an azimuth offset of +4° moves the pointing only
+    cos(45°) × 4° ≈ 2.8° from the Sun on the sky. To achieve a spacing of 3° on the sky you would instead enter
+    3° / cos(45°) ≈ 4.2°. At the elevations typical for this experiment (roughly 20°–50°), the factor cos(el)
+    ranges from about 0.64 to 0.94 — noticeable when comparing your measured beam width to the expected value.</p>
+
     <p class="bg-amber-50 border-l-4 border-amber-300 rounded px-4 py-2 text-sm">
       <strong>Screenshot:</strong> The observe page with Sun selected as target, and the Advanced tracking settings
       panel expanded showing an azimuth offset of e.g. +3° entered, with the elevation offset at 0°.
@@ -174,9 +184,15 @@
     <h4 id="s2-3" class="text-xl font-semibold text-gray-800 mt-6">2.3 Receiver settings</h4>
 
     <p>When you select Sun as the target, SALSA automatically switches to <em>Raw</em> mode, which measures total
-    received power directly — exactly what is needed for this experiment. The default bandwidth and frequency are
-    also fine, so no changes to the receiver settings are needed. The Sun is very bright at radio wavelengths;
-    just click <strong>Start</strong> and 1 second of integration is enough to get a clear measurement.</p>
+    received power directly — exactly what is needed for this experiment. The default centre frequency is
+    <strong>1410 MHz</strong> with a bandwidth of <strong>2.5 MHz</strong>. The Sun is very bright at radio
+    wavelengths, so the narrow bandwidth gives a perfectly clear detection — just click <strong>Start</strong>
+    and 1 second of integration is enough.</p>
+
+    <p>Keep the frequency at 1410 MHz rather than tuning to the hydrogen line at 1420.405 MHz. At 1420 MHz the
+    receiver would also pick up 21 cm emission from neutral hydrogen gas in the Milky Way along the line of sight,
+    which would add a varying background to your measurements and make it harder to isolate the Sun's contribution.
+    At 1410 MHz you sit safely clear of the HI line and measure essentially only continuum emission from the Sun.</p>
 
     <h4 id="s2-4" class="text-xl font-semibold text-gray-800 mt-6">2.4 Measuring and recording power</h4>
 
