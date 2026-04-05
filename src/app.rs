@@ -88,6 +88,7 @@ pub async fn create_app(config_dir: &Path, database_dir: &Path) -> (Router, AppS
             .to_str()
             .expect("Config path should be convertible to string"),
         tle_cache.clone(),
+        weather_cache.clone(),
     );
     let secrets_path = config_dir.join(".secrets.toml");
     let secrets = Arc::new(

@@ -6,6 +6,7 @@ use crate::models::telescope_types::{
 };
 use crate::telescope_tracker::TelescopeTracker;
 use crate::tle_cache::TleCacheHandle;
+use crate::weather_cache::WeatherCacheHandle;
 use async_trait::async_trait;
 use chrono::Utc;
 use std::iter::zip;
@@ -40,6 +41,7 @@ struct Inner {
     max_elevation_rad: f64,
     webcam_crop: Option<[f64; 4]>,
     t_rec_k: f64,
+    weather_cache: WeatherCacheHandle,
     receiver_reachable: Arc<tokio::sync::Mutex<bool>>,
     controller_connected: bool,
 }
@@ -62,6 +64,7 @@ pub fn create(
     default_gain_db: f64,
     t_rec_k: f64,
     tle_cache: TleCacheHandle,
+    weather_cache: WeatherCacheHandle,
 ) -> SalsaTelescope {
     let receiver_reachable = Arc::new(tokio::sync::Mutex::new(false));
     let ping_reachable = receiver_reachable.clone();
@@ -92,6 +95,7 @@ pub fn create(
         max_elevation_rad,
         webcam_crop,
         t_rec_k,
+        weather_cache,
         receiver_reachable,
         controller_connected: false,
     }));
@@ -183,6 +187,7 @@ impl Telescope for SalsaTelescope {
                 let measurements = inner.measurements.clone();
                 let cancellation_token = cancellation_token.clone();
                 let t_rec_k = inner.t_rec_k;
+                let weather_cache = inner.weather_cache.clone();
                 tokio::spawn(async move {
                     measure(
                         address,
@@ -190,6 +195,7 @@ impl Telescope for SalsaTelescope {
                         cancellation_token,
                         receiver_configuration,
                         t_rec_k,
+                        weather_cache,
                     )
                     .await;
                 })
@@ -446,20 +452,13 @@ fn median(mut xs: Vec<f64>) -> f64 {
 
 const AMBIENT_TEMP_FALLBACK_K: f64 = 285.0;
 
-async fn fetch_ambient_temp_k() -> f64 {
-    let url = "https://www.oso.chalmers.se/weather/onsala.txt";
-    let result: Option<f64> = async {
-        let text = reqwest::get(url).await.ok()?.text().await.ok()?;
-        let mut parts = text.split_whitespace();
-        let timestamp: i64 = parts.next()?.parse().ok()?;
-        let temp_celsius: f64 = parts.next()?.parse().ok()?;
-        let age_secs = chrono::Utc::now().timestamp() - timestamp;
-        if age_secs > 120 || !(-30.0..=50.0).contains(&temp_celsius) {
+fn ambient_temp_k_from_cache(weather_cache: &WeatherCacheHandle) -> f64 {
+    let result = weather_cache.get().and_then(|w| {
+        if w.age_secs() > 120 || !(-30.0..=50.0).contains(&w.temp_c) {
             return None;
         }
-        Some(temp_celsius + 273.15)
-    }
-    .await;
+        Some(w.temp_c + 273.15)
+    });
     match result {
         Some(t) => {
             info!("Ambient temperature: {:.1} K", t);
@@ -467,7 +466,7 @@ async fn fetch_ambient_temp_k() -> f64 {
         }
         None => {
             warn!(
-                "Could not fetch ambient temperature, using fallback {} K",
+                "Could not get ambient temperature from cache, using fallback {} K",
                 AMBIENT_TEMP_FALLBACK_K
             );
             AMBIENT_TEMP_FALLBACK_K
@@ -481,6 +480,7 @@ async fn measure(
     cancellation_token: CancellationToken,
     config: ReceiverConfiguration,
     t_rec_k: f64,
+    weather_cache: WeatherCacheHandle,
 ) {
     let tint: f64 = 1.0; // integration time per cycle, seconds
     let srate: f64 = config.bandwidth_hz;
@@ -502,7 +502,7 @@ async fn measure(
 
     usrp.set_rx_sample_rate(srate, 0).unwrap();
 
-    let tsys = fetch_ambient_temp_k().await + t_rec_k;
+    let tsys = ambient_temp_k_from_cache(&weather_cache) + t_rec_k;
     info!("Tsys = {:.1} K (T_rec = {:.1} K)", tsys, t_rec_k);
 
     {
