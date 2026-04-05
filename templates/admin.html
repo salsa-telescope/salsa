@@ -63,7 +63,7 @@
             hx-post="/admin/telescope/{{ name }}/toggle"
             hx-target="#page"
             hx-confirm="{% if in_maintenance %}Mark {{ name }} as operational?{% else %}Put {{ name }} into maintenance? Users will not be able to observe.{% endif %}"
-            class="px-3 py-1 text-sm rounded-md {% if in_maintenance %}bg-success hover:bg-success-hover text-white{% else %}bg-warning-hover hover:bg-warning-hover text-white{% endif %}">
+            class="action-btn {% if in_maintenance %}bg-success hover:bg-success-hover{% else %}bg-warning-hover hover:bg-warning-hover{% endif %}">
             {% if in_maintenance %}Set operational{% else %}Set maintenance{% endif %}
           </button>
         </td>
@@ -107,7 +107,7 @@
             <input type="password" name="password" placeholder="New password" required
               class="border rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-accent-focus w-36" />
             <button type="submit"
-              class="px-3 py-1 text-sm rounded-md bg-gray-600 hover:bg-gray-500 text-white">
+              class="action-btn">
               Set
             </button>
           </form>
@@ -116,7 +116,7 @@
           <form method="post" action="/admin/local-users/{{ id }}/delete"
             onsubmit="return confirm('Delete local user {{ username }}?')">
             <button type="submit"
-              class="px-3 py-1 text-sm rounded-md bg-danger hover:bg-danger-hover text-white">
+              class="action-btn bg-danger hover:bg-danger-hover">
               Delete
             </button>
           </form>
@@ -136,7 +136,7 @@
     <input type="text" name="comment" placeholder="Comment (optional)"
       class="border rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent-focus" />
     <button type="submit"
-      class="px-3 py-1 text-sm rounded-md bg-accent hover:bg-accent-hover text-white self-start">
+      class="action-btn self-start">
       Create
     </button>
   </form>
@@ -148,7 +148,7 @@
     <input type="date" name="from" value="{{ usage_from }}" class="border rounded px-2 py-1" />
     <label class="text-gray-600">To</label>
     <input type="date" name="to" value="{{ usage_to }}" class="border rounded px-2 py-1" />
-    <button type="submit" class="px-3 py-1 bg-accent text-white rounded-md hover:bg-accent-hover">Update</button>
+    <button type="submit" class="action-btn">Update</button>
   </form>
   <div class="overflow-x-auto">
   <table class="text-sm w-full max-w-md">

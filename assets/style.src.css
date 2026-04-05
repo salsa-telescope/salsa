@@ -218,14 +218,24 @@ body {
     margin: auto;
     margin-bottom: 50px;
 }
-.btn {
-    @apply inline-block px-8 py-3.5 rounded-md text-base font-semibold no-underline cursor-pointer;
-}
-.btn-primary {
-    @apply bg-white text-brand hover:bg-brand-border;
-}
-.btn-secondary {
-    @apply bg-transparent text-white! border-2 border-white hover:bg-white/10;
+/* Button components — in @layer components so Tailwind utilities can override. */
+@layer components {
+    .btn {
+        @apply inline-block px-8 py-3.5 rounded-md text-base font-semibold no-underline cursor-pointer;
+    }
+    .btn-primary {
+        @apply bg-white text-brand hover:bg-brand-border;
+    }
+    .btn-secondary {
+        @apply bg-transparent text-white! border-2 border-white hover:bg-white/10;
+    }
+    .action-btn {
+        @apply px-3 py-1 text-sm rounded-md text-white;
+        background-color: var(--color-accent);
+    }
+    .action-btn:hover {
+        background-color: var(--color-accent-hover);
+    }
 }
 header {
     color: var(--color-brand-bg);
