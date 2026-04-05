@@ -8,7 +8,7 @@
       {% endfor %}
     </select>
     <input type="hidden" name="week" value="{{ week_start }}" />
-    <button type="submit" class="px-3 py-1 bg-indigo-600 text-white rounded-md hover:bg-indigo-500">View</button>
+    <button type="submit" class="px-3 py-1 bg-accent text-white rounded-md hover:bg-accent-hover">View</button>
     <span class="text-gray-400 text-xs">&larr; Admin only filter: uid: username (provider)</span>
   </form>
   {% endif %}
@@ -84,7 +84,7 @@
   <details {% if tel_idx == 0 %}open{% endif %} class="mt-4">
   <summary class="cursor-pointer font-semibold text-lg mb-2 select-none">Telescope: {{ telescope_names[tel_idx] }}
   {% if maintenance_telescopes[tel_idx] %}
-  <span class="text-xs font-semibold text-yellow-700 bg-yellow-100 px-2 py-0.5 rounded ml-2">Maintenance</span>
+  <span class="text-xs font-semibold text-warning bg-warning-light px-2 py-0.5 rounded ml-2">Maintenance</span>
   {% endif %}
   </summary>
   <div class="calendar-grid-wrapper">

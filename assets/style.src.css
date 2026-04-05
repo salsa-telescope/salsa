@@ -2,6 +2,70 @@
 @source "../templates/";
 @source "../assets/";
 
+@theme {
+  /* Brand */
+  --color-brand: #02344a;
+  --color-brand-light: #25617a;
+  --color-brand-bg: #f0f5f7;
+  --color-brand-border: #d6e1e5;
+  --color-brand-dark: #1a1d1f;
+
+  /* Interactive accent (buttons, links, focus rings) */
+  --color-accent: #4f46e5;
+  --color-accent-hover: #6366f1;
+  --color-accent-dark: #3730a3;
+  --color-accent-light: #e0e7ff;
+  --color-accent-focus: #818cf8;
+
+  /* Semantic status */
+  --color-success: #15803d;
+  --color-success-hover: #16a34a;
+
+  --color-warning: #a16207;
+  --color-warning-light: #fefce8;
+  --color-warning-hover: #ca8a04;
+  --color-warning-border: #fcd34d;
+
+  --color-danger: #dc2626;
+  --color-danger-hover: #ef4444;
+
+  --color-info: #2563eb;
+
+  /* Callout boxes */
+  --color-callout: #fffbeb;
+  --color-callout-border: #fcd34d;
+
+  /* Muted text and borders */
+  --color-muted: #555;
+  --color-muted-light: #777;
+  --color-muted-border: #ccc;
+  --color-subtle-border: #e0e0e0;
+
+  /* Calendar slots */
+  --color-slot-free: #c8e6c9;
+  --color-slot-free-hover: #81c784;
+  --color-slot-mine: #90caf9;
+  --color-slot-mine-hover: #64b5f6;
+  --color-slot-other: #ef9a9a;
+  --color-slot-disabled: #e8e8e8;
+  --color-slot-past: #e0e0e0;
+  --color-slot-maintenance: #fff3cd;
+
+  /* Notification */
+  --color-notify-success: #66BB6A;
+  --color-notify-success-bg: #E8F5E9;
+  --color-notify-error: #E57373;
+  --color-notify-error-bg: #FFEBEE;
+
+  /* Booking actions */
+  --color-observe: #7b1fa2;
+  --color-observe-border: #ce93d8;
+  --color-observe-bg: #f3e5f5;
+  --color-delete: #c62828;
+  --color-delete-border: #ef9a9a;
+  --color-delete-bg: #ffebee;
+}
+
 header *,
 header *::before,
 header *::after {
@@ -10,22 +74,10 @@ header *::after {
     box-sizing: border-box;
 }
 
-:root {
-    --primary-color: #02344a;
-    --primary-color-light: #25617a;
-    --secondary-color: #ffffff;
-    --gray100: #f0f5f7;
-    --gray300: #d6e1e5;
-    --gray900: #1a1d1f;
-    --main-text-color: var(--gray900);
-    --main-link-color: var(--primary-color);
-    --main-bg-color: var(--gray100);
-}
-
 body {
     font-family: 'Roboto flex', sans-serif;
     font-size: 16px;
-    background-color: var(--gray900);
+    background-color: var(--color-brand-dark);
     height: 100%;
     margin: 0;
 }
@@ -53,15 +105,15 @@ body {
     flex-grow: 1;
 }
 .section.light {
-    color: var(--main-text-color);
-    background-color: var(--main-bg-color);
+    color: var(--color-brand-dark);
+    background-color: var(--color-brand-bg);
 }
 .section.dark {
-    color: var(--secondary-color);
-    background-color: var(--gray900);
+    color: white;
+    background-color: var(--color-brand-dark);
 }
 .section a {
-    color: var(--main-link-color);
+    color: var(--color-brand);
     text-decoration: none;
 }
 .section a:hover {
@@ -170,14 +222,14 @@ body {
     @apply inline-block px-8 py-3.5 rounded-md text-base font-semibold no-underline cursor-pointer;
 }
 .btn-primary {
-    @apply bg-[var(--secondary-color)] text-[var(--primary-color)] hover:bg-[var(--gray300)];
+    @apply bg-white text-brand hover:bg-brand-border;
 }
 .btn-secondary {
-    @apply bg-transparent text-white! border-2 border-[var(--secondary-color)] hover:bg-white/10;
+    @apply bg-transparent text-white! border-2 border-white hover:bg-white/10;
 }
 header {
-    color: var(--gray100);
-    background-color: var(--primary-color);
+    color: var(--color-brand-bg);
+    background-color: var(--color-brand);
     display: flex;
     align-items: center;
     height: 80px;
@@ -188,7 +240,7 @@ header {
 }
 
 #logo {
-    color: var(--secondary-color);
+    color: white;
     font-size: 36px;
     font-family: 'Audiowide', cursive;
     margin: 0 20px;
@@ -231,7 +283,7 @@ header {
     align-items: center;
 }
 .nav-link:hover {
-    background-color: var(--primary-color-light);
+    background-color: var(--color-brand-light);
 }
 
 .nav-spacer {
@@ -248,7 +300,7 @@ header {
     position: relative;
 }
 .nav-user-toggle:hover {
-    background-color: var(--primary-color-light);
+    background-color: var(--color-brand-light);
 }
 .nav-user-dropdown {
     display: none;
@@ -257,7 +309,7 @@ header {
     top: 100%;
     min-width: 200px;
     z-index: 100;
-    background-color: var(--primary-color);
+    background-color: var(--color-brand);
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
 }
 .nav-user-dropdown .nav-link {
@@ -332,7 +384,7 @@ body.user-open .nav-user-dropdown {
         min-width: 0;
         width: 100%;
         box-shadow: none;
-        border-top: 1px solid var(--primary-color-light);
+        border-top: 1px solid var(--color-brand-light);
     }
 
     .nav-user-dropdown .nav-link {
@@ -347,7 +399,7 @@ body.user-open .nav-user-dropdown {
 
 footer {
     /* TODO: Need less contrast here */
-    color: var(--gray300);
+    color: var(--color-brand-border);
     padding: 20px;
     text-align: center;
     font-size: 90%;
@@ -361,20 +413,20 @@ footer {
 }
 
 .notification-area.success {
-    border-color: #66BB6A;
-    background-color: #E8F5E9;
+    border-color: var(--color-notify-success);
+    background-color: var(--color-notify-success-bg);
     display: block;
 }
 
 .notification-area.error {
-    border-color: #E57373;
-    background-color: #FFEBEE;
+    border-color: var(--color-notify-error);
+    background-color: var(--color-notify-error-bg);
     display: block;
 }
 
 /* My bookings list */
 .my-bookings-list {
-    border: 1px solid var(--gray300);
+    border: 1px solid var(--color-brand-border);
     border-radius: 6px;
     overflow: hidden;
     max-width: 540px;
@@ -387,7 +439,7 @@ footer {
     background: white;
 }
 .my-booking-row + .my-booking-row {
-    border-top: 1px solid var(--gray300);
+    border-top: 1px solid var(--color-brand-border);
 }
 .my-booking-info {
     display: flex;
@@ -400,7 +452,7 @@ footer {
 }
 .my-booking-time {
     font-size: 13px;
-    color: #555;
+    color: var(--color-muted);
 }
 .my-booking-actions {
     display: flex;
@@ -408,7 +460,7 @@ footer {
 }
 .my-booking-btn {
     padding: 3px 10px;
-    border: 1px solid var(--gray300);
+    border: 1px solid var(--color-brand-border);
     border-radius: 4px;
     background: white;
     font-size: 13px;
@@ -417,21 +469,21 @@ footer {
     color: inherit;
 }
 .my-booking-btn:hover {
-    background: var(--gray300);
+    background: var(--color-brand-border);
 }
 .my-booking-observe {
-    color: #7b1fa2;
-    border-color: #ce93d8;
+    color: var(--color-observe);
+    border-color: var(--color-observe-border);
 }
 .my-booking-observe:hover {
-    background: #f3e5f5;
+    background: var(--color-observe-bg);
 }
 .my-booking-delete {
-    color: #c62828;
-    border-color: #ef9a9a;
+    color: var(--color-delete);
+    border-color: var(--color-delete-border);
 }
 .my-booking-delete:hover {
-    background: #ffebee;
+    background: var(--color-delete-bg);
 }
 
 /* Calendar navigation */
@@ -448,14 +500,14 @@ footer {
 }
 .calendar-nav-btn {
     padding: 4px 12px;
-    border: 1px solid var(--gray300);
+    border: 1px solid var(--color-brand-border);
     border-radius: 4px;
     background: white;
     cursor: pointer;
     font-size: 14px;
 }
 .calendar-nav-btn:hover {
-    background: var(--gray300);
+    background: var(--color-brand-border);
 }
 .calendar-today-btn {
     font-weight: 600;
@@ -467,12 +519,12 @@ footer {
 /* Calendar info box */
 .calendar-info {
     background: white;
-    border: 1px solid var(--gray300);
+    border: 1px solid var(--color-brand-border);
     border-radius: 6px;
     padding: 10px 14px;
     margin-bottom: 16px;
     font-size: 13px;
-    color: #555;
+    color: var(--color-muted);
 }
 .calendar-info-row {
     display: flex;
@@ -484,7 +536,7 @@ footer {
     font-family: 'Roboto Mono', monospace;
 }
 .calendar-help {
-    color: #777;
+    color: var(--color-muted-light);
     margin: 4px 0 0;
 }
 .calendar-legend {
@@ -503,7 +555,7 @@ footer {
     width: 16px;
     height: 16px;
     border-radius: 2px;
-    border: 1px solid #ccc;
+    border: 1px solid var(--color-muted-border);
 }
 
 /* Calendar grid */
@@ -520,7 +572,7 @@ footer {
 .calendar-header-cell {
     position: sticky;
     top: 0;
-    background: var(--primary-color);
+    background: var(--color-brand);
     color: white;
     padding: 6px 4px;
     text-align: center;
@@ -535,7 +587,7 @@ footer {
     text-align: right;
     padding-right: 6px;
     font-size: 11px;
-    color: #666;
+    color: var(--color-muted);
     white-space: nowrap;
 }
 
@@ -543,53 +595,53 @@ footer {
 .calendar-slot {
     height: 22px;
     min-width: 80px;
-    border: 1px solid #e0e0e0;
+    border: 1px solid var(--color-subtle-border);
     cursor: default;
 }
 
 /* Free — clickable green */
 .calendar-slot-free {
-    background: #c8e6c9;
+    background: var(--color-slot-free);
     cursor: pointer;
 }
 .calendar-slot-free:hover {
-    background: #81c784;
+    background: var(--color-slot-free-hover);
 }
 
 /* Mine — blue */
 .calendar-slot-mine {
-    background: #90caf9;
+    background: var(--color-slot-mine);
     cursor: pointer;
 }
 .calendar-slot-mine:hover {
-    background: #64b5f6;
+    background: var(--color-slot-mine-hover);
 }
 
 /* Other user — red */
 .calendar-slot-other {
-    background: #ef9a9a;
+    background: var(--color-slot-other);
 }
 
 /* Disabled — at booking limit */
 .calendar-slot-disabled {
-    background: #e8e8e8;
+    background: var(--color-slot-disabled);
     cursor: not-allowed;
 }
 
 /* Past — gray */
 .calendar-slot-past {
-    background: #e0e0e0;
+    background: var(--color-slot-past);
 }
 
 /* Maintenance — yellow */
 .calendar-slot-maintenance {
-    background: #fff3cd;
+    background: var(--color-slot-maintenance);
     cursor: not-allowed;
 }
 
 /* Current hour highlight */
 .calendar-slot-current {
-    outline: 2px solid var(--primary-color);
+    outline: 2px solid var(--color-brand);
     outline-offset: -2px;
 }
 
@@ -606,8 +658,8 @@ figure img {
 
 /* Content links */
 .section a:not(.btn) {
-    color: #4f46e5;
+    color: var(--color-accent);
 }
 .section a:not(.btn):hover {
-    color: #3730a3;
+    color: var(--color-accent-dark);
 }

@@ -5,11 +5,11 @@
 
 <h2 class="text-xl font-semibold mb-3">Telescope &mdash; {{ info.id }} &mdash;
   {% if status == "Idle" %}
-  <span class="text-blue-600">Idle</span>
+  <span class="text-info">Idle</span>
   {% else if status == "Slewing" %}
-  <span class="text-yellow-500">Slewing</span>
+  <span class="text-warning">Slewing</span>
   {% else if status == "Tracking" %}
-  <span class="text-green-600">Tracking</span>
+  <span class="text-success">Tracking</span>
   {% else %}
   <span>{{ status }}</span>
   {% endif %}
@@ -17,6 +17,6 @@
 </h2>
 
 {% if !error.is_empty() %}
-<p class="text-red-600 text-sm mb-2">{{ error }}</p>
+<p class="text-danger text-sm mb-2">{{ error }}</p>
 {% endif %}
 
