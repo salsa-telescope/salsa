@@ -282,7 +282,8 @@
           }, 2000);
         })();
         </script>
-        <p class="text-gray-500 text-xs mt-2">Image updated every 2 seconds. The telescopes have no lights and are not visible after dark, but can still be controlled.</p>
+        <p class="text-gray-500 text-xs mt-2">Updated every 2 s. No lights — telescopes are not visible after dark but can still be controlled.</p>
+        <div hx-get="/weather" hx-trigger="load, every 5m"></div>
       </div>
       {% endif %}
     </div>

@@ -10,4 +10,5 @@ pub mod observe;
 pub mod support;
 pub mod technical;
 pub mod telescope;
+pub mod weather;
 pub mod webcam;

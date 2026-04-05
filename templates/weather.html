@@ -1,0 +1,27 @@
+<div class="mt-2 pt-2 border-t border-gray-100 text-xs">
+  <div class="flex justify-between mb-1">
+    <span class="font-medium text-gray-600">Weather at Onsala</span>
+    <span class="text-gray-400">{{ age_str }}</span>
+  </div>
+  <div class="grid grid-cols-3 gap-1 text-center">
+    <div class="bg-gray-50 rounded px-1 py-0.5">
+      <div class="text-gray-400">Temp</div>
+      <div class="text-gray-700 font-medium">{{ temp_c }} °C</div>
+    </div>
+    <div class="bg-gray-50 rounded px-1 py-0.5">
+      <div class="text-gray-400">Press.</div>
+      <div class="text-gray-700 font-medium">{{ pressure_hpa }} hPa</div>
+    </div>
+    <div class="bg-gray-50 rounded px-1 py-0.5">
+      <div class="text-gray-400">Humid.</div>
+      <div class="text-gray-700 font-medium">{{ humidity_pct }}%</div>
+    </div>
+    <div class="col-span-3 bg-gray-50 rounded px-2 py-0.5 text-gray-500">
+      <span class="text-gray-400">Wind</span>
+      <span class="text-gray-700 font-medium"> {{ wind_avg_ms }} m/s {{ compass }} {{ wind_dir_deg }}°</span>
+      <span class="text-gray-400"> (10min avg)</span>
+      <br>
+      <span class="text-gray-400">Gust {{ wind_gust_ms }} / lull {{ wind_lull_ms }} m/s (3s max/min over 10min)</span>
+    </div>
+  </div>
+</div>

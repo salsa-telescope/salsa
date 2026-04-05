@@ -20,6 +20,7 @@ use crate::models::telescope::{TelescopeCollectionHandle, create_telescope_colle
 use crate::routes;
 use crate::secrets::Secrets;
 use crate::tle_cache::{TleCacheHandle, start_tle_refresh};
+use crate::weather_cache::{WeatherCacheHandle, start_weather_refresh};
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct BookingConfig {
@@ -63,6 +64,7 @@ pub struct AppState {
     pub booking_config: Arc<BookingConfig>,
     pub admin_config: Arc<AdminConfig>,
     pub tle_cache: TleCacheHandle,
+    pub weather_cache: WeatherCacheHandle,
 }
 
 pub async fn create_app(config_dir: &Path, database_dir: &Path) -> (Router, AppState) {
@@ -79,6 +81,8 @@ pub async fn create_app(config_dir: &Path, database_dir: &Path) -> (Router, AppS
 
     let tle_cache = TleCacheHandle::new();
     start_tle_refresh(tle_cache.clone());
+    let weather_cache = WeatherCacheHandle::new();
+    start_weather_refresh(weather_cache.clone());
     let telescopes = create_telescope_collection(
         config_path
             .to_str()
@@ -108,6 +112,7 @@ pub async fn create_app(config_dir: &Path, database_dir: &Path) -> (Router, AppS
         booking_config,
         admin_config,
         tle_cache,
+        weather_cache,
     };
 
     let mut app = Router::new()
@@ -124,6 +129,7 @@ pub async fn create_app(config_dir: &Path, database_dir: &Path) -> (Router, AppS
         .nest("/telescope", routes::telescope::routes(state.clone()))
         .nest("/observations", routes::observations::routes(state.clone()))
         .nest("/webcam", routes::webcam::routes(webcam_snapshot_url))
+        .nest("/weather", routes::weather::routes(state.clone()))
         .layer(
             TraceLayer::new_for_http().make_span_with(|request: &Request<_>| {
                 let matched_path = request
