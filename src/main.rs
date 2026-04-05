@@ -1,27 +1,11 @@
-use app::teardown_app;
 use axum_server::tls_rustls::RustlsConfig;
+use backend::{app, app::teardown_app, booking_monitor, logging};
 use clap::Parser;
 use std::net::SocketAddr;
 use std::net::TcpListener;
 use std::path::PathBuf;
 use tokio::signal;
 use tracing::{error, info};
-
-mod app;
-mod booking_monitor;
-mod coords;
-mod database;
-mod error;
-mod fits;
-mod logging;
-mod middleware;
-mod models;
-mod routes;
-mod secrets;
-mod telescope_controller;
-mod telescope_tracker;
-mod tle_cache;
-mod weather_cache;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]

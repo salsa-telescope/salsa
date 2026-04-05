@@ -104,22 +104,21 @@ async fn local_login(
         &form.password,
     )
     .await?;
-    match user {
-        Some(user) => {
-            let session = Session::create(state.database_connection.clone(), &user).await?;
-            let cookie = format!(
-                "{SESSION_COOKIE_NAME}={}; SameSite=Lax; HttpOnly; Secure; Path=/; Max-Age=2592000",
-                session.token
-            );
-            let mut headers = HeaderMap::new();
-            headers.insert(
-                SET_COOKIE,
-                cookie.parse().expect("Cookie should be parseable always."),
-            );
-            Ok((headers, Redirect::to("/")).into_response())
-        }
-        None => Ok(Redirect::to("/auth/login?error=1").into_response()),
-    }
+    let Some(user) = user else {
+        return Ok(StatusCode::UNAUTHORIZED.into_response());
+    };
+
+    let session = Session::create(state.database_connection.clone(), &user).await?;
+    let cookie = format!(
+        "{SESSION_COOKIE_NAME}={}; SameSite=Lax; HttpOnly; Secure; Path=/; Max-Age=2592000",
+        session.token
+    );
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        SET_COOKIE,
+        cookie.parse().expect("Cookie should be parseable always."),
+    );
+    Ok((headers, Redirect::to("/")).into_response())
 }
 
 // 2. We redirect the user to auth provider (e.g. Discord) where they authorize our app.

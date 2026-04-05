@@ -11,6 +11,20 @@ fn can_start_and_stop_backend() {
 }
 
 #[test]
+fn login_with_unknown_local_user_fails() {
+    let server = SalsaTestServer::spawn();
+    let client = Client::new();
+
+    let res = client
+        .post(server.addr() + "/auth/local")
+        .form(&[("username", "test"), ("password", "password")])
+        .send()
+        .expect("Should be able to send request");
+
+    assert_eq!(StatusCode::UNAUTHORIZED, res.status());
+}
+
+#[test]
 fn create_booking_not_logged_in_isnt_allowed() {
     let server = SalsaTestServer::spawn();
 
