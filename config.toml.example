@@ -42,6 +42,7 @@ telescope_type = "Fake"
 # default_ref_freq_mhz = 1417.9
 # default_gain_db = 60.0
 # t_rec_k = 0.0
+# wind_warning_ms = 18.0  # warn users if 10-min avg wind exceeds this (m/s); omit to disable
 
 # [[telescopes]]
 # name = "vale"
@@ -56,6 +57,7 @@ telescope_type = "Fake"
 # default_ref_freq_mhz = 1417.9
 # default_gain_db = 60.0
 # t_rec_k = 0.0
+# wind_warning_ms = 18.0  # warn users if 10-min avg wind exceeds this (m/s); omit to disable
 
 # [[telescopes]]
 # name = "brage"
@@ -70,3 +72,4 @@ telescope_type = "Fake"
 # default_ref_freq_mhz = 1417.9
 # default_gain_db = 60.0
 # t_rec_k = 0.0
+# wind_warning_ms = 18.0  # warn users if 10-min avg wind exceeds this (m/s); omit to disable

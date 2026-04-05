@@ -648,7 +648,13 @@ async fn start_observe(
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
         .contains(&telescope_id);
-    let content = observe(telescope.as_ref(), in_maintenance, user.is_admin).await?;
+    let content = observe(
+        telescope.as_ref(),
+        in_maintenance,
+        user.is_admin,
+        &state.weather_cache,
+    )
+    .await?;
     Ok(Html(content).into_response())
 }
 
@@ -690,7 +696,13 @@ async fn stop_observe(
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
         .contains(&telescope_id);
-    let content = observe(telescope.as_ref(), in_maintenance, user.is_admin).await?;
+    let content = observe(
+        telescope.as_ref(),
+        in_maintenance,
+        user.is_admin,
+        &state.weather_cache,
+    )
+    .await?;
     Ok(Html(content))
 }
 
@@ -717,7 +729,13 @@ async fn get_observe(
         .get(&telescope_id)
         .await
         .ok_or(StatusCode::NOT_FOUND)?;
-    let content = observe(telescope.as_ref(), in_maintenance, user.is_admin).await?;
+    let content = observe(
+        telescope.as_ref(),
+        in_maintenance,
+        user.is_admin,
+        &state.weather_cache,
+    )
+    .await?;
     let content = if headers.get("hx-request").is_some() {
         content
     } else {
@@ -789,6 +807,7 @@ struct ObserveTemplate {
     is_admin: bool,
     freq_min_mhz: u32,
     freq_max_mhz: u32,
+    wind_warning: bool,
 }
 
 fn fmt_deg(deg: f64) -> String {
@@ -802,6 +821,7 @@ async fn observe(
     telescope: &dyn Telescope,
     in_maintenance: bool,
     is_admin: bool,
+    weather_cache: &crate::weather_cache::WeatherCacheHandle,
 ) -> Result<String, StatusCode> {
     let info = telescope.get_info().await.map_err(|err| {
         error!("Failed to get info {err}");
@@ -844,6 +864,10 @@ async fn observe(
     } else {
         (FREQ_MIN_USER_MHZ, FREQ_MAX_USER_MHZ)
     };
+    let wind_warning = info
+        .wind_warning_ms
+        .zip(weather_cache.get())
+        .is_some_and(|(limit, w)| w.wind_avg_ms > limit);
     Ok(ObserveTemplate {
         info,
         target_mode,
@@ -854,6 +878,7 @@ async fn observe(
         is_admin,
         freq_min_mhz,
         freq_max_mhz,
+        wind_warning,
     }
     .render()
     .expect("Template rendering should always succeed"))

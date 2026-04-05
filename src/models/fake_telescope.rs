@@ -235,6 +235,7 @@ impl Telescope for FakeTelescope {
             max_elevation_rad: inner.max_elevation_rad,
             webcam_crop: inner.webcam_crop,
             receiver_reachable: None,
+            wind_warning_ms: None,
         })
     }
     async fn shutdown(&self) {

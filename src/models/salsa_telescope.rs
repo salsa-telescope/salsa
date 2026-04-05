@@ -41,6 +41,7 @@ struct Inner {
     max_elevation_rad: f64,
     webcam_crop: Option<[f64; 4]>,
     t_rec_k: f64,
+    wind_warning_ms: Option<f64>,
     weather_cache: WeatherCacheHandle,
     receiver_reachable: Arc<tokio::sync::Mutex<bool>>,
     controller_connected: bool,
@@ -63,6 +64,7 @@ pub fn create(
     default_ref_freq_hz: f64,
     default_gain_db: f64,
     t_rec_k: f64,
+    wind_warning_ms: Option<f64>,
     tle_cache: TleCacheHandle,
     weather_cache: WeatherCacheHandle,
 ) -> SalsaTelescope {
@@ -95,6 +97,7 @@ pub fn create(
         max_elevation_rad,
         webcam_crop,
         t_rec_k,
+        wind_warning_ms,
         weather_cache,
         receiver_reachable,
         controller_connected: false,
@@ -255,6 +258,7 @@ impl Telescope for SalsaTelescope {
             max_elevation_rad: inner.max_elevation_rad,
             webcam_crop: inner.webcam_crop,
             receiver_reachable: Some(receiver_reachable),
+            wind_warning_ms: inner.wind_warning_ms,
         })
     }
     async fn shutdown(&self) {

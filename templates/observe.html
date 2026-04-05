@@ -6,6 +6,11 @@
     This telescope is currently in maintenance mode.
   </div>
   {% endif %}
+  {% if wind_warning %}
+  <div class="text-sm font-semibold text-red-700 bg-red-50 border border-red-300 rounded px-3 py-2 mb-2">
+    Strong wind warning: wind speed is above the safe limit. Please stow the telescope and return when the storm has ended. You may still observe, but do so at your own risk.
+  </div>
+  {% endif %}
 
   <div class="flex flex-col lg:flex-row gap-6">
 

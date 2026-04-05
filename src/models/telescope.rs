@@ -103,6 +103,7 @@ fn create_telescope(
             default_ref_freq_hz,
             default_gain_db,
             t_rec_k,
+            def.wind_warning_ms,
             tle_cache,
             weather_cache,
         )),
