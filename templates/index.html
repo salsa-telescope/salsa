@@ -74,18 +74,24 @@
         <footer>
             Made by weirdos 🦆 ({% if build_url == "" %} {{version_description}} {% else %} <a href={{build_url}}>build</a> {% endif %})
         </footer>
-        <div id="lightbox" onclick="this.style.display='none'" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.85); z-index:1000; cursor:zoom-out; align-items:center; justify-content:center; padding:2rem;">
-            <img id="lightbox-img" style="max-width:90vw; max-height:90vh; object-fit:contain; border-radius:4px; box-shadow:0 0 60px rgba(0,0,0,0.5);">
+        <div id="lightbox" onclick="this.classList.add('hidden');this.classList.remove('flex')" class="hidden fixed inset-0 bg-black/85 z-[1000] cursor-zoom-out items-center justify-center p-8">
+            <img id="lightbox-img" class="max-w-[90vw] max-h-[90vh] object-contain rounded shadow-[0_0_60px_rgba(0,0,0,0.5)]">
         </div>
         <script>
             document.addEventListener('click', function(e) {
                 if (e.target.tagName === 'IMG' && e.target.closest('figure')) {
                     document.getElementById('lightbox-img').src = e.target.src;
-                    document.getElementById('lightbox').style.display = 'flex';
+                    var lb = document.getElementById('lightbox');
+                    lb.classList.remove('hidden');
+                    lb.classList.add('flex');
                 }
             });
             document.addEventListener('keydown', function(e) {
-                if (e.key === 'Escape') document.getElementById('lightbox').style.display = 'none';
+                if (e.key === 'Escape') {
+                    var lb = document.getElementById('lightbox');
+                    lb.classList.add('hidden');
+                    lb.classList.remove('flex');
+                }
             });
         </script>
     </body>

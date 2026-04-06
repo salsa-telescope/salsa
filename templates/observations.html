@@ -1,13 +1,13 @@
 <div class="section light">
   {% if is_admin %}
   <p class="text-gray-500 text-sm mb-3">As admin, you can view, export, and delete observations for any user.</p>
-  <form hx-get="/observations" hx-target="#page" hx-push-url="true" class="flex items-center gap-3 mb-4 text-sm">
+  <form hx-get="/observations" hx-target="#page" hx-push-url="true" class="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-4 text-sm">
     <select name="user_id" class="border rounded px-2 py-1">
       {% for u in all_users %}
       <option value="{{ u.id }}" {% if u.id == viewed_user_id %}selected{% endif %}>{{ u.id }} &ndash; {{ u.name }} ({{ u.provider }})</option>
       {% endfor %}
     </select>
-    <button type="submit" class="px-3 py-1 bg-indigo-600 text-white rounded-md hover:bg-indigo-500">View</button>
+    <button type="submit" class="btn">View</button>
     <span class="text-gray-400 text-xs">&larr; Admin only filter: uid &ndash; username (provider)</span>
   </form>
   {% endif %}
@@ -23,7 +23,7 @@
           {% for obs in observations %}
           <div
             id="obs-row-{{ obs.id }}"
-            class="hover:bg-gray-100 p-2 rounded border border-transparent text-sm flex justify-between items-center"
+            class="hover:bg-gray-100 p-2 rounded border border-transparent text-sm flex flex-col sm:flex-row justify-between items-start sm:items-center"
           >
             <span class="cursor-pointer" onclick="loadObservation({{ obs.id }})">
               {{ obs.start_time.naive_local() }} &mdash;
@@ -33,7 +33,7 @@
             </span>
             <button
               id="del-btn-{{ obs.id }}"
-              class="ml-2 text-gray-400 hover:text-red-500 text-xs px-1 flex-shrink-0 hidden"
+              class="ml-2 text-gray-400 hover:text-danger-hover text-xs px-1 flex-shrink-0 hidden"
               hx-delete="/observations/{{ obs.id }}?page={{ current_page }}&user_id={{ viewed_user_id }}"
               hx-target="#page"
               hx-confirm="Delete this observation?"
@@ -65,8 +65,8 @@
       </div>
       {% endif %}
     </div>
-    <div class="lg:w-2/3 flex flex-wrap gap-4 items-start">
-      <div id="observation-chart" style="display: none; max-width: 640px; flex-shrink: 0;">
+    <div class="lg:w-2/3 flex flex-col lg:flex-row gap-4 items-start">
+      <div id="observation-chart" style="display: none;" class="w-full max-w-[640px] lg:shrink-0">
         <h2 class="text-xl font-semibold mb-3 text-center">Spectrum</h2>
         <div id="observation-chart-buttons" class="flex gap-2 justify-center mt-1">
           <button id="observation-axis-toggle" style="display: none;"
@@ -119,7 +119,7 @@
             </div>
             <div class="flex gap-2">
               <button id="btn-fit-baseline" onclick="fitAndSubtractBaseline()" disabled
-                class="text-xs px-2 py-1 bg-indigo-100 text-indigo-700 rounded hover:bg-indigo-200 disabled:opacity-40 disabled:cursor-not-allowed">Fit &amp; subtract</button>
+                class="text-xs px-2 py-1 bg-accent-light text-accent rounded hover:bg-accent-light disabled:opacity-40 disabled:cursor-not-allowed">Fit &amp; subtract</button>
               <button onclick="clearBaseline()" class="text-xs px-2 py-1 bg-gray-100 rounded hover:bg-gray-200">Clear</button>
             </div>
           </div>
@@ -133,7 +133,7 @@
             </div>
             <div class="flex gap-2">
               <button id="btn-fit-gaussian" onclick="fitGaussians()" disabled
-                class="text-xs px-2 py-1 bg-indigo-100 text-indigo-700 rounded hover:bg-indigo-200 disabled:opacity-40 disabled:cursor-not-allowed">Fit</button>
+                class="text-xs px-2 py-1 bg-accent-light text-accent rounded hover:bg-accent-light disabled:opacity-40 disabled:cursor-not-allowed">Fit</button>
               <button onclick="clearGaussians()" class="text-xs px-2 py-1 bg-gray-100 rounded hover:bg-gray-200">Clear</button>
             </div>
             <div id="gaussian-results" class="text-xs text-gray-600 space-y-1 font-mono"></div>

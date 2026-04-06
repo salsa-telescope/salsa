@@ -1,6 +1,6 @@
 <div class="section light">
   <h2 class="text-xl font-semibold mb-4">Account</h2>
-  <dl class="text-sm space-y-2" style="display: grid; grid-template-columns: max-content auto; gap: 0.25rem 1rem;">
+  <dl class="text-sm space-y-2 grid grid-cols-[max-content_auto] gap-x-4 gap-y-1">
     <dt class="text-gray-500">Username</dt>
     <dd>{{ user.name }}</dd>
     <dt class="text-gray-500">Provider</dt>
@@ -14,7 +14,7 @@
     <button
       hx-post="/account/delete"
       hx-confirm="Are you sure? This will anonymise your account and cancel any upcoming bookings. Past bookings and observations will be retained. If you want to remove your observations, please delete them on the Observations page first."
-      class="px-3 py-1 bg-red-600 text-white rounded-md hover:bg-red-500 text-sm">
+      class="btn bg-danger hover:bg-danger-hover">
       Delete account
     </button>
   </div>
