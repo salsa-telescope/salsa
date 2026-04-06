@@ -133,6 +133,7 @@
           <td class="calendar-slot calendar-slot-maintenance{% if slot.is_current_hour %} calendar-slot-current{% endif %}"
               hx-post="/bookings"
               hx-target="#page"
+              hx-confirm="book"
               hx-vals='{"start_timestamp": {{ slot.start_time.timestamp() }}, "telescope": "{{ slot.telescope_name }}", "week": "{{ week_start }}"}'
               title="Book {{ slot.telescope_name }} at {{ slot.start_time.format("%Y-%m-%d %H:%M") }} UTC (maintenance mode)"
               style="cursor: pointer;">
@@ -149,6 +150,7 @@
           <td class="calendar-slot calendar-slot-free{% if slot.is_current_hour %} calendar-slot-current{% endif %}"
               hx-post="/bookings"
               hx-target="#page"
+              hx-confirm="book"
               hx-vals='{"start_timestamp": {{ slot.start_time.timestamp() }}, "telescope": "{{ slot.telescope_name }}", "week": "{{ week_start }}"}'
               title="Book {{ slot.telescope_name }} at {{ slot.start_time.format("%Y-%m-%d %H:%M") }} UTC">
           </td>
@@ -189,6 +191,68 @@
     var _telCount = {{ telescope_names.len() }};
     var _saved = parseInt(sessionStorage.getItem('bookings.telescope') || '0');
     selectTelescope(Math.min(_saved, _telCount - 1));
+  })();
+  </script>
+
+  <dialog id="confirm-dialog" class="rounded-lg shadow-xl p-0 max-w-sm w-full" style="border:none; margin:auto;">
+    <div class="p-6">
+      <h3 id="confirm-dialog-title" class="text-lg font-semibold mb-2"></h3>
+      <p id="confirm-dialog-body" class="text-gray-600 mb-5"></p>
+      <div class="flex gap-2 justify-end">
+        <button id="confirm-dialog-cancel"
+                class="px-3 py-1 rounded border border-gray-300 text-sm text-gray-700 hover:bg-gray-50">Cancel</button>
+        <button id="confirm-dialog-ok"
+                data-cls-book="px-3 py-1 bg-indigo-600 text-white rounded-md hover:bg-indigo-500 text-sm"
+                data-cls-danger="px-3 py-1 bg-red-600 text-white rounded-md hover:bg-red-500 text-sm"
+                class="px-3 py-1 text-white rounded-md text-sm"></button>
+      </div>
+    </div>
+  </dialog>
+  <style>
+    #confirm-dialog::backdrop { background: rgba(0,0,0,0.4); }
+  </style>
+  <script>
+  (function() {
+    var dialog = document.getElementById('confirm-dialog');
+    var pendingConfirm = null;
+
+    document.addEventListener('htmx:confirm', function(evt) {
+      evt.preventDefault();
+      var ok = document.getElementById('confirm-dialog-ok');
+      if (evt.detail.question === 'book') {
+        var vals = JSON.parse(evt.detail.elt.getAttribute('hx-vals') || '{}');
+        var d = new Date(parseInt(vals.start_timestamp, 10) * 1000);
+        var pad = function(n) { return String(n).padStart(2, '0'); };
+        var timeStr = d.getUTCFullYear() + '-' + pad(d.getUTCMonth()+1) + '-' + pad(d.getUTCDate()) +
+          ' ' + pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes());
+        document.getElementById('confirm-dialog-title').textContent = 'Confirm booking';
+        document.getElementById('confirm-dialog-body').innerHTML =
+          'Book <strong class="text-gray-900">' + (vals.telescope || '') + '</strong><br>' +
+          'at <strong class="text-gray-900">' + timeStr + '</strong> UTC?';
+        ok.textContent = 'Book';
+        ok.className = ok.dataset.clsBook;
+      } else {
+        document.getElementById('confirm-dialog-title').textContent = 'Confirm';
+        document.getElementById('confirm-dialog-body').textContent = evt.detail.question;
+        ok.textContent = 'Confirm';
+        ok.className = ok.dataset.clsDanger;
+      }
+      pendingConfirm = evt;
+      dialog.showModal();
+    });
+
+    document.getElementById('confirm-dialog-ok').addEventListener('click', function() {
+      dialog.close();
+      if (pendingConfirm) { pendingConfirm.detail.issueRequest(true); pendingConfirm = null; }
+    });
+
+    document.getElementById('confirm-dialog-cancel').addEventListener('click', function() {
+      dialog.close(); pendingConfirm = null;
+    });
+
+    dialog.addEventListener('click', function(e) {
+      if (e.target === dialog) { dialog.close(); pendingConfirm = null; }
+    });
   })();
   </script>
 </div>
