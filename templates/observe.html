@@ -250,7 +250,7 @@
       </div>
 
       {% if let Some(crop) = info.webcam_crop %}
-      <div class="w-full xl:w-72 xl:flex-shrink-0">
+      <div class="w-full max-w-72 xl:flex-shrink-0">
         <h2 class="text-xl font-semibold mb-3">Live Webcam</h2>
         <div id="wcam-box" style="width:100%;overflow:hidden;position:relative;border-radius:4px;background:#000;">
           <img id="wcam-a" src="/live/snapshot" style="position:absolute;max-width:none;">
@@ -282,6 +282,7 @@
           const a = document.getElementById('wcam-a');
           getDims();
           applyStyle(a);
+          new ResizeObserver(() => { getDims(); applyStyle(a); }).observe(box);
           setInterval(() => {
             a.src = '/live/snapshot?t=' + Date.now();
           }, 2000);
