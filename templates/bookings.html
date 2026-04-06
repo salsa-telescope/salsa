@@ -7,14 +7,14 @@
       {% endfor %}
     </select>
     <input type="hidden" name="week" value="{{ week_start }}" />
-    <button type="submit" class="px-3 py-1 bg-indigo-600 text-white rounded-md hover:bg-indigo-500">View</button>
+    <button type="submit" class="btn">View</button>
     <span class="text-gray-400 text-xs">&larr; As admin: view any user's bookings, cancel any booking, unlimited slots.</span>
   </form>
   {% endif %}
   {% if !my_bookings.is_empty() %}
   <div class="flex items-center gap-3 mb-3">
     <h2 class="text-xl font-semibold">Upcoming bookings</h2>
-    <a href="/bookings/export.ics" title="Export to calendar (.ics)" class="text-indigo-600 hover:text-indigo-800">
+    <a href="/bookings/export.ics" title="Export to calendar (.ics)" class="text-accent hover:text-accent-dark">
       <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18" aria-label="Export to calendar (.ics)">
         <path d="M19 3h-1V1h-2v2H8V1H6v2H5C3.9 3 3 3.9 3 5v16c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 18H5V8h14v13zM7 10h5v5H7z"/>
       </svg>
@@ -79,7 +79,7 @@
   <button class="telescope-tab-btn" onclick="selectTelescope({{ tel_idx }})">
     {{ telescope_names[tel_idx] }}
     {% if maintenance_telescopes[tel_idx] %}
-    <span class="text-xs font-semibold text-yellow-700 bg-yellow-100 px-2 py-0.5 rounded ml-2">Maintenance</span>
+    <span class="text-xs font-semibold text-warning bg-warning-light px-2 py-0.5 rounded ml-2">Maintenance</span>
     {% endif %}
   </button>
   {% endfor %}
@@ -214,9 +214,9 @@
         <button id="confirm-dialog-dismiss"
                 class="px-3 py-1 rounded border border-gray-300 text-sm text-gray-700 hover:bg-gray-50">Close</button>
         <button id="confirm-dialog-ok"
-                data-cls-book="px-3 py-1 bg-indigo-600 text-white rounded-md hover:bg-indigo-500 text-sm"
-                data-cls-danger="px-3 py-1 bg-red-600 text-white rounded-md hover:bg-red-500 text-sm"
-                class="px-3 py-1 text-white rounded-md text-sm"></button>
+                data-cls-book="btn"
+                data-cls-danger="btn bg-danger hover:bg-danger-hover"
+                class="btn"></button>
       </div>
     </div>
   </dialog>
