@@ -35,6 +35,8 @@
           hx-delete="bookings/{{ booking.id }}?week={{ week_start }}{% if is_admin %}&user_id={{ viewed_user_id }}{% endif %}"
           hx-target="#page"
           hx-confirm="Delete this booking?"
+          data-timestamp="{{ booking.start_time.timestamp() }}"
+          data-telescope="{{ booking.telescope_name }}"
           class="my-booking-btn my-booking-delete"
         >Delete</button>
       </div>
@@ -160,6 +162,8 @@
               hx-delete="/bookings/{{ slot.booking_id.unwrap() }}?week={{ week_start }}{% if is_admin %}&user_id={{ viewed_user_id }}{% endif %}"
               hx-target="#page"
               hx-confirm="Cancel this booking?"
+              data-timestamp="{{ slot.start_time.timestamp() }}"
+              data-telescope="{{ slot.telescope_name }}"
               title="My booking — click to cancel">
           </td>
           {% when SlotStatus::MineActive %}
@@ -167,6 +171,8 @@
               hx-delete="/bookings/{{ slot.booking_id.unwrap() }}?week={{ week_start }}{% if is_admin %}&user_id={{ viewed_user_id }}{% endif %}"
               hx-target="#page"
               hx-confirm="Cancel this booking?"
+              data-timestamp="{{ slot.start_time.timestamp() }}"
+              data-telescope="{{ slot.telescope_name }}"
               title="My booking (active now) — click to cancel">
           </td>
           {% when SlotStatus::OtherUser %}
@@ -197,10 +203,16 @@
   <dialog id="confirm-dialog" class="rounded-lg shadow-xl p-0 max-w-sm w-full" style="border:none; margin:auto;">
     <div class="p-6">
       <h3 id="confirm-dialog-title" class="text-lg font-semibold mb-2"></h3>
-      <p id="confirm-dialog-body" class="text-gray-600 mb-5"></p>
+      <p id="confirm-dialog-msg" class="text-gray-600 mb-3"></p>
+      <div id="confirm-dialog-range" class="hidden mb-4">
+        <label class="text-sm text-gray-600">Until:
+          <select id="confirm-dialog-until" class="ml-1 border rounded px-2 py-1 bg-white text-sm"></select>
+          <span class="text-gray-500 text-xs ml-1">UTC</span>
+        </label>
+      </div>
       <div class="flex gap-2 justify-end">
-        <button id="confirm-dialog-cancel"
-                class="px-3 py-1 rounded border border-gray-300 text-sm text-gray-700 hover:bg-gray-50">Cancel</button>
+        <button id="confirm-dialog-dismiss"
+                class="px-3 py-1 rounded border border-gray-300 text-sm text-gray-700 hover:bg-gray-50">Close</button>
         <button id="confirm-dialog-ok"
                 data-cls-book="px-3 py-1 bg-indigo-600 text-white rounded-md hover:bg-indigo-500 text-sm"
                 data-cls-danger="px-3 py-1 bg-red-600 text-white rounded-md hover:bg-red-500 text-sm"
@@ -214,42 +226,149 @@
   <script>
   (function() {
     var dialog = document.getElementById('confirm-dialog');
+    var sel = document.getElementById('confirm-dialog-until');
     var pendingConfirm = null;
+    var dialogMode = '';
+    var slotData = [];
+    var remaining = {% if is_admin %}9999{% else %}{{ max_upcoming_bookings }} - {{ upcoming_count }}{% endif %};
+
+    function pad(n) { return String(n).padStart(2, '0'); }
+    function tsToUTC(ts) {
+      var d = new Date(parseInt(ts, 10) * 1000);
+      return d.getUTCFullYear() + '-' + pad(d.getUTCMonth()+1) + '-' + pad(d.getUTCDate()) +
+        ' ' + pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes());
+    }
+    function tsToTime(ts) {
+      var d = new Date(parseInt(ts, 10) * 1000);
+      return pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes());
+    }
+    function tsEndTime(ts) {
+      return tsToTime(parseInt(ts, 10) + 3600);
+    }
+
+    function getConsecutiveAfter(td, cls) {
+      var row = td.parentElement;
+      var colIdx = Array.from(row.children).indexOf(td);
+      var rows = Array.from(row.parentElement.children);
+      var result = [];
+      for (var i = rows.indexOf(row) + 1; i < rows.length; i++) {
+        var c = rows[i].children[colIdx];
+        if (c && c.classList.contains(cls)) result.push(c); else break;
+      }
+      return result;
+    }
+
+    function updateOkLabel() {
+      var n = sel.selectedIndex + 1;
+      var ok = document.getElementById('confirm-dialog-ok');
+      ok.textContent = (dialogMode === 'book' ? 'Book ' : 'Cancel ') + n + (n === 1 ? ' slot' : ' slots');
+    }
+
+    sel.addEventListener('change', updateOkLabel);
 
     document.addEventListener('htmx:confirm', function(evt) {
       evt.preventDefault();
       var ok = document.getElementById('confirm-dialog-ok');
-      if (evt.detail.question === 'book') {
-        var vals = JSON.parse(evt.detail.elt.getAttribute('hx-vals') || '{}');
-        var d = new Date(parseInt(vals.start_timestamp, 10) * 1000);
-        var pad = function(n) { return String(n).padStart(2, '0'); };
-        var timeStr = d.getUTCFullYear() + '-' + pad(d.getUTCMonth()+1) + '-' + pad(d.getUTCDate()) +
-          ' ' + pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes());
-        document.getElementById('confirm-dialog-title').textContent = 'Confirm booking';
-        document.getElementById('confirm-dialog-body').innerHTML =
-          'Book <strong class="text-gray-900">' + (vals.telescope || '') + '</strong><br>' +
-          'at <strong class="text-gray-900">' + timeStr + '</strong> UTC?';
-        ok.textContent = 'Book';
-        ok.className = ok.dataset.clsBook;
-      } else {
-        document.getElementById('confirm-dialog-title').textContent = 'Confirm';
-        document.getElementById('confirm-dialog-body').textContent = evt.detail.question;
-        ok.textContent = 'Confirm';
-        ok.className = ok.dataset.clsDanger;
-      }
+      var rangeDiv = document.getElementById('confirm-dialog-range');
+      sel.innerHTML = '';
+      slotData = [];
+      rangeDiv.classList.add('hidden');
       pendingConfirm = evt;
+
+      if (evt.detail.question === 'book') {
+        dialogMode = 'book';
+        var vals = JSON.parse(evt.detail.elt.getAttribute('hx-vals') || '{}');
+        var adj = getConsecutiveAfter(evt.detail.elt, 'calendar-slot-free');
+        var limit = Math.min(adj.length, remaining - 1);
+        slotData = [{ vals: vals }];
+        for (var i = 0; i < limit; i++) {
+          slotData.push({ vals: JSON.parse(adj[i].getAttribute('hx-vals') || '{}') });
+        }
+        ok.className = ok.dataset.clsBook;
+        if (slotData.length > 1) {
+          document.getElementById('confirm-dialog-title').textContent = 'Confirm booking';
+          document.getElementById('confirm-dialog-msg').innerHTML =
+            'Book <strong class="text-gray-900">' + (vals.telescope||'') + '</strong>' +
+            ' from <strong class="text-gray-900">' + tsToTime(vals.start_timestamp) + '</strong> UTC';
+          slotData.forEach(function(s) {
+            var o = document.createElement('option');
+            o.textContent = tsEndTime(s.vals.start_timestamp);
+            sel.appendChild(o);
+          });
+          rangeDiv.classList.remove('hidden');
+          ok.textContent = 'Book 1 slot';
+        } else {
+          document.getElementById('confirm-dialog-title').textContent = 'Confirm booking';
+          document.getElementById('confirm-dialog-msg').innerHTML =
+            'Book <strong class="text-gray-900">' + (vals.telescope||'') + '</strong>' +
+            ' at <strong class="text-gray-900">' + tsToUTC(vals.start_timestamp) + '</strong> UTC?';
+          ok.textContent = 'Book 1 slot';
+        }
+
+      } else {
+        dialogMode = 'cancel';
+        var elt = evt.detail.elt;
+        var tel = elt.dataset.telescope || '';
+        var ts = elt.dataset.timestamp;
+        var adj = getConsecutiveAfter(elt, 'calendar-slot-mine');
+        slotData = [{ deleteUrl: elt.getAttribute('hx-delete'), ts: ts }];
+        adj.forEach(function(c) {
+          slotData.push({ deleteUrl: c.getAttribute('hx-delete'), ts: c.dataset.timestamp });
+        });
+        ok.className = ok.dataset.clsDanger;
+        if (adj.length > 0) {
+          document.getElementById('confirm-dialog-title').textContent = 'Cancel booking';
+          document.getElementById('confirm-dialog-msg').innerHTML =
+            'Cancel <strong class="text-gray-900">' + tel + '</strong>' +
+            ' from <strong class="text-gray-900">' + tsToTime(ts) + '</strong> UTC';
+          slotData.forEach(function(s) {
+            var o = document.createElement('option');
+            o.textContent = tsEndTime(s.ts);
+            sel.appendChild(o);
+          });
+          sel.selectedIndex = slotData.length - 1;
+          rangeDiv.classList.remove('hidden');
+          updateOkLabel();
+        } else {
+          document.getElementById('confirm-dialog-title').textContent = 'Cancel booking';
+          document.getElementById('confirm-dialog-msg').innerHTML =
+            'Cancel <strong class="text-gray-900">' + tel + '</strong>' +
+            ' at <strong class="text-gray-900">' + tsToUTC(ts) + '</strong> UTC?';
+          ok.textContent = 'Cancel booking';
+        }
+      }
       dialog.showModal();
     });
 
-    document.getElementById('confirm-dialog-ok').addEventListener('click', function() {
+    document.getElementById('confirm-dialog-ok').addEventListener('click', async function() {
+      var count = sel.options.length > 0 ? sel.selectedIndex + 1 : 1;
+      var saved = pendingConfirm;
       dialog.close();
-      if (pendingConfirm) { pendingConfirm.detail.issueRequest(true); pendingConfirm = null; }
+      pendingConfirm = null;
+      if (!saved) return;
+
+      if (dialogMode === 'book' && count > 1) {
+        for (var i = 0; i < count; i++) {
+          await fetch('/bookings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams(slotData[i].vals).toString()
+          });
+        }
+        window.location.reload();
+      } else if (dialogMode !== 'book' && slotData.length > 1) {
+        for (var i = 0; i < count; i++) {
+          await fetch(slotData[i].deleteUrl, { method: 'DELETE' });
+        }
+        window.location.reload();
+      } else {
+        saved.detail.issueRequest(true);
+      }
     });
 
-    document.getElementById('confirm-dialog-cancel').addEventListener('click', function() {
+    document.getElementById('confirm-dialog-dismiss').addEventListener('click', function() {
       dialog.close(); pendingConfirm = null;
     });
-
     dialog.addEventListener('click', function(e) {
       if (e.target === dialog) { dialog.close(); pendingConfirm = null; }
     });
