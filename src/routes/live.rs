@@ -123,7 +123,13 @@ struct LiveTelescopesTemplate {
 }
 
 async fn get_telescopes_status(State(state): State<WebcamState>) -> Html<String> {
-    let names = state.app_state.telescopes.get_names().await;
+    let mut names = state.app_state.telescopes.get_names().await;
+    let preferred_order = ["torre", "vale", "brage"];
+    names.sort_by_key(|n| {
+        let lower = n.to_lowercase();
+        let pos = preferred_order.iter().position(|&p| p == lower.as_str());
+        (pos.is_none(), pos.unwrap_or(usize::MAX), lower)
+    });
     let maintenance_set = fetch_maintenance_set(state.app_state.database_connection.clone())
         .await
         .unwrap_or_default();
