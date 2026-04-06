@@ -1,6 +1,5 @@
 <div class="section light">
   {% if is_admin %}
-  <p class="text-gray-500 text-sm mb-3">As admin, you can view upcoming bookings for any user and cancel any booking. New bookings are always made as yourself. Admins can book an unlimited number of slots.</p>
   <form hx-get="/bookings" hx-target="#page" hx-push-url="true" class="flex items-center gap-3 mb-4 text-sm">
     <select name="user_id" class="border rounded px-2 py-1">
       {% for u in all_users %}
@@ -9,7 +8,7 @@
     </select>
     <input type="hidden" name="week" value="{{ week_start }}" />
     <button type="submit" class="px-3 py-1 bg-indigo-600 text-white rounded-md hover:bg-indigo-500">View</button>
-    <span class="text-gray-400 text-xs">&larr; Admin only filter: uid: username (provider)</span>
+    <span class="text-gray-400 text-xs">&larr; As admin: view any user's bookings, cancel any booking, unlimited slots.</span>
   </form>
   {% endif %}
   {% if !my_bookings.is_empty() %}
