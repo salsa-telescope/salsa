@@ -2,10 +2,10 @@
 
   <div class="space-y-2">
     <p class="text-sm text-gray-500">
-      <a href="/support" hx-get="/support" hx-target="#page" hx-push-url="/support">← Support &amp; documentation</a>
+      <a href="/support" class="underline">← Support &amp; documentation</a>
     </p>
     <h2 class="text-3xl font-semibold">User's manual</h2>
-    <p class="text-sm text-gray-500">How to book and operate the SALSA telescopes. NOTE: Screenshots below are suggestions and may be added later.</p>
+    <p class="text-sm text-gray-500">How to book and operate the SALSA telescopes.</p>
   </div>
 
   <!-- ToC -->
@@ -46,9 +46,7 @@
     <summary class="cursor-pointer"><h3 id="booking" class="text-2xl font-semibold text-gray-800 inline">2. Booking a telescope</h3></summary>
 
     <p>Go to <strong>Bookings</strong> in the navigation bar. You will see a weekly calendar
-    showing all available telescopes. Scroll down to see more telescopes.</p>
-
-    <img src="/um_booking.png" alt="The bookings calendar showing different slot colours" class="rounded shadow my-4 w-full">
+    showing time slots for a selected telescope.</p>
 
     <p>Slot colours indicate availability:</p>
     <ul class="list-disc list-inside space-y-1">
@@ -67,8 +65,6 @@
 
     <p>Your bookings are shown at the top of the bookings page, under <em>Upcoming bookings</em>. When your booking starts, an <strong>Observe</strong> button will appear
     on the slot under upcoming bookings. Click the button to go to the telescope control interface.</p>
-
-    <img src="/um_booking2.png" alt='The "Observe" button appearing for an active booking' class="rounded shadow my-4 w-full">
   </details>
 
   <!-- 3. Observing -->
@@ -78,10 +74,6 @@
     <p>The observation page is only accessible during your booked time slot. It shows the
     current telescope status, pointing controls, receiver settings, and a live spectrum
     display.</p>
-
-    <p class="bg-callout border-l-4 border-callout-border rounded px-4 py-2 text-sm">
-      <strong>Screenshot:</strong> the full observation control page with labels for each section.
-    </p>
 
     <p>A countdown timer at the top of the page shows how much time remains in your booking.
     You will receive a warning five minutes before your slot ends.</p>
@@ -114,11 +106,6 @@ movement through space. </p>
       <p>In the <em>Advanced section</em> you can also apply small <strong>azimuth and elevation offsets</strong> (in degrees)
       to fine-tune the pointing, for example when measuring the beam pattern. These will be added to the calculation after your input coordinates have been converted to a horizontal position.</p>
 
-      <p class="bg-callout border-l-4 border-callout-border rounded px-4 py-2 text-sm">
-        <strong>Screenshot:</strong> the pointing controls with Galactic coordinates entered
-        and the position status panel.
-      </p>
-
       <p>The telescope will not move below its minimum elevation limit. If your target is
       too low, an error will be shown.</p>
     </div>
@@ -132,10 +119,6 @@ observations and are a good starting point for most experiments. If you select
 "The sun" or "GNSS satellites" as targets, the receiver settings will
 automatically update to sensible default values. After selecting the target,
 you may also change the settings if you want.</p>
-
-      <p class="bg-callout border-l-4 border-callout-border rounded px-4 py-2 text-sm">
-        <strong>Screenshot:</strong> the receiver settings panel with default values.
-      </p>
 
       <ul class="list-disc list-inside space-y-2 text-sm">
         <li><strong>Center frequency</strong> — The frequency tuned to by the receiver,
@@ -160,7 +143,7 @@ you may also change the settings if you want.</p>
       <h4 id="integrating" class="text-lg font-semibold text-gray-800">3.3 Integrating</h4>
 
       <p>Once the telescope is on target and the receiver is configured, click
-<strong>Start</strong> to begin integrating. The live spectrum updates
+<strong>Begin</strong> to begin integrating. The live spectrum updates
 continuously as data accumulates. The elapsed integration time and average
 power level are shown below the spectrum. The longer you integrate, the weaker
 the noise becomes since the random fluctuations cancel each other. For HI
@@ -168,13 +151,8 @@ observations, about 30 seconds is usually enough to get reasonable results, but
 you can try different values to see what gives good results for your specific
 target. </p>
 
-      <p class="bg-callout border-l-4 border-callout-border rounded px-4 py-2 text-sm">
-        <strong>Screenshot:</strong> a live spectrum during integration, showing the
-        hydrogen line peak.
-      </p>
-
-      <p>Click <strong>Stop</strong> to end the integration. The observation is automatically
-      saved to your <a href="/observations" hx-get="/observations" hx-target="#page" hx-push-url="/observations">observation archive</a>.</p>
+      <p>Click <strong>End</strong> to end the integration. The observation is automatically
+      saved to your <a href="/observations" class="underline">observation archive</a>.</p>
 
       <p>For HI observations, you can toggle the horizontal axis between <strong>frequency (MHz)</strong> and
       <strong> VLSR (km/s)</strong> using the button below the chart.</p>
@@ -188,10 +166,6 @@ target. </p>
     <p>Go to <strong>Observation archive</strong> in the navigation bar to view all your
     saved observations. Each entry shows the start time, telescope, coordinate system,
     target position, and integration time. Click an observation to load its spectrum.</p>
-
-    <p class="bg-callout border-l-4 border-callout-border rounded px-4 py-2 text-sm">
-      <strong>Screenshot:</strong> the observation archive list with a spectrum loaded.
-    </p>
 
     <p>You can zoom into a region of the spectrum by drawing a box with the mouse.
     Double-click to reset the zoom.</p>
@@ -214,19 +188,30 @@ target. </p>
       <p>The archive page includes built-in tools for basic spectral analysis. Note that
       analysis results are not saved — take notes or export before leaving the page.</p>
 
-      <p><strong>Baseline correction</strong> — Select a frequency range on the spectrum
+      <h5 class="font-semibold text-gray-800">Baseline correction</h5>
+      <p>Select a frequency range on the spectrum
       that contains only noise (no signal), then choose a polynomial order (linear or
       quadratic) and click <em>Fit baseline</em>. The fitted baseline is subtracted from
       the spectrum.</p>
 
-      <p><strong>Gaussian fitting</strong> — After baseline correction, click on a peak
-      in the spectrum to select it, then click <em>Fit Gaussian</em>. The fitted peak
-      parameters (centre frequency, amplitude, width) are displayed.</p>
+      <figure class="my-2 max-w-xl">
+        <img src="/baseline_example.png" alt="Baseline regions selected on a spectrum before fitting" class="rounded-lg w-full">
+        <figcaption class="text-sm text-gray-500 mt-1">Baseline regions selected on either side of the signal peak, ready to fit and subtract.</figcaption>
+      </figure>
 
-      <p class="bg-callout border-l-4 border-callout-border rounded px-4 py-2 text-sm">
-        <strong>Screenshot:</strong> a spectrum after baseline subtraction with a Gaussian
-        fit overlaid, and the fit parameters shown.
-      </p>
+      <h5 class="font-semibold text-gray-800">Gaussian fitting</h5>
+      <p>After baseline correction, click on a peak in the spectrum to select it, then
+      click <em>Fit Gaussian</em>. The fitted peak parameters (centre frequency, amplitude,
+      width) are displayed.</p>
+
+      <p>Getting the fitter to converge on the right peaks can be tricky. For best results,
+      click as close as possible to the very centre of each peak — both horizontally and
+      vertically — during the peak-picking phase. See the example below.</p>
+
+      <figure class="my-2 max-w-xl">
+        <img src="/gauss_example.png" alt="Three Gaussian components fitted to a spectrum" class="rounded-lg w-full">
+        <figcaption class="text-sm text-gray-500 mt-1">The result after fitting three Gaussian components to a spectrum. Fitted parameters such as central velocity for each peak are shown in the lower right as G1, G2, G3.</figcaption>
+      </figure>
     </div>
   </details>
 

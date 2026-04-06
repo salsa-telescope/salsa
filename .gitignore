@@ -9,3 +9,10 @@ database.json
 # Tailwind CLI binary and compiled output
 /tailwindcss
 /assets/style.css
+
+# macOS metadata
+.DS_Store
+
+# Runtime database files
+assets/database.sqlite3
+database.sqlite3.od

@@ -6,6 +6,11 @@
     This telescope is currently in maintenance mode.
   </div>
   {% endif %}
+  {% if wind_warning %}
+  <div class="text-sm font-semibold text-red-700 bg-red-50 border border-red-300 rounded px-3 py-2 mb-2">
+    Strong wind warning: wind speed is above the safe limit. Please stow the telescope and return when the storm has ended. You may still observe, but do so at your own risk.
+  </div>
+  {% endif %}
 
   <div class="flex flex-col lg:flex-row gap-6">
 
@@ -119,7 +124,7 @@
             hx-on::before-request="document.getElementById('errors').innerHTML=''"
             class="btn"
           >
-            Start
+            Begin
           </button>
           <button
             id="stop-obs-btn"
@@ -127,7 +132,7 @@
             hx-swap="none"
             class="btn bg-danger hover:bg-danger-hover hidden"
           >
-            Stop
+            End
           </button>
           <span id="obs-timer" class="text-sm text-gray-500 hidden">
             <span id="obs-elapsed">0</span>s
@@ -223,24 +228,70 @@
 
     </div>
 
-    <!-- Right column: live spectrum chart -->
-    <div class="lg:w-2/3">
-      <h2 class="text-xl font-semibold mb-3">Live spectrum</h2>
-      <div id="chart" class="-mt-4">
-        <script src="/observe_chart.js"></script>
-        <div class="flex gap-2 justify-center mt-1">
-          <button id="observe-axis-toggle" style="display: none;"
-            onclick="toggleObserveAxis()"
-            class="px-2 py-1 bg-gray-200 text-sm rounded hover:bg-gray-300">
-            Show frequency
-          </button>
-          <button id="observe-yscale-toggle"
-            onclick="toggleObserveYScale()"
-            class="px-2 py-1 bg-gray-200 text-sm rounded hover:bg-gray-300">
-            Log scale
-          </button>
+    <!-- Right column: live spectrum chart + optional webcam -->
+    <div class="lg:w-2/3 flex flex-col xl:flex-row gap-4 items-start">
+      <div class="flex-1 min-w-0">
+        <h2 class="text-xl font-semibold mb-3">Live spectrum</h2>
+        <div id="chart" class="-mt-4">
+          <script src="/observe_chart.js"></script>
+          <div class="flex gap-2 justify-center mt-1">
+            <button id="observe-axis-toggle" style="display: none;"
+              onclick="toggleObserveAxis()"
+              class="px-2 py-1 bg-gray-200 text-sm rounded hover:bg-gray-300">
+              Show frequency
+            </button>
+            <button id="observe-yscale-toggle"
+              onclick="toggleObserveYScale()"
+              class="px-2 py-1 bg-gray-200 text-sm rounded hover:bg-gray-300">
+              Log scale
+            </button>
+          </div>
         </div>
       </div>
+
+      {% if let Some(crop) = info.webcam_crop %}
+      <div class="w-full max-w-72 xl:flex-shrink-0">
+        <h2 class="text-xl font-semibold mb-3">Live Webcam</h2>
+        <div id="wcam-box" style="width:100%;overflow:hidden;position:relative;border-radius:4px;background:#000;">
+          <img id="wcam-a" src="/live/snapshot" style="position:absolute;max-width:none;">
+        </div>
+        <script>
+        (function() {
+          const crop = [{{ crop[0] }}, {{ crop[1] }}, {{ crop[2] }}, {{ crop[3] }}];
+          const box = document.getElementById('wcam-box');
+          function getDims() {
+            const DW = box.offsetWidth;
+            // Height follows the crop's aspect ratio within the 32:9 viewport
+            const DH = Math.round(DW * crop[3] * 9 / (crop[2] * 32));
+            box.style.height = DH + 'px';
+            return { DW, DH };
+          }
+          function applyStyle(el) {
+            // Crop fractions are relative to the 32:9 display viewport in webcam.html.
+            // x fractions map directly to image width; y fractions map to 9/32 of image width.
+            const { DW, DH } = getDims();
+            const imgW = DW / crop[2];
+            const viewH = imgW * 9 / 32; // height of the 32:9 viewport at this scale
+            const cropH = crop[3] * viewH;
+            const left = -(crop[0] * imgW);
+            const top  = -(crop[1] * viewH) - Math.max(0, cropH - DH) / 2;
+            el.style.width = imgW + 'px';
+            el.style.left  = left + 'px';
+            el.style.top   = top  + 'px';
+          }
+          const a = document.getElementById('wcam-a');
+          getDims();
+          applyStyle(a);
+          new ResizeObserver(() => { getDims(); applyStyle(a); }).observe(box);
+          setInterval(() => {
+            a.src = '/live/snapshot?t=' + Date.now();
+          }, 2000);
+        })();
+        </script>
+        <p class="text-gray-500 text-xs mt-2">Updated every 2 s. No lights — telescopes are not visible after dark but can still be controlled.</p>
+        <div class="mt-2 pt-2 border-t border-gray-100" hx-get="/weather" hx-trigger="load, every 5m"></div>
+      </div>
+      {% endif %}
     </div>
 
   </div>
@@ -332,10 +383,21 @@
       const modeFreqSwitched = document.getElementById('obs-mode-freqswitched');
       if (isSun || isGnss) {
           modeRaw.checked = true;
+          if (isSun) {
+              const centerFreqInput = document.querySelector("details input[name='center_freq_mhz']");
+              const bwSelect = document.querySelector("details select[name='bandwidth_mhz']");
+              if (centerFreqInput) centerFreqInput.value = '1410.0';
+              if (bwSelect) bwSelect.value = '2.5';
+          }
       } else {
           modeFreqSwitched.checked = true;
+          const centerFreqInput = document.querySelector("details input[name='center_freq_mhz']");
+          const refFreqInput = document.querySelector("details input[name='ref_freq_mhz']");
+          const bwSelect = document.querySelector("details select[name='bandwidth_mhz']");
+          if (centerFreqInput) centerFreqInput.value = centerFreqInput.defaultValue;
+          if (refFreqInput) refFreqInput.value = refFreqInput.defaultValue;
+          if (bwSelect) bwSelect.value = '2.5';
       }
-      if (window.setObserveLogScale) window.setObserveLogScale(isGnss);
       updateRefFreqVisibility();
       switch (e.target.value) {
       case "galactic":

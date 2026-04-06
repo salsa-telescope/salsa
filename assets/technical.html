@@ -20,7 +20,7 @@ Onsala Space Observatory, 57°24'N, 11°55'E, approximately 5 m above sea level.
         <ul class="list-disc list-inside space-y-1">
           <li>Dish diameter: 2.3 m (main beam ~6° at 21 cm)</li>
           <li>Frequency range: 1400–1700 MHz (up to 25 MHz instantaneous bandwidth)</li>
-          <li>Rotation speed: 1.5°/s</li>
+          <li>Rotation speed: 1.5° / second </li>
         </ul>
       </div>
 
@@ -38,8 +38,8 @@ below.</p>
 
       <div class="space-y-2">
         <h3 class="text-lg font-semibold text-gray-800">Signal path and sampler</h3>
-        <p>The incoming electromagnetic waves are reflected in the parabolic dish and summed coherently (in-phase for 21 cm wavelength) at the feed horn. Inside the horn is a small (5 cm) metal probe which is the actual antenna, sensitive to a single linear polarisation. The probe has an N-type connector on the outside of the horn, and a short (30 cm) CNT-400 cable connects it to a small box mounted on the horn. This box contains a Low Noise Amplifier (LNA) with a Bias-T that feeds the LNA 12 V DC through the coax. The LNA is custom built by Tommy Henderson (formerly with Radio Astronomy Supplies) in the US — LNA measurement documents: <a href="#">Torre</a>, <a href="#">Vale</a>, <a href="#">Brage</a> (links to be added).</p>
-        <p>After the LNA, the signal travels down the telescope through approximately 10 m of RG-400 cable to a junction box. Here a second Bias-T injects the 12 V supply onto the cable feeding the LNA above. After the junction box, the signal continues via approximately 30 m of CNT-400 coax into the building where the sampler is located. The sampler is a <a href="https://files.ettus.com/manual/page_usrp2.html">USRP N210</a> equipped with a <a href="https://kb.ettus.com/DBSRX2">DBSRX2</a> daughter board, which digitizes the waveform and sends samples via 1 Gbps Ethernet to the control computer. The DBSRX2 card covers 0.8–2.3 GHz, but due to strong interference above 1.8 GHz the LNAs include additional filters limiting the usable range to 1400–1700 MHz. The USRP supports up to 25 MHz instantaneous bandwidth; for standard HI observations the default 2.5 MHz is sufficient. Both bandwidth and channel resolution are selectable by the user.</p>
+        <p>The incoming electromagnetic waves are reflected in the parabolic dish and summed coherently (in-phase for 21 cm wavelength) at the feed horn. Inside the horn is a small (5 cm) metal probe which is the actual antenna, sensitive to a single linear polarisation. The probe has an N-type connector on the outside of the horn, and a short (30 cm) CNT-400 cable connects it to a small box mounted on the horn. This box contains a Low Noise Amplifier (LNA) with a Bias-T that feeds the LNA 12 V DC through the coax. The LNA is custom built by Tommy Henderson at AGO in the US. </p>
+        <p>After the LNA, the signal travels down the telescope through approximately 10 m of RG-400 cable to a junction box. Here a second Bias-T injects the 12 V supply onto the cable feeding the LNA above. After the junction box, the signal continues via approximately 30 m of CNT-400 coax into the building where the sampler is located. The sampler is a <a href="https://files.ettus.com/manual/page_usrp2.html" class="underline">USRP N210</a> equipped with a <a href="https://kb.ettus.com/DBSRX2" class="underline">DBSRX2</a> daughter board, which digitizes the waveform and sends samples via 1 Gbps Ethernet to the control computer. The DBSRX2 card covers 0.8–2.3 GHz, but due to strong interference above 1.8 GHz the LNAs include additional filters limiting the usable range to 1400–1700 MHz. The USRP supports up to 25 MHz instantaneous bandwidth; for standard HI observations the default 2.5 MHz is sufficient. Both bandwidth and channel resolution are selectable by the user.</p>
       </div>
 
       <div class="space-y-2">
@@ -147,13 +147,13 @@ below.</p>
   <div class="space-y-2 text-gray-700">
     <h3 class="text-lg font-semibold text-gray-800">Further reading</h3>
     <ul class="list-disc list-inside space-y-1">
-      <li><a href="https://files.ettus.com/manual/page_usrp2.html">USRP N210 manual</a> — software-defined radio sampler</li>
-      <li><a href="https://kb.ettus.com/DBSRX2">DBSRX2 daughter board</a> — receiver daughtercard for the USRP N210</li>
-      <li><a href="/Manual-BIG-RAS-HR-EN.pdf">BIG RAS/HR rotor manual</a> — parabolic dish rotor</li>
-      <li><a href="/SPID_MD-0x_MANUAL_ENG.pdf">MD01 controller manual</a> — rotor controller and ROT2PROG interface</li>
-      <li><a href="/technical/rot2prog" hx-get="/technical/rot2prog" hx-target="#page" hx-push-url="/technical/rot2prog">ROT2PROG protocol reference</a> — TCP command protocol as implemented by the SALSA backend</li>
-      <li>LNA measurements: <a href="#">Torre</a>, <a href="#">Vale</a>, <a href="#">Brage</a> (links to be added)</li>
-      <li><a href="https://github.com/salsa-telescope/salsa">SALSA webserver source code</a> on GitHub</li>
+      <li><a href="https://files.ettus.com/manual/page_usrp2.html" class="underline">USRP N210 manual</a> — software-defined radio sampler</li>
+      <li><a href="https://kb.ettus.com/DBSRX2" class="underline">DBSRX2 daughter board</a> — receiver daughtercard for the USRP N210</li>
+      <li><a href="/Manual-BIG-RAS-HR-EN.pdf" class="underline">BIG RAS/HR rotor manual</a> — parabolic dish rotor</li>
+      <li><a href="/SPID_MD-0x_MANUAL_ENG.pdf" class="underline">MD01 controller manual</a> — rotor controller and ROT2PROG interface</li>
+      <li><a href="/technical/rot2prog" class="underline">ROT2PROG protocol reference</a> — TCP command protocol as implemented by the SALSA backend</li>
+      <li>LNA measurements: <a href="#" class="underline">Torre</a>, <a href="#" class="underline">Vale</a>, <a href="#" class="underline">Brage</a> (links to be added)</li>
+      <li><a href="https://github.com/salsa-telescope/salsa" class="underline">SALSA webserver source code</a> on GitHub</li>
     </ul>
   </div>
 

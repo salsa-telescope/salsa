@@ -6,6 +6,7 @@ use crate::models::telescope_types::{
 };
 use crate::telescope_tracker::TelescopeTracker;
 use crate::tle_cache::TleCacheHandle;
+use crate::weather_cache::WeatherCacheHandle;
 use async_trait::async_trait;
 use chrono::Utc;
 use std::iter::zip;
@@ -33,12 +34,16 @@ struct Inner {
     receiver_configuration: ReceiverConfiguration,
     measurements: Arc<Mutex<Vec<Measurement>>>,
     active_integration: Option<ActiveIntegration>,
+    last_receiver_error: Option<TelescopeError>,
     stow_position: Option<Direction>,
     location: Location,
     min_elevation_rad: f64,
     max_elevation_rad: f64,
+    webcam_crop: Option<[f64; 4]>,
     t_rec_k: f64,
-    receiver_reachable: Arc<tokio::sync::Mutex<bool>>,
+    wind_warning_ms: Option<f64>,
+    weather_cache: WeatherCacheHandle,
+    receiver_connected: Arc<tokio::sync::Mutex<bool>>,
     controller_connected: bool,
 }
 
@@ -55,13 +60,16 @@ pub fn create(
     location: Location,
     min_elevation_rad: f64,
     max_elevation_rad: f64,
+    webcam_crop: Option<[f64; 4]>,
     default_ref_freq_hz: f64,
     default_gain_db: f64,
     t_rec_k: f64,
+    wind_warning_ms: Option<f64>,
     tle_cache: TleCacheHandle,
+    weather_cache: WeatherCacheHandle,
 ) -> SalsaTelescope {
-    let receiver_reachable = Arc::new(tokio::sync::Mutex::new(false));
-    let ping_reachable = receiver_reachable.clone();
+    let receiver_connected = Arc::new(tokio::sync::Mutex::new(false));
+    let ping_connected = receiver_connected.clone();
     let ping_address = receiver_address.clone();
 
     let inner = Arc::new(Mutex::new(Inner {
@@ -82,12 +90,16 @@ pub fn create(
         },
         measurements: Arc::new(Mutex::new(Vec::new())),
         active_integration: None,
+        last_receiver_error: None,
         stow_position,
         location,
         min_elevation_rad,
         max_elevation_rad,
+        webcam_crop,
         t_rec_k,
-        receiver_reachable,
+        wind_warning_ms,
+        weather_cache,
+        receiver_connected,
         controller_connected: false,
     }));
 
@@ -131,7 +143,7 @@ pub fn create(
                 }
                 prev_reachable = reachable;
             }
-            *ping_reachable.lock().await = reachable;
+            *ping_connected.lock().await = reachable;
             tokio::time::sleep(Duration::from_secs(5)).await;
         }
     });
@@ -170,6 +182,7 @@ impl Telescope for SalsaTelescope {
 
             info!("Starting integration");
             inner.receiver_configuration.integrate = true;
+            inner.last_receiver_error = None;
             inner.measurements.lock().await.clear();
             let cancellation_token = CancellationToken::new();
             let measurement_task = {
@@ -177,6 +190,7 @@ impl Telescope for SalsaTelescope {
                 let measurements = inner.measurements.clone();
                 let cancellation_token = cancellation_token.clone();
                 let t_rec_k = inner.t_rec_k;
+                let weather_cache = inner.weather_cache.clone();
                 tokio::spawn(async move {
                     measure(
                         address,
@@ -184,6 +198,7 @@ impl Telescope for SalsaTelescope {
                         cancellation_token,
                         receiver_configuration,
                         t_rec_k,
+                        weather_cache,
                     )
                     .await;
                 })
@@ -204,7 +219,7 @@ impl Telescope for SalsaTelescope {
 
     async fn get_info(&self) -> Result<TelescopeInfo, TelescopeError> {
         let inner = self.inner.lock().await;
-        let receiver_reachable = *inner.receiver_reachable.lock().await;
+        let receiver_connected = *inner.receiver_connected.lock().await;
         let controller_info = inner.controller.info()?;
 
         let latest_observation = {
@@ -229,7 +244,10 @@ impl Telescope for SalsaTelescope {
             current_horizontal: controller_info.current_horizontal,
             commanded_horizontal: controller_info.commanded_horizontal,
             current_target: controller_info.target,
-            most_recent_error: controller_info.most_recent_error,
+            most_recent_error: inner
+                .last_receiver_error
+                .clone()
+                .or(controller_info.most_recent_error),
             measurement_in_progress: inner.active_integration.is_some(),
             latest_observation,
             stow_position: inner.stow_position,
@@ -238,7 +256,10 @@ impl Telescope for SalsaTelescope {
             location: inner.location,
             min_elevation_rad: inner.min_elevation_rad,
             max_elevation_rad: inner.max_elevation_rad,
-            receiver_reachable: Some(receiver_reachable),
+            webcam_crop: inner.webcam_crop,
+            receiver_connected: Some(receiver_connected),
+            controller_connected: Some(inner.controller_connected),
+            wind_warning_ms: inner.wind_warning_ms,
         })
     }
     async fn shutdown(&self) {
@@ -254,6 +275,8 @@ impl Inner {
             if active_integration.measurement_task.is_finished() {
                 if let Err(error) = active_integration.measurement_task.await {
                     error!("Error while waiting for measurement task: {}", error);
+                    self.last_receiver_error =
+                        Some(TelescopeError::ReceiverFailed(error.to_string()));
                 }
             } else {
                 self.active_integration = Some(active_integration);
@@ -434,20 +457,13 @@ fn median(mut xs: Vec<f64>) -> f64 {
 
 const AMBIENT_TEMP_FALLBACK_K: f64 = 285.0;
 
-async fn fetch_ambient_temp_k() -> f64 {
-    let url = "https://www.oso.chalmers.se/weather/onsala.txt";
-    let result: Option<f64> = async {
-        let text = reqwest::get(url).await.ok()?.text().await.ok()?;
-        let mut parts = text.split_whitespace();
-        let timestamp: i64 = parts.next()?.parse().ok()?;
-        let temp_celsius: f64 = parts.next()?.parse().ok()?;
-        let age_secs = chrono::Utc::now().timestamp() - timestamp;
-        if age_secs > 120 || !(-30.0..=50.0).contains(&temp_celsius) {
+fn ambient_temp_k_from_cache(weather_cache: &WeatherCacheHandle) -> f64 {
+    let result = weather_cache.get().and_then(|w| {
+        if w.age_secs() > 120 || !(-30.0..=50.0).contains(&w.temp_c) {
             return None;
         }
-        Some(temp_celsius + 273.15)
-    }
-    .await;
+        Some(w.temp_c + 273.15)
+    });
     match result {
         Some(t) => {
             info!("Ambient temperature: {:.1} K", t);
@@ -455,7 +471,7 @@ async fn fetch_ambient_temp_k() -> f64 {
         }
         None => {
             warn!(
-                "Could not fetch ambient temperature, using fallback {} K",
+                "Could not get ambient temperature from cache, using fallback {} K",
                 AMBIENT_TEMP_FALLBACK_K
             );
             AMBIENT_TEMP_FALLBACK_K
@@ -469,6 +485,7 @@ async fn measure(
     cancellation_token: CancellationToken,
     config: ReceiverConfiguration,
     t_rec_k: f64,
+    weather_cache: WeatherCacheHandle,
 ) {
     let tint: f64 = 1.0; // integration time per cycle, seconds
     let srate: f64 = config.bandwidth_hz;
@@ -490,7 +507,7 @@ async fn measure(
 
     usrp.set_rx_sample_rate(srate, 0).unwrap();
 
-    let tsys = fetch_ambient_temp_k().await + t_rec_k;
+    let tsys = ambient_temp_k_from_cache(&weather_cache) + t_rec_k;
     info!("Tsys = {:.1} K (T_rec = {:.1} K)", tsys, t_rec_k);
 
     {

@@ -54,7 +54,10 @@ pub struct TelescopeInfo {
     pub location: Location,
     pub min_elevation_rad: f64,
     pub max_elevation_rad: f64,
-    pub receiver_reachable: Option<bool>,
+    pub webcam_crop: Option<[f64; 4]>, // [x, y, w, h] as fractions of image, top-left origin
+    pub receiver_connected: Option<bool>,
+    pub controller_connected: Option<bool>,
+    pub wind_warning_ms: Option<f64>, // warn if 10-min avg wind exceeds this (m/s)
 }
 
 #[derive(Deserialize, PartialEq, Debug, Clone)]
@@ -70,6 +73,8 @@ pub struct TelescopeDefinition {
     pub min_elevation: f64, // in degrees
     #[serde(default = "default_max_elevation")]
     pub max_elevation: f64, // in degrees
+    #[serde(default)]
+    pub webcam_crop: Option<[f64; 4]>, // [x, y, w, h] fractions of image, top-left origin
     pub stow_position: Option<[f64; 2]>, // [azimuth, elevation] in degrees
     pub telescope_type: TelescopeType,
     pub controller_address: Option<String>,
@@ -80,6 +85,8 @@ pub struct TelescopeDefinition {
     pub default_gain_db: f64, // default receiver gain in dB
     #[serde(default)]
     pub t_rec_k: f64, // receiver noise temperature in Kelvin (added to ambient temp for Tsys)
+    #[serde(default)]
+    pub wind_warning_ms: Option<f64>, // warn if 10-min avg wind exceeds this (m/s); omit to disable
 }
 
 #[derive(Deserialize, PartialEq, Debug, Clone)]
@@ -93,6 +100,7 @@ pub enum TelescopeError {
     TargetOutOfElevationRange { min_deg: f64, max_deg: f64 },
     TelescopeIOError(String),
     TelescopeNotConnected,
+    ReceiverFailed(String),
 }
 
 impl Display for TelescopeError {
@@ -106,6 +114,10 @@ impl Display for TelescopeError {
                 message
             )),
             TelescopeError::TelescopeNotConnected => f.write_str("Telescope is not connected."),
+            TelescopeError::ReceiverFailed(message) => f.write_str(&format!(
+                "Receiver failed: {}",
+                message
+            )),
         }
     }
 }

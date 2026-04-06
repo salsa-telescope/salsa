@@ -11,8 +11,8 @@ function get_telescope_from_location() {
   const C = 299792458; // m/s
   const F_REST = 1420.405751e6; // Hz
 
-  const width = 640;
-  const height = 480;
+  const width = 576;
+  const height = 432;
   const margin = 50;
 
   let vlsrCorrection = null;

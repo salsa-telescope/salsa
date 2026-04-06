@@ -390,13 +390,14 @@ function updateOverlays() {
 function updateCsvLink() {
   if (!analysisState || !chartRefs) return;
   const { freqsHz } = analysisState;
-  const rows = ["frequency_hz,amplitude", ...freqsHz.map((f, i) => `${f},${analysisState.correctedAmps[i]}`)];
+  const xHeader = chartRefs.xUnit() === "km/s" ? "vlsr_km_s" : "frequency_hz";
+  const rows = [`${xHeader},amplitude`, ...freqsHz.map((f, i) => `${chartRefs.freqToDisplay(f)},${analysisState.correctedAmps[i]}`)];
   const blob = new Blob([rows.join("\n")], { type: "text/csv" });
   const dlCsv = document.getElementById("download-csv");
   if (dlCsv && dlCsv.dataset.originalHref) {
-    // keep original server href when correctedAmps === rawAmps
+    // Use server href only when showing raw frequency with no baseline subtraction
     const isReset = analysisState.correctedAmps.every((v, i) => v === analysisState.rawAmps[i]);
-    if (isReset) {
+    if (isReset && xHeader === "frequency_hz") {
       dlCsv.href = dlCsv.dataset.originalHref;
     } else {
       dlCsv.href = URL.createObjectURL(blob);
@@ -537,7 +538,7 @@ function loadObservation(id) {
 
       const vlsrCorrection = data.vlsr_correction_mps;
       let showVlsr = vlsrCorrection !== null && vlsrCorrection !== undefined;
-      let showLog = data.coordinate_system === "gnss" || data.coordinate_system.startsWith("gnss:");
+      let showLog = false;
 
       function freqToVlsr(freqHz) {
         return (C * (F_REST - freqHz) / F_REST + vlsrCorrection) / 1000;
@@ -623,7 +624,7 @@ function loadObservation(id) {
       const yAxisG = svg
         .append("g")
         .attr("transform", `translate(${margin},0)`)
-        .call(showLog ? d3.axisLeft(y).ticks(6, ".2~e") : d3.axisLeft(y).ticks(height / 80))
+        .call(showLog ? d3.axisLeft(y).ticks(6, ".2~e") : d3.axisLeft(y).ticks(height / 80).tickFormat(d3.format(".3~s")))
         .call((g) => g.selectAll("text").attr("font-size", "13px"));
 
       // y-axis label
@@ -698,7 +699,7 @@ function loadObservation(id) {
           .call((g) => g.selectAll("text").attr("font-size", "13px"));
         yAxisG.call(showLog
           ? d3.axisLeft(y).ticks(6, ".2~e")
-          : d3.axisLeft(y).ticks(height / 80))
+          : d3.axisLeft(y).ticks(height / 80).tickFormat(d3.format(".3~s")))
           .call((g) => g.selectAll("text").attr("font-size", "13px"));
         const drawData = showLog
           ? currentData.map((d) => ({ x: d.x, y: Math.max(d.y, y.domain()[0]) }))
@@ -829,6 +830,7 @@ function loadObservation(id) {
             fullYDomain = [newYExtent[0] - newPad, newYExtent[1] + newPad];
             xLabel.text(showVlsr ? "VLSR (km/s)" : "Frequency (MHz)");
             redraw(newData, fullXDomain, fullYDomain);
+            updateCsvLink();
           };
         } else {
           axisBtn.style.display = "none";

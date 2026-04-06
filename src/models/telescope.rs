@@ -7,6 +7,7 @@ use crate::models::telescope_types::{
 use crate::models::fake_telescope;
 use crate::models::salsa_telescope;
 use crate::tle_cache::TleCacheHandle;
+use crate::weather_cache::WeatherCacheHandle;
 use async_trait::async_trait;
 use std::collections::HashMap;
 use std::fs;
@@ -66,7 +67,11 @@ impl TelescopeCollectionHandle {
     }
 }
 
-fn create_telescope(def: TelescopeDefinition, tle_cache: TleCacheHandle) -> Arc<dyn Telescope> {
+fn create_telescope(
+    def: TelescopeDefinition,
+    tle_cache: TleCacheHandle,
+    weather_cache: WeatherCacheHandle,
+) -> Arc<dyn Telescope> {
     info!("Creating telescope {}", def.name);
     let location = Location {
         longitude: def.location[0].to_radians(),
@@ -94,10 +99,13 @@ fn create_telescope(def: TelescopeDefinition, tle_cache: TleCacheHandle) -> Arc<
             location,
             min_elevation_rad,
             max_elevation_rad,
+            def.webcam_crop,
             default_ref_freq_hz,
             default_gain_db,
             t_rec_k,
+            def.wind_warning_ms,
             tle_cache,
+            weather_cache,
         )),
         TelescopeType::Fake => Arc::new(fake_telescope::create(
             def.name.clone(),
@@ -105,6 +113,7 @@ fn create_telescope(def: TelescopeDefinition, tle_cache: TleCacheHandle) -> Arc<
             location,
             min_elevation_rad,
             max_elevation_rad,
+            def.webcam_crop,
             default_ref_freq_hz,
             default_gain_db,
             tle_cache,
@@ -115,6 +124,7 @@ fn create_telescope(def: TelescopeDefinition, tle_cache: TleCacheHandle) -> Arc<
 pub fn create_telescope_collection(
     config_filepath: impl Into<PathBuf>,
     tle_cache: TleCacheHandle,
+    weather_cache: WeatherCacheHandle,
 ) -> TelescopeCollectionHandle {
     let config: TelescopesConfig =
         toml::from_str(&fs::read_to_string(config_filepath.into()).unwrap_or_default())
@@ -125,7 +135,11 @@ pub fn create_telescope_collection(
         .map(|telescope_definition| {
             (
                 telescope_definition.name.clone(),
-                create_telescope(telescope_definition, tle_cache.clone()),
+                create_telescope(
+                    telescope_definition,
+                    tle_cache.clone(),
+                    weather_cache.clone(),
+                ),
             )
         })
         .collect();

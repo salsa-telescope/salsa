@@ -512,6 +512,32 @@ footer {
 .calendar-today-btn {
     font-weight: 600;
 }
+/* Telescope tab selector */
+.telescope-tabs {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-top: 16px;
+}
+.telescope-tab-btn {
+    padding: 6px 16px;
+    border: 1px solid var(--gray300);
+    border-radius: 4px;
+    background: white;
+    cursor: pointer;
+    font-size: 14px;
+    color: #555;
+}
+.telescope-tab-btn:hover {
+    background: var(--gray100);
+}
+.telescope-tab-btn.active {
+    background: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+    font-weight: 600;
+}
 .calendar-nav-label {
     font-weight: 600;
     font-size: 15px;
@@ -528,9 +554,12 @@ footer {
 }
 .calendar-info-row {
     display: flex;
-    gap: 8px;
+    flex-wrap: wrap;
     align-items: center;
-    margin-bottom: 6px;
+    gap: 6px 16px;
+}
+.calendar-info-row {
+    display: contents;
 }
 .utc-clock {
     font-family: 'Roboto Mono', monospace;
@@ -544,6 +573,7 @@ footer {
     flex-wrap: wrap;
     gap: 16px;
     font-size: 13px;
+    flex-wrap: wrap;
 }
 .legend-item {
     display: flex;
