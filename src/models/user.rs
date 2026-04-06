@@ -9,7 +9,7 @@ use tokio::sync::Mutex;
 
 use crate::error::InternalError;
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct User {
     pub id: i64,
     pub name: String,

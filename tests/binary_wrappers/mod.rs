@@ -8,7 +8,7 @@ use tempfile::TempDir;
 pub struct SalsaTestServer {
     process: Child,
     port: u16,
-    _database_dir: TempDir,
+    database_dir: TempDir,
 }
 
 impl SalsaTestServer {
@@ -65,12 +65,36 @@ impl SalsaTestServer {
         SalsaTestServer {
             process,
             port,
-            _database_dir: database_dir,
+            database_dir,
         }
     }
 
     pub fn addr(&self) -> String {
         format!("http://127.0.0.1:{}", self.port)
+    }
+
+    pub fn add_local_user(self: &Self, username: &str, password: &str) {
+        let manage_user_executable = env!("CARGO_BIN_EXE_manage_users");
+        let output = Command::new(manage_user_executable)
+            .args([
+                "add-local",
+                username,
+                "--database-dir",
+                self.database_dir
+                    .path()
+                    .to_str()
+                    .expect("TempDir path should convert to str"),
+            ])
+            .env("PASSWORD", password)
+            .output()
+            .expect("Should be possible to add local user");
+        if !output.status.success() {
+            panic!(
+                "Failed to add local user:\nstdout:{:?}\nstderr:{:?}",
+                String::from_utf8(output.stdout).expect("stdout should be utf8"),
+                String::from_utf8(output.stderr).expect("stderr should be utf8"),
+            );
+        }
     }
 }
 

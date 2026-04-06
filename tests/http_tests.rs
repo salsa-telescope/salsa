@@ -3,11 +3,64 @@ use reqwest::blocking::Client;
 use reqwest::header::{COOKIE, SET_COOKIE};
 
 mod binary_wrappers;
-pub use binary_wrappers::*; // Silences any dead code warnings
+pub use binary_wrappers::*;
+use tower_http::ServiceExt; // Silences any dead code warnings
 
 #[test]
 fn can_start_and_stop_backend() {
     SalsaTestServer::spawn();
+}
+
+#[test]
+fn login_with_unknown_local_user_fails() {
+    let server = SalsaTestServer::spawn();
+    let client = Client::new();
+
+    let res = client
+        .post(server.addr() + "/auth/local")
+        .form(&[("username", "test"), ("password", "password")])
+        .send()
+        .expect("Should be able to send request");
+
+    assert_eq!(StatusCode::UNAUTHORIZED, res.status());
+}
+
+#[test]
+fn login_with_local_user_possible() {
+    let server = SalsaTestServer::spawn();
+    let username = "test";
+    let password = "password_for_test";
+    server.add_local_user(username, password);
+    let client = Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .build()
+        .expect("Should be possible to create reqwest client");
+
+    let res = client
+        .post(server.addr() + "/auth/local")
+        .form(&[("username", username), ("password", password)])
+        .send()
+        .expect("Should be able to send request");
+
+    assert_eq!(StatusCode::SEE_OTHER, res.status());
+    assert!(res.headers().contains_key(SET_COOKIE));
+}
+
+#[test]
+fn login_with_wrong_password_fails() {
+    let server = SalsaTestServer::spawn();
+    let username = "test";
+    let password = "password_for_test";
+    server.add_local_user(username, password);
+    let client = Client::new();
+
+    let res = client
+        .post(server.addr() + "/auth/local")
+        .form(&[("username", username), ("password", "wrong_password")])
+        .send()
+        .expect("Should be able to send request");
+
+    assert_eq!(StatusCode::UNAUTHORIZED, res.status());
 }
 
 #[test]

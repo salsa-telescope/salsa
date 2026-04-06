@@ -20,6 +20,12 @@ pub struct TleCacheHandle {
     elements: Arc<RwLock<Vec<sgp4::Elements>>>,
 }
 
+impl Default for TleCacheHandle {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TleCacheHandle {
     pub fn new() -> Self {
         TleCacheHandle {
