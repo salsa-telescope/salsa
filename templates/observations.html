@@ -7,7 +7,7 @@
       <option value="{{ u.id }}" {% if u.id == viewed_user_id %}selected{% endif %}>{{ u.id }} &ndash; {{ u.name }} ({{ u.provider }})</option>
       {% endfor %}
     </select>
-    <button type="submit" class="action-btn">View</button>
+    <button type="submit" class="btn">View</button>
     <span class="text-gray-400 text-xs">&larr; Admin only filter: uid &ndash; username (provider)</span>
   </form>
   {% endif %}
