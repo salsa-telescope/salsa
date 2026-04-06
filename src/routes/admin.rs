@@ -41,7 +41,7 @@ fn require_admin(user: Option<User>) -> Result<User, StatusCode> {
 #[derive(Template)]
 #[template(path = "admin.html", escape = "none")]
 struct AdminTemplate {
-    telescopes: Vec<(String, bool, bool, bool, Option<bool>)>, // (name, in_maintenance, is_booked_now, controller_connected, receiver_reachable)
+    telescopes: Vec<(String, bool, bool, bool, Option<bool>)>, // (name, in_maintenance, is_booked_now, controller_connected, receiver_connected)
     usage_from: NaiveDate,
     usage_to: NaiveDate,
     total_bookings: usize,
@@ -95,13 +95,13 @@ async fn get_admin(
                 Some(TelescopeError::TelescopeIOError(_) | TelescopeError::TelescopeNotConnected)
             )
         });
-        let receiver_reachable = info.and_then(|i| i.receiver_reachable);
+        let receiver_connected = info.and_then(|i| i.receiver_connected);
         telescopes.push((
             name,
             in_maintenance,
             is_booked_now,
             is_connected,
-            receiver_reachable,
+            receiver_connected,
         ));
     }
 

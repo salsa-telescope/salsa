@@ -253,7 +253,7 @@
       <div class="w-full xl:w-72 xl:flex-shrink-0">
         <h2 class="text-xl font-semibold mb-3">Live Webcam</h2>
         <div id="wcam-box" style="width:100%;overflow:hidden;position:relative;border-radius:4px;background:#000;">
-          <img id="wcam-a" src="/webcam/snapshot" style="position:absolute;max-width:none;">
+          <img id="wcam-a" src="/live/snapshot" style="position:absolute;max-width:none;">
         </div>
         <script>
         (function() {
@@ -283,12 +283,12 @@
           getDims();
           applyStyle(a);
           setInterval(() => {
-            a.src = '/webcam/snapshot?t=' + Date.now();
+            a.src = '/live/snapshot?t=' + Date.now();
           }, 2000);
         })();
         </script>
         <p class="text-gray-500 text-xs mt-2">Updated every 2 s. No lights — telescopes are not visible after dark but can still be controlled.</p>
-        <div hx-get="/weather" hx-trigger="load, every 5m"></div>
+        <div class="mt-2 pt-2 border-t border-gray-100" hx-get="/weather" hx-trigger="load, every 5m"></div>
       </div>
       {% endif %}
     </div>

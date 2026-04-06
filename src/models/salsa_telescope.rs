@@ -43,7 +43,7 @@ struct Inner {
     t_rec_k: f64,
     wind_warning_ms: Option<f64>,
     weather_cache: WeatherCacheHandle,
-    receiver_reachable: Arc<tokio::sync::Mutex<bool>>,
+    receiver_connected: Arc<tokio::sync::Mutex<bool>>,
     controller_connected: bool,
 }
 
@@ -68,8 +68,8 @@ pub fn create(
     tle_cache: TleCacheHandle,
     weather_cache: WeatherCacheHandle,
 ) -> SalsaTelescope {
-    let receiver_reachable = Arc::new(tokio::sync::Mutex::new(false));
-    let ping_reachable = receiver_reachable.clone();
+    let receiver_connected = Arc::new(tokio::sync::Mutex::new(false));
+    let ping_connected = receiver_connected.clone();
     let ping_address = receiver_address.clone();
 
     let inner = Arc::new(Mutex::new(Inner {
@@ -99,7 +99,7 @@ pub fn create(
         t_rec_k,
         wind_warning_ms,
         weather_cache,
-        receiver_reachable,
+        receiver_connected,
         controller_connected: false,
     }));
 
@@ -143,7 +143,7 @@ pub fn create(
                 }
                 prev_reachable = reachable;
             }
-            *ping_reachable.lock().await = reachable;
+            *ping_connected.lock().await = reachable;
             tokio::time::sleep(Duration::from_secs(5)).await;
         }
     });
@@ -219,7 +219,7 @@ impl Telescope for SalsaTelescope {
 
     async fn get_info(&self) -> Result<TelescopeInfo, TelescopeError> {
         let inner = self.inner.lock().await;
-        let receiver_reachable = *inner.receiver_reachable.lock().await;
+        let receiver_connected = *inner.receiver_connected.lock().await;
         let controller_info = inner.controller.info()?;
 
         let latest_observation = {
@@ -257,7 +257,8 @@ impl Telescope for SalsaTelescope {
             min_elevation_rad: inner.min_elevation_rad,
             max_elevation_rad: inner.max_elevation_rad,
             webcam_crop: inner.webcam_crop,
-            receiver_reachable: Some(receiver_reachable),
+            receiver_connected: Some(receiver_connected),
+            controller_connected: Some(inner.controller_connected),
             wind_warning_ms: inner.wind_warning_ms,
         })
     }

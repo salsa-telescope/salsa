@@ -129,7 +129,10 @@ pub async fn create_app(config_dir: &Path, database_dir: &Path) -> (Router, AppS
         .nest("/bookings", routes::booking::routes(state.clone()))
         .nest("/telescope", routes::telescope::routes(state.clone()))
         .nest("/observations", routes::observations::routes(state.clone()))
-        .nest("/webcam", routes::webcam::routes(webcam_snapshot_url))
+        .nest(
+            "/live",
+            routes::live::routes(webcam_snapshot_url, state.clone()),
+        )
         .nest("/weather", routes::weather::routes(state.clone()))
         .layer(
             TraceLayer::new_for_http().make_span_with(|request: &Request<_>| {

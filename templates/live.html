@@ -1,0 +1,40 @@
+<div class="section light">
+  <h2 class="text-xl font-semibold mb-4">Live status</h2>
+
+  <div class="rounded shadow" style="position: relative; width: 100%; aspect-ratio: 32/9; overflow: hidden; background:#000;">
+    <img id="webcam-a" src="/live/snapshot" style="position: absolute; top: 0; left: 0; width: 100%;" alt="Telescope webcam" />
+    <img id="webcam-b" src="" style="position: absolute; top: 0; left: 0; width: 100%; opacity: 0;" alt="" />
+  </div>
+  <p class="text-gray-500 text-sm mt-2">Updated every 2 s. No lights — telescopes are not visible after dark but can still be controlled.</p>
+
+  <div class="flex flex-col lg:flex-row gap-6 mt-6">
+
+    <div class="lg:w-64 xl:w-80 flex-shrink-0">
+      <h3 class="text-base font-semibold text-gray-700 mb-2">Weather at Onsala</h3>
+      <div hx-get="/weather" hx-trigger="load, every 5m" hx-swap="innerHTML"></div>
+    </div>
+
+    <div class="flex-1">
+      <h3 class="text-base font-semibold text-gray-700 mb-2">Telescope status</h3>
+      <div hx-get="/live/telescopes" hx-trigger="load, every 2s" hx-swap="innerHTML"></div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  (function () {
+    let current = document.getElementById('webcam-a');
+    let next = document.getElementById('webcam-b');
+    function refresh() {
+      const url = '/live/snapshot?t=' + Date.now();
+      next.onload = function () {
+        next.style.opacity = '1';
+        current.style.opacity = '0';
+        [current, next] = [next, current];
+      };
+      next.src = url;
+    }
+    setInterval(refresh, 2000);
+  })();
+</script>

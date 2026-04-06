@@ -55,7 +55,8 @@ pub struct TelescopeInfo {
     pub min_elevation_rad: f64,
     pub max_elevation_rad: f64,
     pub webcam_crop: Option<[f64; 4]>, // [x, y, w, h] as fractions of image, top-left origin
-    pub receiver_reachable: Option<bool>,
+    pub receiver_connected: Option<bool>,
+    pub controller_connected: Option<bool>,
     pub wind_warning_ms: Option<f64>, // warn if 10-min avg wind exceeds this (m/s)
 }
 

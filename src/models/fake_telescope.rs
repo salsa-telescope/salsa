@@ -234,7 +234,8 @@ impl Telescope for FakeTelescope {
             min_elevation_rad: inner.min_elevation_rad,
             max_elevation_rad: inner.max_elevation_rad,
             webcam_crop: inner.webcam_crop,
-            receiver_reachable: None,
+            receiver_connected: None,
+            controller_connected: None,
             wind_warning_ms: None,
         })
     }

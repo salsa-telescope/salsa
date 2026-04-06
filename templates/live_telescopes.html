@@ -1,0 +1,46 @@
+<div class="flex flex-wrap gap-3">
+{% for tel in telescopes %}
+  <div class="bg-gray-50 rounded border border-gray-200 px-4 py-3 min-w-52">
+    <div class="flex items-center justify-between gap-4 mb-2">
+      <span class="font-semibold text-gray-700">{{ tel.name }}</span>
+      <div class="flex gap-1">
+        {% if tel.in_maintenance %}
+        <span class="text-xs font-semibold text-yellow-700 bg-yellow-100 px-2 py-0.5 rounded">Maintenance</span>
+        {% endif %}
+        {% if tel.status == "Tracking" %}
+        <span class="text-xs font-semibold text-green-700 bg-green-100 px-2 py-0.5 rounded">Tracking</span>
+        {% else if tel.status == "Slewing" %}
+        <span class="text-xs font-semibold text-yellow-700 bg-yellow-100 px-2 py-0.5 rounded">Slewing</span>
+        {% else if tel.status == "Offline" %}
+        <span class="text-xs font-semibold text-red-700 bg-red-100 px-2 py-0.5 rounded">Offline</span>
+        {% else %}
+        <span class="text-xs font-semibold text-blue-700 bg-blue-100 px-2 py-0.5 rounded">Idle</span>
+        {% endif %}
+      </div>
+    </div>
+    <p class="text-xs text-gray-500 mb-1">
+      {% if let Some((az, el)) = tel.position %}Az {{ az }} &middot; El {{ el }}{% else %}<span class="text-gray-400">Position unavailable</span>{% endif %}
+      {% if let Some(target) = tel.target %}&middot; {{ target }}{% endif %}
+    </p>
+    <div class="flex gap-2 text-xs">
+      {% if let Some(connected) = tel.controller_connected %}
+        {% if connected %}
+        <span class="text-green-600">&#10003; Controller</span>
+        {% else %}
+        <span class="text-red-500">&#10007; Controller</span>
+        {% endif %}
+      {% endif %}
+      {% if let Some(reachable) = tel.receiver_connected %}
+        {% if reachable %}
+        <span class="text-green-600">&#10003; Receiver</span>
+        {% else %}
+        <span class="text-red-500">&#10007; Receiver</span>
+        {% endif %}
+      {% endif %}
+    </div>
+    {% if !tel.error.is_empty() %}
+    <p class="text-xs text-red-500 mt-1">{{ tel.error }}</p>
+    {% endif %}
+  </div>
+{% endfor %}
+</div>

@@ -605,7 +605,7 @@ async fn start_observe(
             "Telescope is not tracking. Please wait until it has reached the target.".to_string(),
         ));
     }
-    if info.receiver_reachable == Some(false) {
+    if info.receiver_connected == Some(false) {
         return Ok(error_response(
             "Receiver is not reachable. Check the receiver address and network connection."
                 .to_string(),
