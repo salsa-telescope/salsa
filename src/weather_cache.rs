@@ -46,6 +46,12 @@ pub struct WeatherCacheHandle {
     data: Arc<RwLock<Option<WeatherData>>>,
 }
 
+impl Default for WeatherCacheHandle {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl WeatherCacheHandle {
     pub fn new() -> Self {
         WeatherCacheHandle {
