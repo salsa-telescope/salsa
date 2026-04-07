@@ -66,20 +66,11 @@
   --color-delete-bg: #ffebee;
 }
 
-header *,
-header *::before,
-header *::after {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-}
-
 body {
     font-family: 'Roboto flex', sans-serif;
     font-size: 16px;
     background-color: var(--color-brand-dark);
     height: 100%;
-    margin: 0;
 }
 
 #page {
