@@ -122,6 +122,8 @@ body {
     position: relative;
     z-index: 1;
 }
+/* This element with all its box-shadows defines the star field in the
+   background of the welcome page. */
 .welcome::before {
     content: "";
     position: fixed;
