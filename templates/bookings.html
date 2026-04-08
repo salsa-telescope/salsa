@@ -1,4 +1,8 @@
 <div class="section light">
+  {% for e in error %}
+  <div class="callout bg-notify-error-bg border-notify-error">{{ e }}</div>
+  {% endfor %}
+
   {% if is_admin %}
   <form hx-get="/bookings" hx-target="#page" hx-push-url="true" class="flex items-center gap-3 mb-4 text-sm">
     <select name="user_id" class="border rounded px-2 py-1">
@@ -44,10 +48,6 @@
     {% endfor %}
   </div>
   {% endif %}
-
-  {% for e in error %}
-  <div class="notification-area error">{{ e }}</div>
-  {% endfor %}
 
   <div class="calendar-nav">
     <span class="calendar-nav-title">Book telescope &mdash; weekly view</span>

@@ -210,6 +210,11 @@ body {
     margin-bottom: 50px;
 }
 @layer components {
+    .callout {
+        @apply border-l-4 rounded px-4 py-2 text-sm my-2;
+        background-color: var(--color-callout);
+        border-color: var(--color-callout-border);
+    }
     .btn {
         @apply inline-block px-3 py-1 text-sm rounded-md text-white no-underline cursor-pointer;
         background-color: var(--color-accent);
@@ -394,25 +399,6 @@ footer {
     padding: 20px;
     text-align: center;
     font-size: 90%;
-}
-
-.notification-area {
-    padding: 10px;
-    margin-bottom: 30px;
-    display: none;
-    border: 1px solid;
-}
-
-.notification-area.success {
-    border-color: var(--color-notify-success);
-    background-color: var(--color-notify-success-bg);
-    display: block;
-}
-
-.notification-area.error {
-    border-color: var(--color-notify-error);
-    background-color: var(--color-notify-error-bg);
-    display: block;
 }
 
 /* My bookings list */
