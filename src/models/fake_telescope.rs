@@ -10,10 +10,12 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use rand::Rng;
 use rand_distr::StandardNormal;
+use rustfft::num_complex::Complex;
 use std::f64::consts::PI;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Mutex;
+use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, trace};
 
 const FAKE_TELESCOPE_PARKING_HORIZONTAL: Direction = Direction {
@@ -47,6 +49,7 @@ struct Inner {
     stow_position: Option<Direction>,
     alive: bool,
     tle_cache: TleCacheHandle,
+    iq_cancellation_token: Option<CancellationToken>,
 }
 
 pub struct FakeTelescope {
@@ -88,6 +91,7 @@ pub fn create(
         stow_position,
         alive: true,
         tle_cache,
+        iq_cancellation_token: None,
     }));
 
     let task_inner = inner.clone();
@@ -172,6 +176,11 @@ impl Telescope for FakeTelescope {
         } else if !receiver_configuration.integrate && inner.receiver_configuration.integrate {
             info!("Stopping integration");
             inner.receiver_configuration.integrate = false;
+        }
+        if !receiver_configuration.integrate
+            && let Some(token) = inner.iq_cancellation_token.take()
+        {
+            token.cancel();
         }
         Ok(inner.receiver_configuration)
     }
@@ -281,6 +290,42 @@ impl Telescope for FakeTelescope {
         let mut inner = self.inner.lock().await;
         inner.alive = false;
         debug!("Shutting down {}", inner.name);
+    }
+
+    async fn start_iq_stream(
+        &self,
+        config: ReceiverConfiguration,
+    ) -> Result<tokio::sync::mpsc::Receiver<Vec<Complex<f32>>>, ReceiverError> {
+        let mut inner = self.inner.lock().await;
+        if inner.iq_cancellation_token.is_some() {
+            return Err(ReceiverError::IntegrationAlreadyRunning);
+        }
+        let (tx, rx) = tokio::sync::mpsc::channel(8);
+        let token = CancellationToken::new();
+        inner.iq_cancellation_token = Some(token.clone());
+        let block_duration = Duration::from_secs_f64(
+            crate::models::salsa_telescope::IQ_BLOCK_SIZE as f64 / config.bandwidth_hz,
+        );
+        tokio::spawn(async move {
+            while !token.is_cancelled() {
+                let block: Vec<Complex<f32>> = {
+                    let mut rng = rand::rng();
+                    (0..crate::models::salsa_telescope::IQ_BLOCK_SIZE)
+                        .map(|_| {
+                            Complex::new(
+                                rng.sample::<f32, StandardNormal>(StandardNormal),
+                                rng.sample::<f32, StandardNormal>(StandardNormal),
+                            )
+                        })
+                        .collect()
+                };
+                if tx.send(block).await.is_err() {
+                    break;
+                }
+                tokio::time::sleep(block_duration).await;
+            }
+        });
+        Ok(rx)
     }
 }
 

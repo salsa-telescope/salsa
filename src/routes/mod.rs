@@ -5,6 +5,7 @@ pub mod authentication;
 pub mod booking;
 pub mod experiments;
 pub mod index;
+pub mod interferometry;
 pub mod live;
 pub mod observations;
 pub mod observe;

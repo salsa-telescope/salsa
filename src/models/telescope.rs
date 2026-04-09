@@ -3,6 +3,7 @@ use crate::models::telescope_types::{
     ObservedSpectra, ReceiverConfiguration, ReceiverError, TelescopeDefinition, TelescopeError,
     TelescopeInfo, TelescopeTarget, TelescopeType, TelescopesConfig,
 };
+use rustfft::num_complex::Complex;
 
 use crate::models::fake_telescope;
 use crate::models::salsa_telescope;
@@ -35,6 +36,13 @@ pub trait Telescope: Send + Sync {
     async fn stop_integration(&self) -> Option<ObservedSpectra>;
     async fn get_info(&self) -> Result<TelescopeInfo, TelescopeError>;
     async fn shutdown(&self);
+    /// Start streaming raw IQ blocks for interferometry correlation.
+    /// Returns an mpsc receiver of sample blocks (Complex<f32>, length = FFT block size).
+    /// Stop by calling set_receiver_configuration(integrate: false).
+    async fn start_iq_stream(
+        &self,
+        config: ReceiverConfiguration,
+    ) -> Result<tokio::sync::mpsc::Receiver<Vec<Complex<f32>>>, ReceiverError>;
 }
 
 type TelescopeCollection = Arc<RwLock<HashMap<String, Arc<dyn Telescope>>>>;
@@ -99,6 +107,7 @@ fn create_telescope(
             def.receiver_address
                 .expect("Telescope of type Salsa should have receiver_address.")
                 .clone(),
+            def.gpsdo_enabled,
             stow_position,
             location,
             min_elevation_rad,

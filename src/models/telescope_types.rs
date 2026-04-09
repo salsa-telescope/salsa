@@ -89,6 +89,8 @@ pub struct TelescopeDefinition {
     pub t_rec_k: f64, // receiver noise temperature in Kelvin (added to ambient temp for Tsys)
     #[serde(default)]
     pub wind_warning_ms: Option<f64>, // warn if 10-min avg wind exceeds this (m/s); omit to disable
+    #[serde(default)]
+    pub gpsdo_enabled: bool, // use external GPSDO for clock/PPS sync (USRP N210)
 }
 
 #[derive(Deserialize, PartialEq, Debug, Clone)]
@@ -183,6 +185,7 @@ pub enum ObservationMode {
     #[default]
     FreqSwitched,
     Raw,
+    Interferometry,
 }
 
 fn default_max_elevation() -> f64 {

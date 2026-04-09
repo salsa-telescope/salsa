@@ -1,0 +1,179 @@
+<div class="section light">
+  <div class="flex items-center gap-4 mb-4">
+    <a href="/interferometry" class="text-sm text-gray-500 hover:underline">&larr; Sessions</a>
+    <h2 class="text-xl font-semibold">
+      Session {{ session.id }}:
+      {{ session.telescope_a }} &times; {{ session.telescope_b }}
+    </h2>
+    {% if is_running %}
+    <span class="text-success font-medium text-sm">&#9679; Running</span>
+    <form method="POST" action="/interferometry/stop" class="ml-2">
+      <button type="submit" class="btn bg-danger hover:bg-danger-hover text-sm">Stop</button>
+    </form>
+    {% endif %}
+  </div>
+
+  <div class="text-sm text-gray-500 mb-6 flex flex-wrap gap-x-6 gap-y-1">
+    <span>Start: {{ session.start_time.format("%Y-%m-%d %H:%M:%S UTC") }}</span>
+    {% if let Some(et) = session.end_time %}
+    <span>End: {{ et.format("%Y-%m-%d %H:%M:%S UTC") }}</span>
+    {% endif %}
+    <span>Target: {{ session.coordinate_system }} ({{ session.target_x|fmt("{:.2}") }}, {{ session.target_y|fmt("{:.2}") }})</span>
+    <span>{{ center_freq_mhz|fmt("{:.3}") }} MHz &plusmn; {{ half_bw_mhz|fmt("{:.2}") }} MHz</span>
+    <span id="vis-count">{{ visibility_count }} integrations</span>
+  </div>
+
+  <div id="no-data" {% if visibility_count > 0 %}style="display:none"{% endif %}
+       class="text-gray-400 text-sm mb-4">
+    No data yet. Waiting for the first 1-second integration…
+  </div>
+
+  <div id="charts" class="grid grid-cols-1 lg:grid-cols-2 gap-6"
+       {% if visibility_count == 0 %}style="display:none"{% endif %}>
+    <div>
+      <h3 class="font-semibold text-sm mb-1 text-center">Amplitude vs time (freq-averaged)</h3>
+      <div id="chart-amp-time"></div>
+    </div>
+    <div>
+      <h3 class="font-semibold text-sm mb-1 text-center">Phase vs time (freq-averaged)</h3>
+      <div id="chart-phase-time"></div>
+    </div>
+    <div>
+      <h3 class="font-semibold text-sm mb-1 text-center">Phase vs frequency (time-averaged)</h3>
+      <div id="chart-phase-freq"></div>
+    </div>
+    <div>
+      <h3 class="font-semibold text-sm mb-1 text-center">Delay vs time</h3>
+      <div id="chart-delay-time"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  const SESSION_ID = {{ session.id }};
+  const IS_RUNNING = {{ is_running }};
+  const POLL_INTERVAL_MS = 2000;
+
+  const W = 480, H = 220, M = { top: 10, right: 20, bottom: 36, left: 56 };
+  const iw = W - M.left - M.right;
+  const ih = H - M.top - M.bottom;
+
+  function makeSvg(containerId) {
+    return d3.select('#' + containerId)
+      .append('svg')
+      .attr('width', W).attr('height', H)
+      .append('g')
+      .attr('transform', `translate(${M.left},${M.top})`);
+  }
+
+  function makeAxes(svg, x, y, xLabel, yLabel) {
+    svg.append('g').attr('class', 'x-axis').attr('transform', `translate(0,${ih})`).call(d3.axisBottom(x).ticks(5));
+    svg.append('g').attr('class', 'y-axis').call(d3.axisLeft(y).ticks(5));
+    svg.append('text').attr('class', 'x-label')
+      .attr('text-anchor', 'middle').attr('x', iw / 2).attr('y', ih + 32)
+      .attr('font-size', 11).attr('fill', '#555').text(xLabel);
+    svg.append('text').attr('class', 'y-label')
+      .attr('text-anchor', 'middle')
+      .attr('transform', `translate(-42,${ih / 2}) rotate(-90)`)
+      .attr('font-size', 11).attr('fill', '#555').text(yLabel);
+    return svg.append('path').attr('fill', 'none').attr('stroke', 'var(--color-accent)').attr('stroke-width', 1.5);
+  }
+
+  // ---- Amplitude vs time ----
+  const svgAt = makeSvg('chart-amp-time');
+  const xAt = d3.scaleTime().range([0, iw]);
+  const yAt = d3.scaleLinear().range([ih, 0]);
+  const lineAt = makeAxes(svgAt, xAt, yAt, 'UTC time', 'Amplitude');
+
+  // ---- Phase vs time ----
+  const svgPt = makeSvg('chart-phase-time');
+  const xPt = d3.scaleTime().range([0, iw]);
+  const yPt = d3.scaleLinear().domain([-180, 180]).range([ih, 0]);
+  const linePt = makeAxes(svgPt, xPt, yPt, 'UTC time', 'Phase [deg]');
+
+  // ---- Phase vs frequency ----
+  const svgPf = makeSvg('chart-phase-freq');
+  const xPf = d3.scaleLinear().range([0, iw]);
+  const yPf = d3.scaleLinear().domain([-180, 180]).range([ih, 0]);
+  const linePf = makeAxes(svgPf, xPf, yPf, 'Frequency [MHz]', 'Phase [deg]');
+
+  // ---- Delay vs time ----
+  const svgDt = makeSvg('chart-delay-time');
+  const xDt = d3.scaleTime().range([0, iw]);
+  const yDt = d3.scaleLinear().range([ih, 0]);
+  const lineDt = makeAxes(svgDt, xDt, yDt, 'UTC time', 'Delay [ns]');
+
+  function updateAxes(svg, x, y) {
+    svg.select('.x-axis').call(d3.axisBottom(x).ticks(5).tickFormat(d3.timeFormat('%H:%M:%S')));
+    svg.select('.y-axis').call(d3.axisLeft(y).ticks(5));
+  }
+
+  // Pad a [min, max] domain by 10% on each side; handle the flat (min===max) case.
+  function padDomain([lo, hi]) {
+    const span = hi - lo;
+    const pad = span > 0 ? span * 0.1 : Math.abs(lo) * 0.1 || 1;
+    return [lo - pad, hi + pad];
+  }
+
+  function render(data) {
+    if (!data || data.length === 0) return;
+
+    document.getElementById('no-data').style.display = 'none';
+    document.getElementById('charts').style.display = '';
+    document.getElementById('vis-count').textContent = data.length + ' integrations';
+
+    const times = data.map(d => new Date(d.time));
+    const timeExt = d3.extent(times);
+
+    // Amplitude vs time
+    xAt.domain(timeExt);
+    yAt.domain(padDomain(d3.extent(data, d => d.mean_amplitude)));
+    updateAxes(svgAt, xAt, yAt);
+    lineAt.datum(data).attr('d', d3.line().x(d => xAt(new Date(d.time))).y(d => yAt(d.mean_amplitude)));
+
+    // Phase vs time
+    xPt.domain(timeExt);
+    yPt.domain(padDomain(d3.extent(data, d => d.mean_phase_deg)));
+    updateAxes(svgPt, xPt, yPt);
+    linePt.datum(data).attr('d', d3.line().x(d => xPt(new Date(d.time))).y(d => yPt(d.mean_phase_deg)));
+
+    // Phase vs frequency (time-averaged per channel)
+    if (data.length > 0) {
+      const freqs = JSON.parse(data[0].frequencies_json);
+      const nCh = freqs.length;
+      const avgPhase = new Array(nCh).fill(0);
+      for (const row of data) {
+        const phases = JSON.parse(row.phases_json);
+        for (let i = 0; i < nCh; i++) avgPhase[i] += phases[i];
+      }
+      for (let i = 0; i < nCh; i++) avgPhase[i] /= data.length;
+      const freqsMHz = freqs.map(f => f / 1e6);
+      xPf.domain(d3.extent(freqsMHz));
+      yPf.domain(padDomain(d3.extent(avgPhase)));
+      svgPf.select('.x-axis').call(d3.axisBottom(xPf).ticks(5));
+      svgPf.select('.y-axis').call(d3.axisLeft(yPf).ticks(5));
+      const pfData = freqsMHz.map((f, i) => ({ f, p: avgPhase[i] }));
+      linePf.datum(pfData).attr('d', d3.line().x(d => xPf(d.f)).y(d => yPf(d.p)));
+    }
+
+    // Delay vs time
+    xDt.domain(timeExt);
+    yDt.domain(padDomain(d3.extent(data, d => d.delay_ns)));
+    updateAxes(svgDt, xDt, yDt);
+    lineDt.datum(data).attr('d', d3.line().x(d => xDt(new Date(d.time))).y(d => yDt(d.delay_ns)));
+  }
+
+  function poll() {
+    fetch('/interferometry/' + SESSION_ID + '/data')
+      .then(r => r.json())
+      .then(render)
+      .catch(console.error);
+  }
+
+  poll();
+  if (IS_RUNNING) {
+    setInterval(poll, POLL_INTERVAL_MS);
+  }
+})();
+</script>

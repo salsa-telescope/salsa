@@ -30,6 +30,7 @@ pub struct ActiveIntegration {
 struct Inner {
     name: String,
     receiver_address: String,
+    gpsdo_enabled: bool,
     controller: TelescopeTracker,
     receiver_configuration: ReceiverConfiguration,
     measurements: Arc<Mutex<Vec<Measurement>>>,
@@ -59,6 +60,7 @@ pub fn create(
     name: String,
     controller_address: String,
     receiver_address: String,
+    gpsdo_enabled: bool,
     stow_position: Option<Direction>,
     location: Location,
     min_elevation_rad: f64,
@@ -78,6 +80,7 @@ pub fn create(
     let inner = Arc::new(Mutex::new(Inner {
         name,
         receiver_address,
+        gpsdo_enabled,
         controller: TelescopeTracker::new(
             controller_address,
             location,
@@ -307,6 +310,32 @@ impl Telescope for SalsaTelescope {
         let inner = self.inner.lock().await;
         debug!("Shutting down {}", inner.name);
         inner.controller.shutdown().await;
+    }
+
+    async fn start_iq_stream(
+        &self,
+        config: ReceiverConfiguration,
+    ) -> Result<tokio::sync::mpsc::Receiver<Vec<Complex<f32>>>, ReceiverError> {
+        let mut inner = self.inner.lock().await;
+        if inner.active_integration.is_some() {
+            return Err(ReceiverError::IntegrationAlreadyRunning);
+        }
+        let (tx, rx) = tokio::sync::mpsc::channel(8);
+        let cancellation_token = CancellationToken::new();
+        let measurement_task = {
+            let address = inner.receiver_address.clone();
+            let gpsdo_enabled = inner.gpsdo_enabled;
+            let token = cancellation_token.clone();
+            tokio::spawn(async move {
+                measure_iq(address, gpsdo_enabled, token, config, tx).await;
+            })
+        };
+        inner.receiver_configuration.integrate = true;
+        inner.active_integration = Some(ActiveIntegration {
+            cancellation_token,
+            measurement_task,
+        });
+        Ok(rx)
     }
 }
 
@@ -592,6 +621,7 @@ async fn measure(
                 config.rfi_filter,
                 &mut spec,
             ),
+            ObservationMode::Interferometry => break,
         };
         n += 1.0;
 
@@ -606,6 +636,86 @@ async fn measure(
             .signed_duration_since(measurement.start)
             .to_std()
             .unwrap();
+    }
+}
+
+pub const IQ_BLOCK_SIZE: usize = 8192;
+
+/// Stream raw IQ blocks for interferometry cross-correlation.
+/// Sends blocks of IQ_BLOCK_SIZE Complex<f32> samples over `tx`.
+/// Exits when `cancellation_token` fires or the receiver drops the channel.
+async fn measure_iq(
+    address: String,
+    gpsdo_enabled: bool,
+    cancellation_token: CancellationToken,
+    config: ReceiverConfiguration,
+    tx: tokio::sync::mpsc::Sender<Vec<Complex<f32>>>,
+) {
+    let args = format!("addr={}", address);
+    let mut usrp = match Usrp::open(&args) {
+        Ok(u) => u,
+        Err(e) => {
+            error!("IQ stream: failed to open USRP at {}: {}", address, e);
+            return;
+        }
+    };
+
+    if gpsdo_enabled {
+        info!("Configuring external clock/PPS sync for {}", address);
+        if let Err(e) = usrp.set_clock_source("external", 0) {
+            error!("set_clock_source failed: {}", e);
+            return;
+        }
+        if let Err(e) = usrp.set_time_source("external", 0) {
+            error!("set_time_source failed: {}", e);
+            return;
+        }
+        // Latch t=0 on the next PPS edge, then wait for it to settle.
+        if let Err(e) = usrp.set_time_next_pps(0, 0.0, 0) {
+            error!("set_time_next_pps failed: {}", e);
+            return;
+        }
+        tokio::time::sleep(Duration::from_secs(2)).await;
+        info!("External time sync complete for {}", address);
+    }
+
+    usrp.set_rx_gain(config.gain_db, 0, "").unwrap();
+    usrp.set_rx_antenna("TX/RX", 0).unwrap();
+    usrp.set_rx_dc_offset_enabled(true, 0).unwrap();
+    usrp.set_rx_sample_rate(config.bandwidth_hz, 0).unwrap();
+
+    while !cancellation_token.is_cancelled() {
+        usrp.set_rx_frequency(&TuneRequest::with_frequency(config.center_freq_hz), 0)
+            .unwrap();
+
+        let mut receiver = match usrp.get_rx_stream(&uhd::StreamArgs::<Complex<i16>>::new("sc16")) {
+            Ok(r) => r,
+            Err(e) => {
+                error!("IQ stream: get_rx_stream failed: {}", e);
+                break;
+            }
+        };
+
+        let mut buffer = vec![Complex::<i16>::default(); IQ_BLOCK_SIZE];
+        receiver
+            .send_command(&StreamCommand {
+                command_type: StreamCommandType::CountAndDone(IQ_BLOCK_SIZE as u64),
+                time: StreamTime::Now,
+            })
+            .unwrap();
+
+        if receiver.receive_simple(buffer.as_mut()).is_err() {
+            break;
+        }
+
+        let block: Vec<Complex<f32>> = buffer
+            .iter()
+            .map(|x| Complex::new(x.re as f32, x.im as f32))
+            .collect();
+
+        if tx.send(block).await.is_err() {
+            break;
+        }
     }
 }
 

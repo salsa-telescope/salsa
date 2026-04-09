@@ -13,6 +13,7 @@ use tracing::{debug, debug_span};
 
 use serde::Deserialize;
 
+use crate::correlator::CorrelatorHandle;
 use crate::database::create_sqlite_database_on_disk;
 use crate::login_rate_limiter::LoginRateLimiterHandle;
 use crate::middleware::cookies::cookies_middleware;
@@ -67,6 +68,8 @@ pub struct AppState {
     pub tle_cache: TleCacheHandle,
     pub weather_cache: WeatherCacheHandle,
     pub login_rate_limiter: LoginRateLimiterHandle,
+    /// At most one correlator session running at a time.
+    pub active_correlator: Arc<Mutex<Option<CorrelatorHandle>>>,
 }
 
 pub async fn create_app(config_dir: &Path, database_dir: &Path) -> (Router, AppState) {
@@ -117,7 +120,11 @@ pub async fn create_app(config_dir: &Path, database_dir: &Path) -> (Router, AppS
         admin_config,
         tle_cache,
         weather_cache,
+<<<<<<< HEAD
         login_rate_limiter,
+=======
+        active_correlator: Arc::new(Mutex::new(None)),
+>>>>>>> 41b29b6 (Add two-element interferometry feature)
     };
 
     let mut app = Router::new()
@@ -138,6 +145,10 @@ pub async fn create_app(config_dir: &Path, database_dir: &Path) -> (Router, AppS
             routes::live::routes(webcam_snapshot_url, state.clone()),
         )
         .nest("/weather", routes::weather::routes(state.clone()))
+        .nest(
+            "/interferometry",
+            routes::interferometry::routes(state.clone()),
+        )
         .layer(
             TraceLayer::new_for_http().make_span_with(|request: &Request<_>| {
                 let matched_path = request

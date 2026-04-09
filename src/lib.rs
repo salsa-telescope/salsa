@@ -1,6 +1,7 @@
 pub mod app;
 pub mod booking_monitor;
 pub mod coords;
+pub mod correlator;
 pub mod database;
 pub mod error;
 pub mod fits;

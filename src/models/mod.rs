@@ -1,5 +1,6 @@
 pub mod booking;
 pub mod fake_telescope;
+pub mod interferometry;
 pub mod maintenance;
 pub mod observation;
 pub mod salsa_telescope;
