@@ -13,6 +13,7 @@ pub fn routes(state: AppState) -> Router {
 #[template(path = "weather.html", escape = "none")]
 struct WeatherTemplate {
     age_str: String,
+    weather_ts: i64,
     temp_c: String,
     pressure_hpa: String,
     humidity_pct: String,
@@ -39,6 +40,7 @@ async fn get_weather(State(state): State<AppState>) -> Html<String> {
 
     let html = WeatherTemplate {
         age_str,
+        weather_ts: w.timestamp,
         temp_c: format!("{:.1}", w.temp_c),
         pressure_hpa: format!("{:.0}", w.pressure_hpa),
         humidity_pct: format!("{:.0}", w.humidity_pct),
