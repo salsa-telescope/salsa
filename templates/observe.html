@@ -130,6 +130,7 @@
             id="stop-obs-btn"
             hx-post="/observe/{{ info.id }}/stop"
             hx-swap="none"
+            hx-disabled-elt="this"
             class="btn bg-danger hover:bg-danger-hover hidden"
           >
             End
@@ -559,7 +560,7 @@
       satSelect.disabled = tracking;
       satSelect.classList.toggle('opacity-50', tracking);
       document.querySelectorAll("input[name='az_offset_deg'], input[name='el_offset_deg']").forEach(el => {
-          el.disabled = tracking;
+          el.readOnly = tracking;
           el.classList.toggle('opacity-50', tracking);
       });
   }
