@@ -163,6 +163,9 @@
     in steps of 0.5° or 1°, making one measurement at each position. This gives a one-dimensional cut through the
     beam. You can also scan in elevation, or make a two-dimensional grid to map the full beam shape.</p>
 
+    <p>Each time you want to change the offset, click Stop, enter the new offset values, and click Track again.
+    Wait for the telescope to settle before starting the measurement.</p>
+
     <p><strong>Azimuth vs. elevation offsets:</strong> Elevation offsets directly equal the angular distance on the
     sky — a +2° elevation offset moves the pointing 2° up. Azimuth offsets behave differently: because lines of
     constant azimuth converge toward the zenith (just as lines of longitude converge at the poles), the actual
@@ -172,14 +175,6 @@
     cos(45°) × 4° ≈ 2.8° from the Sun on the sky. To achieve a spacing of 3° on the sky you would instead enter
     3° / cos(45°) ≈ 4.2°. At the elevations typical for this experiment (roughly 20°–50°), the factor cos(el)
     ranges from about 0.64 to 0.94 — noticeable when comparing your measured beam width to the expected value.</p>
-
-    <p class="callout">
-      <strong>Screenshot:</strong> The observe page with Sun selected as target, and the Advanced tracking settings
-      panel expanded showing an azimuth offset of e.g. +3° entered, with the elevation offset at 0°.
-    </p>
-
-    <p class="text-sm text-gray-500">Each time you want to change the offset, click Stop, enter the new offset
-    values, and click Track again. Wait for the telescope to settle before starting the measurement.</p>
 
     <h4 id="s2-3" class="text-xl font-semibold text-gray-800 mt-6">2.3 Receiver settings</h4>
 
@@ -209,7 +204,7 @@
           <tr class="border-b border-gray-300 text-left text-gray-800">
             <th class="pr-8 py-2">Az. offset [°]</th>
             <th class="pr-8 py-2">El. offset [°]</th>
-            <th class="py-2">Avg. power [K]</th>
+            <th class="py-2">Avg. power</th>
           </tr>
         </thead>
         <tbody class="text-gray-600">
@@ -226,10 +221,10 @@
     <p class="mt-3">A complete azimuth scan from −10° to +10° in 1° steps takes about 25 minutes including
     telescope slewing time. Plan your observation slot accordingly.</p>
 
-    <p class="callout">
-      <strong>Screenshot:</strong> The live spectrum chart after a 10 s integration on the Sun at offset 0°,
-      showing the chart subtitle "Avg. power: [value] K" that should be noted for the beam map.
-    </p>
+    <figure>
+      <img src="/sunex.png" alt="A spectrum of the Sun with azimuth offset +1 deg" class="rounded-lg w-[30rem]">
+      <figcaption class="text-sm text-gray-500 mt-1">Fig. 2.1 — A spectrum of the Sun with azimuth offset +1 deg. The Avg. power value and offset should be noted.</figcaption>
+    </figure>
 
   </details>
 
