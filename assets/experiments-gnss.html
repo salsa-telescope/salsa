@@ -195,10 +195,6 @@
       Wait until the telescope has reached the target position before measuring.</li>
     </ol>
 
-    <p class="callout">
-      <strong>Screenshot:</strong> The observe page with "GNSS" selected in the Target dropdown, showing the satellite selector grouped by constellation (GPS, Galileo, GLONASS, BeiDou) with azimuth and elevation values for each visible satellite.
-    </p>
-
     <p class="text-sm text-gray-500">The satellite list updates automatically. If you want to switch to a different satellite,
     click Stop, select a new satellite, and click Track again.</p>
 
@@ -214,10 +210,6 @@
       observations. GNSS signals are not spectral lines we need to subtract a reference from — we want to see the raw
       received power as a function of frequency.</li>
     </ul>
-
-    <p class="callout">
-      <strong>Screenshot:</strong> The Advanced receiver settings panel expanded, showing center frequency auto-set to 1575.42 MHz, bandwidth set to 25 MHz, and mode set to Raw after selecting a GPS satellite.
-    </p>
 
     <p>You can check and adjust these settings under <em>Advanced receiver settings</em> if needed, but the defaults
     should work well for a first observation.</p>
@@ -236,10 +228,6 @@
       <img src="/gps_example.png" alt="Example GPS L1 signal spectrum recorded with SALSA" class="rounded-lg w-full">
       <figcaption class="text-sm text-gray-500 mt-1">Fig. 2.1 — Example spectrum of a GPS L1 signal recorded with SALSA. The broad central lobe and sidelobes of the BPSK-modulated signal are clearly visible.</figcaption>
     </figure>
-
-    <p class="callout">
-      <strong>Screenshot:</strong> The live spectrum chart in the new SALSA interface showing a GPS L1 signal after 1–2 s of integration, with the characteristic broad central peak visible around 1575.42 MHz.
-    </p>
 
     <p>Try observing several satellites, one at a time, and note how their spectra compare.</p>
 
@@ -261,10 +249,6 @@
       towards the sides of the band — the double-humped shape of BOC(1,1) modulation.</li>
     </ul>
 
-    <p class="callout">
-      <strong>Screenshot:</strong> Side-by-side comparison of a GPS spectrum and a Galileo spectrum, both centred at 1575.42 MHz, showing the different spectral shapes — GPS with a smooth central peak vs Galileo with a split-peak profile.
-    </p>
-
     <p>This is the most striking comparison available with SALSA. Both signals are centred at exactly the same frequency,
     yet they are engineered to look different so that receivers can tell them apart. The BOC design was also chosen
     deliberately to make Galileo compatible with GPS (sharing the same band) while minimising interference between them.</p>
@@ -284,10 +268,6 @@
     than at a fixed constellation-wide value. Because each satellite is at a slightly different frequency (FDMA),
     GLONASS's spectrum within a 25 MHz window may contain contributions from multiple satellites at distinguishable
     positions — though at SALSA's spectral resolution they may overlap.</p>
-
-    <p class="callout">
-      <strong>Screenshot:</strong> A GLONASS G1 spectrum showing a narrower signal peak offset from band centre, contrasted with the GPS L1 spectrum for comparison.
-    </p>
 
     <p>Compare the overall width and shape of the GLONASS spectrum to the GPS spectrum. The GLONASS signal uses
     a 0.511 MHz chip rate (compared to 1.023 MHz for GPS L1 C/A), so its central lobe is narrower.</p>
@@ -309,10 +289,6 @@
     of the same type at different elevations), and compare the peak amplitude of their spectra. You should see a clear
     difference in signal strength. For a fair comparison, make sure all other settings (integration time, bandwidth,
     gain) are identical.</p>
-
-    <p class="callout">
-      <strong>Screenshot:</strong> Two GPS spectra overlaid or side by side — one from a satellite at high elevation (~60°) and one at low elevation (~15°) — showing the difference in peak signal strength.
-    </p>
 
   </details>
 
