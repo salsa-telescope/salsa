@@ -8,8 +8,8 @@ use crate::models::maintenance::fetch_maintenance_set;
 use crate::models::observation::Observation;
 use crate::models::telescope::Telescope;
 use crate::models::telescope_types::{
-    ObservationMode, ReceiverConfiguration, ReceiverError, TelescopeError, TelescopeInfo,
-    TelescopeStatus, TelescopeTarget,
+    ObservationMode, ObservedSpectra, ReceiverConfiguration, ReceiverError, TelescopeError,
+    TelescopeInfo, TelescopeStatus, TelescopeTarget,
 };
 use crate::models::user::User;
 use crate::routes::index::render_main;
@@ -283,23 +283,16 @@ async fn set_target(
             error!("No stow position configured for telescope {telescope_id}");
             StatusCode::NOT_FOUND
         })?;
-        save_latest_observation(
-            state.database_connection,
-            &user,
-            telescope.as_ref(),
-            &state.tle_cache,
-        )
-        .await;
-        telescope
-            .set_receiver_configuration(ReceiverConfiguration {
-                integrate: false,
-                ..Default::default()
-            })
-            .await
-            .map_err(|err| {
-                error!("Failed to stop integration: {err}.");
-                StatusCode::INTERNAL_SERVER_ERROR
-            })?;
+        if let Some(spectra) = telescope.stop_integration().await {
+            save_observation(
+                state.database_connection,
+                &user,
+                &info,
+                &spectra,
+                &state.tle_cache,
+            )
+            .await;
+        }
         TelescopeTarget::Horizontal {
             azimuth: stow.azimuth,
             elevation: stow.elevation,
@@ -370,28 +363,13 @@ async fn set_target(
     Ok(error_response(String::new()))
 }
 
-pub(crate) async fn save_latest_observation(
+pub(crate) async fn save_observation(
     connection: Arc<Mutex<Connection>>,
     user: &User,
-    telescope: &dyn Telescope,
+    info: &TelescopeInfo,
+    spectra: &ObservedSpectra,
     tle_cache: &TleCacheHandle,
 ) {
-    let info = match telescope.get_info().await {
-        Ok(info) => info,
-        Err(err) => {
-            error!("Failed to get telescope info for saving observation: {err}");
-            return;
-        }
-    };
-
-    if !info.measurement_in_progress {
-        return;
-    }
-
-    let Some(spectra) = &info.latest_observation else {
-        return;
-    };
-
     let integration_time_secs = spectra.observation_time.as_secs_f64();
     let start_time =
         Utc::now() - Duration::milliseconds(spectra.observation_time.as_millis() as i64);
@@ -513,23 +491,20 @@ async fn stop_telescope(
         .get(&telescope_id)
         .await
         .ok_or(StatusCode::NOT_FOUND)?;
-    save_latest_observation(
-        state.database_connection,
-        &user,
-        telescope.as_ref(),
-        &state.tle_cache,
-    )
-    .await;
-    telescope
-        .set_receiver_configuration(ReceiverConfiguration {
-            integrate: false,
-            ..Default::default()
-        })
-        .await
-        .map_err(|err| {
-            error!("Failed to stop integration: {err}.");
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
+    let info = telescope.get_info().await.map_err(|err| {
+        error!("Failed to get telescope info: {err}");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+    if let Some(spectra) = telescope.stop_integration().await {
+        save_observation(
+            state.database_connection,
+            &user,
+            &info,
+            &spectra,
+            &state.tle_cache,
+        )
+        .await;
+    }
     telescope.stop().await.map_err(|err| {
         error!("Failed to stop telescope: {err}.");
         StatusCode::INTERNAL_SERVER_ERROR
@@ -674,24 +649,20 @@ async fn stop_observe(
         .await
         .ok_or(StatusCode::NOT_FOUND)?;
 
-    save_latest_observation(
-        state.database_connection.clone(),
-        &user,
-        telescope.as_ref(),
-        &state.tle_cache,
-    )
-    .await;
-
-    telescope
-        .set_receiver_configuration(ReceiverConfiguration {
-            integrate: false,
-            ..Default::default()
-        })
-        .await
-        .map_err(|err| {
-            error!("Failed to set target {err}.");
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
+    let info = telescope.get_info().await.map_err(|err| {
+        error!("Failed to get telescope info: {err}");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+    if let Some(spectra) = telescope.stop_integration().await {
+        save_observation(
+            state.database_connection.clone(),
+            &user,
+            &info,
+            &spectra,
+            &state.tle_cache,
+        )
+        .await;
+    }
     let in_maintenance = fetch_maintenance_set(state.database_connection)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?

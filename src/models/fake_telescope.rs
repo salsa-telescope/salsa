@@ -169,6 +169,35 @@ impl Telescope for FakeTelescope {
         Ok(inner.receiver_configuration)
     }
 
+    async fn stop_integration(&self) -> Option<ObservedSpectra> {
+        let mut inner = self.inner.lock().await;
+        if !inner.receiver_configuration.integrate {
+            return None;
+        }
+        inner.receiver_configuration.integrate = false;
+        if inner.current_spectra.is_empty() {
+            return None;
+        }
+        let mut result = ObservedSpectra {
+            frequencies: vec![0f64; FAKE_TELESCOPE_CHANNELS],
+            spectra: vec![0f64; FAKE_TELESCOPE_CHANNELS],
+            observation_time: Duration::from_secs(0),
+        };
+        for integration in &inner.current_spectra {
+            result.spectra = result
+                .spectra
+                .into_iter()
+                .zip(integration.spectra.iter())
+                .map(|(a, b)| a + b)
+                .collect();
+            result.observation_time += integration.observation_time;
+        }
+        result.frequencies = inner.current_spectra[0].frequencies.clone();
+        let n = inner.current_spectra.len() as f64;
+        result.spectra = result.spectra.into_iter().map(|v| v / n).collect();
+        Some(result)
+    }
+
     async fn get_info(&self) -> Result<TelescopeInfo, TelescopeError> {
         let inner = self.inner.lock().await;
 

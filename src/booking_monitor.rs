@@ -6,9 +6,8 @@ use tracing::error;
 
 use crate::app::AppState;
 use crate::models::booking::Booking;
-use crate::models::telescope_types::ReceiverConfiguration;
 use crate::models::user::User;
-use crate::routes::observe::save_latest_observation;
+use crate::routes::observe::save_observation;
 
 pub fn start(state: AppState) {
     tokio::spawn(async move {
@@ -67,26 +66,28 @@ pub fn start(state: AppState) {
                     None => continue,
                 };
 
-                save_latest_observation(
-                    state.database_connection.clone(),
-                    &prev_user,
-                    telescope.as_ref(),
-                    &state.tle_cache,
-                )
-                .await;
+                let info = telescope.get_info().await;
+                if let Some(spectra) = telescope.stop_integration().await {
+                    match &info {
+                        Ok(info) => {
+                            save_observation(
+                                state.database_connection.clone(),
+                                &prev_user,
+                                info,
+                                &spectra,
+                                &state.tle_cache,
+                            )
+                            .await;
+                        }
+                        Err(err) => {
+                            error!(
+                                "Booking monitor: failed to get telescope info for saving observation: {err:?}"
+                            );
+                        }
+                    }
+                }
 
                 let mut stop_ok = true;
-
-                if let Err(err) = telescope
-                    .set_receiver_configuration(ReceiverConfiguration {
-                        integrate: false,
-                        ..Default::default()
-                    })
-                    .await
-                {
-                    error!("Booking monitor: failed to stop integration: {err:?}");
-                    stop_ok = false;
-                }
 
                 if let Err(err) = telescope.stop().await {
                     error!("Booking monitor: failed to stop telescope: {err:?}");

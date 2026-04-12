@@ -1,7 +1,7 @@
 use crate::coords::{Direction, Location};
 use crate::models::telescope_types::{
-    ReceiverConfiguration, ReceiverError, TelescopeDefinition, TelescopeError, TelescopeInfo,
-    TelescopeTarget, TelescopeType, TelescopesConfig,
+    ObservedSpectra, ReceiverConfiguration, ReceiverError, TelescopeDefinition, TelescopeError,
+    TelescopeInfo, TelescopeTarget, TelescopeType, TelescopesConfig,
 };
 
 use crate::models::fake_telescope;
@@ -29,6 +29,10 @@ pub trait Telescope: Send + Sync {
         &self,
         receiver_configuration: ReceiverConfiguration,
     ) -> Result<ReceiverConfiguration, ReceiverError>;
+    /// Stop integration, wait for any in-progress data recording to finish, and return the
+    /// accumulated spectra. Returns None if integration was not running. Calling this twice
+    /// always returns None on the second call, preventing double-saves.
+    async fn stop_integration(&self) -> Option<ObservedSpectra>;
     async fn get_info(&self) -> Result<TelescopeInfo, TelescopeError>;
     async fn shutdown(&self);
 }

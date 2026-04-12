@@ -217,6 +217,31 @@ impl Telescope for SalsaTelescope {
         Ok(inner.receiver_configuration)
     }
 
+    async fn stop_integration(&self) -> Option<ObservedSpectra> {
+        let active_integration = {
+            let mut inner = self.inner.lock().await;
+            if !inner.receiver_configuration.integrate {
+                return None;
+            }
+            inner.receiver_configuration.integrate = false;
+            inner.active_integration.take()
+        };
+        // Lock is dropped — safe to await the task without risk of deadlock.
+        if let Some(ai) = active_integration {
+            ai.cancellation_token.cancel();
+            if let Err(err) = ai.measurement_task.await {
+                error!("Error waiting for measurement task to finish: {err}");
+            }
+        }
+        let inner = self.inner.lock().await;
+        let measurements = inner.measurements.lock().await;
+        measurements.last().map(|m| ObservedSpectra {
+            frequencies: m.freqs.clone(),
+            spectra: m.amps.clone(),
+            observation_time: m.duration,
+        })
+    }
+
     async fn get_info(&self) -> Result<TelescopeInfo, TelescopeError> {
         let inner = self.inner.lock().await;
         let receiver_connected = *inner.receiver_connected.lock().await;
