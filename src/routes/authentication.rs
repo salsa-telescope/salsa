@@ -1,7 +1,9 @@
+use std::net::SocketAddr;
+
 use askama::Template;
 use axum::{
     Extension, Router,
-    extract::{Form, Path, Query, State},
+    extract::{ConnectInfo, Form, Path, Query, State},
     http::{HeaderMap, HeaderValue, StatusCode, header::SET_COOKIE},
     response::{Html, IntoResponse, Redirect, Response},
     routing::{get, post},
@@ -10,10 +12,13 @@ use oauth2::{
     AuthUrl, AuthorizationCode, ClientId, ClientSecret, CsrfToken, RedirectUrl, Scope,
     TokenResponse, TokenUrl, basic::BasicClient,
 };
+use rand::Rng;
 use reqwest::header::USER_AGENT;
 use rusqlite::Result;
 use serde::Deserialize;
 use serde_json::{Map, Value};
+use std::time::Duration;
+use tokio::time::sleep;
 use tracing::{debug, info};
 
 use crate::routes::index::render_main;
@@ -95,6 +100,7 @@ struct LocalLoginForm {
 }
 
 async fn local_login(
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
     State(state): State<AppState>,
     Form(form): Form<LocalLoginForm>,
 ) -> Result<Response, InternalError> {
@@ -105,8 +111,26 @@ async fn local_login(
     )
     .await?;
     let Some(user) = user else {
+        let random_delay: u64 = {
+            let mut rng = rand::rng();
+            rng.random_range(100..=1000)
+        };
+        // This make it harder using the timing of the response to try
+        // to extract info such as if the user exists.
+        sleep(Duration::from_millis(random_delay)).await;
+        info!(
+            username = form.username.clone(),
+            ip = addr.ip().to_string(),
+            "rejecting local login with incorrect username/password combination"
+        );
         return Ok(StatusCode::UNAUTHORIZED.into_response());
     };
+
+    info!(
+        username = form.username.clone(),
+        ip = addr.ip().to_string(),
+        "successful local login"
+    );
 
     let session = Session::create(state.database_connection.clone(), &user).await?;
     let cookie = format!(
