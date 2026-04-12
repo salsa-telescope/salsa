@@ -18,7 +18,7 @@ oauth2 = "5.*"
 rand = "0.9.*"
 rand_distr = "0.5.*"
 refinery = { version = "0.8.*", features = ["rusqlite"] }
-reqwest = { version = "0.12.*", default-features = false, features = ["rustls-tls", "json", "blocking"] }
+reqwest = { version = "0.12.*", default-features = false, features = ["rustls-tls", "json", "blocking", "cookies"] }
 rusqlite = { version = "0.33.0", features = ["bundled"] }
 rustls="0.23"
 rustfft="6.*"

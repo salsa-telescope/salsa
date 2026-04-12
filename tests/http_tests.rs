@@ -1,10 +1,10 @@
+use chrono::{DurationRound, TimeDelta, Utc};
 use reqwest::StatusCode;
 use reqwest::blocking::Client;
 use reqwest::header::{COOKIE, SET_COOKIE};
 
 mod binary_wrappers;
 pub use binary_wrappers::*;
-use tower_http::ServiceExt; // Silences any dead code warnings
 
 #[test]
 fn can_start_and_stop_backend() {
@@ -28,9 +28,7 @@ fn login_with_unknown_local_user_fails() {
 #[test]
 fn login_with_local_user_possible() {
     let server = SalsaTestServer::spawn();
-    let username = "test";
-    let password = "password_for_test";
-    server.add_local_user(username, password);
+    let user = server.add_local_user("test", "password");
     let client = Client::builder()
         .redirect(reqwest::redirect::Policy::none())
         .build()
@@ -38,7 +36,7 @@ fn login_with_local_user_possible() {
 
     let res = client
         .post(server.addr() + "/auth/local")
-        .form(&[("username", username), ("password", password)])
+        .form(&[("username", &user.username), ("password", &user.password)])
         .send()
         .expect("Should be able to send request");
 
@@ -49,14 +47,15 @@ fn login_with_local_user_possible() {
 #[test]
 fn login_with_wrong_password_fails() {
     let server = SalsaTestServer::spawn();
-    let username = "test";
-    let password = "password_for_test";
-    server.add_local_user(username, password);
+    let user = server.add_local_user("test", "password");
     let client = Client::new();
 
     let res = client
         .post(server.addr() + "/auth/local")
-        .form(&[("username", username), ("password", "wrong_password")])
+        .form(&[
+            ("username", user.username.as_str()),
+            ("password", "wrong_password"),
+        ])
         .send()
         .expect("Should be able to send request");
 
@@ -67,7 +66,7 @@ fn login_with_wrong_password_fails() {
 fn create_booking_not_logged_in_isnt_allowed() {
     let server = SalsaTestServer::spawn();
 
-    let client = Client::new();
+    let client = Client::builder().cookie_store(true).build().unwrap();
     let res = client
         .post(server.addr() + "/bookings")
         .form(&[("start_timestamp", "1751331600"), ("telescope", "fake1")])
@@ -75,6 +74,29 @@ fn create_booking_not_logged_in_isnt_allowed() {
         .expect("Should be able to send request");
 
     assert_eq!(StatusCode::UNAUTHORIZED, res.status());
+}
+
+#[test]
+fn create_booking() {
+    let server = SalsaTestServer::spawn();
+    let user = server.add_local_user("user", "password");
+
+    let client = Client::builder().cookie_store(true).build().unwrap();
+    server.login(&client, &user);
+    let next_hour = Utc::now()
+        .duration_round_up(TimeDelta::hours(1))
+        .expect("Should be possible to round up to closest hour")
+        .timestamp();
+    let res = client
+        .post(server.addr() + "/bookings")
+        .form(&[
+            ("start_timestamp", format!("{}", next_hour).as_str()),
+            ("telescope", "fake1"),
+        ])
+        .send()
+        .expect("Should be able to send request");
+
+    assert_eq!(StatusCode::OK, res.status());
 }
 
 #[test]
