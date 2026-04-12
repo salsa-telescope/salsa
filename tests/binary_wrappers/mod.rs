@@ -1,3 +1,4 @@
+use reqwest::StatusCode;
 use reqwest::blocking::get;
 use std::io::{BufRead, BufReader};
 use std::process::{Child, Command, Stdio};
@@ -9,6 +10,11 @@ pub struct SalsaTestServer {
     process: Child,
     port: u16,
     database_dir: TempDir,
+}
+
+pub struct LocalSalsaUser {
+    pub username: String,
+    pub password: String,
 }
 
 impl SalsaTestServer {
@@ -73,7 +79,7 @@ impl SalsaTestServer {
         format!("http://127.0.0.1:{}", self.port)
     }
 
-    pub fn add_local_user(self: &Self, username: &str, password: &str) {
+    pub fn add_local_user(self: &Self, username: &str, password: &str) -> LocalSalsaUser {
         let manage_user_executable = env!("CARGO_BIN_EXE_manage_users");
         let output = Command::new(manage_user_executable)
             .args([
@@ -88,6 +94,7 @@ impl SalsaTestServer {
             .env("PASSWORD", password)
             .output()
             .expect("Should be possible to add local user");
+
         if !output.status.success() {
             panic!(
                 "Failed to add local user:\nstdout:{:?}\nstderr:{:?}",
@@ -95,6 +102,20 @@ impl SalsaTestServer {
                 String::from_utf8(output.stderr).expect("stderr should be utf8"),
             );
         }
+
+        LocalSalsaUser {
+            username: username.to_string(),
+            password: password.to_string(),
+        }
+    }
+
+    pub fn login(self: &Self, client: &reqwest::blocking::Client, user: &LocalSalsaUser) {
+        let res = client
+            .post(self.addr() + "/auth/local")
+            .form(&[("username", &user.username), ("password", &user.password)])
+            .send()
+            .expect("Should be able to send request");
+        assert_eq!(StatusCode::OK, res.status());
     }
 }
 
