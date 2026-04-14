@@ -58,6 +58,20 @@ includes two fake telescopes by default.
 **Safari + localhost**: Safari rejects secure cookies over plain HTTP. Use Chrome
 or Firefox for local development.
 
+## Deployment
+
+The server runs as a systemd service on `salsa.oso.chalmers.se`.
+
+View logs:
+```bash
+sudo journalctl -u salsa -f -p warning
+```
+
+Restart after config changes:
+```bash
+sudo systemctl restart salsa
+```
+
 ## Architecture
 
 - **Routes** (`src/routes/`) — one file per feature area, registered in `app.rs`
