@@ -13,7 +13,7 @@
 
       <hr class="my-4 border-gray-200" />
 
-      <details class="text-sm">
+      <details class="text-sm" {% if error || rate_limited %}open{% endif %}>
         <summary class="cursor-pointer text-gray-500 select-none">Local login (exceptional cases only)</summary>
         <div class="mt-3 space-y-2 max-w-xs">
           <p class="text-gray-500 text-xs">Local accounts are reserved for demonstrations and special cases. Contact SALSA support to request access.</p>
