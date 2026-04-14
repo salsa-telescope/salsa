@@ -70,6 +70,7 @@ async fn logout(
 struct SelectAuthProvider {
     provider_names: Vec<String>,
     error: bool,
+    rate_limited: bool,
 }
 
 #[derive(Deserialize)]
@@ -83,10 +84,12 @@ async fn login(
     Query(query): Query<LoginQuery>,
 ) -> Result<impl IntoResponse, InternalError> {
     let provider_names = state.secrets.get_auth_provider_names();
-    let error = query.error.is_some();
+    let rate_limited = query.error.as_deref() == Some("rate_limited");
+    let error = !rate_limited && query.error.is_some();
     let content = SelectAuthProvider {
         provider_names,
         error,
+        rate_limited,
     }
     .render()
     .expect("Template rendering should always succeed");
@@ -107,7 +110,7 @@ async fn local_login(
     let ip = addr.ip();
     if state.login_rate_limiter.is_blocked(ip) {
         info!(ip = ip.to_string(), "rate limiting local login attempt");
-        return Ok(StatusCode::TOO_MANY_REQUESTS.into_response());
+        return Ok(Redirect::to("/auth/login?error=rate_limited").into_response());
     }
 
     let user = User::fetch_local_with_password(
@@ -130,7 +133,7 @@ async fn local_login(
             ip = ip.to_string(),
             "rejecting local login with incorrect username/password combination"
         );
-        return Ok(StatusCode::UNAUTHORIZED.into_response());
+        return Ok(Redirect::to("/auth/login?error=1").into_response());
     };
 
     state.login_rate_limiter.record_success(ip);

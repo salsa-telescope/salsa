@@ -20,6 +20,9 @@
           {% if error %}
           <p class="text-danger text-sm font-medium">Invalid username or password.</p>
           {% endif %}
+          {% if rate_limited %}
+          <p class="text-danger text-sm font-medium">Too many failed attempts. Please try again later.</p>
+          {% endif %}
           <form method="post" action="/auth/local" class="flex flex-col gap-2">
             <input type="text" name="username" placeholder="Username" required
               class="border rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent-focus" />

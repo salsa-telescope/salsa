@@ -14,7 +14,10 @@ fn can_start_and_stop_backend() {
 #[test]
 fn login_with_unknown_local_user_fails() {
     let server = SalsaTestServer::spawn();
-    let client = Client::new();
+    let client = Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .build()
+        .expect("Should be possible to create reqwest client");
 
     let res = client
         .post(server.addr() + "/auth/local")
@@ -22,7 +25,12 @@ fn login_with_unknown_local_user_fails() {
         .send()
         .expect("Should be able to send request");
 
-    assert_eq!(StatusCode::UNAUTHORIZED, res.status());
+    assert_eq!(StatusCode::SEE_OTHER, res.status());
+    let location = res.headers().get("location").unwrap().to_str().unwrap();
+    assert!(
+        location.contains("error="),
+        "Expected error redirect, got: {location}"
+    );
 }
 
 #[test]
@@ -48,7 +56,10 @@ fn login_with_local_user_possible() {
 fn login_with_wrong_password_fails() {
     let server = SalsaTestServer::spawn();
     let user = server.add_local_user("test", "password");
-    let client = Client::new();
+    let client = Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .build()
+        .expect("Should be possible to create reqwest client");
 
     let res = client
         .post(server.addr() + "/auth/local")
@@ -59,7 +70,12 @@ fn login_with_wrong_password_fails() {
         .send()
         .expect("Should be able to send request");
 
-    assert_eq!(StatusCode::UNAUTHORIZED, res.status());
+    assert_eq!(StatusCode::SEE_OTHER, res.status());
+    let location = res.headers().get("location").unwrap().to_str().unwrap();
+    assert!(
+        location.contains("error="),
+        "Expected error redirect, got: {location}"
+    );
 }
 
 #[test]
