@@ -5,26 +5,35 @@
       <a href="/technical">← Technical specifications</a>
     </p>
     <h2 class="text-3xl font-semibold">LNA measurements</h2>
-    <p class="text-sm text-gray-500">Custom cavity low-noise amplifiers with bandpass filters, procured April 2026.</p>
+    <p class="text-sm text-gray-500">AGO 20cm VLNA — custom cavity low-noise amplifiers with bandpass filters, procured April 2026.</p>
   </div>
 
   <div class="space-y-3 text-gray-700">
     <p>
-      Four custom wideband (WB) cavity LNAs with integrated bandpass filters were built by Tommy Henderson (WD5AGO)
-      specifically for the SALSA L-band receivers. The design addresses a key challenge: a standard 50-ohm
-      bandpass filter placed before an LNA adds 0.6–1 dB of loss, degrading the noise figure. These units
-      solve this by using an input cavity filter matched directly to the transistor, keeping the noise figure
-      below 0.5 dB despite the input filtering.
+      The SALSA antennas operate in an increasingly challenging RFI environment, with strong
+      interference found below 1 GHz and above 1.7 GHz (worst peaks around 1800 and 2150 MHz).
+      This was overloading the previous wide-band RAS LNA (1–2 GHz), causing intermittently
+      very noisy spectra. The solution was to replace the LNA with a unit that filters out-of-band
+      signals before amplification.
     </p>
     <p>
-      Each unit's internal signal path is: input cavity filter → higher-IP transistor stages (up to +16 dBm
-      output IP) → internal 2nd-stage filter and amplifiers → external WB cavity output filter. The high
-      output IP makes the LNA resistant to overload from strong out-of-band signals.
+      Four custom AGO 20cm VLNA units with integrated bandpass filters were built by Tommy Henderson (WD5AGO).
+      The design addresses a key challenge: a standard 50-ohm bandpass filter placed before an LNA
+      adds 0.6–1 dB of loss, degrading the noise figure. These units solve this by using an input
+      cavity filter matched directly to the transistor, keeping the noise figure below 0.5 dB
+      despite the input filtering.
     </p>
     <p>
-      Power is supplied via a Bias-T placed between the output filter and the next stage downstream —
-      the cavity filters do not pass DC, so the Bias-T cannot be placed on the antenna side of the LNA.
-      The external output filter is approximately 40 × 25 × 25 mm with SMA-M and SMA-F connectors.
+      Each unit's internal signal path is: input cavity filter → higher-IP transistor stages
+      (up to +16 dBm output IP) → internal 2nd-stage filter and amplifiers → external WB cavity
+      output filter. The high output IP makes the LNA resistant to overload from strong
+      out-of-band signals. The aluminium cavities are machined to approximately 20 cm.
+    </p>
+    <p>
+      The LNA itself has SMA female input and output connectors. The external output filter
+      (~40 × 25 × 25 mm) has SMA-M input and SMA-F output and connects directly to the LNA
+      output. Power is supplied via a Bias-T placed after the output filter — the cavity
+      filters do not pass DC, so the Bias-T cannot be placed on the antenna side.
     </p>
   </div>
 
@@ -34,6 +43,7 @@
     <div class="space-y-1 text-gray-700 text-sm">
       <p><strong>Recommended operating range:</strong> 1350–1600 MHz</p>
       <p><strong>Power supply:</strong> 11–20 VDC, ~145 mA (±10 mA)</p>
+      <p><strong>Connectors:</strong> SMA female input and output (LNA); SMA-M/SMA-F (external filter)</p>
     </div>
     <div class="overflow-x-auto">
       <table class="text-sm border-collapse w-full">
@@ -112,19 +122,20 @@
 
   <!-- Plots -->
   <div class="space-y-4">
-    <h3 class="text-lg font-semibold text-gray-800">Measured plots</h3>
+    <h3 class="text-lg font-semibold text-gray-800">Measurements</h3>
     <p class="text-sm text-gray-500">
-      Gain plots include a 26 dB attenuator — add 26 dB to the displayed values to get
-      the actual gain.
+      The VNA sweep shows gain (blue) and noise figure (orange) from 1–2 GHz.
+      A 26 dB attenuator was used in the gain measurement path — add 26 dB to the
+      displayed gain values to get the actual gain.
     </p>
     <div class="flex flex-col gap-6">
       <figure class="space-y-1">
-        <img src="/lna-plot-1.png" alt="LNA gain sweep plot" class="max-w-full rounded border border-gray-200" />
-        <figcaption class="text-xs text-gray-500">Gain sweep (with 26 dB attenuator in measurement path)</figcaption>
+        <img src="/lna-plot-1.png" alt="VNA sweep showing gain and noise figure from 1 to 2 GHz" class="max-w-full rounded border border-gray-200" />
+        <figcaption class="text-xs text-gray-500">VNA sweep: gain (blue, +26 dB correction) and noise figure (orange), 1–2 GHz</figcaption>
       </figure>
       <figure class="space-y-1">
-        <img src="/lna-plot-2.png" alt="LNA noise figure sweep plot" class="max-w-full rounded border border-gray-200" />
-        <figcaption class="text-xs text-gray-500">Noise figure sweep</figcaption>
+        <img src="/lna-plot-2.png" alt="Photo of the AGO 20cm VLNA unit and BP filter on the test bench" class="max-w-full rounded border border-gray-200" />
+        <figcaption class="text-xs text-gray-500">The AGO 20cm VLNA unit (left) and BP filter (right) on the test bench</figcaption>
       </figure>
     </div>
   </div>
