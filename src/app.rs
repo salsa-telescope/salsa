@@ -14,6 +14,7 @@ use tracing::{debug, debug_span};
 use serde::Deserialize;
 
 use crate::database::create_sqlite_database_on_disk;
+use crate::login_rate_limiter::LoginRateLimiterHandle;
 use crate::middleware::cookies::cookies_middleware;
 use crate::middleware::session::session_middleware;
 use crate::models::telescope::{TelescopeCollectionHandle, create_telescope_collection};
@@ -65,6 +66,7 @@ pub struct AppState {
     pub admin_config: Arc<AdminConfig>,
     pub tle_cache: TleCacheHandle,
     pub weather_cache: WeatherCacheHandle,
+    pub login_rate_limiter: LoginRateLimiterHandle,
 }
 
 pub async fn create_app(config_dir: &Path, database_dir: &Path) -> (Router, AppState) {
@@ -83,6 +85,7 @@ pub async fn create_app(config_dir: &Path, database_dir: &Path) -> (Router, AppS
     start_tle_refresh(tle_cache.clone());
     let weather_cache = WeatherCacheHandle::new();
     start_weather_refresh(weather_cache.clone());
+    let login_rate_limiter = LoginRateLimiterHandle::new();
     let telescopes = create_telescope_collection(
         config_path
             .to_str()
@@ -114,6 +117,7 @@ pub async fn create_app(config_dir: &Path, database_dir: &Path) -> (Router, AppS
         admin_config,
         tle_cache,
         weather_cache,
+        login_rate_limiter,
     };
 
     let mut app = Router::new()

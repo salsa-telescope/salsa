@@ -104,6 +104,12 @@ async fn local_login(
     State(state): State<AppState>,
     Form(form): Form<LocalLoginForm>,
 ) -> Result<Response, InternalError> {
+    let ip = addr.ip();
+    if state.login_rate_limiter.is_blocked(ip) {
+        info!(ip = ip.to_string(), "rate limiting local login attempt");
+        return Ok(StatusCode::TOO_MANY_REQUESTS.into_response());
+    }
+
     let user = User::fetch_local_with_password(
         state.database_connection.clone(),
         &form.username,
@@ -118,17 +124,19 @@ async fn local_login(
         // This make it harder using the timing of the response to try
         // to extract info such as if the user exists.
         sleep(Duration::from_millis(random_delay)).await;
+        state.login_rate_limiter.record_failure(ip);
         info!(
             username = form.username.clone(),
-            ip = addr.ip().to_string(),
+            ip = ip.to_string(),
             "rejecting local login with incorrect username/password combination"
         );
         return Ok(StatusCode::UNAUTHORIZED.into_response());
     };
 
+    state.login_rate_limiter.record_success(ip);
     info!(
         username = form.username.clone(),
-        ip = addr.ip().to_string(),
+        ip = ip.to_string(),
         "successful local login"
     );
 

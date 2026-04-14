@@ -5,6 +5,7 @@ pub mod database;
 pub mod error;
 pub mod fits;
 pub mod logging;
+pub mod login_rate_limiter;
 pub mod middleware;
 pub mod models;
 pub mod routes;
