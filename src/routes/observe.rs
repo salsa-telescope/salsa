@@ -761,8 +761,8 @@ async fn get_observe_maintenance(
     Ok(Html(content))
 }
 
-const FREQ_MIN_USER_MHZ: u32 = 1400;
-const FREQ_MAX_USER_MHZ: u32 = 1700;
+const FREQ_MIN_USER_MHZ: u32 = 1350;
+const FREQ_MAX_USER_MHZ: u32 = 1600;
 const FREQ_MIN_ADMIN_MHZ: u32 = 800;
 const FREQ_MAX_ADMIN_MHZ: u32 = 2300;
 

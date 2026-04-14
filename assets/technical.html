@@ -19,7 +19,7 @@ Onsala Space Observatory, 57°24'N, 11°55'E, approximately 5 m above sea level.
         <h3 class="text-lg font-semibold text-gray-800">Key specifications</h3>
         <ul class="list-disc list-inside space-y-1">
           <li>Dish diameter: 2.3 m (main beam ~6° at 21 cm)</li>
-          <li>Frequency range: 1400–1700 MHz (up to 25 MHz instantaneous bandwidth)</li>
+          <li>Frequency range: 1350–1600 MHz (up to 25 MHz instantaneous bandwidth)</li>
           <li>Rotation speed: 1.5° / second </li>
         </ul>
       </div>
@@ -39,7 +39,7 @@ below.</p>
       <div class="space-y-2">
         <h3 class="text-lg font-semibold text-gray-800">Signal path and sampler</h3>
         <p>The incoming electromagnetic waves are reflected in the parabolic dish and summed coherently (in-phase for 21 cm wavelength) at the feed horn. Inside the horn is a small (5 cm) metal probe which is the actual antenna, sensitive to a single linear polarisation. The probe has an N-type connector on the outside of the horn, and a short (30 cm) CNT-400 cable connects it to a small box mounted on the horn. This box contains a Low Noise Amplifier (LNA) with a Bias-T that feeds the LNA 12 V DC through the coax. The LNA is custom built by Tommy Henderson at AGO in the US. </p>
-        <p>After the LNA, the signal travels down the telescope through approximately 10 m of RG-400 cable to a junction box. Here a second Bias-T injects the 12 V supply onto the cable feeding the LNA above. After the junction box, the signal continues via approximately 30 m of CNT-400 coax into the building where the sampler is located. The sampler is a <a href="https://files.ettus.com/manual/page_usrp2.html">USRP N210</a> equipped with a <a href="https://kb.ettus.com/DBSRX2">DBSRX2</a> daughter board, which digitizes the waveform and sends samples via 1 Gbps Ethernet to the control computer. The DBSRX2 card covers 0.8–2.3 GHz, but due to strong interference above 1.8 GHz the LNAs include additional filters limiting the usable range to 1400–1700 MHz. The USRP supports up to 25 MHz instantaneous bandwidth; for standard HI observations the default 2.5 MHz is sufficient. Both bandwidth and channel resolution are selectable by the user.</p>
+        <p>After the LNA, the signal travels down the telescope through approximately 10 m of RG-400 cable to a junction box. Here a second Bias-T injects the 12 V supply onto the cable feeding the LNA above. After the junction box, the signal continues via approximately 30 m of CNT-400 coax into the building where the sampler is located. The sampler is a <a href="https://files.ettus.com/manual/page_usrp2.html">USRP N210</a> equipped with a <a href="https://kb.ettus.com/DBSRX2">DBSRX2</a> daughter board, which digitizes the waveform and sends samples via 1 Gbps Ethernet to the control computer. The DBSRX2 card covers 0.8–2.3 GHz, but due to strong interference above 1.8 GHz the LNAs include additional filters limiting the usable range to 1350–1600 MHz. The USRP supports up to 25 MHz instantaneous bandwidth; for standard HI observations the default 2.5 MHz is sufficient. Both bandwidth and channel resolution are selectable by the user. The DBSRX2 has a software-controlled gain range of 0–73 dB; the ADC saturates at roughly −10 to 0 dBm at the SMA input depending on gain setting, so the total in-band power should be kept around −20 to −30 dBm for clean linear operation.</p>
       </div>
 
       <div class="space-y-2">
@@ -89,7 +89,7 @@ below.</p>
           <div class="text-gray-500 text-[1.4em] leading-tight">↓</div>
           <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-white text-center">Coaxial cable CNT-400 (30 cm)</div>
           <div class="text-gray-500 text-[1.4em] leading-tight">↓</div>
-          <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-white text-center">LNA<br><span class="text-[0.85em] text-gray-500">filter 1400–1700 MHz, 12V via Bias-T</span></div>
+          <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-white text-center">LNA<br><span class="text-[0.85em] text-gray-500">filter 1350–1600 MHz, 12V via Bias-T</span></div>
           <div class="text-gray-500 text-[1.4em] leading-tight">↓</div>
           <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-white text-center">Coaxial cable RG-400 (10 m)</div>
           <div class="text-gray-500 text-[1.4em] leading-tight">↓</div>
