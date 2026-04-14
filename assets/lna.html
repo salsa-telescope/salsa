@@ -10,11 +10,21 @@
 
   <div class="space-y-3 text-gray-700">
     <p>
-      Four custom cavity LNAs with integrated bandpass filters were built by Tommy Henderson (WD5AGO)
-      specifically for the SALSA L-band receivers. Each unit consists of a cavity LNA followed by
-      a cavity bandpass filter. Power is supplied via a Bias-T placed between the filter output
-      and the LNA — the cavity filter does not pass DC, so the Bias-T cannot be placed on the
-      antenna side of the filter.
+      Four custom wideband (WB) cavity LNAs with integrated bandpass filters were built by Tommy Henderson (WD5AGO)
+      specifically for the SALSA L-band receivers. The design addresses a key challenge: a standard 50-ohm
+      bandpass filter placed before an LNA adds 0.6–1 dB of loss, degrading the noise figure. These units
+      solve this by using an input cavity filter matched directly to the transistor, keeping the noise figure
+      below 0.5 dB despite the input filtering.
+    </p>
+    <p>
+      Each unit's internal signal path is: input cavity filter → higher-IP transistor stages (up to +16 dBm
+      output IP) → internal 2nd-stage filter and amplifiers → external WB cavity output filter. The high
+      output IP makes the LNA resistant to overload from strong out-of-band signals.
+    </p>
+    <p>
+      Power is supplied via a Bias-T placed between the output filter and the next stage downstream —
+      the cavity filters do not pass DC, so the Bias-T cannot be placed on the antenna side of the LNA.
+      The external output filter is approximately 40 × 25 × 25 mm with SMA-M and SMA-F connectors.
     </p>
   </div>
 
