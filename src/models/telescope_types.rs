@@ -103,6 +103,41 @@ pub enum TelescopeError {
     ReceiverFailed(String),
 }
 
+impl Display for TelescopeTarget {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TelescopeTarget::Equatorial {
+                right_ascension,
+                declination,
+            } => write!(
+                f,
+                "Equatorial(ra={:.2}°, dec={:.2}°)",
+                right_ascension.to_degrees(),
+                declination.to_degrees()
+            ),
+            TelescopeTarget::Galactic {
+                longitude,
+                latitude,
+            } => write!(
+                f,
+                "Galactic(lon={:.2}°, lat={:.2}°)",
+                longitude.to_degrees(),
+                latitude.to_degrees()
+            ),
+            TelescopeTarget::Horizontal { azimuth, elevation } => write!(
+                f,
+                "Horizontal(az={:.2}°, el={:.2}°)",
+                azimuth.to_degrees(),
+                elevation.to_degrees()
+            ),
+            TelescopeTarget::Sun => write!(f, "Sun"),
+            TelescopeTarget::Satellite { norad_id } => {
+                write!(f, "Satellite(norad_id={norad_id})")
+            }
+        }
+    }
+}
+
 impl Display for TelescopeError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {

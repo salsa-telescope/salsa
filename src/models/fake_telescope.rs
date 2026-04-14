@@ -126,7 +126,7 @@ impl Telescope for FakeTelescope {
             || target_horizontal.elevation > inner.max_elevation_rad
         {
             info!(
-                "Refusing to set target for telescope {} to {:?}. Target is out of elevation range",
+                "Refusing to set target for telescope {} to {}. Target is out of elevation range",
                 &inner.name, &target
             );
             Err(TelescopeError::TargetOutOfElevationRange {
@@ -135,8 +135,11 @@ impl Telescope for FakeTelescope {
             })
         } else {
             info!(
-                "Setting target for telescope {} to {:?}",
-                &inner.name, &target
+                "Setting target for telescope {} to {} (az={:.2}°, el={:.2}°)",
+                &inner.name,
+                &target,
+                target_horizontal.azimuth.to_degrees(),
+                target_horizontal.elevation.to_degrees()
             );
             inner.az_offset_rad = az_offset_rad;
             inner.el_offset_rad = el_offset_rad;
@@ -294,7 +297,7 @@ impl Inner {
                 || target_horizontal.elevation > self.max_elevation_rad
             {
                 info!(
-                    "Stopping telescope since target {:?} is out of elevation range.",
+                    "Stopping telescope since target {} is out of elevation range.",
                     &target
                 );
                 self.most_recent_error = Some(TelescopeError::TargetOutOfElevationRange {
