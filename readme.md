@@ -9,6 +9,14 @@ templates, [HTMX](https://htmx.org), and [Tailwind CSS](https://tailwindcss.com)
 
 ## Building
 
+On Debian/Ubuntu, install the build dependencies first:
+
+```bash
+sudo apt install libuhd-dev libuhd4.6.0 clang libclang-dev llvm-dev
+```
+
+Then:
+
 ```bash
 cargo build
 ```
@@ -71,6 +79,36 @@ Restart after config changes:
 ```bash
 sudo systemctl restart salsa
 ```
+
+### TLS certificate
+
+Obtain a certificate via certbot (standalone mode — no web server needed):
+
+```bash
+sudo certbot certonly --standalone -d salsa.oso.chalmers.se
+```
+
+To ensure the certificate auto-renews every 90 days, add pre/post hooks that
+stop and start the service. In `/etc/letsencrypt/renewal/salsa.oso.chalmers.se.conf`:
+
+```
+pre_hook = systemctl stop salsa.service
+post_hook = systemctl start salsa.service
+```
+
+### Initial server setup (WIP)
+
+Steps to set up the service on a fresh Linux machine (work in progress):
+
+- Install Rust: https://rust-lang.org/tools/install
+- Install build dependencies (see [Building](#building) above)
+- Create a `salsa` user and a `githubrunner` user
+- Create a `salsaowners` group and add both users to it
+- Install the GitHub Actions runner daemon as the `githubrunner` user
+- Create the deployment directory `/home/salsa/bin` owned by `salsa:salsaowners`
+- Configure the systemd service to allow the binary to bind to privileged ports
+- Set up the TLS certificate (see above)
+- Place `config.toml` and `.secrets.toml` in the config directory
 
 ## Architecture
 
