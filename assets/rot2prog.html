@@ -183,7 +183,7 @@
     <p class="text-gray-700">
       For example, azimuth 5.54° is encoded as
       <code>(5.54 + 360) × 100 = 36554</code>, giving bytes
-      <code>[3, 6, 5, 5, 4]</code>. Note: the SPID MD01 documentation describes
+      <code>[3, 6, 5, 5, 4]</code>. One could expect 
       ASCII encoding (bytes <code>0x30</code>–<code>0x39</code>), but the
       hardware returns raw digit bytes (0–9). The SALSA backend uses raw bytes.
     </p>
@@ -208,7 +208,6 @@
   <div class="space-y-2 text-gray-700">
     <h3 class="text-lg font-semibold text-gray-800">References</h3>
     <ul class="list-disc list-inside space-y-1">
-      <li><a href="/SPID_MD-0x_MANUAL_ENG.pdf">SPID MD01 controller manual</a> — official hardware documentation including ROT2PROG protocol appendix</li>
       <li><a href="https://ryeng.name/blog/3">ryeng.name/blog/3</a> — reverse-engineered protocol description with worked examples</li>
     </ul>
   </div>
