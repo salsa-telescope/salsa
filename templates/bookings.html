@@ -35,7 +35,7 @@
         {% if booking.active_at(now) %}
         <a href="observe/{{ booking.telescope_name }}" class="my-booking-btn my-booking-observe">Observe</a>
         {% else %}
-        <span class="my-booking-btn my-booking-observe my-booking-observe-pending" title="Observe opens at {{ booking.start_time.format("%H:%M") }} UTC">Opens {{ booking.start_time.format("%H:%M") }}</span>
+        <span class="my-booking-btn my-booking-observe my-booking-observe-pending" title="Observe opens at {{ booking.start_time.format("%Y-%m-%d %H:%M") }} UTC">Observe</span>
         {% endif %}
         <button
           hx-delete="bookings/{{ booking.id }}?week={{ week_start }}{% if is_admin %}&user_id={{ viewed_user_id }}{% endif %}"
