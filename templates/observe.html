@@ -31,7 +31,7 @@
               <label class="block text-sm text-gray-600">Target</label>
               <select name="coordinate_system" class="border rounded px-2 py-1 bg-white w-full text-sm">
                 <option value="galactic" {% if target_mode=="galactic" %}selected="selected"{% endif %}>Galactic</option>
-                <option value="equatorial" {% if target_mode=="equatorial" %}selected="selected"{% endif %}>Equatorial</option>
+                <option value="equatorial" {% if target_mode=="equatorial" %}selected="selected"{% endif %}>Equatorial (J2000)</option>
                 <option value="horizontal" {% if target_mode=="horizontal" %}selected="selected"{% endif %}>Horizontal</option>
                 <option value="sun" {% if target_mode=="sun" %}selected="selected"{% endif %}>Sun</option>
                 <option value="gnss" {% if target_mode=="gnss" %}selected="selected"{% endif %}>GNSS</option>
