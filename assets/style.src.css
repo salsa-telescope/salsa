@@ -457,6 +457,15 @@ footer {
 .my-booking-observe:hover {
     background: var(--color-observe-bg);
 }
+.my-booking-observe-pending {
+    color: var(--color-muted);
+    border-color: var(--color-brand-border);
+    cursor: default;
+    opacity: 0.7;
+}
+.my-booking-observe-pending:hover {
+    background: white;
+}
 .my-booking-delete {
     color: var(--color-delete);
     border-color: var(--color-delete-border);
