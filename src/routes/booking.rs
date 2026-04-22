@@ -81,7 +81,7 @@ fn build_calendar_slots(
                             (SlotStatus::Mine, Some(b.id), None)
                         }
                     } else {
-                        (SlotStatus::OtherUser, None, Some(b.user_name.clone()))
+                        (SlotStatus::OtherUser, Some(b.id), Some(b.user_name.clone()))
                     }
                 } else {
                     (SlotStatus::Free, None, None)

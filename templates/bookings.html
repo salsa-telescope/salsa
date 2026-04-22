@@ -43,7 +43,7 @@
         <button
           hx-delete="bookings/{{ booking.id }}?week={{ week_start }}{% if is_admin %}&user_id={{ viewed_user_id }}{% endif %}"
           hx-target="#page"
-          hx-confirm="Delete this booking?"
+          hx-confirm="{% if is_admin %}Delete booking by {{ booking.user_name }}?{% else %}Delete this booking?{% endif %}"
           data-timestamp="{{ booking.start_time.timestamp() }}"
           data-telescope="{{ booking.telescope_name }}"
           class="my-booking-btn my-booking-delete"
@@ -181,9 +181,22 @@
               title="My booking (active now) — click to cancel">
           </td>
           {% when SlotStatus::OtherUser %}
+          {% if is_admin %}
           <td class="calendar-slot calendar-slot-other"
-              title="{% if is_admin %}Booked by {{ slot.booked_by.as_deref().unwrap_or("unknown") }}{% else %}Booked by another user{% endif %}">
+              hx-delete="/bookings/{{ slot.booking_id.unwrap() }}?week={{ week_start }}&user_id={{ viewed_user_id }}"
+              hx-target="#page"
+              hx-confirm="Cancel this booking?"
+              data-timestamp="{{ slot.start_time.timestamp() }}"
+              data-telescope="{{ slot.telescope_name }}"
+              data-booked-by="{{ slot.booked_by.as_deref().unwrap_or("") }}"
+              title="Booked by {{ slot.booked_by.as_deref().unwrap_or("unknown") }} — click to cancel"
+              style="cursor: pointer;">
           </td>
+          {% else %}
+          <td class="calendar-slot calendar-slot-other"
+              title="Booked by another user">
+          </td>
+          {% endif %}
           {% when SlotStatus::Past %}
           <td class="calendar-slot calendar-slot-past">
           </td>
@@ -328,17 +341,19 @@
         var elt = evt.detail.elt;
         var tel = elt.dataset.telescope || '';
         var ts = elt.dataset.timestamp;
+        var bookedBy = elt.dataset.bookedBy || '';
         var adj = getConsecutiveAfter(elt, 'calendar-slot-mine');
         slotData = [{ deleteUrl: elt.getAttribute('hx-delete'), ts: ts }];
         adj.forEach(function(c) {
           slotData.push({ deleteUrl: c.getAttribute('hx-delete'), ts: c.dataset.timestamp });
         });
         ok.className = ok.dataset.clsDanger;
+        var bookedBySuffix = bookedBy ? ' (booked by ' + bookedBy + ')' : '';
         if (adj.length > 0) {
           document.getElementById('confirm-dialog-title').textContent = 'Cancel booking';
           document.getElementById('confirm-dialog-msg').innerHTML =
             'Cancel <strong class="text-gray-900">' + tel + '</strong>' +
-            ' from <strong class="text-gray-900">' + tsToTime(ts) + '</strong> UTC';
+            ' from <strong class="text-gray-900">' + tsToTime(ts) + '</strong> UTC' + bookedBySuffix;
           slotData.forEach(function(s) {
             var o = document.createElement('option');
             o.textContent = tsEndTime(s.ts);
@@ -351,7 +366,7 @@
           document.getElementById('confirm-dialog-title').textContent = 'Cancel booking';
           document.getElementById('confirm-dialog-msg').innerHTML =
             'Cancel <strong class="text-gray-900">' + tel + '</strong>' +
-            ' at <strong class="text-gray-900">' + tsToUTC(ts) + '</strong> UTC?';
+            ' at <strong class="text-gray-900">' + tsToUTC(ts) + '</strong> UTC?' + bookedBySuffix;
           ok.textContent = 'Cancel booking';
         }
       }

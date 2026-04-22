@@ -35,16 +35,15 @@ impl Booking {
         user: &User,
     ) -> Result<bool, InternalError> {
         let conn = connection.lock().await;
-        let rows_deleted = conn
-            .execute(
-                "DELETE FROM booking
-                WHERE id = (?1)
-                AND user_id = (?2)",
+        let rows_deleted = if user.is_admin {
+            conn.execute("DELETE FROM booking WHERE id = (?1)", (&self.id,))
+        } else {
+            conn.execute(
+                "DELETE FROM booking WHERE id = (?1) AND user_id = (?2)",
                 (&self.id, &user.id),
             )
-            .map_err(|err| {
-                InternalError::new(format!("Failed to delete booking from db: {err}"))
-            })?;
+        }
+        .map_err(|err| InternalError::new(format!("Failed to delete booking from db: {err}")))?;
         if rows_deleted >= 2 {
             return Err(InternalError::new(format!(
                 "Unexpected number of rows deleted: {rows_deleted}"
