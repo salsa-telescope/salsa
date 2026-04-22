@@ -162,10 +162,20 @@
         <td class="py-2 pr-8 text-gray-500">Total booked hours</td>
         <td class="py-2 font-medium">{{ total_hours }}</td>
       </tr>
-      <tr>
+      <tr class="border-b">
         <td class="py-2 pr-8 text-gray-500">Unique users</td>
         <td class="py-2 font-medium">{{ unique_users }}</td>
       </tr>
+      {% if !countries.is_empty() %}
+      <tr>
+        <td class="py-2 pr-8 text-gray-500 align-top">Countries ({{ countries.len() }})</td>
+        <td class="py-2 font-medium">
+          {% for (code, count) in countries %}
+          <span title="{{ count }} bookings">{{ code }}</span>{% if !loop.last %}, {% endif %}
+          {% endfor %}
+        </td>
+      </tr>
+      {% endif %}
     </tbody>
   </table>
   </div>

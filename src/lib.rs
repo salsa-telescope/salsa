@@ -4,6 +4,7 @@ pub mod coords;
 pub mod database;
 pub mod error;
 pub mod fits;
+pub mod geoip;
 pub mod logging;
 pub mod login_rate_limiter;
 pub mod middleware;

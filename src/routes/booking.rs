@@ -1,10 +1,11 @@
 use crate::app::AppState;
+use crate::geoip::lookup_country;
 use crate::models::booking::Booking;
 use crate::models::maintenance::fetch_maintenance_set;
 use crate::models::user::User;
 use crate::routes::index::render_main;
 use askama::Template;
-use axum::extract::{Path, Query};
+use axum::extract::{ConnectInfo, Path, Query};
 use axum::http::{HeaderMap, HeaderValue, header};
 use axum::response::{Html, IntoResponse, Redirect, Response};
 use axum::{Extension, Form};
@@ -16,6 +17,7 @@ use axum::{
 };
 use chrono::{DateTime, Datelike, Duration, NaiveDate, Utc};
 use serde::Deserialize;
+use std::net::SocketAddr;
 
 pub fn routes(state: AppState) -> Router {
     Router::new()
@@ -178,6 +180,7 @@ struct SlotBookingForm {
 
 async fn create_booking(
     Extension(user): Extension<Option<User>>,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
     headers: HeaderMap,
     State(state): State<AppState>,
     Form(form): Form<SlotBookingForm>,
@@ -195,6 +198,8 @@ async fn create_booking(
         return Ok(StatusCode::BAD_REQUEST.into_response());
     }
 
+    let country = lookup_country(addr.ip());
+
     let description = form
         .description
         .as_deref()
@@ -211,6 +216,7 @@ async fn create_booking(
         user_provider: user.provider.clone(),
         telescope_name: form.telescope.clone(),
         description: description.clone(),
+        country: country.clone(),
     };
 
     let maintenance = fetch_maintenance_set(state.database_connection.clone())
@@ -246,6 +252,7 @@ async fn create_booking(
             booking.start_time,
             booking.end_time,
             description,
+            country,
         )
         .await?;
         None
