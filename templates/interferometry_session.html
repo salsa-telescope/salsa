@@ -31,8 +31,8 @@
   <div id="charts" class="grid grid-cols-1 lg:grid-cols-2 gap-6"
        {% if visibility_count == 0 %}style="display:none"{% endif %}>
     <div>
-      <h3 class="font-semibold text-sm mb-1 text-center">Amplitude vs time (freq-averaged)</h3>
-      <div id="chart-amp-time"></div>
+      <h3 class="font-semibold text-sm mb-1 text-center">Amplitude vs frequency (time-averaged)</h3>
+      <div id="chart-amp-freq"></div>
     </div>
     <div>
       <h3 class="font-semibold text-sm mb-1 text-center">Phase vs time (freq-averaged)</h3>
@@ -80,11 +80,11 @@
     return svg.append('path').attr('fill', 'none').attr('stroke', 'var(--color-accent)').attr('stroke-width', 1.5);
   }
 
-  // ---- Amplitude vs time ----
-  const svgAt = makeSvg('chart-amp-time');
-  const xAt = d3.scaleTime().range([0, iw]);
-  const yAt = d3.scaleLinear().range([ih, 0]);
-  const lineAt = makeAxes(svgAt, xAt, yAt, 'UTC time', 'Amplitude');
+  // ---- Amplitude vs frequency ----
+  const svgAf = makeSvg('chart-amp-freq');
+  const xAf = d3.scaleLinear().range([0, iw]);
+  const yAf = d3.scaleLinear().range([ih, 0]);
+  const lineAf = makeAxes(svgAf, xAf, yAf, 'Frequency [MHz]', 'Amplitude');
 
   // ---- Phase vs time ----
   const svgPt = makeSvg('chart-phase-time');
@@ -104,8 +104,13 @@
   const yDt = d3.scaleLinear().range([ih, 0]);
   const lineDt = makeAxes(svgDt, xDt, yDt, 'UTC time', 'Delay [ns]');
 
-  function updateAxes(svg, x, y) {
+  function updateTimeAxes(svg, x, y) {
     svg.select('.x-axis').call(d3.axisBottom(x).ticks(5).tickFormat(d3.timeFormat('%H:%M:%S')));
+    svg.select('.y-axis').call(d3.axisLeft(y).ticks(5));
+  }
+
+  function updateLinearAxes(svg, x, y) {
+    svg.select('.x-axis').call(d3.axisBottom(x).ticks(5));
     svg.select('.y-axis').call(d3.axisLeft(y).ticks(5));
   }
 
@@ -114,6 +119,22 @@
     const span = hi - lo;
     const pad = span > 0 ? span * 0.1 : Math.abs(lo) * 0.1 || 1;
     return [lo - pad, hi + pad];
+  }
+
+  // Auto-scale phase axes, but never exceed the meaningful ±180° range.
+  function phaseDomain(values) {
+    const [lo, hi] = padDomain(d3.extent(values));
+    return [Math.max(lo, -180), Math.min(hi, 180)];
+  }
+
+  // Circular mean of phases (degrees): average complex unit vectors, return phase of result.
+  function circularMeanDeg(phases) {
+    let re = 0, im = 0;
+    for (const p of phases) {
+      const r = p * Math.PI / 180;
+      re += Math.cos(r); im += Math.sin(r);
+    }
+    return Math.atan2(im / phases.length, re / phases.length) * 180 / Math.PI;
   }
 
   function render(data) {
@@ -126,41 +147,46 @@
     const times = data.map(d => new Date(d.time));
     const timeExt = d3.extent(times);
 
-    // Amplitude vs time
-    xAt.domain(timeExt);
-    yAt.domain(padDomain(d3.extent(data, d => d.mean_amplitude)));
-    updateAxes(svgAt, xAt, yAt);
-    lineAt.datum(data).attr('d', d3.line().x(d => xAt(new Date(d.time))).y(d => yAt(d.mean_amplitude)));
-
-    // Phase vs time
-    xPt.domain(timeExt);
-    yPt.domain(padDomain(d3.extent(data, d => d.mean_phase_deg)));
-    updateAxes(svgPt, xPt, yPt);
-    linePt.datum(data).attr('d', d3.line().x(d => xPt(new Date(d.time))).y(d => yPt(d.mean_phase_deg)));
-
-    // Phase vs frequency (time-averaged per channel)
-    if (data.length > 0) {
-      const freqs = JSON.parse(data[0].frequencies_json);
-      const nCh = freqs.length;
-      const avgPhase = new Array(nCh).fill(0);
-      for (const row of data) {
-        const phases = JSON.parse(row.phases_json);
-        for (let i = 0; i < nCh; i++) avgPhase[i] += phases[i];
+    // Amplitude vs frequency and Phase vs frequency (both time-averaged per channel)
+    const freqs = JSON.parse(data[0].frequencies_json);
+    const nCh = freqs.length;
+    const sumRe = new Array(nCh).fill(0);
+    const sumIm = new Array(nCh).fill(0);
+    for (const row of data) {
+      const amps = JSON.parse(row.amplitudes_json);
+      const phases = JSON.parse(row.phases_json);
+      for (let i = 0; i < nCh; i++) {
+        const r = phases[i] * Math.PI / 180;
+        sumRe[i] += amps[i] * Math.cos(r);
+        sumIm[i] += amps[i] * Math.sin(r);
       }
-      for (let i = 0; i < nCh; i++) avgPhase[i] /= data.length;
-      const freqsMHz = freqs.map(f => f / 1e6);
-      xPf.domain(d3.extent(freqsMHz));
-      yPf.domain(padDomain(d3.extent(avgPhase)));
-      svgPf.select('.x-axis').call(d3.axisBottom(xPf).ticks(5));
-      svgPf.select('.y-axis').call(d3.axisLeft(yPf).ticks(5));
-      const pfData = freqsMHz.map((f, i) => ({ f, p: avgPhase[i] }));
-      linePf.datum(pfData).attr('d', d3.line().x(d => xPf(d.f)).y(d => yPf(d.p)));
     }
+    const freqsMHz = freqs.map(f => f / 1e6);
+    const avgAmps = sumRe.map((re, i) => Math.hypot(re, sumIm[i]) / data.length);
+    const avgPhases = sumRe.map((re, i) => Math.atan2(sumIm[i], re) * 180 / Math.PI);
+
+    xAf.domain(d3.extent(freqsMHz));
+    yAf.domain(padDomain(d3.extent(avgAmps)));
+    updateLinearAxes(svgAf, xAf, yAf);
+    const afData = freqsMHz.map((f, i) => ({ f, a: avgAmps[i] }));
+    lineAf.datum(afData).attr('d', d3.line().x(d => xAf(d.f)).y(d => yAf(d.a)));
+
+    xPf.domain(d3.extent(freqsMHz));
+    yPf.domain(phaseDomain(avgPhases));
+    updateLinearAxes(svgPf, xPf, yPf);
+    const pfData = freqsMHz.map((f, i) => ({ f, p: avgPhases[i] }));
+    linePf.datum(pfData).attr('d', d3.line().x(d => xPf(d.f)).y(d => yPf(d.p)));
+
+    // Phase vs time (circular mean per integration)
+    xPt.domain(timeExt);
+    yPt.domain(phaseDomain(data.map(d => d.mean_phase_deg)));
+    updateTimeAxes(svgPt, xPt, yPt);
+    linePt.datum(data).attr('d', d3.line().x(d => xPt(new Date(d.time))).y(d => yPt(d.mean_phase_deg)));
 
     // Delay vs time
     xDt.domain(timeExt);
     yDt.domain(padDomain(d3.extent(data, d => d.delay_ns)));
-    updateAxes(svgDt, xDt, yDt);
+    updateTimeAxes(svgDt, xDt, yDt);
     lineDt.datum(data).attr('d', d3.line().x(d => xDt(new Date(d.time))).y(d => yDt(d.delay_ns)));
   }
 

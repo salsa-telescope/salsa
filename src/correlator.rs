@@ -169,19 +169,24 @@ async fn correlator_task(
         let mut bin_amps = vec![0.0f64; spectral_channels];
         let mut bin_phases = vec![0.0f64; spectral_channels];
         for ch in 0..spectral_channels {
-            let mut sum_amp = 0.0f64;
-            let mut sum_phase = 0.0f64;
+            let mut sum = Complex::<f64>::new(0.0, 0.0);
             for b in 0..bins_per_channel {
-                let idx = ch * bins_per_channel + b;
-                sum_amp += v_shifted[idx].norm();
-                sum_phase += v_shifted[idx].arg().to_degrees();
+                sum += v_shifted[ch * bins_per_channel + b];
             }
-            bin_amps[ch] = sum_amp / bins_per_channel as f64;
-            bin_phases[ch] = sum_phase / bins_per_channel as f64;
+            let mean_vis = sum / bins_per_channel as f64;
+            bin_amps[ch] = mean_vis.norm();
+            bin_phases[ch] = mean_vis.arg().to_degrees();
         }
 
-        let mean_amplitude = bin_amps.iter().sum::<f64>() / spectral_channels as f64;
-        let mean_phase_deg = bin_phases.iter().sum::<f64>() / spectral_channels as f64;
+        // Circular mean: sum complex visibilities, then take phase of the result
+        let mean_vis: Complex<f64> = bin_amps
+            .iter()
+            .zip(bin_phases.iter())
+            .map(|(&a, &p)| Complex::from_polar(a, p.to_radians()))
+            .sum::<Complex<f64>>()
+            / spectral_channels as f64;
+        let mean_amplitude = mean_vis.norm();
+        let mean_phase_deg = mean_vis.arg().to_degrees();
 
         let amps_json = serde_json::to_string(&bin_amps).unwrap_or_default();
         let phases_json = serde_json::to_string(&bin_phases).unwrap_or_default();
