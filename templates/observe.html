@@ -168,7 +168,7 @@
               </div>
               <div id="ref-freq-field" class="flex-1">
                 <label class="block text-sm text-gray-600">Ref. freq. [MHz]</label>
-                <input type="number" name="ref_freq_mhz" value="1417.9" step="0.1"
+                <input type="number" name="ref_freq_mhz" value="{{ info.default_ref_freq_mhz }}" step="0.1"
                   min="{{ freq_min_mhz }}" max="{{ freq_max_mhz }}"
                   class="border rounded px-2 py-1 bg-white w-full text-sm" />
               </div>
@@ -191,7 +191,7 @@
               </div>
               <div class="flex-1">
                 <label class="block text-sm text-gray-600">Gain [dB]</label>
-                <input type="number" name="gain_db" value="60" min="0" max="60" step="1"
+                <input type="number" name="gain_db" value="{{ info.default_gain_db }}" min="0" max="88" step="1"
                   class="border rounded px-2 py-1 bg-white w-full text-sm" />
               </div>
             </div>

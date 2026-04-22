@@ -602,6 +602,11 @@ async fn start_observe(
             "Reference frequency must be between {freq_min} and {freq_max} MHz."
         )));
     }
+    if form.gain_db < GAIN_MIN_DB || form.gain_db > GAIN_MAX_DB {
+        return Ok(error_response(format!(
+            "Gain must be between {GAIN_MIN_DB} and {GAIN_MAX_DB} dB."
+        )));
+    }
 
     telescope
         .set_receiver_configuration(ReceiverConfiguration {
@@ -765,6 +770,11 @@ const FREQ_MIN_USER_MHZ: u32 = 1350;
 const FREQ_MAX_USER_MHZ: u32 = 1600;
 const FREQ_MIN_ADMIN_MHZ: u32 = 800;
 const FREQ_MAX_ADMIN_MHZ: u32 = 2300;
+
+// DBSRX2 daughterboard on USRP N210: GC1 (0-73 dB) + BBG (0-15 dB) when
+// distributed across all stages via empty-name set_rx_gain.
+const GAIN_MIN_DB: f64 = 0.0;
+const GAIN_MAX_DB: f64 = 88.0;
 
 #[derive(Template)]
 #[template(path = "observe.html", escape = "none")]

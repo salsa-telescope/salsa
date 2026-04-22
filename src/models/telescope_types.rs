@@ -58,6 +58,8 @@ pub struct TelescopeInfo {
     pub receiver_connected: Option<bool>,
     pub controller_connected: Option<bool>,
     pub wind_warning_ms: Option<f64>, // warn if 10-min avg wind exceeds this (m/s)
+    pub default_ref_freq_mhz: f64,
+    pub default_gain_db: f64,
 }
 
 #[derive(Deserialize, PartialEq, Debug, Clone)]

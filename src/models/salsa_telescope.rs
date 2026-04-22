@@ -40,6 +40,8 @@ struct Inner {
     min_elevation_rad: f64,
     max_elevation_rad: f64,
     webcam_crop: Option<[f64; 4]>,
+    default_ref_freq_hz: f64,
+    default_gain_db: f64,
     t_rec_k: f64,
     wind_warning_ms: Option<f64>,
     weather_cache: WeatherCacheHandle,
@@ -96,6 +98,8 @@ pub fn create(
         min_elevation_rad,
         max_elevation_rad,
         webcam_crop,
+        default_ref_freq_hz,
+        default_gain_db,
         t_rec_k,
         wind_warning_ms,
         weather_cache,
@@ -285,6 +289,8 @@ impl Telescope for SalsaTelescope {
             receiver_connected: Some(receiver_connected),
             controller_connected: Some(inner.controller_connected),
             wind_warning_ms: inner.wind_warning_ms,
+            default_ref_freq_mhz: inner.default_ref_freq_hz / 1e6,
+            default_gain_db: inner.default_gain_db,
         })
     }
     async fn shutdown(&self) {
