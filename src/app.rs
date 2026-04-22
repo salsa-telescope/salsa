@@ -120,11 +120,8 @@ pub async fn create_app(config_dir: &Path, database_dir: &Path) -> (Router, AppS
         admin_config,
         tle_cache,
         weather_cache,
-<<<<<<< HEAD
         login_rate_limiter,
-=======
         active_correlator: Arc::new(Mutex::new(None)),
->>>>>>> 41b29b6 (Add two-element interferometry feature)
     };
 
     let mut app = Router::new()
