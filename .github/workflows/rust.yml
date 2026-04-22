@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       deploy:
-        description: 'Deploy to salsa telecope'
+        description: 'Deploy to SALSA webserver'
         type: boolean
         default: false
 env:
