@@ -71,7 +71,7 @@
     <div class="calendar-legend">
       <span class="legend-item"><span class="legend-swatch calendar-slot-free"></span> Free</span>
       <span class="legend-item"><span class="legend-swatch calendar-slot-mine"></span> My booking</span>
-      <span class="legend-item"><span class="legend-swatch calendar-slot-other"></span> Booked</span>
+      <span class="legend-item"><span class="legend-swatch calendar-slot-other"></span> Booked{% if is_admin %} (hover to see user){% endif %}</span>
       <span class="legend-item"><span class="legend-swatch calendar-slot-past"></span> Past</span>
       <span class="legend-item"><span class="legend-swatch calendar-slot-maintenance"></span> Maintenance</span>
     </div>
