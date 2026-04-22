@@ -47,6 +47,7 @@ struct AdminTemplate {
     total_bookings: usize,
     total_hours: i64,
     unique_users: usize,
+    countries: Vec<(String, usize)>, // (country code, booking count), sorted by count desc
     local_users: Vec<(i64, String, String)>, // (id, username, comment)
     local_user_error: Option<String>,
 }
@@ -118,6 +119,15 @@ async fn get_admin(
         .map(|b| b.user_id)
         .collect::<std::collections::HashSet<_>>()
         .len();
+    let mut country_counts: std::collections::HashMap<String, usize> =
+        std::collections::HashMap::new();
+    for b in &bookings {
+        if let Some(c) = &b.country {
+            *country_counts.entry(c.clone()).or_default() += 1;
+        }
+    }
+    let mut countries: Vec<(String, usize)> = country_counts.into_iter().collect();
+    countries.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
     let local_users = User::fetch_all_local(state.database_connection)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
@@ -129,6 +139,7 @@ async fn get_admin(
         total_bookings,
         total_hours,
         unique_users,
+        countries,
         local_users,
         local_user_error,
     }

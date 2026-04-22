@@ -1,6 +1,6 @@
 use axum_server::tls_rustls::RustlsConfig;
-use salsa::{app, app::teardown_app, booking_monitor, logging};
 use clap::Parser;
+use salsa::{app, app::teardown_app, booking_monitor, logging};
 use std::net::SocketAddr;
 use std::net::TcpListener;
 use std::path::PathBuf;

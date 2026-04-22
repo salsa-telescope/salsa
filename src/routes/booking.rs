@@ -1,10 +1,11 @@
 use crate::app::AppState;
+use crate::geoip::lookup_country;
 use crate::models::booking::Booking;
 use crate::models::maintenance::fetch_maintenance_set;
 use crate::models::user::User;
 use crate::routes::index::render_main;
 use askama::Template;
-use axum::extract::{Path, Query};
+use axum::extract::{ConnectInfo, Path, Query};
 use axum::http::{HeaderMap, HeaderValue, header};
 use axum::response::{Html, IntoResponse, Redirect, Response};
 use axum::{Extension, Form};
@@ -16,6 +17,7 @@ use axum::{
 };
 use chrono::{DateTime, Datelike, Duration, NaiveDate, Utc};
 use serde::Deserialize;
+use std::net::SocketAddr;
 
 pub fn routes(state: AppState) -> Router {
     Router::new()
@@ -41,6 +43,7 @@ pub struct CalendarSlot {
     pub status: SlotStatus,
     pub booking_id: Option<i64>,
     pub is_current_hour: bool,
+    pub booked_by: Option<String>,
 }
 
 fn build_calendar_slots(
@@ -70,20 +73,20 @@ fn build_calendar_slots(
                         && b.end_time > start_time
                 });
 
-                let (status, booking_id) = if end_time <= now {
-                    (SlotStatus::Past, overlapping.map(|b| b.id))
+                let (status, booking_id, booked_by) = if end_time <= now {
+                    (SlotStatus::Past, overlapping.map(|b| b.id), None)
                 } else if let Some(b) = overlapping {
                     if b.user_name == user.name && b.user_provider == user.provider {
                         if b.active_at(&now) {
-                            (SlotStatus::MineActive, Some(b.id))
+                            (SlotStatus::MineActive, Some(b.id), None)
                         } else {
-                            (SlotStatus::Mine, Some(b.id))
+                            (SlotStatus::Mine, Some(b.id), None)
                         }
                     } else {
-                        (SlotStatus::OtherUser, None)
+                        (SlotStatus::OtherUser, Some(b.id), Some(b.user_name.clone()))
                     }
                 } else {
-                    (SlotStatus::Free, None)
+                    (SlotStatus::Free, None, None)
                 };
 
                 day_slots.push(CalendarSlot {
@@ -92,6 +95,7 @@ fn build_calendar_slots(
                     status,
                     booking_id,
                     is_current_hour,
+                    booked_by,
                 });
             }
             telescope_days.push(day_slots);
@@ -171,10 +175,12 @@ struct SlotBookingForm {
     start_timestamp: i64,
     telescope: String,
     week: Option<NaiveDate>,
+    description: Option<String>,
 }
 
 async fn create_booking(
     Extension(user): Extension<Option<User>>,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
     headers: HeaderMap,
     State(state): State<AppState>,
     Form(form): Form<SlotBookingForm>,
@@ -192,6 +198,15 @@ async fn create_booking(
         return Ok(StatusCode::BAD_REQUEST.into_response());
     }
 
+    let country = lookup_country(addr.ip());
+
+    let description = form
+        .description
+        .as_deref()
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+        .map(str::to_string);
+
     let booking = Booking {
         id: -1,
         start_time,
@@ -200,6 +215,8 @@ async fn create_booking(
         user_name: user.name.clone(),
         user_provider: user.provider.clone(),
         telescope_name: form.telescope.clone(),
+        description: description.clone(),
+        country: country.clone(),
     };
 
     let maintenance = fetch_maintenance_set(state.database_connection.clone())
@@ -234,6 +251,8 @@ async fn create_booking(
             booking.telescope_name,
             booking.start_time,
             booking.end_time,
+            description,
+            country,
         )
         .await?;
         None
@@ -317,14 +336,19 @@ async fn export_bookings_ical(
     let dtstamp = now.format("%Y%m%dT%H%M%SZ");
     let mut ical = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//SALSA//SALSA Telescope//EN\r\nCALSCALE:GREGORIAN\r\nMETHOD:PUBLISH\r\n".to_string();
     for booking in &bookings {
-        ical.push_str(&format!(
-            "BEGIN:VEVENT\r\nUID:salsa-booking-{}@salsa\r\nDTSTAMP:{}\r\nDTSTART:{}\r\nDTEND:{}\r\nSUMMARY:Telescope booking: {}\r\nEND:VEVENT\r\n",
+        let mut vevent = format!(
+            "BEGIN:VEVENT\r\nUID:salsa-booking-{}@salsa\r\nDTSTAMP:{}\r\nDTSTART:{}\r\nDTEND:{}\r\nSUMMARY:Telescope booking: {}\r\n",
             booking.id,
             dtstamp,
             booking.start_time.format("%Y%m%dT%H%M%SZ"),
             booking.end_time.format("%Y%m%dT%H%M%SZ"),
             booking.telescope_name,
-        ));
+        );
+        if let Some(desc) = &booking.description {
+            vevent.push_str(&format!("DESCRIPTION:{}\r\n", desc));
+        }
+        vevent.push_str("END:VEVENT\r\n");
+        ical.push_str(&vevent);
     }
     ical.push_str("END:VCALENDAR\r\n");
 
