@@ -114,7 +114,8 @@
         </td>
         <td class="py-2">
           <form method="post" action="/admin/local-users/{{ id }}/delete"
-            onsubmit="return confirm('Delete local user {{ username }}?')">
+            data-username="{{ username }}"
+            onsubmit="return confirm('Delete local user ' + this.dataset.username + '?')">
             <button type="submit"
               class="btn bg-danger hover:bg-danger-hover">
               Delete
