@@ -103,7 +103,7 @@ body {
     color: white;
     background-color: var(--color-brand-dark);
 }
-.section a {
+.section a:not(.btn) {
     color: var(--color-brand);
     text-decoration: none;
 }
