@@ -130,13 +130,44 @@ impl InterferometrySession {
         user: &User,
     ) -> Result<bool, InternalError> {
         let conn = connection.lock().await;
-        let rows = conn
-            .execute(
+        let rows = if user.is_admin {
+            conn.execute(
+                "DELETE FROM interferometry_session WHERE id = ?1",
+                rusqlite::params![id],
+            )
+        } else {
+            conn.execute(
                 "DELETE FROM interferometry_session WHERE id = ?1 AND user_id = ?2",
                 rusqlite::params![id, user.id],
             )
-            .map_err(|e| InternalError::new(format!("delete session: {e}")))?;
+        }
+        .map_err(|e| InternalError::new(format!("delete session: {e}")))?;
         Ok(rows > 0)
+    }
+
+    pub async fn count_for_user(
+        connection: Arc<Mutex<Connection>>,
+        user_id: i64,
+    ) -> Result<i64, InternalError> {
+        let conn = connection.lock().await;
+        conn.query_row(
+            "SELECT COUNT(*) FROM interferometry_session WHERE user_id = ?1",
+            [user_id],
+            |r| r.get(0),
+        )
+        .map_err(|e| InternalError::new(format!("count sessions: {e}")))
+    }
+
+    pub fn target_label(&self, satellite_name: Option<String>) -> String {
+        match self.coordinate_system.as_str() {
+            "gnss" => format!(
+                "gnss ({})",
+                satellite_name.unwrap_or_else(|| format!("NORAD {}", self.target_x as u64))
+            ),
+            "sun" => "sun".to_string(),
+            "stow" => "stow".to_string(),
+            cs => format!("{} ({:.1}, {:.1})", cs, self.target_x, self.target_y),
+        }
     }
 }
 

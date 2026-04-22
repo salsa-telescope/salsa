@@ -131,26 +131,9 @@
   </div>
   {% endif %}
 
-  {% if sessions.is_empty() %}
-  <p class="text-gray-500 text-sm">No past sessions yet.</p>
-  {% else %}
-  <h3 class="font-semibold mb-2">Past sessions</h3>
-  <div class="space-y-1 text-sm">
-    {% for s in sessions %}
-    <div class="hover:bg-gray-50 p-2 rounded border border-transparent flex justify-between items-center">
-      <a href="/interferometry/{{ s.session.id }}" class="flex-1 min-w-0">
-        {{ s.session.start_time.format("%Y-%m-%d %H:%M") }}
-        &mdash; {{ s.session.telescope_a }} &times; {{ s.session.telescope_b }}
-        &mdash; {{ s.target_label }}
-      </a>
-      <button class="my-booking-btn my-booking-delete ml-3 flex-shrink-0"
-              hx-delete="/interferometry/{{ s.session.id }}"
-              hx-target="#page"
-              hx-confirm="Delete this session and all its visibility data?">Delete</button>
-    </div>
-    {% endfor %}
-  </div>
-  {% endif %}
+  <p class="text-sm text-gray-500 mt-2">
+    Past sessions are in the <a href="/observations?mode=interferometry">Observation archive</a>.
+  </p>
 </div>
 
 <script>

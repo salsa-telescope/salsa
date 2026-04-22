@@ -2,6 +2,7 @@
   {% if is_admin %}
   <p class="text-gray-500 text-sm mb-3">As admin, you can view, export, and delete observations for any user.</p>
   <form hx-get="/observations" hx-target="#page" hx-push-url="true" class="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-4 text-sm">
+    <input type="hidden" name="mode" value="{{ mode }}" />
     <select name="user_id" class="border rounded px-2 py-1">
       {% for u in all_users %}
       <option value="{{ u.id }}" {% if u.id == viewed_user_id %}selected{% endif %}>{{ u.id }} &ndash; {{ u.name }} ({{ u.provider }})</option>
@@ -11,6 +12,54 @@
     <span class="text-gray-400 text-xs">&larr; Admin only filter: uid &ndash; username (provider)</span>
   </form>
   {% endif %}
+
+  {% if show_interferometry_tab %}
+  <div class="flex gap-2 mb-4 border-b">
+    <button
+      hx-get="/observations?mode=single&user_id={{ viewed_user_id }}"
+      hx-target="#page" hx-push-url="true"
+      class="px-4 py-2 text-sm -mb-px {% if mode == "single" %}border-b-2 border-accent font-medium{% else %}text-gray-500 hover:text-gray-700{% endif %}">
+      Single-dish
+    </button>
+    <button
+      hx-get="/observations?mode=interferometry&user_id={{ viewed_user_id }}"
+      hx-target="#page" hx-push-url="true"
+      class="px-4 py-2 text-sm -mb-px {% if mode == "interferometry" %}border-b-2 border-accent font-medium{% else %}text-gray-500 hover:text-gray-700{% endif %}">
+      Interferometry
+    </button>
+  </div>
+  {% endif %}
+
+  {% if mode == "interferometry" %}
+  <h2 class="text-xl font-semibold mb-3">Interferometry sessions</h2>
+  {% if interferometry_sessions.is_empty() %}
+  <p class="text-gray-500 text-sm">No interferometry sessions yet.</p>
+  {% else %}
+  <p class="text-xs text-gray-400 mb-2">{{ interferometry_sessions.len() }} session{% if interferometry_sessions.len() != 1 %}s{% endif %}</p>
+  <div class="space-y-1">
+    {% for s in interferometry_sessions %}
+    <div class="hover:bg-gray-100 p-2 rounded border border-transparent text-sm flex justify-between items-center">
+      <a href="/interferometry/{{ s.id }}" class="flex-1 min-w-0">
+        {{ s.start_time.format("%Y-%m-%d %H:%M") }}
+        &mdash; {{ s.telescope_a }} &times; {{ s.telescope_b }}
+        &mdash; {{ s.target_label }}
+        &mdash; {{ s.center_freq_mhz|fmt("{:.1}") }} MHz
+        {% if let Some(et) = s.end_time %}
+        &mdash; ended {{ et.format("%H:%M") }}
+        {% else %}
+        &mdash; <span class="text-warning">no end time</span>
+        {% endif %}
+      </a>
+      <button
+        class="ml-2 text-gray-400 hover:text-danger-hover text-xs px-1 flex-shrink-0"
+        hx-delete="/observations/interferometry/{{ s.id }}?user_id={{ viewed_user_id }}"
+        hx-target="#page"
+        hx-confirm="Delete this interferometry session and all its visibility data?">✕</button>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+  {% else %}
   {% if observations.is_empty() && current_page == 1 %}
   <h2 class="text-xl font-semibold mb-3">My observations</h2>
   <p>No observations yet.</p>
@@ -142,5 +191,6 @@
       </div>
     </div>
   </div>
+  {% endif %}
   {% endif %}
 </div>

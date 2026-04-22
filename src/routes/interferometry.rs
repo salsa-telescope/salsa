@@ -37,33 +37,21 @@ pub fn routes(state: AppState) -> Router {
 // List page — shows active bookings and past sessions
 // ---------------------------------------------------------------------------
 
-struct SessionDisplay {
-    session: InterferometrySession,
-    target_label: String,
-}
-
 #[derive(Template)]
 #[template(path = "interferometry_list.html")]
 struct ListTemplate {
     active_telescopes: Vec<String>,
-    sessions: Vec<SessionDisplay>,
     running_session_id: Option<i64>,
     telescope_names: Vec<String>,
 }
 
 fn session_target_label(s: &InterferometrySession, state: &AppState) -> String {
-    match s.coordinate_system.as_str() {
-        "gnss" => {
-            let name = state
-                .tle_cache
-                .satellite_name(s.target_x as u64)
-                .unwrap_or_else(|| format!("NORAD {}", s.target_x as u64));
-            format!("gnss ({})", name)
-        }
-        "sun" => "sun".to_string(),
-        "stow" => "stow".to_string(),
-        cs => format!("{} ({:.1}, {:.1})", cs, s.target_x, s.target_y),
-    }
+    let sat_name = if s.coordinate_system == "gnss" {
+        state.tle_cache.satellite_name(s.target_x as u64)
+    } else {
+        None
+    };
+    s.target_label(sat_name)
 }
 
 async fn get_list(
@@ -95,26 +83,6 @@ async fn get_list(
         }
     };
 
-    let sessions =
-        match InterferometrySession::fetch_for_user(state.database_connection.clone(), user.id)
-            .await
-        {
-            Ok(s) => s
-                .into_iter()
-                .map(|s| {
-                    let target_label = session_target_label(&s, &state);
-                    SessionDisplay {
-                        session: s,
-                        target_label,
-                    }
-                })
-                .collect(),
-            Err(e) => {
-                error!("interferometry sessions: {e:?}");
-                vec![]
-            }
-        };
-
     let running_session_id = state
         .active_correlator
         .lock()
@@ -126,7 +94,6 @@ async fn get_list(
 
     let content = ListTemplate {
         active_telescopes,
-        sessions,
         running_session_id,
         telescope_names,
     }
@@ -694,52 +661,7 @@ async fn delete_session(
 
     match InterferometrySession::delete(state.database_connection.clone(), session_id, &user).await
     {
-        Ok(true) => {
-            let active_telescopes = match crate::models::booking::Booking::fetch_for_user(
-                state.database_connection.clone(),
-                &user,
-            )
-            .await
-            {
-                Ok(bookings) => {
-                    let now = Utc::now();
-                    bookings
-                        .into_iter()
-                        .filter(|b| b.active_at(&now))
-                        .map(|b| b.telescope_name)
-                        .collect::<Vec<_>>()
-                }
-                Err(_) => vec![],
-            };
-            let running_session_id = state
-                .active_correlator
-                .lock()
-                .await
-                .as_ref()
-                .map(|c| c.session_id);
-            let sessions =
-                InterferometrySession::fetch_for_user(state.database_connection.clone(), user.id)
-                    .await
-                    .unwrap_or_default()
-                    .into_iter()
-                    .map(|s| {
-                        let target_label = session_target_label(&s, &state);
-                        SessionDisplay {
-                            session: s,
-                            target_label,
-                        }
-                    })
-                    .collect();
-            let content = ListTemplate {
-                active_telescopes,
-                sessions,
-                running_session_id,
-                telescope_names: state.telescopes.get_names().await,
-            }
-            .render()
-            .expect("template ok");
-            Html(content).into_response()
-        }
+        Ok(true) => Redirect::to("/observations?mode=interferometry").into_response(),
         Ok(false) => StatusCode::NOT_FOUND.into_response(),
         Err(e) => {
             error!("delete session: {e:?}");
