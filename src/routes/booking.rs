@@ -171,6 +171,7 @@ struct SlotBookingForm {
     start_timestamp: i64,
     telescope: String,
     week: Option<NaiveDate>,
+    description: Option<String>,
 }
 
 async fn create_booking(
@@ -192,6 +193,13 @@ async fn create_booking(
         return Ok(StatusCode::BAD_REQUEST.into_response());
     }
 
+    let description = form
+        .description
+        .as_deref()
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+        .map(str::to_string);
+
     let booking = Booking {
         id: -1,
         start_time,
@@ -200,6 +208,7 @@ async fn create_booking(
         user_name: user.name.clone(),
         user_provider: user.provider.clone(),
         telescope_name: form.telescope.clone(),
+        description: description.clone(),
     };
 
     let maintenance = fetch_maintenance_set(state.database_connection.clone())
@@ -234,6 +243,7 @@ async fn create_booking(
             booking.telescope_name,
             booking.start_time,
             booking.end_time,
+            description,
         )
         .await?;
         None
@@ -317,14 +327,19 @@ async fn export_bookings_ical(
     let dtstamp = now.format("%Y%m%dT%H%M%SZ");
     let mut ical = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//SALSA//SALSA Telescope//EN\r\nCALSCALE:GREGORIAN\r\nMETHOD:PUBLISH\r\n".to_string();
     for booking in &bookings {
-        ical.push_str(&format!(
-            "BEGIN:VEVENT\r\nUID:salsa-booking-{}@salsa\r\nDTSTAMP:{}\r\nDTSTART:{}\r\nDTEND:{}\r\nSUMMARY:Telescope booking: {}\r\nEND:VEVENT\r\n",
+        let mut vevent = format!(
+            "BEGIN:VEVENT\r\nUID:salsa-booking-{}@salsa\r\nDTSTAMP:{}\r\nDTSTART:{}\r\nDTEND:{}\r\nSUMMARY:Telescope booking: {}\r\n",
             booking.id,
             dtstamp,
             booking.start_time.format("%Y%m%dT%H%M%SZ"),
             booking.end_time.format("%Y%m%dT%H%M%SZ"),
             booking.telescope_name,
-        ));
+        );
+        if let Some(desc) = &booking.description {
+            vevent.push_str(&format!("DESCRIPTION:{}\r\n", desc));
+        }
+        vevent.push_str("END:VEVENT\r\n");
+        ical.push_str(&vevent);
     }
     ical.push_str("END:VCALENDAR\r\n");
 

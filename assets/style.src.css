@@ -423,6 +423,7 @@ footer {
 .my-booking-info {
     display: flex;
     align-items: baseline;
+    flex-wrap: wrap;
     gap: 10px;
 }
 .my-booking-telescope {
@@ -432,6 +433,13 @@ footer {
 .my-booking-time {
     font-size: 13px;
     color: var(--color-muted);
+}
+.my-booking-description {
+    flex-basis: 100%;
+    font-size: 13px;
+    color: var(--color-muted);
+    font-style: italic;
+    margin-top: -4px;
 }
 .my-booking-actions {
     display: flex;

@@ -30,6 +30,9 @@
       <div class="my-booking-info">
         <span class="my-booking-telescope">{{ booking.telescope_name }}</span>
         <span class="my-booking-time">{{ booking.start_time.format("%Y-%m-%d %H:%M") }}&ndash;{{ booking.end_time.format("%H:%M") }} UTC</span>
+        {% if let Some(desc) = booking.description %}
+        <span class="my-booking-description">{{ desc }}</span>
+        {% endif %}
       </div>
       <div class="my-booking-actions">
         {% if booking.active_at(now) %}
@@ -212,6 +215,12 @@
           <span class="text-gray-500 text-xs ml-1">UTC</span>
         </label>
       </div>
+      <div id="confirm-dialog-description-wrap" class="hidden mb-4">
+        <label class="text-sm text-gray-600 block mb-1" for="confirm-dialog-description">Description <span class="text-gray-400">(optional)</span></label>
+        <textarea id="confirm-dialog-description" rows="2" maxlength="500"
+          class="w-full border rounded px-2 py-1 text-sm resize-none"
+          placeholder="What are you observing?"></textarea>
+      </div>
       <div class="flex gap-2 justify-end">
         <button id="confirm-dialog-dismiss"
                 class="px-3 py-1 rounded border border-gray-300 text-sm text-gray-700 hover:bg-gray-50">Close</button>
@@ -274,9 +283,13 @@
       evt.preventDefault();
       var ok = document.getElementById('confirm-dialog-ok');
       var rangeDiv = document.getElementById('confirm-dialog-range');
+      var descWrap = document.getElementById('confirm-dialog-description-wrap');
+      var descField = document.getElementById('confirm-dialog-description');
       sel.innerHTML = '';
       slotData = [];
       rangeDiv.classList.add('hidden');
+      descWrap.classList.add('hidden');
+      descField.value = '';
       pendingConfirm = evt;
 
       if (evt.detail.question === 'book') {
@@ -289,6 +302,7 @@
           slotData.push({ vals: JSON.parse(adj[i].getAttribute('hx-vals') || '{}') });
         }
         ok.className = ok.dataset.clsBook;
+        descWrap.classList.remove('hidden');
         if (slotData.length > 1) {
           document.getElementById('confirm-dialog-title').textContent = 'Confirm booking';
           document.getElementById('confirm-dialog-msg').innerHTML =
@@ -353,14 +367,26 @@
       if (!saved) return;
 
       if (dialogMode === 'book' && count > 1) {
+        var desc = document.getElementById('confirm-dialog-description').value.trim();
         for (var i = 0; i < count; i++) {
+          var params = Object.assign({}, slotData[i].vals);
+          if (desc) params.description = desc;
           await fetch('/bookings', {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams(slotData[i].vals).toString()
+            body: new URLSearchParams(params).toString()
           });
         }
         window.location.reload();
+      } else if (dialogMode === 'book') {
+        var desc = document.getElementById('confirm-dialog-description').value.trim();
+        var elt = saved.detail.elt;
+        var origVals = elt.getAttribute('hx-vals');
+        var vals = JSON.parse(origVals || '{}');
+        if (desc) vals.description = desc;
+        elt.setAttribute('hx-vals', JSON.stringify(vals));
+        saved.detail.issueRequest(true);
+        elt.setAttribute('hx-vals', origVals);
       } else if (dialogMode !== 'book' && slotData.length > 1) {
         for (var i = 0; i < count; i++) {
           await fetch(slotData[i].deleteUrl, { method: 'DELETE' });

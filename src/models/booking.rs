@@ -17,6 +17,7 @@ pub struct Booking {
     pub user_id: i64,
     pub user_name: String,
     pub user_provider: String,
+    pub description: Option<String>,
 }
 
 impl Booking {
@@ -58,12 +59,13 @@ impl Booking {
         telescope_id: String,
         start: DateTime<Utc>,
         end: DateTime<Utc>,
+        description: Option<String>,
     ) -> Result<(), InternalError> {
         let conn = connection.lock().await;
         conn.execute(
-            "INSERT INTO booking (user_id, telescope_id, start_timestamp, end_timestamp)
-                 VALUES ((?1), (?2), (?3), (?4))",
-            (&user.id, &telescope_id, start.timestamp(), end.timestamp()),
+            "INSERT INTO booking (user_id, telescope_id, start_timestamp, end_timestamp, description)
+                 VALUES ((?1), (?2), (?3), (?4), (?5))",
+            (&user.id, &telescope_id, start.timestamp(), end.timestamp(), &description),
         )
         .map_err(|err| InternalError::new(format!("Failed to insert booking in db: {err}")))?;
         Ok(())
@@ -75,7 +77,7 @@ impl Booking {
         let conn = connection.lock().await;
         let mut stmt = conn
             .prepare(
-                "SELECT booking.id, start_timestamp, end_timestamp, telescope_id, user.id, username, provider
+                "SELECT booking.id, start_timestamp, end_timestamp, telescope_id, user.id, username, provider, description
                 FROM booking, user WHERE booking.user_id = user.id
                 ORDER BY start_timestamp ASC",
             )
@@ -100,7 +102,7 @@ impl Booking {
         let conn = connection.lock().await;
         let mut stmt = conn
             .prepare(
-                "SELECT booking.id, start_timestamp, end_timestamp, telescope_id, user.id, username, provider
+                "SELECT booking.id, start_timestamp, end_timestamp, telescope_id, user.id, username, provider, description
                 FROM booking, user WHERE booking.user_id = user.id AND user.id = ?1
                 ORDER BY start_timestamp ASC",
             )
@@ -118,7 +120,7 @@ impl Booking {
         let conn = connection.lock().await;
         let mut stmt = conn
             .prepare(
-                "SELECT booking.id, start_timestamp, end_timestamp, telescope_id, user.id, username, provider
+                "SELECT booking.id, start_timestamp, end_timestamp, telescope_id, user.id, username, provider, description
                 FROM booking, user WHERE booking.user_id = user.id AND booking.id = ?1
                 ORDER BY start_timestamp ASC",
             )
@@ -139,7 +141,7 @@ impl Booking {
         let conn = connection.lock().await;
         let mut stmt = conn
             .prepare(
-                "SELECT booking.id, start_timestamp, end_timestamp, telescope_id, user.id, username, provider
+                "SELECT booking.id, start_timestamp, end_timestamp, telescope_id, user.id, username, provider, description
                 FROM booking, user WHERE booking.user_id = user.id
                 AND start_timestamp >= ?1 AND start_timestamp < ?2
                 ORDER BY start_timestamp ASC",
@@ -158,7 +160,7 @@ impl Booking {
         let now = Utc::now().timestamp();
         let mut stmt = conn
             .prepare(
-                "SELECT booking.id, start_timestamp, end_timestamp, telescope_id, user.id, username, provider
+                "SELECT booking.id, start_timestamp, end_timestamp, telescope_id, user.id, username, provider, description
                 FROM booking, user WHERE booking.user_id = user.id
                 AND start_timestamp <= ?1 AND end_timestamp > ?1
                 ORDER BY start_timestamp ASC",
@@ -180,6 +182,7 @@ fn map_booking_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Booking> {
         user_id: row.get(4)?,
         user_name: row.get(5)?,
         user_provider: row.get(6)?,
+        description: row.get(7)?,
     })
 }
 
@@ -236,6 +239,7 @@ mod test {
             user_id: 0,
             user_name: String::new(),
             user_provider: String::new(),
+            description: None,
         }
     }
 
