@@ -509,7 +509,8 @@ async fn post_stop(
         let _ =
             InterferometrySession::finalize(state.database_connection.clone(), session_id).await;
         handle.stop().await;
-        return Redirect::to(&format!("/interferometry/{session_id}")).into_response();
+        return Redirect::to(&format!("/interferometry/{session_id}?from=controls"))
+            .into_response();
     }
 
     Redirect::to("/interferometry").into_response()
@@ -528,12 +529,20 @@ struct SessionTemplate {
     visibility_count: usize,
     center_freq_mhz: f64,
     half_bw_mhz: f64,
+    back_url: String,
+    back_label: String,
+}
+
+#[derive(Deserialize)]
+struct SessionQuery {
+    from: Option<String>,
 }
 
 async fn get_session(
     State(state): State<AppState>,
     Extension(user): Extension<Option<User>>,
     Path(session_id): Path<i64>,
+    Query(query): Query<SessionQuery>,
 ) -> Response {
     let Some(user) = user else {
         return Redirect::to("/auth/login").into_response();
@@ -577,6 +586,14 @@ async fn get_session(
     let center_freq_mhz = session.center_freq_hz / 1e6;
     let half_bw_mhz = session.bandwidth_hz / 2e6;
     let target_label = session_target_label(&session, &state);
+    let (back_url, back_label) = if query.from.as_deref() == Some("controls") {
+        ("/interferometry".to_string(), "Interferometry".to_string())
+    } else {
+        (
+            "/observations?mode=interferometry".to_string(),
+            "Observation archive".to_string(),
+        )
+    };
     let content = SessionTemplate {
         session,
         target_label,
@@ -584,6 +601,8 @@ async fn get_session(
         visibility_count: visibilities.len(),
         center_freq_mhz,
         half_bw_mhz,
+        back_url,
+        back_label,
     }
     .render()
     .expect("template ok");

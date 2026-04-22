@@ -1,6 +1,6 @@
 <div class="section light">
   <div class="flex items-center gap-4 mb-4">
-    <a href="/interferometry" class="text-sm text-gray-500 hover:underline">&larr; Interferometry</a>
+    <a href="{{ back_url }}" class="text-sm text-gray-500 hover:underline">&larr; {{ back_label }}</a>
     <h2 class="text-xl font-semibold">
       Session {{ session.id }}:
       {{ session.telescope_a }} &times; {{ session.telescope_b }}

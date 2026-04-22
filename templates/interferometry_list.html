@@ -124,7 +124,7 @@
   {% if let Some(sid) = running_session_id %}
   <div class="mb-4 flex items-center gap-4">
     <span class="text-success font-medium">&#9679; Session {{ sid }} running</span>
-    <a href="/interferometry/{{ sid }}" class="btn">View live</a>
+    <a href="/interferometry/{{ sid }}?from=controls" class="btn">View live</a>
     <form method="POST" action="/interferometry/stop" class="inline">
       <button type="submit" class="btn bg-danger hover:bg-danger-hover">Stop</button>
     </form>
