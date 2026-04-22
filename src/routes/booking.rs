@@ -41,6 +41,7 @@ pub struct CalendarSlot {
     pub status: SlotStatus,
     pub booking_id: Option<i64>,
     pub is_current_hour: bool,
+    pub booked_by: Option<String>,
 }
 
 fn build_calendar_slots(
@@ -70,20 +71,20 @@ fn build_calendar_slots(
                         && b.end_time > start_time
                 });
 
-                let (status, booking_id) = if end_time <= now {
-                    (SlotStatus::Past, overlapping.map(|b| b.id))
+                let (status, booking_id, booked_by) = if end_time <= now {
+                    (SlotStatus::Past, overlapping.map(|b| b.id), None)
                 } else if let Some(b) = overlapping {
                     if b.user_name == user.name && b.user_provider == user.provider {
                         if b.active_at(&now) {
-                            (SlotStatus::MineActive, Some(b.id))
+                            (SlotStatus::MineActive, Some(b.id), None)
                         } else {
-                            (SlotStatus::Mine, Some(b.id))
+                            (SlotStatus::Mine, Some(b.id), None)
                         }
                     } else {
-                        (SlotStatus::OtherUser, None)
+                        (SlotStatus::OtherUser, None, Some(b.user_name.clone()))
                     }
                 } else {
-                    (SlotStatus::Free, None)
+                    (SlotStatus::Free, None, None)
                 };
 
                 day_slots.push(CalendarSlot {
@@ -92,6 +93,7 @@ fn build_calendar_slots(
                     status,
                     booking_id,
                     is_current_hour,
+                    booked_by,
                 });
             }
             telescope_days.push(day_slots);

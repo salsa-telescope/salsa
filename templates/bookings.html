@@ -182,7 +182,7 @@
           </td>
           {% when SlotStatus::OtherUser %}
           <td class="calendar-slot calendar-slot-other"
-              title="Booked by another user">
+              title="{% if is_admin %}Booked by {{ slot.booked_by.as_deref().unwrap_or("unknown") }}{% else %}Booked by another user{% endif %}">
           </td>
           {% when SlotStatus::Past %}
           <td class="calendar-slot calendar-slot-past">
