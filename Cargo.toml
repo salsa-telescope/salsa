@@ -1,8 +1,8 @@
 [package]
-name = "backend"
-version = "0.1.0"
+name = "salsa"
+version = "1.0.0"
 edition = "2024"
-default-run = "backend"
+default-run = "salsa"
 
 [dependencies]
 argon2 = "0.5.*"

@@ -1,5 +1,5 @@
 use axum_server::tls_rustls::RustlsConfig;
-use backend::{app, app::teardown_app, booking_monitor, logging};
+use salsa::{app, app::teardown_app, booking_monitor, logging};
 use clap::Parser;
 use std::net::SocketAddr;
 use std::net::TcpListener;

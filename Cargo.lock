@@ -325,42 +325,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "backend"
-version = "0.1.0"
-dependencies = [
- "argon2",
- "askama",
- "async-trait",
- "axum",
- "axum-server",
- "base64",
- "chrono",
- "clap 4.6.0",
- "deadpool-sqlite",
- "oauth2",
- "rand 0.9.2",
- "rand_distr",
- "refinery",
- "reqwest",
- "rusqlite",
- "rustfft",
- "rustls",
- "serde",
- "serde_json",
- "sgp4",
- "tempfile",
- "thiserror 2.0.18",
- "tokio",
- "tokio-util",
- "toml 0.8.23",
- "tower-http",
- "tracing",
- "tracing-journald",
- "tracing-subscriber",
- "uhd",
-]
-
-[[package]]
 name = "base64"
 version = "0.22.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2115,6 +2079,42 @@ name = "ryu"
 version = "1.0.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9774ba4a74de5f7b1c1451ed6cd5285a32eddb5cccb8cc655a4e50009e06477f"
+
+[[package]]
+name = "salsa"
+version = "1.0.0"
+dependencies = [
+ "argon2",
+ "askama",
+ "async-trait",
+ "axum",
+ "axum-server",
+ "base64",
+ "chrono",
+ "clap 4.6.0",
+ "deadpool-sqlite",
+ "oauth2",
+ "rand 0.9.2",
+ "rand_distr",
+ "refinery",
+ "reqwest",
+ "rusqlite",
+ "rustfft",
+ "rustls",
+ "serde",
+ "serde_json",
+ "sgp4",
+ "tempfile",
+ "thiserror 2.0.18",
+ "tokio",
+ "tokio-util",
+ "toml 0.8.23",
+ "tower-http",
+ "tracing",
+ "tracing-journald",
+ "tracing-subscriber",
+ "uhd",
+]
 
 [[package]]
 name = "same-file"

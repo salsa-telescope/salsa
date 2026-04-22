@@ -4,8 +4,8 @@ use clap::{Parser, Subcommand};
 use tokio::sync::Mutex;
 use tracing::{error, info};
 
-use backend::logging::setup_logging;
-use backend::{database::create_sqlite_database_on_disk, models::user::User};
+use salsa::logging::setup_logging;
+use salsa::{database::create_sqlite_database_on_disk, models::user::User};
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
