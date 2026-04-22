@@ -18,7 +18,7 @@
     {% if let Some(et) = session.end_time %}
     <span>End: {{ et.format("%Y-%m-%d %H:%M:%S UTC") }}</span>
     {% endif %}
-    <span>Target: {{ session.coordinate_system }} ({{ session.target_x|fmt("{:.2}") }}, {{ session.target_y|fmt("{:.2}") }})</span>
+    <span>Target: {{ target_label }}</span>
     <span>{{ center_freq_mhz|fmt("{:.3}") }} MHz &plusmn; {{ half_bw_mhz|fmt("{:.2}") }} MHz</span>
     <span id="vis-count">{{ visibility_count }} integrations</span>
   </div>

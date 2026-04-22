@@ -1,4 +1,5 @@
 use crate::app::AppState;
+use crate::coords::Location;
 use crate::correlator::CorrelatorHandle;
 use crate::models::booking::{booking_is_active, consecutive_booking_end};
 use crate::models::interferometry::{InterferometrySession, InterferometryVisibility};
@@ -18,6 +19,7 @@ use tracing::error;
 pub fn routes(state: AppState) -> Router {
     Router::new()
         .route("/", get(get_list))
+        .route("/satellites", get(get_satellites))
         .route("/start", axum::routing::post(post_start))
         .route("/stop", axum::routing::post(post_stop))
         .route("/telescope-status", get(get_telescope_status))
@@ -35,13 +37,33 @@ pub fn routes(state: AppState) -> Router {
 // List page — shows active bookings and past sessions
 // ---------------------------------------------------------------------------
 
+struct SessionDisplay {
+    session: InterferometrySession,
+    target_label: String,
+}
+
 #[derive(Template)]
 #[template(path = "interferometry_list.html")]
 struct ListTemplate {
     active_telescopes: Vec<String>,
-    sessions: Vec<InterferometrySession>,
+    sessions: Vec<SessionDisplay>,
     running_session_id: Option<i64>,
     telescope_names: Vec<String>,
+}
+
+fn session_target_label(s: &InterferometrySession, state: &AppState) -> String {
+    match s.coordinate_system.as_str() {
+        "gnss" => {
+            let name = state
+                .tle_cache
+                .satellite_name(s.target_x as u64)
+                .unwrap_or_else(|| format!("NORAD {}", s.target_x as u64));
+            format!("gnss ({})", name)
+        }
+        "sun" => "sun".to_string(),
+        "stow" => "stow".to_string(),
+        cs => format!("{} ({:.1}, {:.1})", cs, s.target_x, s.target_y),
+    }
 }
 
 async fn get_list(
@@ -77,7 +99,16 @@ async fn get_list(
         match InterferometrySession::fetch_for_user(state.database_connection.clone(), user.id)
             .await
         {
-            Ok(s) => s,
+            Ok(s) => s
+                .into_iter()
+                .map(|s| {
+                    let target_label = session_target_label(&s, &state);
+                    SessionDisplay {
+                        session: s,
+                        target_label,
+                    }
+                })
+                .collect(),
             Err(e) => {
                 error!("interferometry sessions: {e:?}");
                 vec![]
@@ -103,6 +134,41 @@ async fn get_list(
     .expect("template ok");
 
     Html(render_main(Some(user), content)).into_response()
+}
+
+// ---------------------------------------------------------------------------
+// Satellites JSON (same format as /observe/{id}/satellites)
+// ---------------------------------------------------------------------------
+
+async fn get_satellites(State(state): State<AppState>) -> impl IntoResponse {
+    let location = match state.telescopes.get_all().await.into_iter().next() {
+        Some(tel) => tel
+            .get_info()
+            .await
+            .map(|i| i.location)
+            .unwrap_or(Location {
+                longitude: 0.0,
+                latitude: 0.0,
+            }),
+        None => Location {
+            longitude: 0.0,
+            latitude: 0.0,
+        },
+    };
+    let satellites = state.tle_cache.visible_satellites(location, Utc::now());
+    let json: Vec<_> = satellites
+        .iter()
+        .map(|s| {
+            serde_json::json!({
+                "norad_id": s.norad_id,
+                "name": s.name,
+                "elevation_deg": s.direction.elevation.to_degrees(),
+                "azimuth_deg": s.direction.azimuth.to_degrees(),
+                "freq_mhz": s.freq_mhz,
+            })
+        })
+        .collect();
+    Json(json)
 }
 
 // ---------------------------------------------------------------------------
@@ -231,6 +297,28 @@ async fn post_track(
             azimuth: form.target_x.to_radians(),
             elevation: form.target_y.to_radians(),
         },
+        "gnss" => TelescopeTarget::Satellite {
+            norad_id: form.target_x as u64,
+        },
+        "stow" => {
+            let info = match tel.get_info().await {
+                Ok(i) => i,
+                Err(e) => {
+                    error!("get_info {telescope_id}: {e:?}");
+                    return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+                }
+            };
+            match info.stow_position {
+                Some(pos) => TelescopeTarget::Horizontal {
+                    azimuth: pos.azimuth,
+                    elevation: pos.elevation,
+                },
+                None => {
+                    error!("No stow position configured for {telescope_id}");
+                    return StatusCode::NOT_FOUND.into_response();
+                }
+            }
+        }
         _ => return StatusCode::BAD_REQUEST.into_response(),
     };
 
@@ -468,6 +556,7 @@ async fn post_stop(
 #[template(path = "interferometry_session.html")]
 struct SessionTemplate {
     session: InterferometrySession,
+    target_label: String,
     is_running: bool,
     visibility_count: usize,
     center_freq_mhz: f64,
@@ -520,8 +609,10 @@ async fn get_session(
 
     let center_freq_mhz = session.center_freq_hz / 1e6;
     let half_bw_mhz = session.bandwidth_hz / 2e6;
+    let target_label = session_target_label(&session, &state);
     let content = SessionTemplate {
         session,
+        target_label,
         is_running,
         visibility_count: visibilities.len(),
         center_freq_mhz,
@@ -626,14 +717,22 @@ async fn delete_session(
                 .await
                 .as_ref()
                 .map(|c| c.session_id);
+            let sessions =
+                InterferometrySession::fetch_for_user(state.database_connection.clone(), user.id)
+                    .await
+                    .unwrap_or_default()
+                    .into_iter()
+                    .map(|s| {
+                        let target_label = session_target_label(&s, &state);
+                        SessionDisplay {
+                            session: s,
+                            target_label,
+                        }
+                    })
+                    .collect();
             let content = ListTemplate {
                 active_telescopes,
-                sessions: InterferometrySession::fetch_for_user(
-                    state.database_connection.clone(),
-                    user.id,
-                )
-                .await
-                .unwrap_or_default(),
+                sessions,
                 running_session_id,
                 telescope_names: state.telescopes.get_names().await,
             }

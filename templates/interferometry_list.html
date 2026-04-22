@@ -18,8 +18,10 @@
         <select id="coord-sys" name="coordinate_system" class="border rounded px-2 py-1" onchange="onCoordSysChange()">
           <option value="sun" selected>Sun</option>
           <option value="galactic">Galactic</option>
-          <option value="equatorial">Equatorial</option>
+          <option value="equatorial">Equatorial (J2000)</option>
           <option value="horizontal">Horizontal</option>
+          <option value="gnss">GNSS satellite</option>
+          <option value="stow">Stow</option>
         </select>
       </div>
       <div id="target-xy-fields" class="flex gap-4 hidden">
@@ -31,6 +33,12 @@
           <label class="text-gray-600" id="label-y">Target Y [deg]</label>
           <input id="target-y" type="number" value="0" step="any" class="border rounded px-2 py-1 w-28" />
         </div>
+      </div>
+      <div id="satellite-picker" class="flex flex-col gap-1 hidden">
+        <label class="text-gray-600">Satellite</label>
+        <select id="satellite-select" class="border rounded px-2 py-1 w-64" onchange="satelliteChanged()">
+          <option value="">Loading…</option>
+        </select>
       </div>
     </div>
 
@@ -130,13 +138,13 @@
   <div class="space-y-1 text-sm">
     {% for s in sessions %}
     <div class="hover:bg-gray-50 p-2 rounded border border-transparent flex justify-between items-center">
-      <a href="/interferometry/{{ s.id }}" class="flex-1 min-w-0">
-        {{ s.start_time.format("%Y-%m-%d %H:%M") }}
-        &mdash; {{ s.telescope_a }} &times; {{ s.telescope_b }}
-        &mdash; {{ s.coordinate_system }} ({{ s.target_x|fmt("{:.1}") }}, {{ s.target_y|fmt("{:.1}") }})
+      <a href="/interferometry/{{ s.session.id }}" class="flex-1 min-w-0">
+        {{ s.session.start_time.format("%Y-%m-%d %H:%M") }}
+        &mdash; {{ s.session.telescope_a }} &times; {{ s.session.telescope_b }}
+        &mdash; {{ s.target_label }}
       </a>
       <button class="my-booking-btn my-booking-delete ml-3 flex-shrink-0"
-              hx-delete="/interferometry/{{ s.id }}"
+              hx-delete="/interferometry/{{ s.session.id }}"
               hx-target="#page"
               hx-confirm="Delete this session and all its visibility data?">Delete</button>
     </div>
@@ -244,11 +252,23 @@
     updateStartButton();
   }
 
+  function getTargetXY() {
+    const cs = document.getElementById('coord-sys').value;
+    if (cs === 'gnss') {
+      const sel = document.getElementById('satellite-select');
+      return { tx: sel ? sel.value : '0', ty: '0' };
+    }
+    if (cs === 'sun' || cs === 'stow') return { tx: '0', ty: '0' };
+    return {
+      tx: document.getElementById('target-x').value,
+      ty: document.getElementById('target-y').value,
+    };
+  }
+
   async function trackTelescope(which) {
     const id  = telId(which);
     const cs  = document.getElementById('coord-sys').value;
-    const tx  = document.getElementById('target-x').value;
-    const ty  = document.getElementById('target-y').value;
+    const { tx, ty } = getTargetXY();
     const body = new URLSearchParams({ coordinate_system: cs, target_x: tx, target_y: ty });
     try {
       await fetch('/interferometry/track/' + encodeURIComponent(id), { method: 'POST', body });
@@ -268,12 +288,13 @@
     const errEl = document.getElementById('start-error');
     if (errEl) { errEl.classList.add('hidden'); errEl.textContent = ''; }
 
+    const { tx, ty } = getTargetXY();
     const body = new URLSearchParams({
       telescope_a: telId('a'),
       telescope_b: telId('b'),
       coordinate_system: document.getElementById('coord-sys').value,
-      target_x: document.getElementById('target-x').value,
-      target_y: document.getElementById('target-y').value,
+      target_x: tx,
+      target_y: ty,
       center_freq_mhz: document.getElementById('center-freq').value,
       bandwidth_mhz: document.getElementById('bandwidth').value,
       spectral_channels: document.getElementById('sp-channels').value,
@@ -288,16 +309,68 @@
     }
   }
 
+  function satConstellation(name) {
+    const u = name.toUpperCase();
+    if (u.startsWith('COSMOS')) return 'GLONASS';
+    if (u.startsWith('BEIDOU')) return 'BeiDou';
+    if (u.startsWith('GSAT')) return 'Galileo';
+    return 'GPS';
+  }
+
+  async function fetchSatellites() {
+    try {
+      const res = await fetch('/interferometry/satellites');
+      const sats = await res.json();
+      const sel = document.getElementById('satellite-select');
+      sel.innerHTML = '';
+      const groups = {};
+      sats.forEach(s => {
+        const grp = satConstellation(s.name);
+        if (!groups[grp]) groups[grp] = [];
+        groups[grp].push(s);
+      });
+      ['GPS', 'Galileo', 'GLONASS', 'BeiDou'].forEach(grpName => {
+        const members = groups[grpName];
+        if (!members || members.length === 0) return;
+        const optgrp = document.createElement('optgroup');
+        optgrp.label = grpName;
+        members.forEach(s => {
+          const opt = document.createElement('option');
+          opt.value = s.norad_id;
+          opt.dataset.freqMhz = s.freq_mhz;
+          opt.textContent = s.name + ' (az ' + s.azimuth_deg.toFixed(1) + '°, el ' + s.elevation_deg.toFixed(1) + '°)';
+          optgrp.appendChild(opt);
+        });
+        sel.appendChild(optgrp);
+      });
+      satelliteChanged();
+    } catch (_) {}
+  }
+
+  function satelliteChanged() {
+    const sel = document.getElementById('satellite-select');
+    const opt = sel ? sel.options[sel.selectedIndex] : null;
+    if (!opt) return;
+    const freqMhz = parseFloat(opt.dataset.freqMhz);
+    if (!isNaN(freqMhz)) {
+      const freqInput = document.getElementById('center-freq');
+      if (freqInput) freqInput.value = freqMhz.toFixed(1);
+    }
+  }
+
   function onCoordSysChange() {
     const cs = document.getElementById('coord-sys').value;
     const xyFields = document.getElementById('target-xy-fields');
+    const satPicker = document.getElementById('satellite-picker');
     const lx = document.getElementById('label-x');
     const ly = document.getElementById('label-y');
-    const isSun = cs === 'sun';
-    xyFields.classList.toggle('hidden', isSun);
+    const needsXY = cs === 'galactic' || cs === 'equatorial' || cs === 'horizontal';
+    xyFields.classList.toggle('hidden', !needsXY);
+    satPicker.classList.toggle('hidden', cs !== 'gnss');
     if (cs === 'galactic')   { lx.textContent = 'l [deg]'; ly.textContent = 'b [deg]'; }
     if (cs === 'equatorial') { lx.textContent = 'RA [deg]'; ly.textContent = 'Dec [deg]'; }
     if (cs === 'horizontal') { lx.textContent = 'Az [deg]'; ly.textContent = 'El [deg]'; }
+    if (cs === 'gnss') fetchSatellites();
   }
 
   // Expose to inline onclick handlers
@@ -305,6 +378,7 @@
   window.stopTelescope = stopTelescope;
   window.startSession = startSession;
   window.onCoordSysChange = onCoordSysChange;
+  window.satelliteChanged = satelliteChanged;
 
   // Re-poll when telescope selection changes
   ['a','b'].forEach(which => {
