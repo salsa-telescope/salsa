@@ -34,7 +34,7 @@ jobs:
         with:
           name: salsa
           path: |
-            target/release/backend
+            target/release/salsa
             sql_migrations/**
             assets/**
       - name: Run tests
@@ -63,7 +63,7 @@ jobs:
         run: |
           chgrp -R salsaowners /home/salsa/bin/target /home/salsa/bin/sql_migrations /home/salsa/bin/assets
           chmod -R g+r /home/salsa/bin/target /home/salsa/bin/sql_migrations /home/salsa/bin/assets
-          chmod g+rx /home/salsa/bin/target/release/backend
+          chmod g+rx /home/salsa/bin/target/release/salsa
       - name: Start salsa if enabled
         run: |
           if systemctl is-enabled -q salsa.service; then
