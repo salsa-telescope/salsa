@@ -46,8 +46,42 @@ pub fn routes(state: AppState) -> Router {
         .route("/stop", post(stop_observe))
         .route("/satellites", get(get_satellites));
     Router::new()
+        .route("/", get(get_observe_landing))
         .nest("/{telescope_id}", observe_routes)
         .with_state(state)
+}
+
+#[derive(Template)]
+#[template(path = "observe_landing.html")]
+struct ObserveLandingTemplate {
+    active_bookings: Vec<String>,
+    interferometry_available: bool,
+}
+
+async fn get_observe_landing(
+    State(state): State<AppState>,
+    Extension(user): Extension<Option<User>>,
+) -> Response {
+    let Some(user) = user else {
+        return Redirect::to("/auth/login").into_response();
+    };
+    let now = chrono::Utc::now();
+    let active_bookings =
+        crate::models::booking::Booking::fetch_for_user(state.database_connection.clone(), &user)
+            .await
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|b| b.active_at(&now))
+            .map(|b| b.telescope_name)
+            .collect::<Vec<_>>();
+    let interferometry_available = active_bookings.len() >= 2;
+    let content = ObserveLandingTemplate {
+        active_bookings,
+        interferometry_available,
+    }
+    .render()
+    .expect("Template should always succeed");
+    Html(render_main(Some(user), content)).into_response()
 }
 
 #[derive(Deserialize)]
