@@ -68,7 +68,9 @@ or Firefox for local development.
 
 ## Deployment
 
-The server runs as a systemd service on `salsa.oso.chalmers.se`.
+The server runs as a systemd service on `salsa.oso.chalmers.se`. Deploys happen
+automatically on every push to `main` via GitHub Actions. A manual deploy can be
+triggered from the Actions tab using the "Deploy to SALSA webserver" workflow dispatch.
 
 View logs:
 ```bash
@@ -78,6 +80,28 @@ sudo journalctl -u salsa -f -p warning
 Restart after config changes:
 ```bash
 sudo systemctl restart salsa
+```
+
+### Systemd service
+
+The service file lives at `/etc/systemd/system/salsa.service`:
+
+```ini
+[Unit]
+Description=Salsa
+After=network.target
+
+[Service]
+User=salsa
+WorkingDirectory=/home/salsa/bin
+ExecStart=/home/salsa/bin/target/release/salsa --port 443 --log-to-journald
+AmbientCapabilities=CAP_NET_BIND_SERVICE CAP_NET_RAW
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE CAP_NET_RAW
+Restart=always
+EnvironmentFile=/home/salsa/bin/env
+
+[Install]
+WantedBy=multi-user.target
 ```
 
 ### TLS certificate
@@ -101,12 +125,12 @@ post_hook = systemctl start salsa.service
 Steps to set up the service on a fresh Linux machine (work in progress):
 
 - Install Rust: https://rust-lang.org/tools/install
-- Install build dependencies (see [Building](#building) above)
+- Install build dependencies: `sudo apt install libuhd-dev libuhd4.6.0 clang libclang-dev llvm-dev`
 - Create a `salsa` user and a `githubrunner` user
 - Create a `salsaowners` group and add both users to it
 - Install the GitHub Actions runner daemon as the `githubrunner` user
 - Create the deployment directory `/home/salsa/bin` owned by `salsa:salsaowners`
-- Configure the systemd service to allow the binary to bind to privileged ports
+- Create the systemd service file (see above) and run `sudo systemctl enable salsa`
 - Set up the TLS certificate (see above)
 - Place `config.toml` and `.secrets.toml` in the config directory
 
