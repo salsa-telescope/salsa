@@ -1,8 +1,8 @@
 use crate::coords::{Direction, Location};
 use crate::models::telescope::Telescope;
 use crate::models::telescope_types::{
-    IqBlock, Measurement, ObservationMode, ObservedSpectra, ReceiverConfiguration, ReceiverError,
-    TelescopeError, TelescopeInfo, TelescopeTarget,
+    IQ_BLOCK_SIZE, IqBlock, Measurement, ObservationMode, ObservedSpectra, ReceiverConfiguration,
+    ReceiverError, TelescopeError, TelescopeInfo, TelescopeTarget,
 };
 use crate::telescope_tracker::TelescopeTracker;
 use crate::tle_cache::TleCacheHandle;
@@ -22,9 +22,18 @@ use uhd::{self, StreamCommand, StreamCommandType, StreamTime, TuneRequest, Usrp}
 
 pub const TELESCOPE_UPDATE_INTERVAL: Duration = Duration::from_secs(1);
 
+#[derive(Copy, Clone, PartialEq, Eq)]
+enum IntegrationKind {
+    /// `measure()` task — writes single-dish spectra into `Inner::measurements`.
+    Spectrum,
+    /// `measure_iq()` task — streams raw IQ blocks; does not touch `measurements`.
+    Iq,
+}
+
 pub struct ActiveIntegration {
     cancellation_token: CancellationToken,
     measurement_task: tokio::task::JoinHandle<()>,
+    kind: IntegrationKind,
 }
 
 struct Inner {
@@ -217,6 +226,7 @@ impl Telescope for SalsaTelescope {
             inner.active_integration = Some(ActiveIntegration {
                 cancellation_token,
                 measurement_task,
+                kind: IntegrationKind::Spectrum,
             });
         } else if !receiver_configuration.integrate && inner.receiver_configuration.integrate {
             info!("Stopping integration");
@@ -249,11 +259,18 @@ impl Telescope for SalsaTelescope {
             inner.active_integration.take()
         };
         // Lock is dropped — safe to await the task without risk of deadlock.
+        let kind = active_integration.as_ref().map(|ai| ai.kind);
         if let Some(ai) = active_integration {
             ai.cancellation_token.cancel();
             if let Err(err) = ai.measurement_task.await {
                 error!("Error waiting for measurement task to finish: {err}");
             }
+        }
+        // IQ streams do not produce ObservedSpectra. Returning the last entry of
+        // `measurements` would surface stale single-dish data from earlier in the
+        // process lifetime and mis-file it under the current user/target.
+        if kind != Some(IntegrationKind::Spectrum) {
+            return None;
         }
         let inner = self.inner.lock().await;
         let measurements = inner.measurements.lock().await;
@@ -295,7 +312,10 @@ impl Telescope for SalsaTelescope {
                 .last_receiver_error
                 .clone()
                 .or(controller_info.most_recent_error),
-            measurement_in_progress: inner.active_integration.is_some(),
+            measurement_in_progress: inner
+                .active_integration
+                .as_ref()
+                .is_some_and(|ai| ai.kind == IntegrationKind::Spectrum),
             latest_observation,
             stow_position: inner.stow_position,
             az_offset_rad: controller_info.az_offset_rad,
@@ -345,6 +365,7 @@ impl Telescope for SalsaTelescope {
         inner.active_integration = Some(ActiveIntegration {
             cancellation_token,
             measurement_task,
+            kind: IntegrationKind::Iq,
         });
         Ok(rx)
     }
@@ -649,8 +670,6 @@ async fn measure(
             .unwrap();
     }
 }
-
-pub const IQ_BLOCK_SIZE: usize = 8192;
 
 /// Stream raw IQ blocks for interferometry cross-correlation.
 /// Sends blocks of IQ_BLOCK_SIZE Complex<f32> samples over `tx`.

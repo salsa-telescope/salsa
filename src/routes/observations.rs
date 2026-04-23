@@ -89,6 +89,7 @@ fn make_interf_rows(
         .collect()
 }
 
+#[allow(clippy::too_many_arguments)]
 fn build_observations_template(
     mode: String,
     observations: Vec<Observation>,
@@ -278,9 +279,13 @@ async fn delete_interferometry_session(
     if is_running {
         return Err(StatusCode::CONFLICT);
     }
-    InterferometrySession::delete(state.database_connection.clone(), session_id, &user)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let deleted =
+        InterferometrySession::delete(state.database_connection.clone(), session_id, &user)
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    if !deleted {
+        return Err(StatusCode::NOT_FOUND);
+    }
     let sessions =
         InterferometrySession::fetch_for_user(state.database_connection.clone(), viewed_user_id)
             .await

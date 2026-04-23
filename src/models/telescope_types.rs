@@ -254,6 +254,11 @@ impl Default for ReceiverConfiguration {
     }
 }
 
+/// Fixed block size, in complex samples, for raw IQ streams feeding the
+/// correlator. Both telescope backends produce blocks of this size so the
+/// correlator can assume matched FFT lengths.
+pub const IQ_BLOCK_SIZE: usize = 8192;
+
 /// One block of raw IQ samples from an interferometry stream, tagged with the
 /// timestamp of the first sample. `timestamp_secs` is the USRP hardware time
 /// (post-PPS sync) for real telescopes, or a synthetic sample-count-derived

@@ -545,13 +545,36 @@ async fn post_stop(
     State(state): State<AppState>,
     Extension(user): Extension<Option<User>>,
 ) -> Response {
-    let Some(_user) = user else {
+    let Some(user) = user else {
         return Redirect::to("/auth/login").into_response();
     };
 
+    // Only the session owner (or an admin) may stop a running session — otherwise
+    // any logged-in user could cancel someone else's observation.
+    let running_session_id = state
+        .active_correlator
+        .lock()
+        .await
+        .as_ref()
+        .map(|c| c.session_id);
+    let Some(session_id) = running_session_id else {
+        return Redirect::to("/interferometry").into_response();
+    };
+    match InterferometrySession::fetch_one(state.database_connection.clone(), session_id, None)
+        .await
+    {
+        Ok(Some(session)) if user.is_admin || session.user_id == user.id => {}
+        Ok(_) => return StatusCode::FORBIDDEN.into_response(),
+        Err(e) => {
+            error!("fetch session for stop: {e:?}");
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    }
+
+    // Re-take under the lock; if it raced away (another stop finished first),
+    // just redirect to the list.
     let taken = state.active_correlator.lock().await.take();
     if let Some(handle) = taken {
-        let session_id = handle.session_id;
         stop_correlator_session(&state, handle).await;
         return Redirect::to(&format!("/interferometry/{session_id}?from=controls"))
             .into_response();
@@ -692,10 +715,15 @@ async fn get_session_data(
         }
     }
 
+    // Bound per-request size so a page refresh on a long session (or an old
+    // client that keeps `after_id=0`) can't pull down every row at once. The
+    // client paginates via `after_id`; it will catch up within a few polls.
+    const MAX_ROWS_PER_REQUEST: i64 = 1800;
     match InterferometryVisibility::fetch_for_session(
         state.database_connection.clone(),
         session_id,
         query.after_id,
+        MAX_ROWS_PER_REQUEST,
     )
     .await
     {

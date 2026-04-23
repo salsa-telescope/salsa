@@ -278,6 +278,7 @@ impl InterferometryVisibility {
         connection: Arc<Mutex<Connection>>,
         session_id: i64,
         after_id: i64,
+        limit: i64,
     ) -> Result<Vec<Self>, InternalError> {
         let conn = connection.lock().await;
         let mut stmt = conn
@@ -286,10 +287,11 @@ impl InterferometryVisibility {
                         amplitudes_json, phases_json, frequencies_json
                  FROM interferometry_visibility
                  WHERE session_id = ?1 AND id > ?2
-                 ORDER BY id ASC",
+                 ORDER BY id ASC
+                 LIMIT ?3",
             )
             .map_err(|e| InternalError::new(format!("prepare: {e}")))?;
-        stmt.query_map(rusqlite::params![session_id, after_id], |row| {
+        stmt.query_map(rusqlite::params![session_id, after_id, limit], |row| {
             Ok(InterferometryVisibility {
                 id: row.get(0)?,
                 session_id: row.get(1)?,

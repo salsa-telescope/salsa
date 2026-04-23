@@ -211,16 +211,31 @@
     lineDt.datum(allData).attr('d', d3.line().x(d => xDt(new Date(d.time))).y(d => yDt(d.delay_ns)));
   }
 
+  // Server caps each response; keep draining immediately whenever we get a full
+  // page so long archived sessions finish loading promptly instead of waiting
+  // for the next 2s tick.
+  const MAX_ROWS_PER_RESPONSE = 1800;
+
   function poll() {
-    fetch('/interferometry/' + SESSION_ID + '/data?after_id=' + lastId)
+    return fetch('/interferometry/' + SESSION_ID + '/data?after_id=' + lastId)
       .then(r => r.json())
-      .then(rows => { ingest(rows); render(); })
-      .catch(console.error);
+      .then(rows => {
+        ingest(rows);
+        render();
+        return rows ? rows.length : 0;
+      });
   }
 
-  poll();
-  if (IS_RUNNING) {
-    setInterval(poll, POLL_INTERVAL_MS);
+  async function drain() {
+    try {
+      while ((await poll()) === MAX_ROWS_PER_RESPONSE) { /* keep going */ }
+    } catch (e) { console.error(e); }
   }
+
+  drain().then(() => {
+    if (IS_RUNNING) {
+      setInterval(() => { poll().catch(console.error); }, POLL_INTERVAL_MS);
+    }
+  });
 })();
 </script>

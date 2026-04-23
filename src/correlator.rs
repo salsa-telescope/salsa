@@ -22,8 +22,7 @@ use tokio_util::sync::CancellationToken;
 use tracing::{error, info, warn};
 
 use crate::models::interferometry::InterferometryVisibility;
-use crate::models::salsa_telescope::IQ_BLOCK_SIZE;
-use crate::models::telescope_types::{IqBlock, ReceiverConfiguration};
+use crate::models::telescope_types::{IQ_BLOCK_SIZE, IqBlock, ReceiverConfiguration};
 
 pub struct CorrelatorHandle {
     pub session_id: i64,

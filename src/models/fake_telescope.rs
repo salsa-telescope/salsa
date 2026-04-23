@@ -2,8 +2,8 @@ use crate::coords::{Direction, Location};
 use crate::coords::{horizontal_from_equatorial, horizontal_from_galactic, horizontal_from_sun};
 use crate::models::telescope::Telescope;
 use crate::models::telescope_types::{
-    IqBlock, ObservedSpectra, ReceiverConfiguration, ReceiverError, TelescopeError, TelescopeInfo,
-    TelescopeStatus, TelescopeTarget,
+    IQ_BLOCK_SIZE, IqBlock, ObservedSpectra, ReceiverConfiguration, ReceiverError, TelescopeError,
+    TelescopeInfo, TelescopeStatus, TelescopeTarget,
 };
 use crate::tle_cache::TleCacheHandle;
 use async_trait::async_trait;
@@ -306,7 +306,7 @@ impl Telescope for FakeTelescope {
         let (tx, rx) = tokio::sync::mpsc::channel(8);
         let token = CancellationToken::new();
         inner.iq_cancellation_token = Some(token.clone());
-        let block_size = crate::models::salsa_telescope::IQ_BLOCK_SIZE;
+        let block_size = IQ_BLOCK_SIZE;
         let block_duration = Duration::from_secs_f64(block_size as f64 / config.bandwidth_hz);
         let bandwidth_hz = config.bandwidth_hz;
         tokio::spawn(async move {
