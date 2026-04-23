@@ -208,3 +208,125 @@ fn cant_start_observation_if_not_logged_in() {
 
 // TODO: Test for websocket upgrade without active booking. Requires better db
 // support in these tests.
+
+#[test]
+fn interferometry_list_redirects_to_login_if_not_logged_in() {
+    let server = SalsaTestServer::spawn();
+    let client = Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .build()
+        .unwrap();
+    let res = client
+        .get(server.addr() + "/interferometry")
+        .send()
+        .expect("Should be able to send request");
+
+    assert_eq!(StatusCode::SEE_OTHER, res.status());
+    let location = res.headers().get("location").unwrap().to_str().unwrap();
+    assert!(
+        location.contains("/auth/login"),
+        "Expected login redirect, got: {location}"
+    );
+}
+
+#[test]
+fn cant_start_interferometry_if_not_logged_in() {
+    let server = SalsaTestServer::spawn();
+    let client = Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .build()
+        .unwrap();
+    let res = client
+        .post(server.addr() + "/interferometry/start")
+        .form(&[
+            ("telescope_a", "fake1"),
+            ("telescope_b", "fake2"),
+            ("coordinate_system", "sun"),
+            ("target_x", "0"),
+            ("target_y", "0"),
+            ("center_freq_mhz", "1420.4"),
+            ("bandwidth_mhz", "2.5"),
+            ("spectral_channels", "128"),
+        ])
+        .send()
+        .expect("Should be able to send request");
+
+    assert_eq!(StatusCode::SEE_OTHER, res.status());
+}
+
+#[test]
+fn cant_stop_interferometry_if_not_logged_in() {
+    let server = SalsaTestServer::spawn();
+    let client = Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .build()
+        .unwrap();
+    let res = client
+        .post(server.addr() + "/interferometry/stop")
+        .send()
+        .expect("Should be able to send request");
+
+    assert_eq!(StatusCode::SEE_OTHER, res.status());
+}
+
+#[test]
+fn cant_fetch_interferometry_session_data_if_not_logged_in() {
+    let server = SalsaTestServer::spawn();
+    let client = Client::new();
+    let res = client
+        .get(server.addr() + "/interferometry/1/data")
+        .send()
+        .expect("Should be able to send request");
+
+    assert_eq!(StatusCode::UNAUTHORIZED, res.status());
+}
+
+#[test]
+fn cant_start_interferometry_without_active_booking() {
+    let server = SalsaTestServer::spawn();
+    let user = server.add_local_user("interf_user", "password");
+    let client = Client::builder().cookie_store(true).build().unwrap();
+    server.login(&client, &user);
+
+    let res = client
+        .post(server.addr() + "/interferometry/start")
+        .form(&[
+            ("telescope_a", "fake1"),
+            ("telescope_b", "fake2"),
+            ("coordinate_system", "sun"),
+            ("target_x", "0"),
+            ("target_y", "0"),
+            ("center_freq_mhz", "1420.4"),
+            ("bandwidth_mhz", "2.5"),
+            ("spectral_channels", "128"),
+        ])
+        .send()
+        .expect("Should be able to send request");
+
+    assert_eq!(StatusCode::FORBIDDEN, res.status());
+}
+
+#[test]
+fn cant_start_interferometry_with_same_telescope_twice() {
+    let server = SalsaTestServer::spawn();
+    let user = server.add_local_user("interf_user", "password");
+    let client = Client::builder().cookie_store(true).build().unwrap();
+    server.login(&client, &user);
+
+    let res = client
+        .post(server.addr() + "/interferometry/start")
+        .form(&[
+            ("telescope_a", "fake1"),
+            ("telescope_b", "fake1"),
+            ("coordinate_system", "sun"),
+            ("target_x", "0"),
+            ("target_y", "0"),
+            ("center_freq_mhz", "1420.4"),
+            ("bandwidth_mhz", "2.5"),
+            ("spectral_channels", "128"),
+        ])
+        .send()
+        .expect("Should be able to send request");
+
+    assert_eq!(StatusCode::BAD_REQUEST, res.status());
+}

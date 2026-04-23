@@ -29,12 +29,14 @@ pub async fn stop_correlator_session(state: &AppState, mut handle: CorrelatorHan
     let tel_a = handle.telescope_a.clone();
     let tel_b = handle.telescope_b.clone();
 
+    // Stop the correlator task before finalising the session so no visibility
+    // rows can land with a timestamp after the session's end_time.
+    handle.stop().await;
     if let Err(e) =
         InterferometrySession::finalize(state.database_connection.clone(), session_id).await
     {
         error!("finalize session {session_id}: {e:?}");
     }
-    handle.stop().await;
     release_iq_stream(state, &tel_a).await;
     release_iq_stream(state, &tel_b).await;
 }
@@ -79,6 +81,8 @@ struct ListTemplate {
     active_telescopes: Vec<String>,
     running_session_id: Option<i64>,
     telescope_names: Vec<String>,
+    freq_min_mhz: u32,
+    freq_max_mhz: u32,
 }
 
 async fn get_list(
@@ -119,10 +123,18 @@ async fn get_list(
 
     let telescope_names = state.telescopes.get_names().await;
 
+    let (freq_min_mhz, freq_max_mhz) = if user.is_admin {
+        (FREQ_MIN_ADMIN_MHZ, FREQ_MAX_ADMIN_MHZ)
+    } else {
+        (FREQ_MIN_USER_MHZ, FREQ_MAX_USER_MHZ)
+    };
+
     let content = ListTemplate {
         active_telescopes,
         running_session_id,
         telescope_names,
+        freq_min_mhz,
+        freq_max_mhz,
     }
     .render()
     .expect("template ok");

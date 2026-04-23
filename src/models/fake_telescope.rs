@@ -300,7 +300,10 @@ impl Telescope for FakeTelescope {
         config: ReceiverConfiguration,
     ) -> Result<tokio::sync::mpsc::Receiver<IqBlock>, ReceiverError> {
         let mut inner = self.inner.lock().await;
-        if inner.iq_cancellation_token.is_some() {
+        // Match SalsaTelescope: the receiver can only do one thing at a time,
+        // so reject if either an IQ stream or a single-dish integration is
+        // already active.
+        if inner.iq_cancellation_token.is_some() || inner.receiver_configuration.integrate {
             return Err(ReceiverError::IntegrationAlreadyRunning);
         }
         let (tx, rx) = tokio::sync::mpsc::channel(8);

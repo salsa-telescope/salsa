@@ -91,7 +91,7 @@
     <div class="flex flex-wrap gap-4 items-end text-sm">
       <div class="flex flex-col gap-1">
         <label class="text-gray-600">Center frequency [MHz]</label>
-        <input id="center-freq" type="number" value="1410.0" step="0.1" min="1400" max="1700" class="border rounded px-2 py-1 w-32" />
+        <input id="center-freq" type="number" value="1410.0" step="0.1" min="{{ freq_min_mhz }}" max="{{ freq_max_mhz }}" class="border rounded px-2 py-1 w-32" />
       </div>
       <div class="flex flex-col gap-1">
         <label class="text-gray-600">Bandwidth [MHz]</label>
