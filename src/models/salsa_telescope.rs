@@ -1,7 +1,7 @@
 use crate::coords::{Direction, Location};
 use crate::models::telescope::Telescope;
 use crate::models::telescope_types::{
-    Measurement, ObservationMode, ObservedSpectra, ReceiverConfiguration, ReceiverError,
+    IqBlock, Measurement, ObservationMode, ObservedSpectra, ReceiverConfiguration, ReceiverError,
     TelescopeError, TelescopeInfo, TelescopeTarget,
 };
 use crate::telescope_tracker::TelescopeTracker;
@@ -220,10 +220,21 @@ impl Telescope for SalsaTelescope {
             });
         } else if !receiver_configuration.integrate && inner.receiver_configuration.integrate {
             info!("Stopping integration");
-            if let Some(active_integration) = &mut inner.active_integration {
-                active_integration.cancellation_token.cancel();
-            }
             inner.receiver_configuration.integrate = false;
+            let result = inner.receiver_configuration;
+            // Take the task out so we can await it without holding the inner lock,
+            // which would deadlock with the task trying to lock measurements. This
+            // matches stop_integration() and guarantees a subsequent start_iq_stream
+            // won't see a stale active_integration.
+            let active = inner.active_integration.take();
+            drop(inner);
+            if let Some(ai) = active {
+                ai.cancellation_token.cancel();
+                if let Err(err) = ai.measurement_task.await {
+                    error!("Error waiting for measurement task to finish: {err}");
+                }
+            }
+            return Ok(result);
         }
         Ok(inner.receiver_configuration)
     }
@@ -315,7 +326,7 @@ impl Telescope for SalsaTelescope {
     async fn start_iq_stream(
         &self,
         config: ReceiverConfiguration,
-    ) -> Result<tokio::sync::mpsc::Receiver<Vec<Complex<f32>>>, ReceiverError> {
+    ) -> Result<tokio::sync::mpsc::Receiver<IqBlock>, ReceiverError> {
         let mut inner = self.inner.lock().await;
         if inner.active_integration.is_some() {
             return Err(ReceiverError::IntegrationAlreadyRunning);
@@ -649,7 +660,7 @@ async fn measure_iq(
     gpsdo_enabled: bool,
     cancellation_token: CancellationToken,
     config: ReceiverConfiguration,
-    tx: tokio::sync::mpsc::Sender<Vec<Complex<f32>>>,
+    tx: tokio::sync::mpsc::Sender<IqBlock>,
 ) {
     let args = format!("addr={}", address);
     let mut usrp = match Usrp::open(&args) {
@@ -683,39 +694,75 @@ async fn measure_iq(
     usrp.set_rx_antenna("TX/RX", 0).unwrap();
     usrp.set_rx_dc_offset_enabled(true, 0).unwrap();
     usrp.set_rx_sample_rate(config.bandwidth_hz, 0).unwrap();
+    if let Err(e) = usrp.set_rx_frequency(&TuneRequest::with_frequency(config.center_freq_hz), 0) {
+        error!("IQ stream: set_rx_frequency failed: {}", e);
+        return;
+    }
 
+    // Open a single continuous stream once and pull IQ_BLOCK_SIZE samples at a time.
+    // Re-tuning / reopening the stream per block would invalidate cross-correlation
+    // because each setup introduces a fresh, uncorrelated time gap between telescopes.
+    let mut receiver = match usrp.get_rx_stream(&uhd::StreamArgs::<Complex<i16>>::new("sc16")) {
+        Ok(r) => r,
+        Err(e) => {
+            error!("IQ stream: get_rx_stream failed: {}", e);
+            return;
+        }
+    };
+    if let Err(e) = receiver.send_command(&StreamCommand {
+        command_type: StreamCommandType::StartContinuous,
+        time: StreamTime::Now,
+    }) {
+        error!("IQ stream: StartContinuous failed: {}", e);
+        return;
+    }
+
+    let mut buffer = vec![Complex::<i16>::default(); IQ_BLOCK_SIZE];
+    // Fallback sample counter, in case the USRP metadata omits a time_spec on
+    // some packets. Both telescopes increment at the same rate, so if they both
+    // lose metadata, sample-count alignment still works as long as the initial
+    // offsets match.
+    let mut samples_received: u64 = 0;
     while !cancellation_token.is_cancelled() {
-        usrp.set_rx_frequency(&TuneRequest::with_frequency(config.center_freq_hz), 0)
-            .unwrap();
-
-        let mut receiver = match usrp.get_rx_stream(&uhd::StreamArgs::<Complex<i16>>::new("sc16")) {
-            Ok(r) => r,
-            Err(e) => {
-                error!("IQ stream: get_rx_stream failed: {}", e);
-                break;
-            }
+        let metadata = match receiver.receive_simple(buffer.as_mut()) {
+            Ok(m) => m,
+            Err(_) => break,
         };
 
-        let mut buffer = vec![Complex::<i16>::default(); IQ_BLOCK_SIZE];
-        receiver
-            .send_command(&StreamCommand {
-                command_type: StreamCommandType::CountAndDone(IQ_BLOCK_SIZE as u64),
-                time: StreamTime::Now,
-            })
-            .unwrap();
+        let timestamp_secs = match metadata.time_spec() {
+            Some(ts) => ts.seconds as f64 + ts.fraction,
+            None => {
+                warn!(
+                    "IQ stream from {}: receive packet had no time_spec; using sample counter",
+                    address
+                );
+                samples_received as f64 / config.bandwidth_hz
+            }
+        };
+        samples_received += IQ_BLOCK_SIZE as u64;
 
-        if receiver.receive_simple(buffer.as_mut()).is_err() {
-            break;
-        }
-
-        let block: Vec<Complex<f32>> = buffer
+        let samples: Vec<Complex<f32>> = buffer
             .iter()
             .map(|x| Complex::new(x.re as f32, x.im as f32))
             .collect();
 
-        if tx.send(block).await.is_err() {
+        if tx
+            .send(IqBlock {
+                timestamp_secs,
+                samples,
+            })
+            .await
+            .is_err()
+        {
             break;
         }
+    }
+
+    if let Err(e) = receiver.send_command(&StreamCommand {
+        command_type: StreamCommandType::StopContinuous,
+        time: StreamTime::Now,
+    }) {
+        error!("IQ stream: StopContinuous failed: {}", e);
     }
 }
 

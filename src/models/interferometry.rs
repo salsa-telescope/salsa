@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
-use rusqlite::Connection;
+use rusqlite::{Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 
@@ -102,26 +102,29 @@ impl InterferometrySession {
         id: i64,
         user_id_filter: Option<i64>,
     ) -> Result<Option<Self>, InternalError> {
+        const SELECT_COLS: &str = "id, user_id, start_time, end_time, telescope_a, telescope_b,
+             coordinate_system, target_x, target_y, center_freq_hz, bandwidth_hz";
         let conn = connection.lock().await;
-        let sql = if user_id_filter.is_some() {
-            "SELECT id, user_id, start_time, end_time, telescope_a, telescope_b,
-                    coordinate_system, target_x, target_y, center_freq_hz, bandwidth_hz
-             FROM interferometry_session WHERE id = ?1 AND user_id = ?2"
-        } else {
-            "SELECT id, user_id, start_time, end_time, telescope_a, telescope_b,
-                    coordinate_system, target_x, target_y, center_freq_hz, bandwidth_hz
-             FROM interferometry_session WHERE id = ?1 AND 1 = ?2"
+        let result = match user_id_filter {
+            Some(uid) => conn
+                .prepare(&format!(
+                    "SELECT {SELECT_COLS} FROM interferometry_session
+                     WHERE id = ?1 AND user_id = ?2"
+                ))
+                .and_then(|mut stmt| {
+                    stmt.query_row(rusqlite::params![id, uid], map_session_row)
+                        .optional()
+                }),
+            None => conn
+                .prepare(&format!(
+                    "SELECT {SELECT_COLS} FROM interferometry_session WHERE id = ?1"
+                ))
+                .and_then(|mut stmt| {
+                    stmt.query_row(rusqlite::params![id], map_session_row)
+                        .optional()
+                }),
         };
-        let param2: i64 = user_id_filter.unwrap_or(1);
-        let mut stmt = conn
-            .prepare(sql)
-            .map_err(|e| InternalError::new(format!("prepare: {e}")))?;
-        Ok(stmt
-            .query_map([id, param2], map_session_row)
-            .map_err(|e| InternalError::new(format!("query: {e}")))?
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|e| InternalError::new(format!("row: {e}")))?
-            .pop())
+        result.map_err(|e| InternalError::new(format!("fetch session: {e}")))
     }
 
     pub async fn delete(
@@ -129,19 +132,30 @@ impl InterferometrySession {
         id: i64,
         user: &User,
     ) -> Result<bool, InternalError> {
-        let conn = connection.lock().await;
+        let mut conn = connection.lock().await;
+        let tx = conn
+            .transaction()
+            .map_err(|e| InternalError::new(format!("begin delete tx: {e}")))?;
+        // Delete children first so this works even if PRAGMA foreign_keys is off.
+        tx.execute(
+            "DELETE FROM interferometry_visibility WHERE session_id = ?1",
+            rusqlite::params![id],
+        )
+        .map_err(|e| InternalError::new(format!("delete visibilities: {e}")))?;
         let rows = if user.is_admin {
-            conn.execute(
+            tx.execute(
                 "DELETE FROM interferometry_session WHERE id = ?1",
                 rusqlite::params![id],
             )
         } else {
-            conn.execute(
+            tx.execute(
                 "DELETE FROM interferometry_session WHERE id = ?1 AND user_id = ?2",
                 rusqlite::params![id, user.id],
             )
         }
         .map_err(|e| InternalError::new(format!("delete session: {e}")))?;
+        tx.commit()
+            .map_err(|e| InternalError::new(format!("commit delete: {e}")))?;
         Ok(rows > 0)
     }
 
@@ -169,15 +183,50 @@ impl InterferometrySession {
             cs => format!("{} ({:.1}, {:.1})", cs, self.target_x, self.target_y),
         }
     }
+
+    /// Look up the satellite name (if this session targets a GNSS satellite) and
+    /// render a human-readable target label.
+    pub fn target_label_from_cache(
+        &self,
+        tle_cache: &crate::tle_cache::TleCacheHandle,
+    ) -> String {
+        let sat_name = if self.coordinate_system == "gnss" {
+            tle_cache.satellite_name(self.target_x as u64)
+        } else {
+            None
+        };
+        self.target_label(sat_name)
+    }
+}
+
+fn timestamp_from_secs(idx: usize, secs: i64) -> rusqlite::Result<DateTime<Utc>> {
+    DateTime::<Utc>::from_timestamp(secs, 0).ok_or_else(|| {
+        rusqlite::Error::FromSqlConversionFailure(
+            idx,
+            rusqlite::types::Type::Integer,
+            format!("invalid unix timestamp {secs}").into(),
+        )
+    })
+}
+
+fn timestamp_from_millis(idx: usize, ms: i64) -> rusqlite::Result<DateTime<Utc>> {
+    DateTime::<Utc>::from_timestamp_millis(ms).ok_or_else(|| {
+        rusqlite::Error::FromSqlConversionFailure(
+            idx,
+            rusqlite::types::Type::Integer,
+            format!("invalid unix timestamp (ms) {ms}").into(),
+        )
+    })
 }
 
 fn map_session_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<InterferometrySession> {
     let end_ts: Option<i64> = row.get(3)?;
+    let end_time = end_ts.map(|t| timestamp_from_secs(3, t)).transpose()?;
     Ok(InterferometrySession {
         id: row.get(0)?,
         user_id: row.get(1)?,
-        start_time: DateTime::<Utc>::from_timestamp(row.get(2)?, 0).unwrap_or_default(),
-        end_time: end_ts.and_then(|t| DateTime::<Utc>::from_timestamp(t, 0)),
+        start_time: timestamp_from_secs(2, row.get(2)?)?,
+        end_time,
         telescope_a: row.get(4)?,
         telescope_b: row.get(5)?,
         coordinate_system: row.get(6)?,
@@ -242,6 +291,7 @@ impl InterferometryVisibility {
     pub async fn fetch_for_session(
         connection: Arc<Mutex<Connection>>,
         session_id: i64,
+        after_id: i64,
     ) -> Result<Vec<Self>, InternalError> {
         let conn = connection.lock().await;
         let mut stmt = conn
@@ -249,15 +299,15 @@ impl InterferometryVisibility {
                 "SELECT id, session_id, time, mean_amplitude, mean_phase_deg, delay_ns,
                         amplitudes_json, phases_json, frequencies_json
                  FROM interferometry_visibility
-                 WHERE session_id = ?1
-                 ORDER BY time ASC",
+                 WHERE session_id = ?1 AND id > ?2
+                 ORDER BY id ASC",
             )
             .map_err(|e| InternalError::new(format!("prepare: {e}")))?;
-        stmt.query_map([session_id], |row| {
+        stmt.query_map(rusqlite::params![session_id, after_id], |row| {
             Ok(InterferometryVisibility {
                 id: row.get(0)?,
                 session_id: row.get(1)?,
-                time: DateTime::<Utc>::from_timestamp_millis(row.get(2)?).unwrap_or_default(),
+                time: timestamp_from_millis(2, row.get(2)?)?,
                 mean_amplitude: row.get(3)?,
                 mean_phase_deg: row.get(4)?,
                 delay_ns: row.get(5)?,
@@ -269,5 +319,18 @@ impl InterferometryVisibility {
         .map_err(|e| InternalError::new(format!("query: {e}")))?
         .collect::<Result<_, _>>()
         .map_err(|e| InternalError::new(format!("row: {e}")))
+    }
+
+    pub async fn count_for_session(
+        connection: Arc<Mutex<Connection>>,
+        session_id: i64,
+    ) -> Result<i64, InternalError> {
+        let conn = connection.lock().await;
+        conn.query_row(
+            "SELECT COUNT(*) FROM interferometry_visibility WHERE session_id = ?1",
+            [session_id],
+            |r| r.get(0),
+        )
+        .map_err(|e| InternalError::new(format!("count visibilities: {e}")))
     }
 }

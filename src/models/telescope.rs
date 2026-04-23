@@ -1,9 +1,8 @@
 use crate::coords::{Direction, Location};
 use crate::models::telescope_types::{
-    ObservedSpectra, ReceiverConfiguration, ReceiverError, TelescopeDefinition, TelescopeError,
-    TelescopeInfo, TelescopeTarget, TelescopeType, TelescopesConfig,
+    IqBlock, ObservedSpectra, ReceiverConfiguration, ReceiverError, TelescopeDefinition,
+    TelescopeError, TelescopeInfo, TelescopeTarget, TelescopeType, TelescopesConfig,
 };
-use rustfft::num_complex::Complex;
 
 use crate::models::fake_telescope;
 use crate::models::salsa_telescope;
@@ -37,12 +36,14 @@ pub trait Telescope: Send + Sync {
     async fn get_info(&self) -> Result<TelescopeInfo, TelescopeError>;
     async fn shutdown(&self);
     /// Start streaming raw IQ blocks for interferometry correlation.
-    /// Returns an mpsc receiver of sample blocks (Complex<f32>, length = FFT block size).
+    /// Each block carries a timestamp (seconds, relative to USRP time zero for
+    /// real hardware, or stream start for the fake telescope) so the correlator
+    /// can align A- and B-side blocks.
     /// Stop by calling set_receiver_configuration(integrate: false).
     async fn start_iq_stream(
         &self,
         config: ReceiverConfiguration,
-    ) -> Result<tokio::sync::mpsc::Receiver<Vec<Complex<f32>>>, ReceiverError>;
+    ) -> Result<tokio::sync::mpsc::Receiver<IqBlock>, ReceiverError>;
 }
 
 type TelescopeCollection = Arc<RwLock<HashMap<String, Arc<dyn Telescope>>>>;

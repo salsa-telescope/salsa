@@ -74,12 +74,7 @@ fn make_interf_rows(
     sessions
         .into_iter()
         .map(|s| {
-            let sat_name = if s.coordinate_system == "gnss" {
-                state.tle_cache.satellite_name(s.target_x as u64)
-            } else {
-                None
-            };
-            let target_label = s.target_label(sat_name);
+            let target_label = s.target_label_from_cache(&state.tle_cache);
             let center_freq_mhz = s.center_freq_hz / 1e6;
             InterfSessionRow {
                 id: s.id,

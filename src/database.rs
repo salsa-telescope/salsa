@@ -39,6 +39,9 @@ pub fn create_sqlite_database_on_disk(
 ) -> Result<Connection, SqliteDatabaseError> {
     let file_path = file_path.into();
     let mut connection = Connection::open(&file_path)?;
+    // SQLite disables FK enforcement per connection by default; without this, every
+    // REFERENCES / ON DELETE CASCADE clause in the migrations is silently a no-op.
+    connection.execute_batch("PRAGMA foreign_keys = ON;")?;
     apply_migrations(&mut connection)?;
     Ok(connection)
 }

@@ -16,6 +16,39 @@ use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use tracing::error;
 
+/// Finalize the session row, stop the correlator task, and release both telescopes'
+/// IQ streams. Must be called for every path that ends a correlator session —
+/// otherwise the telescopes' receiver state stays stuck and the next session can't
+/// start (FakeTelescope: `iq_cancellation_token` stays `Some`;
+/// SalsaTelescope: `integrate` flag stays `true`).
+pub async fn stop_correlator_session(state: &AppState, mut handle: CorrelatorHandle) {
+    let session_id = handle.session_id;
+    let tel_a = handle.telescope_a.clone();
+    let tel_b = handle.telescope_b.clone();
+
+    if let Err(e) =
+        InterferometrySession::finalize(state.database_connection.clone(), session_id).await
+    {
+        error!("finalize session {session_id}: {e:?}");
+    }
+    handle.stop().await;
+    release_iq_stream(state, &tel_a).await;
+    release_iq_stream(state, &tel_b).await;
+}
+
+async fn release_iq_stream(state: &AppState, telescope_id: &str) {
+    let Some(tel) = state.telescopes.get(telescope_id).await else {
+        return;
+    };
+    let reset = ReceiverConfiguration {
+        integrate: false,
+        ..Default::default()
+    };
+    if let Err(e) = tel.set_receiver_configuration(reset).await {
+        error!("release IQ stream for {telescope_id}: {e:?}");
+    }
+}
+
 pub fn routes(state: AppState) -> Router {
     Router::new()
         .route("/", get(get_list))
@@ -43,15 +76,6 @@ struct ListTemplate {
     active_telescopes: Vec<String>,
     running_session_id: Option<i64>,
     telescope_names: Vec<String>,
-}
-
-fn session_target_label(s: &InterferometrySession, state: &AppState) -> String {
-    let sat_name = if s.coordinate_system == "gnss" {
-        state.tle_cache.satellite_name(s.target_x as u64)
-    } else {
-        None
-    };
-    s.target_label(sat_name)
 }
 
 async fn get_list(
@@ -362,8 +386,23 @@ async fn post_start(
         return (StatusCode::BAD_REQUEST, "Telescopes must be different").into_response();
     }
 
-    // Require both telescopes to be tracking
+    // The user must hold an active booking on both telescopes, and both must be tracking.
     for tel_id in [&form.telescope_a, &form.telescope_b] {
+        match booking_is_active(state.database_connection.clone(), &user, tel_id).await {
+            Ok(true) => {}
+            Ok(false) => {
+                return (
+                    StatusCode::FORBIDDEN,
+                    format!("No active booking for telescope {tel_id}"),
+                )
+                    .into_response();
+            }
+            Err(e) => {
+                error!("booking_is_active {tel_id}: {e:?}");
+                return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+            }
+        }
+
         let Some(tel) = state.telescopes.get(tel_id).await else {
             return (
                 StatusCode::BAD_REQUEST,
@@ -391,14 +430,9 @@ async fn post_start(
     let bandwidth_hz = form.bandwidth_mhz * 1e6;
 
     // Stop any running correlator first
-    {
-        let mut guard = state.active_correlator.lock().await;
-        if let Some(mut old) = guard.take() {
-            let _ =
-                InterferometrySession::finalize(state.database_connection.clone(), old.session_id)
-                    .await;
-            old.stop().await;
-        }
+    let previous = state.active_correlator.lock().await.take();
+    if let Some(old) = previous {
+        stop_correlator_session(&state, old).await;
     }
 
     let tel_a = match state.telescopes.get(&form.telescope_a).await {
@@ -436,13 +470,7 @@ async fn post_start(
     let rx_b = match tel_b.start_iq_stream(config).await {
         Ok(rx) => rx,
         Err(e) => {
-            // Clean up A
-            let _ = tel_a
-                .set_receiver_configuration(ReceiverConfiguration {
-                    integrate: false,
-                    ..Default::default()
-                })
-                .await;
+            release_iq_stream(&state, &form.telescope_a).await;
             error!("start_iq_stream B: {e:?}");
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
@@ -503,12 +531,10 @@ async fn post_stop(
         return Redirect::to("/auth/login").into_response();
     };
 
-    let mut guard = state.active_correlator.lock().await;
-    if let Some(mut handle) = guard.take() {
+    let taken = state.active_correlator.lock().await.take();
+    if let Some(handle) = taken {
         let session_id = handle.session_id;
-        let _ =
-            InterferometrySession::finalize(state.database_connection.clone(), session_id).await;
-        handle.stop().await;
+        stop_correlator_session(&state, handle).await;
         return Redirect::to(&format!("/interferometry/{session_id}?from=controls"))
             .into_response();
     }
@@ -563,16 +589,16 @@ async fn get_session(
         }
     };
 
-    let visibilities = match InterferometryVisibility::fetch_for_session(
+    let visibility_count = match InterferometryVisibility::count_for_session(
         state.database_connection.clone(),
         session_id,
     )
     .await
     {
-        Ok(v) => v,
+        Ok(n) => n as usize,
         Err(e) => {
-            error!("fetch visibilities: {e:?}");
-            vec![]
+            error!("count visibilities: {e:?}");
+            0
         }
     };
 
@@ -585,7 +611,7 @@ async fn get_session(
 
     let center_freq_mhz = session.center_freq_hz / 1e6;
     let half_bw_mhz = session.bandwidth_hz / 2e6;
-    let target_label = session_target_label(&session, &state);
+    let target_label = session.target_label_from_cache(&state.tle_cache);
     let (back_url, back_label) = if query.from.as_deref() == Some("controls") {
         ("/interferometry".to_string(), "Interferometry".to_string())
     } else {
@@ -598,7 +624,7 @@ async fn get_session(
         session,
         target_label,
         is_running,
-        visibility_count: visibilities.len(),
+        visibility_count,
         center_freq_mhz,
         half_bw_mhz,
         back_url,
@@ -614,10 +640,17 @@ async fn get_session(
 // JSON data endpoint (polled by the session page charts)
 // ---------------------------------------------------------------------------
 
+#[derive(Deserialize)]
+struct DataQuery {
+    #[serde(default)]
+    after_id: i64,
+}
+
 async fn get_session_data(
     State(state): State<AppState>,
     Extension(user): Extension<Option<User>>,
     Path(session_id): Path<i64>,
+    Query(query): Query<DataQuery>,
 ) -> Response {
     let Some(user) = user else {
         return StatusCode::UNAUTHORIZED.into_response();
@@ -639,8 +672,12 @@ async fn get_session_data(
         }
     }
 
-    match InterferometryVisibility::fetch_for_session(state.database_connection.clone(), session_id)
-        .await
+    match InterferometryVisibility::fetch_for_session(
+        state.database_connection.clone(),
+        session_id,
+        query.after_id,
+    )
+    .await
     {
         Ok(visibilities) => Json(visibilities).into_response(),
         Err(e) => {

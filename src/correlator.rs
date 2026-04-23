@@ -19,11 +19,11 @@ use rusqlite::Connection;
 use rustfft::{FftPlanner, num_complex::Complex};
 use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
 use crate::models::interferometry::InterferometryVisibility;
 use crate::models::salsa_telescope::IQ_BLOCK_SIZE;
-use crate::models::telescope_types::ReceiverConfiguration;
+use crate::models::telescope_types::{IqBlock, ReceiverConfiguration};
 
 pub struct CorrelatorHandle {
     pub session_id: i64,
@@ -38,8 +38,8 @@ impl CorrelatorHandle {
         session_id: i64,
         telescope_a: String,
         telescope_b: String,
-        rx_a: tokio::sync::mpsc::Receiver<Vec<Complex<f32>>>,
-        rx_b: tokio::sync::mpsc::Receiver<Vec<Complex<f32>>>,
+        rx_a: tokio::sync::mpsc::Receiver<IqBlock>,
+        rx_b: tokio::sync::mpsc::Receiver<IqBlock>,
         config: ReceiverConfiguration,
         db: Arc<Mutex<Connection>>,
     ) -> Self {
@@ -76,8 +76,8 @@ impl CorrelatorHandle {
 
 async fn correlator_task(
     session_id: i64,
-    mut rx_a: tokio::sync::mpsc::Receiver<Vec<Complex<f32>>>,
-    mut rx_b: tokio::sync::mpsc::Receiver<Vec<Complex<f32>>>,
+    mut rx_a: tokio::sync::mpsc::Receiver<IqBlock>,
+    mut rx_b: tokio::sync::mpsc::Receiver<IqBlock>,
     config: ReceiverConfiguration,
     db: Arc<Mutex<Connection>>,
     token: CancellationToken,
@@ -85,6 +85,13 @@ async fn correlator_task(
     let samples_per_second = config.bandwidth_hz as usize;
     let spectral_channels = config.spectral_channels.clamp(1, IQ_BLOCK_SIZE);
     let bins_per_channel = (IQ_BLOCK_SIZE / spectral_channels).max(1);
+
+    // Two blocks are "aligned" if their timestamps differ by less than half a block.
+    // Any larger gap means the two receivers drifted (dropped packets, slipped PPS,
+    // etc.) and their samples no longer correspond — cross-correlating them would
+    // produce scientifically meaningless output.
+    let block_duration_secs = IQ_BLOCK_SIZE as f64 / config.bandwidth_hz;
+    let align_tolerance_secs = block_duration_secs * 0.5;
 
     let mut planner = FftPlanner::<f64>::new();
     let fft_forward = planner.plan_fft_forward(IQ_BLOCK_SIZE);
@@ -102,25 +109,63 @@ async fn correlator_task(
                 + (ch as f64 + 0.5) * config.bandwidth_hz / spectral_channels as f64
         })
         .collect();
-    let freqs_json = serde_json::to_string(&freqs).unwrap_or_default();
+    let freqs_json = serde_json::to_string(&freqs).expect("serializing Vec<f64> never fails");
 
+    // Buffered look-ahead of one block per side, so we can discard a stale block
+    // from the earlier side without losing a fresh block from the other.
+    let mut pending_a: Option<IqBlock> = None;
+    let mut pending_b: Option<IqBlock> = None;
     loop {
-        // Receive one block from each telescope, exit on cancellation or channel close
-        let block_a = tokio::select! {
-            r = rx_a.recv() => match r { Some(b) => b, None => break },
-            _ = token.cancelled() => break,
-        };
-        let block_b = tokio::select! {
-            r = rx_b.recv() => match r { Some(b) => b, None => break },
-            _ = token.cancelled() => break,
-        };
+        if pending_a.is_none() {
+            pending_a = tokio::select! {
+                r = rx_a.recv() => match r { Some(b) => Some(b), None => break },
+                _ = token.cancelled() => break,
+            };
+        }
+        if pending_b.is_none() {
+            pending_b = tokio::select! {
+                r = rx_b.recv() => match r { Some(b) => Some(b), None => break },
+                _ = token.cancelled() => break,
+            };
+        }
+
+        // Safe: both are Some at this point.
+        let a_ts = pending_a.as_ref().unwrap().timestamp_secs;
+        let b_ts = pending_b.as_ref().unwrap().timestamp_secs;
+        let delta = a_ts - b_ts;
+
+        if delta.abs() > align_tolerance_secs {
+            // The two sides are out of alignment. Drop the earlier block and try
+            // again — this also resets the 1-second accumulator because any
+            // partial integration we've built was computed from misaligned blocks.
+            warn!(
+                "Correlator: A/B timestamp delta {:.3}s exceeds {:.3}s tolerance — dropping {} block and resetting accumulator",
+                delta,
+                align_tolerance_secs,
+                if delta < 0.0 { "A" } else { "B" }
+            );
+            if delta < 0.0 {
+                pending_a = None;
+            } else {
+                pending_b = None;
+            }
+            acc.fill(Complex::new(0.0, 0.0));
+            num_blocks = 0;
+            samples_acc = 0;
+            continue;
+        }
+
+        let block_a = pending_a.take().unwrap();
+        let block_b = pending_b.take().unwrap();
 
         // FFT both blocks
         let mut fa: Vec<Complex<f64>> = block_a
+            .samples
             .iter()
             .map(|x| Complex::new(x.re as f64, x.im as f64))
             .collect();
         let mut fb: Vec<Complex<f64>> = block_b
+            .samples
             .iter()
             .map(|x| Complex::new(x.re as f64, x.im as f64))
             .collect();
@@ -188,8 +233,10 @@ async fn correlator_task(
         let mean_amplitude = mean_vis.norm();
         let mean_phase_deg = mean_vis.arg().to_degrees();
 
-        let amps_json = serde_json::to_string(&bin_amps).unwrap_or_default();
-        let phases_json = serde_json::to_string(&bin_phases).unwrap_or_default();
+        let amps_json =
+            serde_json::to_string(&bin_amps).expect("serializing Vec<f64> never fails");
+        let phases_json =
+            serde_json::to_string(&bin_phases).expect("serializing Vec<f64> never fails");
 
         if let Err(e) = InterferometryVisibility::insert(
             db.clone(),

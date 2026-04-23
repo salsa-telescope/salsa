@@ -2,7 +2,7 @@ use crate::coords::{Direction, Location};
 use crate::coords::{horizontal_from_equatorial, horizontal_from_galactic, horizontal_from_sun};
 use crate::models::telescope::Telescope;
 use crate::models::telescope_types::{
-    ObservedSpectra, ReceiverConfiguration, ReceiverError, TelescopeError, TelescopeInfo,
+    IqBlock, ObservedSpectra, ReceiverConfiguration, ReceiverError, TelescopeError, TelescopeInfo,
     TelescopeStatus, TelescopeTarget,
 };
 use crate::tle_cache::TleCacheHandle;
@@ -295,7 +295,7 @@ impl Telescope for FakeTelescope {
     async fn start_iq_stream(
         &self,
         config: ReceiverConfiguration,
-    ) -> Result<tokio::sync::mpsc::Receiver<Vec<Complex<f32>>>, ReceiverError> {
+    ) -> Result<tokio::sync::mpsc::Receiver<IqBlock>, ReceiverError> {
         let mut inner = self.inner.lock().await;
         if inner.iq_cancellation_token.is_some() {
             return Err(ReceiverError::IntegrationAlreadyRunning);
@@ -303,14 +303,17 @@ impl Telescope for FakeTelescope {
         let (tx, rx) = tokio::sync::mpsc::channel(8);
         let token = CancellationToken::new();
         inner.iq_cancellation_token = Some(token.clone());
-        let block_duration = Duration::from_secs_f64(
-            crate::models::salsa_telescope::IQ_BLOCK_SIZE as f64 / config.bandwidth_hz,
-        );
+        let block_size = crate::models::salsa_telescope::IQ_BLOCK_SIZE;
+        let block_duration = Duration::from_secs_f64(block_size as f64 / config.bandwidth_hz);
+        let bandwidth_hz = config.bandwidth_hz;
         tokio::spawn(async move {
+            // Synthetic monotonic timestamp in seconds; each block is exactly
+            // block_size/bandwidth_hz apart, just like a real continuous stream.
+            let mut samples_emitted: u64 = 0;
             while !token.is_cancelled() {
-                let block: Vec<Complex<f32>> = {
+                let samples: Vec<Complex<f32>> = {
                     let mut rng = rand::rng();
-                    (0..crate::models::salsa_telescope::IQ_BLOCK_SIZE)
+                    (0..block_size)
                         .map(|_| {
                             Complex::new(
                                 rng.sample::<f32, StandardNormal>(StandardNormal),
@@ -319,7 +322,16 @@ impl Telescope for FakeTelescope {
                         })
                         .collect()
                 };
-                if tx.send(block).await.is_err() {
+                let timestamp_secs = samples_emitted as f64 / bandwidth_hz;
+                samples_emitted += block_size as u64;
+                if tx
+                    .send(IqBlock {
+                        timestamp_secs,
+                        samples,
+                    })
+                    .await
+                    .is_err()
+                {
                     break;
                 }
                 tokio::time::sleep(block_duration).await;

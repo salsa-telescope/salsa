@@ -254,6 +254,17 @@ impl Default for ReceiverConfiguration {
     }
 }
 
+/// One block of raw IQ samples from an interferometry stream, tagged with the
+/// timestamp of the first sample. `timestamp_secs` is the USRP hardware time
+/// (post-PPS sync) for real telescopes, or a synthetic sample-count-derived
+/// time for the fake telescope — either way, two telescopes running with a
+/// shared PPS produce comparable values.
+#[derive(Debug, Clone)]
+pub struct IqBlock {
+    pub timestamp_secs: f64,
+    pub samples: Vec<rustfft::num_complex::Complex<f32>>,
+}
+
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub struct Measurement {
     pub amps: Vec<f64>,

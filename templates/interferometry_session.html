@@ -55,6 +55,13 @@
   const IS_RUNNING = {{ is_running }};
   const POLL_INTERVAL_MS = 2000;
 
+  // Running aggregate state across polls so each /data request only fetches new rows.
+  let allData = [];
+  let lastId = 0;
+  let sumRe = null;
+  let sumIm = null;
+  let freqCache = null;
+
   const W = 480, H = 220, M = { top: 10, right: 20, bottom: 36, left: 56 };
   const iw = W - M.left - M.right;
   const ih = H - M.top - M.bottom;
@@ -137,32 +144,46 @@
     return Math.atan2(im / phases.length, re / phases.length) * 180 / Math.PI;
   }
 
-  function render(data) {
-    if (!data || data.length === 0) return;
-
-    document.getElementById('no-data').style.display = 'none';
-    document.getElementById('charts').style.display = '';
-    document.getElementById('vis-count').textContent = data.length + ' integrations';
-
-    const times = data.map(d => new Date(d.time));
-    const timeExt = d3.extent(times);
-
-    // Amplitude vs frequency and Phase vs frequency (both time-averaged per channel)
-    const freqs = JSON.parse(data[0].frequencies_json);
-    const nCh = freqs.length;
-    const sumRe = new Array(nCh).fill(0);
-    const sumIm = new Array(nCh).fill(0);
-    for (const row of data) {
+  function ingest(newRows) {
+    if (!newRows || newRows.length === 0) return;
+    for (const row of newRows) {
+      if (row.id > lastId) lastId = row.id;
+      // One-time init of running sums using the first row's frequency grid.
+      if (!freqCache) {
+        freqCache = JSON.parse(row.frequencies_json);
+        sumRe = new Array(freqCache.length).fill(0);
+        sumIm = new Array(freqCache.length).fill(0);
+      }
       const amps = JSON.parse(row.amplitudes_json);
       const phases = JSON.parse(row.phases_json);
-      for (let i = 0; i < nCh; i++) {
+      for (let i = 0; i < freqCache.length; i++) {
         const r = phases[i] * Math.PI / 180;
         sumRe[i] += amps[i] * Math.cos(r);
         sumIm[i] += amps[i] * Math.sin(r);
       }
+      // Keep a slim copy of per-integration scalars; the per-channel arrays are
+      // already folded into sumRe/sumIm so we don't need them again.
+      allData.push({
+        id: row.id,
+        time: row.time,
+        mean_phase_deg: row.mean_phase_deg,
+        delay_ns: row.delay_ns,
+      });
     }
-    const freqsMHz = freqs.map(f => f / 1e6);
-    const avgAmps = sumRe.map((re, i) => Math.hypot(re, sumIm[i]) / data.length);
+  }
+
+  function render() {
+    if (allData.length === 0) return;
+
+    document.getElementById('no-data').style.display = 'none';
+    document.getElementById('charts').style.display = '';
+    document.getElementById('vis-count').textContent = allData.length + ' integrations';
+
+    const times = allData.map(d => new Date(d.time));
+    const timeExt = d3.extent(times);
+
+    const freqsMHz = freqCache.map(f => f / 1e6);
+    const avgAmps = sumRe.map((re, i) => Math.hypot(re, sumIm[i]) / allData.length);
     const avgPhases = sumRe.map((re, i) => Math.atan2(sumIm[i], re) * 180 / Math.PI);
 
     xAf.domain(d3.extent(freqsMHz));
@@ -179,21 +200,21 @@
 
     // Phase vs time (circular mean per integration)
     xPt.domain(timeExt);
-    yPt.domain(phaseDomain(data.map(d => d.mean_phase_deg)));
+    yPt.domain(phaseDomain(allData.map(d => d.mean_phase_deg)));
     updateTimeAxes(svgPt, xPt, yPt);
-    linePt.datum(data).attr('d', d3.line().x(d => xPt(new Date(d.time))).y(d => yPt(d.mean_phase_deg)));
+    linePt.datum(allData).attr('d', d3.line().x(d => xPt(new Date(d.time))).y(d => yPt(d.mean_phase_deg)));
 
     // Delay vs time
     xDt.domain(timeExt);
-    yDt.domain(padDomain(d3.extent(data, d => d.delay_ns)));
+    yDt.domain(padDomain(d3.extent(allData, d => d.delay_ns)));
     updateTimeAxes(svgDt, xDt, yDt);
-    lineDt.datum(data).attr('d', d3.line().x(d => xDt(new Date(d.time))).y(d => yDt(d.delay_ns)));
+    lineDt.datum(allData).attr('d', d3.line().x(d => xDt(new Date(d.time))).y(d => yDt(d.delay_ns)));
   }
 
   function poll() {
-    fetch('/interferometry/' + SESSION_ID + '/data')
+    fetch('/interferometry/' + SESSION_ID + '/data?after_id=' + lastId)
       .then(r => r.json())
-      .then(render)
+      .then(rows => { ingest(rows); render(); })
       .catch(console.error);
   }
 

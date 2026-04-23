@@ -6,8 +6,8 @@ use tracing::error;
 
 use crate::app::AppState;
 use crate::models::booking::Booking;
-use crate::models::interferometry::InterferometrySession;
 use crate::models::user::User;
+use crate::routes::interferometry::stop_correlator_session;
 use crate::routes::observe::save_observation;
 
 pub fn start(state: AppState) {
@@ -96,20 +96,18 @@ pub fn start(state: AppState) {
                 }
 
                 // If an interferometry session is using this telescope, stop it too.
-                {
+                let correlator_to_stop = {
                     let mut guard = state.active_correlator.lock().await;
                     if guard.as_ref().is_some_and(|c| {
                         c.telescope_a == *telescope_name || c.telescope_b == *telescope_name
                     }) {
-                        if let Some(mut correlator) = guard.take() {
-                            let _ = InterferometrySession::finalize(
-                                state.database_connection.clone(),
-                                correlator.session_id,
-                            )
-                            .await;
-                            correlator.stop().await;
-                        }
+                        guard.take()
+                    } else {
+                        None
                     }
+                };
+                if let Some(correlator) = correlator_to_stop {
+                    stop_correlator_session(&state, correlator).await;
                 }
 
                 if stop_ok {
