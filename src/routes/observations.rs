@@ -269,6 +269,15 @@ async fn delete_interferometry_session(
     } else {
         user.id
     };
+    let is_running = state
+        .active_correlator
+        .lock()
+        .await
+        .as_ref()
+        .is_some_and(|c| c.session_id == session_id);
+    if is_running {
+        return Err(StatusCode::CONFLICT);
+    }
     InterferometrySession::delete(state.database_connection.clone(), session_id, &user)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;

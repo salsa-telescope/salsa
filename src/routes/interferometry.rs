@@ -6,6 +6,9 @@ use crate::models::interferometry::{InterferometrySession, InterferometryVisibil
 use crate::models::telescope_types::{ReceiverConfiguration, TelescopeStatus, TelescopeTarget};
 use crate::models::user::User;
 use crate::routes::index::render_main;
+use crate::routes::observe::{
+    FREQ_MAX_ADMIN_MHZ, FREQ_MAX_USER_MHZ, FREQ_MIN_ADMIN_MHZ, FREQ_MIN_USER_MHZ,
+};
 
 use askama::Template;
 use axum::extract::{Path, Query, State};
@@ -426,6 +429,19 @@ async fn post_start(
         }
     }
 
+    let (freq_min, freq_max) = if user.is_admin {
+        (FREQ_MIN_ADMIN_MHZ, FREQ_MAX_ADMIN_MHZ)
+    } else {
+        (FREQ_MIN_USER_MHZ, FREQ_MAX_USER_MHZ)
+    };
+    if form.center_freq_mhz < freq_min as f64 || form.center_freq_mhz > freq_max as f64 {
+        return (
+            StatusCode::BAD_REQUEST,
+            format!("Center frequency must be between {freq_min} and {freq_max} MHz"),
+        )
+            .into_response();
+    }
+
     let center_freq_hz = form.center_freq_mhz * 1e6;
     let bandwidth_hz = form.bandwidth_mhz * 1e6;
 
@@ -496,6 +512,8 @@ async fn post_start(
         Ok(id) => id,
         Err(e) => {
             error!("create session: {e:?}");
+            release_iq_stream(&state, &form.telescope_a).await;
+            release_iq_stream(&state, &form.telescope_b).await;
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "Failed to create session",
@@ -574,10 +592,11 @@ async fn get_session(
         return Redirect::to("/auth/login").into_response();
     };
 
+    let user_id_filter = if user.is_admin { None } else { Some(user.id) };
     let session = match InterferometrySession::fetch_one(
         state.database_connection.clone(),
         session_id,
-        Some(user.id),
+        user_id_filter,
     )
     .await
     {
@@ -656,11 +675,12 @@ async fn get_session_data(
         return StatusCode::UNAUTHORIZED.into_response();
     };
 
-    // Verify ownership
+    // Verify ownership (admins can access any session).
+    let user_id_filter = if user.is_admin { None } else { Some(user.id) };
     match InterferometrySession::fetch_one(
         state.database_connection.clone(),
         session_id,
-        Some(user.id),
+        user_id_filter,
     )
     .await
     {

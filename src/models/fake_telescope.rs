@@ -170,6 +170,9 @@ impl Telescope for FakeTelescope {
         let mut inner = self.inner.lock().await;
 
         if receiver_configuration.integrate && !inner.receiver_configuration.integrate {
+            if inner.iq_cancellation_token.is_some() {
+                return Err(ReceiverError::IntegrationAlreadyRunning);
+            }
             info!("Starting integration");
             inner.current_spectra.clear();
             inner.receiver_configuration.integrate = true;

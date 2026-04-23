@@ -129,10 +129,13 @@ async fn correlator_task(
             };
         }
 
-        // Safe: both are Some at this point.
-        let a_ts = pending_a.as_ref().unwrap().timestamp_secs;
-        let b_ts = pending_b.as_ref().unwrap().timestamp_secs;
-        let delta = a_ts - b_ts;
+        let (Some(block_a), Some(block_b)) = (pending_a.as_ref(), pending_b.as_ref()) else {
+            // Unreachable — both slots are populated by the selects above, and both
+            // selects exit the loop via `break` when the channel closes or the
+            // cancellation token fires.
+            break;
+        };
+        let delta = block_a.timestamp_secs - block_b.timestamp_secs;
 
         if delta.abs() > align_tolerance_secs {
             // The two sides are out of alignment. Drop the earlier block and try
@@ -155,8 +158,9 @@ async fn correlator_task(
             continue;
         }
 
-        let block_a = pending_a.take().unwrap();
-        let block_b = pending_b.take().unwrap();
+        // Take ownership for the FFT step.
+        let block_a = pending_a.take().expect("populated above");
+        let block_b = pending_b.take().expect("populated above");
 
         // FFT both blocks
         let mut fa: Vec<Complex<f64>> = block_a
@@ -185,11 +189,17 @@ async fn correlator_task(
 
         // --- 1-second integration complete: compute and store visibility ---
 
-        // Normalise by number of accumulated blocks
+        // Normalise by number of accumulated blocks. The absolute scale of the
+        // resulting amplitudes is arbitrary (no FFT-size normalisation, no
+        // auto-correlation divide for coherence), so `mean_amplitude` is only
+        // meaningful relative to other integrations in the same session.
         let norm = num_blocks as f64;
         let v_norm: Vec<Complex<f64>> = acc.iter().map(|x| x / norm).collect();
 
-        // Delay spectrum: IFFT of cross-power (FFT-natural order, no shift needed)
+        // Delay spectrum: IFFT of cross-power (FFT-natural order, no shift needed).
+        // Delay resolution is one sample period = 1/bandwidth_hz; so with
+        // bandwidth = 2.5 MHz the `delay_ns` value is quantized to ±400 ns and
+        // with 1 MHz to ±1000 ns. The UI should not imply sub-bin precision.
         let mut v_delay = v_norm.clone();
         fft_inverse.process(&mut v_delay);
         let delay_amps: Vec<f64> = v_delay.iter().map(|x| x.norm()).collect();

@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
 use rusqlite::{Connection, OptionalExtension};
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use tokio::sync::Mutex;
 
 use crate::error::InternalError;
@@ -12,7 +12,7 @@ use crate::models::user::User;
 // Interferometry session
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct InterferometrySession {
     pub id: i64,
     pub user_id: i64,
@@ -102,27 +102,22 @@ impl InterferometrySession {
         id: i64,
         user_id_filter: Option<i64>,
     ) -> Result<Option<Self>, InternalError> {
-        const SELECT_COLS: &str = "id, user_id, start_time, end_time, telescope_a, telescope_b,
-             coordinate_system, target_x, target_y, center_freq_hz, bandwidth_hz";
+        const SELECT_BY_ID: &str = "SELECT id, user_id, start_time, end_time, telescope_a, telescope_b,
+                    coordinate_system, target_x, target_y, center_freq_hz, bandwidth_hz
+             FROM interferometry_session WHERE id = ?1";
+        const SELECT_BY_ID_AND_USER: &str = "SELECT id, user_id, start_time, end_time, telescope_a, telescope_b,
+                    coordinate_system, target_x, target_y, center_freq_hz, bandwidth_hz
+             FROM interferometry_session WHERE id = ?1 AND user_id = ?2";
         let conn = connection.lock().await;
         let result = match user_id_filter {
-            Some(uid) => conn
-                .prepare(&format!(
-                    "SELECT {SELECT_COLS} FROM interferometry_session
-                     WHERE id = ?1 AND user_id = ?2"
-                ))
-                .and_then(|mut stmt| {
-                    stmt.query_row(rusqlite::params![id, uid], map_session_row)
-                        .optional()
-                }),
-            None => conn
-                .prepare(&format!(
-                    "SELECT {SELECT_COLS} FROM interferometry_session WHERE id = ?1"
-                ))
-                .and_then(|mut stmt| {
-                    stmt.query_row(rusqlite::params![id], map_session_row)
-                        .optional()
-                }),
+            Some(uid) => conn.prepare(SELECT_BY_ID_AND_USER).and_then(|mut stmt| {
+                stmt.query_row(rusqlite::params![id, uid], map_session_row)
+                    .optional()
+            }),
+            None => conn.prepare(SELECT_BY_ID).and_then(|mut stmt| {
+                stmt.query_row(rusqlite::params![id], map_session_row)
+                    .optional()
+            }),
         };
         result.map_err(|e| InternalError::new(format!("fetch session: {e}")))
     }
@@ -132,30 +127,21 @@ impl InterferometrySession {
         id: i64,
         user: &User,
     ) -> Result<bool, InternalError> {
-        let mut conn = connection.lock().await;
-        let tx = conn
-            .transaction()
-            .map_err(|e| InternalError::new(format!("begin delete tx: {e}")))?;
-        // Delete children first so this works even if PRAGMA foreign_keys is off.
-        tx.execute(
-            "DELETE FROM interferometry_visibility WHERE session_id = ?1",
-            rusqlite::params![id],
-        )
-        .map_err(|e| InternalError::new(format!("delete visibilities: {e}")))?;
+        // Child `interferometry_visibility` rows are removed by ON DELETE CASCADE
+        // (enforced globally by `PRAGMA foreign_keys = ON` in database.rs).
+        let conn = connection.lock().await;
         let rows = if user.is_admin {
-            tx.execute(
+            conn.execute(
                 "DELETE FROM interferometry_session WHERE id = ?1",
                 rusqlite::params![id],
             )
         } else {
-            tx.execute(
+            conn.execute(
                 "DELETE FROM interferometry_session WHERE id = ?1 AND user_id = ?2",
                 rusqlite::params![id, user.id],
             )
         }
         .map_err(|e| InternalError::new(format!("delete session: {e}")))?;
-        tx.commit()
-            .map_err(|e| InternalError::new(format!("commit delete: {e}")))?;
         Ok(rows > 0)
     }
 
@@ -241,7 +227,7 @@ fn map_session_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<InterferometrySe
 // Interferometry visibility (one row per 1-second integration)
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct InterferometryVisibility {
     pub id: i64,
     pub session_id: i64,

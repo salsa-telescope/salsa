@@ -800,10 +800,10 @@ async fn get_observe_maintenance(
     Ok(Html(content))
 }
 
-const FREQ_MIN_USER_MHZ: u32 = 1350;
-const FREQ_MAX_USER_MHZ: u32 = 1600;
-const FREQ_MIN_ADMIN_MHZ: u32 = 800;
-const FREQ_MAX_ADMIN_MHZ: u32 = 2300;
+pub const FREQ_MIN_USER_MHZ: u32 = 1350;
+pub const FREQ_MAX_USER_MHZ: u32 = 1600;
+pub const FREQ_MIN_ADMIN_MHZ: u32 = 800;
+pub const FREQ_MAX_ADMIN_MHZ: u32 = 2300;
 
 // DBSRX2 daughterboard on USRP N210: GC1 (0-73 dB) + BBG (0-15 dB) when
 // distributed across all stages via empty-name set_rx_gain.
