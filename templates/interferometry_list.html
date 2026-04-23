@@ -271,13 +271,11 @@
     const errEl = document.getElementById('start-error');
     if (errEl) { errEl.classList.add('hidden'); errEl.textContent = ''; }
 
-    const { tx, ty } = getTargetXY();
+    // The session's target is derived server-side from the telescopes' live
+    // state — the coord-sys/target-xy fields above only drive the Track buttons.
     const body = new URLSearchParams({
       telescope_a: telId('a'),
       telescope_b: telId('b'),
-      coordinate_system: document.getElementById('coord-sys').value,
-      target_x: tx,
-      target_y: ty,
       center_freq_mhz: document.getElementById('center-freq').value,
       bandwidth_mhz: document.getElementById('bandwidth').value,
       spectral_channels: document.getElementById('sp-channels').value,

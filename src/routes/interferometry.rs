@@ -303,9 +303,17 @@ async fn post_track(
             azimuth: form.target_x.to_radians(),
             elevation: form.target_y.to_radians(),
         },
-        "gnss" => TelescopeTarget::Satellite {
-            norad_id: form.target_x as u64,
-        },
+        "gnss" => {
+            // `target_x` is the NORAD id; `0` is the serde default and also not
+            // a real satellite, so reject it explicitly rather than pointing the
+            // telescope at "NORAD 0".
+            if form.target_x < 1.0 {
+                return (StatusCode::BAD_REQUEST, "Please pick a satellite").into_response();
+            }
+            TelescopeTarget::Satellite {
+                norad_id: form.target_x as u64,
+            }
+        }
         "stow" => {
             let info = match tel.get_info().await {
                 Ok(i) => i,
@@ -378,14 +386,48 @@ async fn post_stop_telescope(
 pub struct StartForm {
     pub telescope_a: String,
     pub telescope_b: String,
-    pub coordinate_system: String,
-    #[serde(default)]
-    pub target_x: f64,
-    #[serde(default)]
-    pub target_y: f64,
     pub center_freq_mhz: f64,
     pub bandwidth_mhz: f64,
     pub spectral_channels: usize,
+}
+
+/// Allowed IQ sample rates (MHz). The USRP N210 exposes this list and the UI
+/// offers the same. Keep in sync with the `<select>` in `interferometry_list.html`.
+const ALLOWED_BANDWIDTHS_MHZ: &[f64] = &[1.0, 2.5];
+const MIN_SPECTRAL_CHANNELS: usize = 1;
+const MAX_SPECTRAL_CHANNELS: usize = 1024;
+
+/// Convert the telescopes' matched `current_target` into the `(coordinate_system,
+/// target_x, target_y)` triple we store on the session row. The telescope tracker
+/// only hands back values from the `TelescopeTarget` enum, so the string side of
+/// the storage is restricted to a known allowlist — unlike an uninspected form
+/// field, which could be any text.
+fn target_to_session_fields(target: TelescopeTarget) -> (String, f64, f64) {
+    match target {
+        TelescopeTarget::Equatorial {
+            right_ascension,
+            declination,
+        } => (
+            "equatorial".into(),
+            right_ascension.to_degrees(),
+            declination.to_degrees(),
+        ),
+        TelescopeTarget::Galactic {
+            longitude,
+            latitude,
+        } => (
+            "galactic".into(),
+            longitude.to_degrees(),
+            latitude.to_degrees(),
+        ),
+        TelescopeTarget::Horizontal { azimuth, elevation } => (
+            "horizontal".into(),
+            azimuth.to_degrees(),
+            elevation.to_degrees(),
+        ),
+        TelescopeTarget::Sun => ("sun".into(), 0.0, 0.0),
+        TelescopeTarget::Satellite { norad_id } => ("gnss".into(), norad_id as f64, 0.0),
+    }
 }
 
 async fn post_start(
@@ -401,7 +443,8 @@ async fn post_start(
         return (StatusCode::BAD_REQUEST, "Telescopes must be different").into_response();
     }
 
-    // The user must hold an active booking on both telescopes, and both must be tracking.
+    // Collect each telescope's info in one pass; we need the target in step two.
+    let mut infos = Vec::with_capacity(2);
     for tel_id in [&form.telescope_a, &form.telescope_b] {
         match booking_is_active(state.database_connection.clone(), &user, tel_id).await {
             Ok(true) => {}
@@ -426,7 +469,7 @@ async fn post_start(
                 .into_response();
         };
         match tel.get_info().await {
-            Ok(info) if info.status == TelescopeStatus::Tracking => {}
+            Ok(info) if info.status == TelescopeStatus::Tracking => infos.push(info),
             Ok(_) => {
                 return (
                     StatusCode::BAD_REQUEST,
@@ -441,6 +484,40 @@ async fn post_start(
         }
     }
 
+    // Both must be pointing at the same target — otherwise cross-correlating
+    // them is meaningless. Deriving the session's target from live telescope
+    // state (rather than the form) makes it impossible for the stored
+    // coordinate_system/target_x/target_y to disagree with reality, and keeps
+    // `coordinate_system` restricted to the known enum variants.
+    let target_a = match infos[0].current_target {
+        Some(t) => t,
+        None => {
+            return (
+                StatusCode::BAD_REQUEST,
+                "Telescope A has no target set — track something first",
+            )
+                .into_response();
+        }
+    };
+    let target_b = match infos[1].current_target {
+        Some(t) => t,
+        None => {
+            return (
+                StatusCode::BAD_REQUEST,
+                "Telescope B has no target set — track something first",
+            )
+                .into_response();
+        }
+    };
+    if target_a != target_b {
+        return (
+            StatusCode::BAD_REQUEST,
+            "Telescopes must be pointing at the same target",
+        )
+            .into_response();
+    }
+    let (coordinate_system, target_x, target_y) = target_to_session_fields(target_a);
+
     let (freq_min, freq_max) = if user.is_admin {
         (FREQ_MIN_ADMIN_MHZ, FREQ_MAX_ADMIN_MHZ)
     } else {
@@ -450,6 +527,27 @@ async fn post_start(
         return (
             StatusCode::BAD_REQUEST,
             format!("Center frequency must be between {freq_min} and {freq_max} MHz"),
+        )
+            .into_response();
+    }
+    if !ALLOWED_BANDWIDTHS_MHZ.contains(&form.bandwidth_mhz) {
+        return (
+            StatusCode::BAD_REQUEST,
+            format!(
+                "Bandwidth must be one of {:?} MHz",
+                ALLOWED_BANDWIDTHS_MHZ
+            ),
+        )
+            .into_response();
+    }
+    if form.spectral_channels < MIN_SPECTRAL_CHANNELS
+        || form.spectral_channels > MAX_SPECTRAL_CHANNELS
+    {
+        return (
+            StatusCode::BAD_REQUEST,
+            format!(
+                "Spectral channels must be between {MIN_SPECTRAL_CHANNELS} and {MAX_SPECTRAL_CHANNELS}"
+            ),
         )
             .into_response();
     }
@@ -513,9 +611,9 @@ async fn post_start(
         &user,
         form.telescope_a.clone(),
         form.telescope_b.clone(),
-        form.coordinate_system.clone(),
-        form.target_x,
-        form.target_y,
+        coordinate_system,
+        target_x,
+        target_y,
         center_freq_hz,
         bandwidth_hz,
     )
@@ -713,6 +811,15 @@ struct DataQuery {
     after_id: i64,
 }
 
+#[derive(Serialize)]
+struct SessionDataResponse {
+    rows: Vec<InterferometryVisibility>,
+    /// True only while this session is the one held by `active_correlator` at
+    /// the moment the request is handled. The client uses this to clear the
+    /// "● Running" badge without a page refresh once the session ends.
+    running: bool,
+}
+
 async fn get_session_data(
     State(state): State<AppState>,
     Extension(user): Extension<Option<User>>,
@@ -743,7 +850,7 @@ async fn get_session_data(
     // Bound per-request size so a page refresh on a long session (or an old
     // client that keeps `after_id=0`) can't pull down every row at once. The
     // client paginates via `after_id`; it will catch up within a few polls.
-    match InterferometryVisibility::fetch_for_session(
+    let rows = match InterferometryVisibility::fetch_for_session(
         state.database_connection.clone(),
         session_id,
         query.after_id,
@@ -751,12 +858,19 @@ async fn get_session_data(
     )
     .await
     {
-        Ok(visibilities) => Json(visibilities).into_response(),
+        Ok(v) => v,
         Err(e) => {
             error!("fetch visibilities: {e:?}");
-            StatusCode::INTERNAL_SERVER_ERROR.into_response()
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
         }
-    }
+    };
+    let running = state
+        .active_correlator
+        .lock()
+        .await
+        .as_ref()
+        .is_some_and(|c| c.session_id == session_id);
+    Json(SessionDataResponse { rows, running }).into_response()
 }
 
 // ---------------------------------------------------------------------------

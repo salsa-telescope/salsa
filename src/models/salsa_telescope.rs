@@ -748,6 +748,14 @@ async fn measure_iq(
             Err(_) => break,
         };
 
+        // Surface UHD receive errors (overflow, out-of-sequence, ...) — these
+        // indicate the pipeline is keeping up poorly and cross-correlation
+        // alignment is likely compromised. Keep streaming; the correlator's
+        // timestamp-alignment check will reset the integration on next drift.
+        if let Some(err) = metadata.last_error() {
+            warn!("IQ stream {address}: receive error {err:?}");
+        }
+
         let timestamp_secs = match metadata.time_spec() {
             Some(ts) => ts.seconds as f64 + ts.fraction,
             None => {

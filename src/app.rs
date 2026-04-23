@@ -175,6 +175,13 @@ pub async fn create_app(config_dir: &Path, database_dir: &Path) -> (Router, AppS
 }
 
 pub async fn teardown_app(app: AppState) {
+    // Stop any running correlator first — otherwise the session row is left
+    // without an end_time and visibility inserts keep firing against a
+    // soon-to-be-dropped DB connection.
+    let running = app.active_correlator.lock().await.take();
+    if let Some(handle) = running {
+        crate::routes::interferometry::stop_correlator_session(&app, handle).await;
+    }
     for telescope in app.telescopes.get_all().await {
         telescope.shutdown().await;
     }
