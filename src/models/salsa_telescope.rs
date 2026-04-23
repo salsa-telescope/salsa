@@ -22,7 +22,7 @@ use uhd::{self, StreamCommand, StreamCommandType, StreamTime, TuneRequest, Usrp}
 
 pub const TELESCOPE_UPDATE_INTERVAL: Duration = Duration::from_secs(1);
 
-#[derive(Copy, Clone, PartialEq, Eq)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
 enum IntegrationKind {
     /// `measure()` task — writes single-dish spectra into `Inner::measurements`.
     Spectrum,

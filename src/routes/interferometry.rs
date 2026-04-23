@@ -571,21 +571,32 @@ async fn post_stop(
         }
     }
 
-    // Re-take under the lock; if it raced away (another stop finished first),
-    // just redirect to the list.
-    let taken = state.active_correlator.lock().await.take();
-    if let Some(handle) = taken {
-        stop_correlator_session(&state, handle).await;
-        return Redirect::to(&format!("/interferometry/{session_id}?from=controls"))
-            .into_response();
+    // Re-take under the lock. If the running session changed between the
+    // ownership check and here, put the handle back and redirect — we only
+    // authorised to stop `session_id`, not whatever is running now.
+    let mut guard = state.active_correlator.lock().await;
+    match guard.take() {
+        Some(handle) if handle.session_id == session_id => {
+            drop(guard);
+            stop_correlator_session(&state, handle).await;
+            Redirect::to(&format!("/interferometry/{session_id}?from=controls")).into_response()
+        }
+        Some(other) => {
+            *guard = Some(other);
+            Redirect::to("/interferometry").into_response()
+        }
+        None => Redirect::to("/interferometry").into_response(),
     }
-
-    Redirect::to("/interferometry").into_response()
 }
 
 // ---------------------------------------------------------------------------
 // Session detail page
 // ---------------------------------------------------------------------------
+
+/// Bound on how many visibility rows the `/data` endpoint returns per request.
+/// Shared between the route handler and the JS drain loop in the session
+/// template — do not change one without the other.
+const MAX_VISIBILITY_ROWS_PER_REQUEST: i64 = 1800;
 
 #[derive(Template)]
 #[template(path = "interferometry_session.html")]
@@ -598,6 +609,7 @@ struct SessionTemplate {
     half_bw_mhz: f64,
     back_url: String,
     back_label: String,
+    max_rows_per_response: i64,
 }
 
 #[derive(Deserialize)]
@@ -671,6 +683,7 @@ async fn get_session(
         half_bw_mhz,
         back_url,
         back_label,
+        max_rows_per_response: MAX_VISIBILITY_ROWS_PER_REQUEST,
     }
     .render()
     .expect("template ok");
@@ -718,12 +731,11 @@ async fn get_session_data(
     // Bound per-request size so a page refresh on a long session (or an old
     // client that keeps `after_id=0`) can't pull down every row at once. The
     // client paginates via `after_id`; it will catch up within a few polls.
-    const MAX_ROWS_PER_REQUEST: i64 = 1800;
     match InterferometryVisibility::fetch_for_session(
         state.database_connection.clone(),
         session_id,
         query.after_id,
-        MAX_ROWS_PER_REQUEST,
+        MAX_VISIBILITY_ROWS_PER_REQUEST,
     )
     .await
     {

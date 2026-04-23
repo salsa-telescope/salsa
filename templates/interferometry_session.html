@@ -213,8 +213,9 @@
 
   // Server caps each response; keep draining immediately whenever we get a full
   // page so long archived sessions finish loading promptly instead of waiting
-  // for the next 2s tick.
-  const MAX_ROWS_PER_RESPONSE = 1800;
+  // for the next 2s tick. Server-side limit is rendered in from the route so
+  // the two stay in sync.
+  const MAX_ROWS_PER_RESPONSE = {{ max_rows_per_response }};
 
   function poll() {
     return fetch('/interferometry/' + SESSION_ID + '/data?after_id=' + lastId)
@@ -222,7 +223,7 @@
       .then(rows => {
         ingest(rows);
         render();
-        return rows ? rows.length : 0;
+        return rows.length;
       });
   }
 
