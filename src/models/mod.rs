@@ -4,6 +4,7 @@ pub mod maintenance;
 pub mod observation;
 pub mod salsa_telescope;
 pub mod session;
+pub mod support_announcement;
 pub mod telescope;
 pub mod telescope_types;
 pub mod user;

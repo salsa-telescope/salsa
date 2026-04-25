@@ -13,6 +13,7 @@ use tracing::info;
 use crate::app::AppState;
 use crate::models::booking::Booking;
 use crate::models::maintenance::{fetch_maintenance_set, set_maintenance};
+use crate::models::support_announcement::{fetch_support_announcement, set_support_announcement};
 use crate::models::telescope_types::TelescopeError;
 use crate::models::user::User;
 use crate::routes::index::render_main;
@@ -21,6 +22,7 @@ pub fn routes(state: AppState) -> Router {
     Router::new()
         .route("/", get(get_admin))
         .route("/telescope/{name}/toggle", post(toggle_maintenance))
+        .route("/announcement", post(save_announcement_handler))
         .route("/local-users", post(create_local_user_handler))
         .route("/local-users/{id}/delete", post(delete_local_user_handler))
         .route(
@@ -50,6 +52,7 @@ struct AdminTemplate {
     countries: Vec<(String, usize)>, // (country code, booking count), sorted by count desc
     local_users: Vec<(i64, String, String)>, // (id, username, comment)
     local_user_error: Option<String>,
+    announcement: String,
 }
 
 async fn get_admin(
@@ -128,9 +131,13 @@ async fn get_admin(
     }
     let mut countries: Vec<(String, usize)> = country_counts.into_iter().collect();
     countries.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
-    let local_users = User::fetch_all_local(state.database_connection)
+    let local_users = User::fetch_all_local(state.database_connection.clone())
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let announcement = fetch_support_announcement(state.database_connection)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+        .unwrap_or_default();
 
     let content = AdminTemplate {
         telescopes,
@@ -142,6 +149,7 @@ async fn get_admin(
         countries,
         local_users,
         local_user_error,
+        announcement,
     }
     .render()
     .expect("Template rendering should always succeed");
@@ -214,6 +222,35 @@ async fn set_local_password_handler(
 ) -> Result<Response, StatusCode> {
     require_admin(user)?;
     User::set_local_password(state.database_connection, id, form.password)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(Redirect::to("/admin").into_response())
+}
+
+#[derive(Deserialize)]
+struct AnnouncementForm {
+    message: String,
+}
+
+async fn save_announcement_handler(
+    Extension(user): Extension<Option<User>>,
+    State(state): State<AppState>,
+    Form(form): Form<AnnouncementForm>,
+) -> Result<Response, StatusCode> {
+    let admin = require_admin(user)?;
+    let trimmed = form.message.trim();
+    let stored = if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed)
+    };
+    info!(
+        "Admin {} ({}) updated support announcement (cleared: {})",
+        admin.name,
+        admin.provider,
+        stored.is_none()
+    );
+    set_support_announcement(state.database_connection, stored)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     Ok(Redirect::to("/admin").into_response())

@@ -73,6 +73,23 @@
   </table>
   </div>
 
+  <h3 class="font-semibold mt-12 mb-2">Support page announcement</h3>
+  <p class="text-gray-500 text-sm mb-4">Shown as a banner at the top of the <a href="/support">Support</a> page. Use this to flag known issues (e.g. "Vale telescope down", "Webcam offline") so users don't email about them. Leave empty and save to remove the banner.</p>
+  <form method="post" action="/admin/announcement" class="flex flex-col gap-2 max-w-xl">
+    <textarea name="message" rows="3"
+      placeholder="e.g. Known issue: Vale telescope is down for maintenance until next week."
+      class="border rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent-focus">{{ announcement }}</textarea>
+    <div class="flex gap-2">
+      <button type="submit" class="btn self-start">Save</button>
+      {% if !announcement.is_empty() %}
+      <button type="submit" class="btn bg-danger hover:bg-danger-hover self-start"
+        onclick="this.form.message.value='';">
+        Clear
+      </button>
+      {% endif %}
+    </div>
+  </form>
+
   <h3 class="font-semibold mt-12 mb-2">Local users</h3>
   <p class="text-gray-500 text-sm mb-4">Local accounts for demonstrations and exceptional cases. Users log in with username and password via the login page.</p>
   {% if let Some(error) = local_user_error %}
