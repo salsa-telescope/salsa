@@ -4,11 +4,12 @@
     <p class="text-gray-500 text-sm">Webcam updated every 2 seconds, timestamp is Swedish summer time (CEST = UTC+2). No lights, so telescopes are not visible after dark, but can still be controlled.</p>
   </div>
   <div class="rounded shadow" style="position: relative; width: 100%; aspect-ratio: 32/9; overflow: hidden; background:#000;">
-    <img id="webcam-a" src="/live/snapshot" style="position: absolute; top: 0; left: 0; width: 100%;" alt="Telescope webcam" />
+    <img id="webcam-a" src="/live/snapshot" style="position: absolute; top: 0; left: 0; width: 100%;" alt="" />
     <img id="webcam-b" src="" style="position: absolute; top: 0; left: 0; width: 100%; opacity: 0;" alt="" />
     <span class="absolute bottom-2 z-10 bg-black/50 text-white text-sm px-1.5 py-0.5 rounded -translate-x-1/2 pointer-events-none" style="left:12.75%">Torre</span>
     <span class="absolute bottom-2 z-10 bg-black/50 text-white text-sm px-1.5 py-0.5 rounded -translate-x-1/2 pointer-events-none" style="left:33.5%">Vale</span>
     <span class="absolute bottom-2 z-10 bg-black/50 text-white text-sm px-1.5 py-0.5 rounded -translate-x-1/2 pointer-events-none" style="left:73.5%">Brage</span>
+    <div hx-get="/live/webcam-status" hx-trigger="load, every 2s" hx-swap="innerHTML"></div>
   </div>
 
   <div class="flex flex-col lg:flex-row gap-6 mt-6">
@@ -29,6 +30,8 @@
   (function () {
     let current = document.getElementById('webcam-a');
     let next = document.getElementById('webcam-b');
+    // Hide initial broken-image icon if /live/snapshot returns 503 on page load.
+    current.onerror = function () { current.style.opacity = '0'; };
     function refresh() {
       const url = '/live/snapshot?t=' + Date.now();
       next.onload = function () {
@@ -36,6 +39,7 @@
         current.style.opacity = '0';
         [current, next] = [next, current];
       };
+      next.onerror = function () { next.style.opacity = '0'; };
       next.src = url;
     }
     setInterval(refresh, 2000);

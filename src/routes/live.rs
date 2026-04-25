@@ -1,4 +1,5 @@
 use std::sync::{Arc, OnceLock};
+use std::time::Instant;
 
 use askama::Template;
 use axum::body::Bytes;
@@ -10,7 +11,7 @@ use axum::{
     routing::get,
 };
 use tokio::sync::Mutex;
-use tracing::error;
+use tracing::{debug, error, info};
 
 use crate::app::AppState;
 use crate::models::maintenance::fetch_maintenance_set;
@@ -18,10 +19,21 @@ use crate::models::telescope_types::{TelescopeStatus, TelescopeTarget};
 use crate::models::user::User;
 use crate::routes::index::render_main;
 
+/// Age past which we treat the cached webcam image as definitely broken.
+const WEBCAM_VERY_STALE_SECS: u64 = 300;
+/// Age past which we visibly mark the image as stale (but still show it).
+const WEBCAM_STALE_SECS: u64 = 30;
+
+#[derive(Clone)]
+struct CachedSnapshot {
+    bytes: Bytes,
+    fetched_at: Instant,
+}
+
 #[derive(Clone)]
 struct WebcamState {
     snapshot_url: String,
-    cache: Arc<Mutex<Option<Bytes>>>,
+    cache: Arc<Mutex<Option<CachedSnapshot>>>,
     app_state: AppState,
 }
 
@@ -48,14 +60,43 @@ pub fn routes(snapshot_url: String, app_state: AppState) -> Router {
         let url_clone = state.snapshot_url.clone();
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(2));
+            // Track consecutive failures so we log loudly on transitions
+            // (working->broken, broken->working) but stay quiet during a long outage.
+            let mut consecutive_failures: u64 = 0;
             loop {
                 interval.tick().await;
-                match http_client().get(&url_clone).send().await {
-                    Ok(resp) => match resp.bytes().await {
-                        Ok(bytes) => *cache_clone.lock().await = Some(bytes),
-                        Err(e) => error!("Failed to read webcam snapshot body: {e}"),
-                    },
-                    Err(e) => error!("Failed to fetch webcam snapshot: {e}"),
+                let result: Result<Bytes, String> = match http_client().get(&url_clone).send().await
+                {
+                    Ok(resp) => resp
+                        .bytes()
+                        .await
+                        .map_err(|e| format!("body read error: {e}")),
+                    Err(e) => Err(format!("request error: {e}")),
+                };
+                match result {
+                    Ok(bytes) => {
+                        if consecutive_failures > 0 {
+                            info!(
+                                "Webcam snapshot fetch recovered after {consecutive_failures} failed attempts"
+                            );
+                        }
+                        consecutive_failures = 0;
+                        *cache_clone.lock().await = Some(CachedSnapshot {
+                            bytes,
+                            fetched_at: Instant::now(),
+                        });
+                    }
+                    Err(msg) => {
+                        if consecutive_failures == 0 {
+                            error!("Failed to fetch webcam snapshot: {msg}");
+                        } else {
+                            debug!(
+                                "Failed to fetch webcam snapshot (attempt {}): {msg}",
+                                consecutive_failures + 1
+                            );
+                        }
+                        consecutive_failures = consecutive_failures.saturating_add(1);
+                    }
                 }
             }
         });
@@ -64,6 +105,7 @@ pub fn routes(snapshot_url: String, app_state: AppState) -> Router {
     Router::new()
         .route("/", get(get_live_page))
         .route("/snapshot", get(get_webcam_snapshot))
+        .route("/webcam-status", get(get_webcam_status))
         .route("/telescopes", get(get_telescopes_status))
         .with_state(state)
 }
@@ -89,20 +131,81 @@ async fn get_live_page(
 
 async fn get_webcam_snapshot(State(state): State<WebcamState>) -> Response {
     if state.snapshot_url.is_empty() {
-        return StatusCode::SERVICE_UNAVAILABLE.into_response();
+        return StatusCode::NOT_FOUND.into_response();
     }
-    let cached: Option<Bytes> = state.cache.lock().await.clone();
+    let cached: Option<CachedSnapshot> = state.cache.lock().await.clone();
     match cached {
-        Some(bytes) => (
+        Some(c) => (
             [
                 (header::CONTENT_TYPE, "image/jpeg"),
                 (header::CACHE_CONTROL, "no-store"),
             ],
-            bytes,
+            c.bytes,
         )
             .into_response(),
-        None => StatusCode::SERVICE_UNAVAILABLE.into_response(),
+        // 404 (rather than 503) so tower-http's failure classifier doesn't log
+        // every poll while the upstream camera is down.
+        None => StatusCode::NOT_FOUND.into_response(),
     }
+}
+
+#[derive(Template)]
+#[template(path = "webcam_status.html", escape = "none")]
+struct WebcamStatusTemplate {
+    available: bool,
+    state_class: &'static str,
+    message: String,
+}
+
+async fn get_webcam_status(State(state): State<WebcamState>) -> Html<String> {
+    let template = if state.snapshot_url.is_empty() {
+        WebcamStatusTemplate {
+            available: false,
+            state_class: "very-stale",
+            message: "Webcam disabled".to_string(),
+        }
+    } else {
+        let cached = state.cache.lock().await.clone();
+        match cached {
+            Some(c) => {
+                let age_secs = c.fetched_at.elapsed().as_secs();
+                let age_str = if age_secs < 120 {
+                    format!("{age_secs}s ago")
+                } else {
+                    format!("{}min ago", age_secs / 60)
+                };
+                let state_class = if age_secs >= WEBCAM_VERY_STALE_SECS {
+                    "very-stale"
+                } else if age_secs >= WEBCAM_STALE_SECS {
+                    "stale"
+                } else {
+                    "fresh"
+                };
+                let message = if age_secs >= WEBCAM_VERY_STALE_SECS {
+                    format!("Webcam offline — last image {age_str}")
+                } else {
+                    format!("Updated {age_str}")
+                };
+                WebcamStatusTemplate {
+                    available: true,
+                    state_class,
+                    message,
+                }
+            }
+            None => WebcamStatusTemplate {
+                available: false,
+                state_class: "very-stale",
+                message: "Webcam unavailable — no image from camera. \
+                    Please contact support if this problem persists."
+                    .to_string(),
+            },
+        }
+    };
+    Html(
+        template
+            .render()
+            .expect("Template rendering should always succeed"),
+    )
 }
 
 struct TelescopeStatusCard {
