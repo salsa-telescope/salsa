@@ -158,7 +158,7 @@ mod test {
             .await
             .unwrap();
         assert!(
-            complete_oauth2_login(connection, &CsrfToken::new_random().secret())
+            complete_oauth2_login(connection, CsrfToken::new_random().secret())
                 .await
                 .is_err()
         );
@@ -174,13 +174,13 @@ mod test {
         // First completion is valid
         assert_eq!(
             "test",
-            complete_oauth2_login(connection.clone(), &csrf_token.secret())
+            complete_oauth2_login(connection.clone(), csrf_token.secret())
                 .await
                 .unwrap()
         );
         // Second fails since the request is cleared
         assert!(
-            complete_oauth2_login(connection.clone(), &csrf_token.secret())
+            complete_oauth2_login(connection.clone(), csrf_token.secret())
                 .await
                 .is_err()
         );

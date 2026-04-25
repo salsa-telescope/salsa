@@ -53,7 +53,7 @@ impl SalsaTestServer {
             .trim()
             .parse::<u16>()
             .expect("Backend should print a number");
-        while let Err(_) = get(format!("http://127.0.0.1:{port}/")) {
+        while get(format!("http://127.0.0.1:{port}/")).is_err() {
             thread::sleep(Duration::from_millis(1));
             print!(".")
         }
@@ -79,7 +79,7 @@ impl SalsaTestServer {
         format!("http://127.0.0.1:{}", self.port)
     }
 
-    pub fn add_local_user(self: &Self, username: &str, password: &str) -> LocalSalsaUser {
+    pub fn add_local_user(&self, username: &str, password: &str) -> LocalSalsaUser {
         let manage_user_executable = env!("CARGO_BIN_EXE_manage_users");
         let output = Command::new(manage_user_executable)
             .args([
@@ -109,7 +109,7 @@ impl SalsaTestServer {
         }
     }
 
-    pub fn login(self: &Self, client: &reqwest::blocking::Client, user: &LocalSalsaUser) {
+    pub fn login(&self, client: &reqwest::blocking::Client, user: &LocalSalsaUser) {
         let res = client
             .post(self.addr() + "/auth/local")
             .form(&[("username", &user.username), ("password", &user.password)])
