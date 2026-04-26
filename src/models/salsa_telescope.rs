@@ -51,6 +51,7 @@ struct Inner {
 
 pub struct SalsaTelescope {
     inner: Arc<Mutex<Inner>>,
+    background_tasks: Mutex<Option<Vec<tokio::task::JoinHandle<()>>>>,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -108,7 +109,7 @@ pub fn create(
     }));
 
     let task_inner = inner.clone();
-    tokio::spawn(async move {
+    let update_task = tokio::spawn(async move {
         loop {
             {
                 let mut inner = task_inner.lock().await;
@@ -120,7 +121,7 @@ pub fn create(
         }
     });
 
-    tokio::spawn(async move {
+    let ping_task = tokio::spawn(async move {
         let mut prev_reachable = false;
         loop {
             let addr = ping_address.clone();
@@ -152,7 +153,10 @@ pub fn create(
         }
     });
 
-    SalsaTelescope { inner }
+    SalsaTelescope {
+        inner,
+        background_tasks: Mutex::new(Some(vec![update_task, ping_task])),
+    }
 }
 
 #[async_trait]
@@ -294,6 +298,12 @@ impl Telescope for SalsaTelescope {
         })
     }
     async fn shutdown(&self) {
+        if let Some(tasks) = self.background_tasks.lock().await.take() {
+            for task in tasks {
+                task.abort();
+                let _ = task.await;
+            }
+        }
         let inner = self.inner.lock().await;
         debug!("Shutting down {}", inner.name);
         inner.controller.shutdown().await;
