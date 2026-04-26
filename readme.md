@@ -84,7 +84,12 @@ sudo systemctl restart salsa
 
 ### Systemd service
 
-The service file lives at `/etc/systemd/system/salsa.service`:
+The unit file lives at `/etc/systemd/system/salsa.service` and a drop-in
+with host-local environment variables (TLS cert paths, `RUST_LOG`) lives at
+`/etc/systemd/system/salsa.service.d/override.conf`. Templates for both are
+in [`deploy/systemd/`](deploy/systemd/).
+
+The unit:
 
 ```ini
 [Unit]
@@ -98,10 +103,18 @@ ExecStart=/home/salsa/bin/target/release/salsa --port 443 --log-to-journald
 AmbientCapabilities=CAP_NET_BIND_SERVICE CAP_NET_RAW
 CapabilityBoundingSet=CAP_NET_BIND_SERVICE CAP_NET_RAW
 Restart=always
-EnvironmentFile=/home/salsa/bin/env
 
 [Install]
 WantedBy=multi-user.target
+```
+
+The drop-in (edit with `sudo systemctl edit salsa`):
+
+```ini
+[Service]
+Environment="RUST_LOG=info,rustls=error"
+Environment="KEY_FILE_PATH=/etc/letsencrypt/live/salsa.oso.chalmers.se/privkey.pem"
+Environment="CERT_FILE_PATH=/etc/letsencrypt/live/salsa.oso.chalmers.se/fullchain.pem"
 ```
 
 ### TLS certificate
@@ -130,7 +143,7 @@ Steps to set up the service on a fresh Linux machine (work in progress):
 - Create a `salsaowners` group and add both users to it
 - Install the GitHub Actions runner daemon as the `githubrunner` user
 - Create the deployment directory `/home/salsa/bin` owned by `salsa:salsaowners`
-- Create the systemd service file (see above) and run `sudo systemctl enable salsa`
+- Create the systemd service file and drop-in (see above) and run `sudo systemctl enable salsa`
 - Set up the TLS certificate (see above)
 - Place `config.toml` and `.secrets.toml` in the config directory
 

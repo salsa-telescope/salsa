@@ -5,7 +5,7 @@ After=network.target
 [Service]
 User=salsa
 WorkingDirectory=/home/salsa/bin
-ExecStart=/home/salsa/bin/target/release/backend --port 443
+ExecStart=/home/salsa/bin/target/release/salsa --port 443 --log-to-journald
 AmbientCapabilities=CAP_NET_BIND_SERVICE CAP_NET_RAW
 CapabilityBoundingSet=CAP_NET_BIND_SERVICE CAP_NET_RAW
 Restart=always
