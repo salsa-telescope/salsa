@@ -2,17 +2,23 @@
 <html lang="en">
     <head>
         <title>SALSA</title>
-        <link rel="stylesheet" href="/style.css" />
-        <link rel="preconnect" href="https://fonts.googleapis.com">
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-        <link href="https://fonts.googleapis.com/css2?family=Audiowide&family=Roboto+Flex:opsz,wght@8..144,300;8..144,400&display=swap" rel="stylesheet">
         <meta charset='UTF-8'/>
-        <meta name='viewport'
-        content='width=device-width, initial-scale=1.0, maximum-scale=1.0' />
+        <meta name='viewport' content='width=device-width, initial-scale=1.0' />
+        <meta name="description" content="Learn radio astronomy with real radio telescopes. Free for anyone to use, hosted at Onsala Space Observatory." />
+        <meta property="og:title" content="SALSA — Radio astronomy in your browser" />
+        <meta property="og:description" content="Learn radio astronomy with real radio telescopes. Free for anyone to use, hosted at Onsala Space Observatory." />
+        <meta property="og:type" content="website" />
+        <meta property="og:url" content="https://salsa.oso.chalmers.se/" />
+        <meta property="og:image" content="https://salsa.oso.chalmers.se/telescope1.png" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+        <link rel="alternate icon" href="/favicon.ico" />
+        <link rel="stylesheet" href="/style.css" />
+        <link rel="stylesheet" href="/fonts/google-fonts.css" />
         <!-- <script src="https://unpkg.com/htmx.org@2.0.0"></script> -->
-        <script src="https://unpkg.com/htmx.org@2.0.4/dist/htmx.js" integrity="sha384-oeUn82QNXPuVkGCkcrInrS1twIxKhkZiFfr2TdiuObZ3n3yIeMiqcRzkIcguaof1" crossorigin="anonymous"></script>
-        <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
-        <script src="/observation_chart.js"></script>
+        <script defer src="https://unpkg.com/htmx.org@2.0.4/dist/htmx.js" integrity="sha384-oeUn82QNXPuVkGCkcrInrS1twIxKhkZiFfr2TdiuObZ3n3yIeMiqcRzkIcguaof1" crossorigin="anonymous"></script>
+        <script defer src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+        <script defer src="/observation_chart.js"></script>
         <script>
             function toggleNav() {
                 document.body.classList.toggle('nav-open');
