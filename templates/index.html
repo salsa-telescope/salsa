@@ -88,7 +88,9 @@
         <script>
             document.addEventListener('click', function(e) {
                 if (e.target.tagName === 'IMG' && e.target.closest('figure')) {
-                    document.getElementById('lightbox-img').src = e.target.src;
+                    var lbImg = document.getElementById('lightbox-img');
+                    lbImg.src = e.target.src;
+                    lbImg.alt = e.target.alt || '';
                     var lb = document.getElementById('lightbox');
                     lb.classList.remove('hidden');
                     lb.classList.add('flex');

@@ -254,7 +254,7 @@
       <div class="w-full max-w-72 xl:flex-shrink-0">
         <h2 class="text-xl font-semibold mb-3">Live Webcam</h2>
         <div id="wcam-box" style="width:100%;overflow:hidden;position:relative;border-radius:4px;background:#000;">
-          <img id="wcam-a" src="/live/snapshot" style="position:absolute;max-width:none;" alt="">
+          <img id="wcam-a" src="/live/snapshot" style="position:absolute;max-width:none;" alt="Live webcam feed of the SALSA telescope">
           <div hx-get="/live/webcam-status" hx-trigger="load, every 2s" hx-swap="innerHTML"></div>
         </div>
         <script>
