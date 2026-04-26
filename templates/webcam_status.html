@@ -1,9 +1,10 @@
 {% if available %}
+{% if state_class != "fresh" %}
 <span class="absolute top-2 right-2 z-20 text-xs px-1.5 py-0.5 rounded pointer-events-none
-  {% if state_class == "fresh" %}bg-black/50 text-white
-  {% else if state_class == "stale" %}bg-warning text-white
+  {% if state_class == "stale" %}bg-warning text-white
   {% else %}bg-danger text-white
   {% endif %}">{{ message }}</span>
+{% endif %}
 {% else %}
 <div class="absolute inset-0 z-20 flex items-center justify-center text-white text-sm font-medium p-4 text-center pointer-events-none">{{ message }}</div>
 {% endif %}
