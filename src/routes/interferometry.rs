@@ -533,10 +533,7 @@ async fn post_start(
     if !ALLOWED_BANDWIDTHS_MHZ.contains(&form.bandwidth_mhz) {
         return (
             StatusCode::BAD_REQUEST,
-            format!(
-                "Bandwidth must be one of {:?} MHz",
-                ALLOWED_BANDWIDTHS_MHZ
-            ),
+            format!("Bandwidth must be one of {:?} MHz", ALLOWED_BANDWIDTHS_MHZ),
         )
             .into_response();
     }

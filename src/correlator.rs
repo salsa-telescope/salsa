@@ -242,8 +242,7 @@ async fn correlator_task(
         let mean_amplitude = mean_vis.norm();
         let mean_phase_deg = mean_vis.arg().to_degrees();
 
-        let amps_json =
-            serde_json::to_string(&bin_amps).expect("serializing Vec<f64> never fails");
+        let amps_json = serde_json::to_string(&bin_amps).expect("serializing Vec<f64> never fails");
         let phases_json =
             serde_json::to_string(&bin_phases).expect("serializing Vec<f64> never fails");
 

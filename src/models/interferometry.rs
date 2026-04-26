@@ -102,10 +102,12 @@ impl InterferometrySession {
         id: i64,
         user_id_filter: Option<i64>,
     ) -> Result<Option<Self>, InternalError> {
-        const SELECT_BY_ID: &str = "SELECT id, user_id, start_time, end_time, telescope_a, telescope_b,
+        const SELECT_BY_ID: &str =
+            "SELECT id, user_id, start_time, end_time, telescope_a, telescope_b,
                     coordinate_system, target_x, target_y, center_freq_hz, bandwidth_hz
              FROM interferometry_session WHERE id = ?1";
-        const SELECT_BY_ID_AND_USER: &str = "SELECT id, user_id, start_time, end_time, telescope_a, telescope_b,
+        const SELECT_BY_ID_AND_USER: &str =
+            "SELECT id, user_id, start_time, end_time, telescope_a, telescope_b,
                     coordinate_system, target_x, target_y, center_freq_hz, bandwidth_hz
              FROM interferometry_session WHERE id = ?1 AND user_id = ?2";
         let conn = connection.lock().await;
@@ -172,10 +174,7 @@ impl InterferometrySession {
 
     /// Look up the satellite name (if this session targets a GNSS satellite) and
     /// render a human-readable target label.
-    pub fn target_label_from_cache(
-        &self,
-        tle_cache: &crate::tle_cache::TleCacheHandle,
-    ) -> String {
+    pub fn target_label_from_cache(&self, tle_cache: &crate::tle_cache::TleCacheHandle) -> String {
         let sat_name = if self.coordinate_system == "gnss" {
             tle_cache.satellite_name(self.target_x as u64)
         } else {
