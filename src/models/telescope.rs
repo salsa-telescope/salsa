@@ -1,7 +1,7 @@
 use crate::coords::{Direction, Location};
 use crate::models::telescope_types::{
-    ObservedSpectra, ReceiverConfiguration, ReceiverError, TelescopeDefinition, TelescopeError,
-    TelescopeInfo, TelescopeTarget, TelescopeType, TelescopesConfig,
+    IqBlock, ObservedSpectra, ReceiverConfiguration, ReceiverError, TelescopeDefinition,
+    TelescopeError, TelescopeInfo, TelescopeTarget, TelescopeType, TelescopesConfig,
 };
 
 use crate::models::fake_telescope;
@@ -35,6 +35,15 @@ pub trait Telescope: Send + Sync {
     async fn stop_integration(&self) -> Option<ObservedSpectra>;
     async fn get_info(&self) -> Result<TelescopeInfo, TelescopeError>;
     async fn shutdown(&self);
+    /// Start streaming raw IQ blocks for interferometry correlation.
+    /// Each block carries a timestamp (seconds, relative to USRP time zero for
+    /// real hardware, or stream start for the fake telescope) so the correlator
+    /// can align A- and B-side blocks.
+    /// Stop by calling set_receiver_configuration(integrate: false).
+    async fn start_iq_stream(
+        &self,
+        config: ReceiverConfiguration,
+    ) -> Result<tokio::sync::mpsc::Receiver<IqBlock>, ReceiverError>;
 }
 
 type TelescopeCollection = Arc<RwLock<HashMap<String, Arc<dyn Telescope>>>>;
@@ -99,6 +108,7 @@ fn create_telescope(
             def.receiver_address
                 .expect("Telescope of type Salsa should have receiver_address.")
                 .clone(),
+            def.gpsdo_enabled,
             stow_position,
             location,
             min_elevation_rad,

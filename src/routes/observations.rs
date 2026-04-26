@@ -1,5 +1,6 @@
 use crate::app::AppState;
 use crate::fits::{SpectrumMeta, write_spectrum_fits};
+use crate::models::interferometry::InterferometrySession;
 use crate::models::observation::Observation;
 use crate::models::user::User;
 use crate::routes::index::render_main;
@@ -9,6 +10,7 @@ use axum::http::header;
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::{Html, IntoResponse, Json, Redirect, Response};
 use axum::{Extension, Router, routing::get};
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 const PAGE_SIZE: i64 = 10;
@@ -16,6 +18,10 @@ const PAGE_SIZE: i64 = 10;
 pub fn routes(state: AppState) -> Router {
     Router::new()
         .route("/", get(get_observations))
+        .route(
+            "/interferometry/{session_id}",
+            axum::routing::delete(delete_interferometry_session),
+        )
         .route(
             "/{observation_id}",
             get(get_observation_data).delete(delete_observation),
@@ -29,29 +35,71 @@ pub fn routes(state: AppState) -> Router {
 struct PageQuery {
     page: Option<usize>,
     user_id: Option<i64>,
+    mode: Option<String>,
+}
+
+struct InterfSessionRow {
+    id: i64,
+    start_time: DateTime<Utc>,
+    end_time: Option<DateTime<Utc>>,
+    telescope_a: String,
+    telescope_b: String,
+    target_label: String,
+    center_freq_mhz: f64,
 }
 
 #[derive(Template)]
 #[template(path = "observations.html")]
 struct ObservationsTemplate {
+    mode: String,
+    is_admin: bool,
+    viewed_user_id: i64,
+    all_users: Vec<User>,
+    show_interferometry_tab: bool,
+    // single-dish fields
     observations: Vec<Observation>,
     current_page: usize,
     total_pages: usize,
     prev_page: Option<usize>,
     next_page: Option<usize>,
     total_count: i64,
-    is_admin: bool,
-    viewed_user_id: i64,
-    all_users: Vec<User>,
+    // interferometry fields
+    interferometry_sessions: Vec<InterfSessionRow>,
 }
 
+fn make_interf_rows(
+    sessions: Vec<InterferometrySession>,
+    state: &AppState,
+) -> Vec<InterfSessionRow> {
+    sessions
+        .into_iter()
+        .map(|s| {
+            let target_label = s.target_label_from_cache(&state.tle_cache);
+            let center_freq_mhz = s.center_freq_hz / 1e6;
+            InterfSessionRow {
+                id: s.id,
+                start_time: s.start_time,
+                end_time: s.end_time,
+                telescope_a: s.telescope_a,
+                telescope_b: s.telescope_b,
+                target_label,
+                center_freq_mhz,
+            }
+        })
+        .collect()
+}
+
+#[allow(clippy::too_many_arguments)]
 fn build_observations_template(
+    mode: String,
     observations: Vec<Observation>,
     total_count: i64,
     current_page: usize,
     is_admin: bool,
     viewed_user_id: i64,
     all_users: Vec<User>,
+    show_interferometry_tab: bool,
+    interferometry_sessions: Vec<InterfSessionRow>,
 ) -> ObservationsTemplate {
     let total_pages = ((total_count as usize).saturating_sub(1) / PAGE_SIZE as usize) + 1;
     let current_page = current_page.min(total_pages.max(1));
@@ -66,6 +114,7 @@ fn build_observations_template(
         None
     };
     ObservationsTemplate {
+        mode,
         observations,
         current_page,
         total_pages,
@@ -75,6 +124,8 @@ fn build_observations_template(
         is_admin,
         viewed_user_id,
         all_users,
+        show_interferometry_tab,
+        interferometry_sessions,
     }
 }
 
@@ -96,12 +147,6 @@ async fn get_observations(
     } else {
         user.id
     };
-    let current_page = query.page.unwrap_or(1).max(1);
-    let total_count =
-        Observation::count_for_user(state.database_connection.clone(), viewed_user_id).await?;
-    let total_pages = ((total_count as usize).saturating_sub(1) / PAGE_SIZE as usize) + 1;
-    let current_page = current_page.min(total_pages.max(1));
-    let offset = ((current_page - 1) as i64) * PAGE_SIZE;
     let all_users = if user.is_admin {
         User::fetch_all(state.database_connection.clone())
             .await
@@ -109,20 +154,53 @@ async fn get_observations(
     } else {
         vec![]
     };
-    let observations = Observation::fetch_for_user_page(
-        state.database_connection,
-        viewed_user_id,
-        PAGE_SIZE,
-        offset,
-    )
-    .await?;
+    let interf_count =
+        InterferometrySession::count_for_user(state.database_connection.clone(), viewed_user_id)
+            .await
+            .unwrap_or(0);
+    let show_interferometry_tab = interf_count > 0;
+    let mode = if query.mode.as_deref() == Some("interferometry") && show_interferometry_tab {
+        "interferometry".to_string()
+    } else {
+        "single".to_string()
+    };
+    let (observations, total_count, current_page, interferometry_sessions) = if mode
+        == "interferometry"
+    {
+        let sessions = InterferometrySession::fetch_for_user(
+            state.database_connection.clone(),
+            viewed_user_id,
+        )
+        .await
+        .unwrap_or_default();
+        let rows = make_interf_rows(sessions, &state);
+        (vec![], 0, 1, rows)
+    } else {
+        let current_page = query.page.unwrap_or(1).max(1);
+        let total_count =
+            Observation::count_for_user(state.database_connection.clone(), viewed_user_id).await?;
+        let total_pages = ((total_count as usize).saturating_sub(1) / PAGE_SIZE as usize) + 1;
+        let current_page = current_page.min(total_pages.max(1));
+        let offset = ((current_page - 1) as i64) * PAGE_SIZE;
+        let obs = Observation::fetch_for_user_page(
+            state.database_connection.clone(),
+            viewed_user_id,
+            PAGE_SIZE,
+            offset,
+        )
+        .await?;
+        (obs, total_count, current_page, vec![])
+    };
     let content = build_observations_template(
+        mode,
         observations,
         total_count,
         current_page,
         user.is_admin,
         viewed_user_id,
         all_users,
+        show_interferometry_tab,
+        interferometry_sessions,
     )
     .render()
     .expect("Template rendering should always succeed");
@@ -154,19 +232,94 @@ async fn delete_observation(
     let current_page = current_page.min(total_pages.max(1));
     let offset = ((current_page - 1) as i64) * PAGE_SIZE;
     let observations = Observation::fetch_for_user_page(
-        state.database_connection,
+        state.database_connection.clone(),
         viewed_user_id,
         PAGE_SIZE,
         offset,
     )
     .await?;
+    let interf_count =
+        InterferometrySession::count_for_user(state.database_connection.clone(), viewed_user_id)
+            .await
+            .unwrap_or(0);
     let content = build_observations_template(
+        "single".to_string(),
         observations,
         total_count,
         current_page,
         user.is_admin,
         viewed_user_id,
         vec![],
+        interf_count > 0,
+        vec![],
+    )
+    .render()
+    .expect("Template rendering should always succeed");
+    Ok(Html(content).into_response())
+}
+
+async fn delete_interferometry_session(
+    Extension(user): Extension<Option<User>>,
+    Path(session_id): Path<i64>,
+    Query(query): Query<PageQuery>,
+    State(state): State<AppState>,
+) -> Result<Response, StatusCode> {
+    let user = user.ok_or(StatusCode::UNAUTHORIZED)?;
+    let viewed_user_id = if user.is_admin {
+        query.user_id.unwrap_or(user.id)
+    } else {
+        user.id
+    };
+    let is_running = state
+        .active_correlator
+        .lock()
+        .await
+        .as_ref()
+        .is_some_and(|c| c.session_id == session_id);
+    if is_running {
+        return Err(StatusCode::CONFLICT);
+    }
+    let deleted =
+        InterferometrySession::delete(state.database_connection.clone(), session_id, &user)
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    if !deleted {
+        return Err(StatusCode::NOT_FOUND);
+    }
+    let sessions =
+        InterferometrySession::fetch_for_user(state.database_connection.clone(), viewed_user_id)
+            .await
+            .unwrap_or_default();
+    let show_interferometry_tab = !sessions.is_empty();
+    let mode = if show_interferometry_tab {
+        "interferometry".to_string()
+    } else {
+        "single".to_string()
+    };
+    let (observations, total_count, interferometry_sessions) = if show_interferometry_tab {
+        (vec![], 0, make_interf_rows(sessions, &state))
+    } else {
+        let total_count =
+            Observation::count_for_user(state.database_connection.clone(), viewed_user_id).await?;
+        let obs = Observation::fetch_for_user_page(
+            state.database_connection.clone(),
+            viewed_user_id,
+            PAGE_SIZE,
+            0,
+        )
+        .await?;
+        (obs, total_count, vec![])
+    };
+    let content = build_observations_template(
+        mode,
+        observations,
+        total_count,
+        1,
+        user.is_admin,
+        viewed_user_id,
+        vec![],
+        show_interferometry_tab,
+        interferometry_sessions,
     )
     .render()
     .expect("Template rendering should always succeed");

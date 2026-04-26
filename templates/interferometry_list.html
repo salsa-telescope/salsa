@@ -1,0 +1,374 @@
+<div class="section light">
+  <h2 class="text-xl font-semibold mb-4">Interferometry</h2>
+
+  {% if active_telescopes.len() < 2 %}
+  <div class="callout mb-6">
+    <p class="font-medium">No active bookings for two telescopes.</p>
+    <p class="mt-1 text-sm">Book at least two telescopes in the same time slot via the
+      <a href="/bookings">Bookings</a> page, then return here to start a session.</p>
+  </div>
+  {% else %}
+  <div class="mb-6 border rounded p-4 space-y-4">
+    <h3 class="font-semibold">Set up and start session</h3>
+
+    <!-- Shared target + frequency fields -->
+    <div class="flex flex-wrap gap-4 text-sm">
+      <div class="flex flex-col gap-1">
+        <label class="text-gray-600">Coordinate system</label>
+        <select id="coord-sys" name="coordinate_system" class="border rounded px-2 py-1" onchange="onCoordSysChange()">
+          <option value="sun" selected>Sun</option>
+          <option value="galactic">Galactic</option>
+          <option value="equatorial">Equatorial (J2000)</option>
+          <option value="horizontal">Horizontal</option>
+          <option value="gnss">GNSS satellite</option>
+          <option value="stow">Stow</option>
+        </select>
+      </div>
+      <div id="target-xy-fields" class="flex gap-4 hidden">
+        <div class="flex flex-col gap-1">
+          <label class="text-gray-600" id="label-x">Target X [deg]</label>
+          <input id="target-x" type="number" value="120" step="any" class="border rounded px-2 py-1 w-28" />
+        </div>
+        <div class="flex flex-col gap-1">
+          <label class="text-gray-600" id="label-y">Target Y [deg]</label>
+          <input id="target-y" type="number" value="0" step="any" class="border rounded px-2 py-1 w-28" />
+        </div>
+      </div>
+      <div id="satellite-picker" class="flex flex-col gap-1 hidden">
+        <label class="text-gray-600">Satellite</label>
+        <select id="satellite-select" class="border rounded px-2 py-1 w-64" onchange="satelliteChanged()">
+          <option value="">Loading…</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Telescope A and B rows -->
+    <div class="flex flex-col sm:flex-row gap-4 text-sm">
+      <div class="flex-1 border rounded p-3 space-y-2">
+        <div class="flex items-center gap-3">
+          <span class="font-medium">Telescope A</span>
+          <select id="tel-select-a" class="border rounded px-2 py-1 flex-1">
+            {% for t in telescope_names %}
+            <option value="{{ t }}" {% if loop.index == 1 %}selected{% endif %}>{{ t }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="flex items-center gap-2 flex-wrap">
+          <span id="status-badge-a" class="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">&mdash;</span>
+          <span id="azel-a" class="text-xs text-gray-400 font-mono"></span>
+          <span id="countdown-a" class="text-xs text-gray-400"></span>
+        </div>
+        <div class="flex gap-2">
+          <button type="button" onclick="trackTelescope('a')" class="btn text-sm">Track</button>
+          <button type="button" onclick="stopTelescope('a')" class="btn bg-gray-200 hover:bg-gray-300 text-gray-700 text-sm">Stop</button>
+        </div>
+      </div>
+      <div class="flex-1 border rounded p-3 space-y-2">
+        <div class="flex items-center gap-3">
+          <span class="font-medium">Telescope B</span>
+          <select id="tel-select-b" class="border rounded px-2 py-1 flex-1">
+            {% for t in telescope_names %}
+            <option value="{{ t }}" {% if loop.index == 2 %}selected{% endif %}>{{ t }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="flex items-center gap-2 flex-wrap">
+          <span id="status-badge-b" class="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">&mdash;</span>
+          <span id="azel-b" class="text-xs text-gray-400 font-mono"></span>
+          <span id="countdown-b" class="text-xs text-gray-400"></span>
+        </div>
+        <div class="flex gap-2">
+          <button type="button" onclick="trackTelescope('b')" class="btn text-sm">Track</button>
+          <button type="button" onclick="stopTelescope('b')" class="btn bg-gray-200 hover:bg-gray-300 text-gray-700 text-sm">Stop</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Booking countdown warning -->
+    <p id="booking-warning" class="text-warning text-sm hidden"></p>
+
+    <!-- Frequency fields + start button -->
+    <div class="flex flex-wrap gap-4 items-end text-sm">
+      <div class="flex flex-col gap-1">
+        <label class="text-gray-600">Center frequency [MHz]</label>
+        <input id="center-freq" type="number" value="1410.0" step="0.1" min="{{ freq_min_mhz }}" max="{{ freq_max_mhz }}" class="border rounded px-2 py-1 w-32" />
+      </div>
+      <div class="flex flex-col gap-1">
+        <label class="text-gray-600">Bandwidth [MHz]</label>
+        <select id="bandwidth" class="border rounded px-2 py-1">
+          <option value="1.0" selected>1.0</option>
+          <option value="2.5">2.5</option>
+        </select>
+      </div>
+      <div class="flex flex-col gap-1">
+        <label class="text-gray-600">Spectral channels</label>
+        <select id="sp-channels" class="border rounded px-2 py-1">
+          <option value="64">64</option>
+          <option value="128" selected>128</option>
+          <option value="256">256</option>
+        </select>
+      </div>
+      <div class="flex flex-col gap-1">
+        <p id="start-hint" class="text-xs text-warning mb-1">Point both telescopes first</p>
+        {% if let Some(sid) = running_session_id %}
+        <p class="text-xs text-warning mb-1">Session {{ sid }} running — starting will stop it</p>
+        {% endif %}
+        <button id="btn-start" type="button" onclick="startSession()"
+                class="btn" disabled>Start correlation</button>
+      </div>
+    </div>
+    <p id="start-error" class="text-danger text-sm hidden"></p>
+  </div>
+  {% endif %}
+
+  {% if let Some(sid) = running_session_id %}
+  <div class="mb-4 flex items-center gap-4">
+    <span class="text-success font-medium">&#9679; Session {{ sid }} running</span>
+    <a href="/interferometry/{{ sid }}?from=controls" class="btn">View live</a>
+    <form method="POST" action="/interferometry/stop" class="inline">
+      <button type="submit" class="btn bg-danger hover:bg-danger-hover">Stop</button>
+    </form>
+  </div>
+  {% endif %}
+
+  <p class="text-sm text-gray-500 mt-2">
+    Past sessions are in the <a href="/observations?mode=interferometry">Observation archive</a>.
+  </p>
+</div>
+
+<script>
+(function () {
+  const POLL_MS = 2000;
+  let statusA = null, statusB = null;
+  let endA = null, endB = null;
+  let warningSent = false;
+
+  function telId(which) {
+    const sel = document.getElementById('tel-select-' + which);
+    return sel ? sel.value : null;
+  }
+
+  function statusColor(s) {
+    if (s === 'Tracking') return 'bg-success-light text-success';
+    if (s === 'Slewing')  return 'bg-warning-light text-warning';
+    return 'bg-gray-100 text-gray-500';
+  }
+
+  function updateBadge(which, entry) {
+    const badge = document.getElementById('status-badge-' + which);
+    const azel  = document.getElementById('azel-' + which);
+    if (!badge) return;
+    if (!entry) {
+      badge.textContent = '—';
+      badge.className = 'text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500';
+      if (azel) azel.textContent = '';
+      return;
+    }
+    badge.textContent = entry.status;
+    badge.className = 'text-xs px-2 py-0.5 rounded-full ' + statusColor(entry.status);
+    if (azel) {
+      const parts = [];
+      if (entry.az_deg != null && entry.el_deg != null)
+        parts.push('Az ' + entry.az_deg.toFixed(1) + '° El ' + entry.el_deg.toFixed(1) + '°');
+      if (entry.target_az_deg != null && entry.target_el_deg != null)
+        parts.push('→ Az ' + entry.target_az_deg.toFixed(1) + '° El ' + entry.target_el_deg.toFixed(1) + '°');
+      azel.textContent = parts.join('  ');
+    }
+  }
+
+  function formatCountdown(ms) {
+    if (ms == null) return '';
+    const rem = Math.floor((ms - Date.now()) / 1000);
+    if (rem <= 0) return 'Booking ended';
+    const m = Math.floor(rem / 60), s = rem % 60;
+    return 'Booking ends in ' + String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
+  }
+
+  function updateCountdowns() {
+    ['a','b'].forEach(which => {
+      const el = document.getElementById('countdown-' + which);
+      if (!el) return;
+      const ms = which === 'a' ? endA : endB;
+      const txt = formatCountdown(ms);
+      el.textContent = txt;
+      el.className = (ms != null && (ms - Date.now()) < 300000)
+        ? 'text-xs text-warning'
+        : 'text-xs text-gray-400';
+    });
+
+    // Combined warning: show when either booking ends within 5 min
+    const earliest = [endA, endB].filter(x => x != null).reduce((a,b) => a < b ? a : b, Infinity);
+    const warningEl = document.getElementById('booking-warning');
+    if (warningEl && isFinite(earliest)) {
+      const rem = Math.floor((earliest - Date.now()) / 1000);
+      if (rem <= 300 && !warningSent) {
+        warningSent = true;
+        warningEl.textContent = 'Booking ending soon — stow telescopes or extend booking.';
+        warningEl.classList.remove('hidden');
+      }
+      if (rem <= 0) warningEl.classList.add('hidden');
+    }
+  }
+
+  function updateStartButton() {
+    const btn = document.getElementById('btn-start');
+    const hint = document.getElementById('start-hint');
+    if (!btn) return;
+    const bothTracking = statusA === 'Tracking' && statusB === 'Tracking';
+    btn.disabled = !bothTracking;
+    if (hint) hint.classList.toggle('hidden', bothTracking);
+  }
+
+  async function pollStatus() {
+    const a = telId('a'), b = telId('b');
+    if (!a || !b) return;
+    try {
+      const res = await fetch('/interferometry/telescope-status?a=' + encodeURIComponent(a) + '&b=' + encodeURIComponent(b));
+      const data = await res.json();
+      statusA = data.a ? data.a.status : null;
+      statusB = data.b ? data.b.status : null;
+      endA   = data.a && data.a.booking_end_ms != null ? data.a.booking_end_ms : null;
+      endB   = data.b && data.b.booking_end_ms != null ? data.b.booking_end_ms : null;
+      updateBadge('a', data.a);
+      updateBadge('b', data.b);
+    } catch (_) {}
+    updateStartButton();
+  }
+
+  function getTargetXY() {
+    const cs = document.getElementById('coord-sys').value;
+    if (cs === 'gnss') {
+      const sel = document.getElementById('satellite-select');
+      return { tx: sel ? sel.value : '0', ty: '0' };
+    }
+    if (cs === 'sun' || cs === 'stow') return { tx: '0', ty: '0' };
+    return {
+      tx: document.getElementById('target-x').value,
+      ty: document.getElementById('target-y').value,
+    };
+  }
+
+  async function trackTelescope(which) {
+    const id  = telId(which);
+    const cs  = document.getElementById('coord-sys').value;
+    const { tx, ty } = getTargetXY();
+    const body = new URLSearchParams({ coordinate_system: cs, target_x: tx, target_y: ty });
+    try {
+      await fetch('/interferometry/track/' + encodeURIComponent(id), { method: 'POST', body });
+    } catch (_) {}
+    await pollStatus();
+  }
+
+  async function stopTelescope(which) {
+    const id = telId(which);
+    try {
+      await fetch('/interferometry/stop-tel/' + encodeURIComponent(id), { method: 'POST', body: '' });
+    } catch (_) {}
+    await pollStatus();
+  }
+
+  async function startSession() {
+    const errEl = document.getElementById('start-error');
+    if (errEl) { errEl.classList.add('hidden'); errEl.textContent = ''; }
+
+    // The session's target is derived server-side from the telescopes' live
+    // state — the coord-sys/target-xy fields above only drive the Track buttons.
+    const body = new URLSearchParams({
+      telescope_a: telId('a'),
+      telescope_b: telId('b'),
+      center_freq_mhz: document.getElementById('center-freq').value,
+      bandwidth_mhz: document.getElementById('bandwidth').value,
+      spectral_channels: document.getElementById('sp-channels').value,
+    });
+
+    const res = await fetch('/interferometry/start', { method: 'POST', body, redirect: 'follow' });
+    if (res.ok && res.redirected) {
+      window.location.href = res.url;
+    } else if (!res.ok) {
+      const msg = await res.text();
+      if (errEl) { errEl.textContent = msg; errEl.classList.remove('hidden'); }
+    }
+  }
+
+  function satConstellation(name) {
+    const u = name.toUpperCase();
+    if (u.startsWith('COSMOS')) return 'GLONASS';
+    if (u.startsWith('BEIDOU')) return 'BeiDou';
+    if (u.startsWith('GSAT')) return 'Galileo';
+    return 'GPS';
+  }
+
+  async function fetchSatellites() {
+    try {
+      const res = await fetch('/interferometry/satellites');
+      const sats = await res.json();
+      const sel = document.getElementById('satellite-select');
+      sel.innerHTML = '';
+      const groups = {};
+      sats.forEach(s => {
+        const grp = satConstellation(s.name);
+        if (!groups[grp]) groups[grp] = [];
+        groups[grp].push(s);
+      });
+      ['GPS', 'Galileo', 'GLONASS', 'BeiDou'].forEach(grpName => {
+        const members = groups[grpName];
+        if (!members || members.length === 0) return;
+        const optgrp = document.createElement('optgroup');
+        optgrp.label = grpName;
+        members.forEach(s => {
+          const opt = document.createElement('option');
+          opt.value = s.norad_id;
+          opt.dataset.freqMhz = s.freq_mhz;
+          opt.textContent = s.name + ' (az ' + s.azimuth_deg.toFixed(1) + '°, el ' + s.elevation_deg.toFixed(1) + '°)';
+          optgrp.appendChild(opt);
+        });
+        sel.appendChild(optgrp);
+      });
+      satelliteChanged();
+    } catch (_) {}
+  }
+
+  function satelliteChanged() {
+    const sel = document.getElementById('satellite-select');
+    const opt = sel ? sel.options[sel.selectedIndex] : null;
+    if (!opt) return;
+    const freqMhz = parseFloat(opt.dataset.freqMhz);
+    if (!isNaN(freqMhz)) {
+      const freqInput = document.getElementById('center-freq');
+      if (freqInput) freqInput.value = freqMhz.toFixed(1);
+    }
+  }
+
+  function onCoordSysChange() {
+    const cs = document.getElementById('coord-sys').value;
+    const xyFields = document.getElementById('target-xy-fields');
+    const satPicker = document.getElementById('satellite-picker');
+    const lx = document.getElementById('label-x');
+    const ly = document.getElementById('label-y');
+    const needsXY = cs === 'galactic' || cs === 'equatorial' || cs === 'horizontal';
+    xyFields.classList.toggle('hidden', !needsXY);
+    satPicker.classList.toggle('hidden', cs !== 'gnss');
+    if (cs === 'galactic')   { lx.textContent = 'l [deg]'; ly.textContent = 'b [deg]'; }
+    if (cs === 'equatorial') { lx.textContent = 'RA [deg]'; ly.textContent = 'Dec [deg]'; }
+    if (cs === 'horizontal') { lx.textContent = 'Az [deg]'; ly.textContent = 'El [deg]'; }
+    if (cs === 'gnss') fetchSatellites();
+  }
+
+  // Expose to inline onclick handlers
+  window.trackTelescope = trackTelescope;
+  window.stopTelescope = stopTelescope;
+  window.startSession = startSession;
+  window.onCoordSysChange = onCoordSysChange;
+  window.satelliteChanged = satelliteChanged;
+
+  // Re-poll when telescope selection changes
+  ['a','b'].forEach(which => {
+    const sel = document.getElementById('tel-select-' + which);
+    if (sel) sel.addEventListener('change', () => { warningSent = false; pollStatus(); });
+  });
+
+  pollStatus();
+  setInterval(pollStatus, POLL_MS);
+  setInterval(updateCountdowns, 1000);
+})();
+</script>

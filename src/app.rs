@@ -13,6 +13,7 @@ use tracing::{debug, debug_span};
 
 use serde::Deserialize;
 
+use crate::correlator::CorrelatorHandle;
 use crate::database::create_sqlite_database_on_disk;
 use crate::login_rate_limiter::LoginRateLimiterHandle;
 use crate::middleware::cookies::cookies_middleware;
@@ -67,6 +68,8 @@ pub struct AppState {
     pub tle_cache: TleCacheHandle,
     pub weather_cache: WeatherCacheHandle,
     pub login_rate_limiter: LoginRateLimiterHandle,
+    /// At most one correlator session running at a time.
+    pub active_correlator: Arc<Mutex<Option<CorrelatorHandle>>>,
 }
 
 pub async fn create_app(config_dir: &Path, database_dir: &Path) -> (Router, AppState) {
@@ -118,6 +121,7 @@ pub async fn create_app(config_dir: &Path, database_dir: &Path) -> (Router, AppS
         tle_cache,
         weather_cache,
         login_rate_limiter,
+        active_correlator: Arc::new(Mutex::new(None)),
     };
 
     let mut app = Router::new()
@@ -138,6 +142,10 @@ pub async fn create_app(config_dir: &Path, database_dir: &Path) -> (Router, AppS
             routes::live::routes(webcam_snapshot_url, state.clone()),
         )
         .nest("/weather", routes::weather::routes(state.clone()))
+        .nest(
+            "/interferometry",
+            routes::interferometry::routes(state.clone()),
+        )
         .layer(
             TraceLayer::new_for_http().make_span_with(|request: &Request<_>| {
                 let matched_path = request
@@ -167,6 +175,13 @@ pub async fn create_app(config_dir: &Path, database_dir: &Path) -> (Router, AppS
 }
 
 pub async fn teardown_app(app: AppState) {
+    // Stop any running correlator first — otherwise the session row is left
+    // without an end_time and visibility inserts keep firing against a
+    // soon-to-be-dropped DB connection.
+    let running = app.active_correlator.lock().await.take();
+    if let Some(handle) = running {
+        crate::routes::interferometry::stop_correlator_session(&app, handle).await;
+    }
     for telescope in app.telescopes.get_all().await {
         telescope.shutdown().await;
     }

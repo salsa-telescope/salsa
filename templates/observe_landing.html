@@ -1,0 +1,26 @@
+<div class="section light">
+  <h2 class="text-xl font-semibold mb-4">Observe</h2>
+
+  {% if active_bookings.is_empty() %}
+  <div class="callout mb-4">
+    <p class="font-medium">No active bookings right now.</p>
+    <p class="mt-1 text-sm">Go to the <a href="/bookings">Bookings</a> page to book time on a telescope, then return here when your slot is active.</p>
+  </div>
+  {% else %}
+  <p class="mb-4 text-sm">You have active bookings. Select an option below:</p>
+  <div class="flex flex-col gap-4">
+    {% for name in active_bookings %}
+    <div>
+      <a href="/observe/{{ name }}" class="btn w-fit">Observe with {{ name }}</a>
+      <p class="mt-1 text-sm text-gray-500">Point the telescope, set a target, and record a spectrum.</p>
+    </div>
+    {% endfor %}
+    {% if interferometry_available %}
+    <div>
+      <a href="/interferometry" class="btn w-fit">Interferometry</a>
+      <p class="mt-1 text-sm text-gray-500">Use two telescopes simultaneously to measure visibility — amplitude and phase — as a function of baseline and frequency.</p>
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>

@@ -1,8 +1,8 @@
 use crate::coords::{Direction, Location};
 use crate::models::telescope::Telescope;
 use crate::models::telescope_types::{
-    Measurement, ObservationMode, ObservedSpectra, ReceiverConfiguration, ReceiverError,
-    TelescopeError, TelescopeInfo, TelescopeTarget,
+    IQ_BLOCK_SIZE, IqBlock, Measurement, ObservationMode, ObservedSpectra, ReceiverConfiguration,
+    ReceiverError, TelescopeError, TelescopeInfo, TelescopeTarget,
 };
 use crate::telescope_tracker::TelescopeTracker;
 use crate::tle_cache::TleCacheHandle;
@@ -22,14 +22,24 @@ use uhd::{self, StreamCommand, StreamCommandType, StreamTime, TuneRequest, Usrp}
 
 pub const TELESCOPE_UPDATE_INTERVAL: Duration = Duration::from_secs(1);
 
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+enum IntegrationKind {
+    /// `measure()` task — writes single-dish spectra into `Inner::measurements`.
+    Spectrum,
+    /// `measure_iq()` task — streams raw IQ blocks; does not touch `measurements`.
+    Iq,
+}
+
 pub struct ActiveIntegration {
     cancellation_token: CancellationToken,
     measurement_task: tokio::task::JoinHandle<()>,
+    kind: IntegrationKind,
 }
 
 struct Inner {
     name: String,
     receiver_address: String,
+    gpsdo_enabled: bool,
     controller: TelescopeTracker,
     receiver_configuration: ReceiverConfiguration,
     measurements: Arc<Mutex<Vec<Measurement>>>,
@@ -59,6 +69,7 @@ pub fn create(
     name: String,
     controller_address: String,
     receiver_address: String,
+    gpsdo_enabled: bool,
     stow_position: Option<Direction>,
     location: Location,
     min_elevation_rad: f64,
@@ -78,6 +89,7 @@ pub fn create(
     let inner = Arc::new(Mutex::new(Inner {
         name,
         receiver_address,
+        gpsdo_enabled,
         controller: TelescopeTracker::new(
             controller_address,
             location,
@@ -214,13 +226,25 @@ impl Telescope for SalsaTelescope {
             inner.active_integration = Some(ActiveIntegration {
                 cancellation_token,
                 measurement_task,
+                kind: IntegrationKind::Spectrum,
             });
         } else if !receiver_configuration.integrate && inner.receiver_configuration.integrate {
             info!("Stopping integration");
-            if let Some(active_integration) = &mut inner.active_integration {
-                active_integration.cancellation_token.cancel();
-            }
             inner.receiver_configuration.integrate = false;
+            let result = inner.receiver_configuration;
+            // Take the task out so we can await it without holding the inner lock,
+            // which would deadlock with the task trying to lock measurements. This
+            // matches stop_integration() and guarantees a subsequent start_iq_stream
+            // won't see a stale active_integration.
+            let active = inner.active_integration.take();
+            drop(inner);
+            if let Some(ai) = active {
+                ai.cancellation_token.cancel();
+                if let Err(err) = ai.measurement_task.await {
+                    error!("Error waiting for measurement task to finish: {err}");
+                }
+            }
+            return Ok(result);
         }
         Ok(inner.receiver_configuration)
     }
@@ -235,11 +259,18 @@ impl Telescope for SalsaTelescope {
             inner.active_integration.take()
         };
         // Lock is dropped — safe to await the task without risk of deadlock.
+        let kind = active_integration.as_ref().map(|ai| ai.kind);
         if let Some(ai) = active_integration {
             ai.cancellation_token.cancel();
             if let Err(err) = ai.measurement_task.await {
                 error!("Error waiting for measurement task to finish: {err}");
             }
+        }
+        // IQ streams do not produce ObservedSpectra. Returning the last entry of
+        // `measurements` would surface stale single-dish data from earlier in the
+        // process lifetime and mis-file it under the current user/target.
+        if kind != Some(IntegrationKind::Spectrum) {
+            return None;
         }
         let inner = self.inner.lock().await;
         let measurements = inner.measurements.lock().await;
@@ -281,7 +312,10 @@ impl Telescope for SalsaTelescope {
                 .last_receiver_error
                 .clone()
                 .or(controller_info.most_recent_error),
-            measurement_in_progress: inner.active_integration.is_some(),
+            measurement_in_progress: inner
+                .active_integration
+                .as_ref()
+                .is_some_and(|ai| ai.kind == IntegrationKind::Spectrum),
             latest_observation,
             stow_position: inner.stow_position,
             az_offset_rad: controller_info.az_offset_rad,
@@ -307,6 +341,33 @@ impl Telescope for SalsaTelescope {
         let inner = self.inner.lock().await;
         debug!("Shutting down {}", inner.name);
         inner.controller.shutdown().await;
+    }
+
+    async fn start_iq_stream(
+        &self,
+        config: ReceiverConfiguration,
+    ) -> Result<tokio::sync::mpsc::Receiver<IqBlock>, ReceiverError> {
+        let mut inner = self.inner.lock().await;
+        if inner.active_integration.is_some() {
+            return Err(ReceiverError::IntegrationAlreadyRunning);
+        }
+        let (tx, rx) = tokio::sync::mpsc::channel(8);
+        let cancellation_token = CancellationToken::new();
+        let measurement_task = {
+            let address = inner.receiver_address.clone();
+            let gpsdo_enabled = inner.gpsdo_enabled;
+            let token = cancellation_token.clone();
+            tokio::spawn(async move {
+                measure_iq(address, gpsdo_enabled, token, config, tx).await;
+            })
+        };
+        inner.receiver_configuration.integrate = true;
+        inner.active_integration = Some(ActiveIntegration {
+            cancellation_token,
+            measurement_task,
+            kind: IntegrationKind::Iq,
+        });
+        Ok(rx)
     }
 }
 
@@ -592,6 +653,7 @@ async fn measure(
                 config.rfi_filter,
                 &mut spec,
             ),
+            ObservationMode::Interferometry => break,
         };
         n += 1.0;
 
@@ -606,6 +668,128 @@ async fn measure(
             .signed_duration_since(measurement.start)
             .to_std()
             .unwrap();
+    }
+}
+
+/// Stream raw IQ blocks for interferometry cross-correlation.
+/// Sends blocks of IQ_BLOCK_SIZE Complex<f32> samples over `tx`.
+/// Exits when `cancellation_token` fires or the receiver drops the channel.
+async fn measure_iq(
+    address: String,
+    gpsdo_enabled: bool,
+    cancellation_token: CancellationToken,
+    config: ReceiverConfiguration,
+    tx: tokio::sync::mpsc::Sender<IqBlock>,
+) {
+    let args = format!("addr={}", address);
+    let mut usrp = match Usrp::open(&args) {
+        Ok(u) => u,
+        Err(e) => {
+            error!("IQ stream: failed to open USRP at {}: {}", address, e);
+            return;
+        }
+    };
+
+    if gpsdo_enabled {
+        info!("Configuring external clock/PPS sync for {}", address);
+        if let Err(e) = usrp.set_clock_source("external", 0) {
+            error!("set_clock_source failed: {}", e);
+            return;
+        }
+        if let Err(e) = usrp.set_time_source("external", 0) {
+            error!("set_time_source failed: {}", e);
+            return;
+        }
+        // Latch t=0 on the next PPS edge, then wait for it to settle.
+        if let Err(e) = usrp.set_time_next_pps(0, 0.0, 0) {
+            error!("set_time_next_pps failed: {}", e);
+            return;
+        }
+        tokio::time::sleep(Duration::from_secs(2)).await;
+        info!("External time sync complete for {}", address);
+    }
+
+    usrp.set_rx_gain(config.gain_db, 0, "").unwrap();
+    usrp.set_rx_antenna("TX/RX", 0).unwrap();
+    usrp.set_rx_dc_offset_enabled(true, 0).unwrap();
+    usrp.set_rx_sample_rate(config.bandwidth_hz, 0).unwrap();
+    if let Err(e) = usrp.set_rx_frequency(&TuneRequest::with_frequency(config.center_freq_hz), 0) {
+        error!("IQ stream: set_rx_frequency failed: {}", e);
+        return;
+    }
+
+    // Open a single continuous stream once and pull IQ_BLOCK_SIZE samples at a time.
+    // Re-tuning / reopening the stream per block would invalidate cross-correlation
+    // because each setup introduces a fresh, uncorrelated time gap between telescopes.
+    let mut receiver = match usrp.get_rx_stream(&uhd::StreamArgs::<Complex<i16>>::new("sc16")) {
+        Ok(r) => r,
+        Err(e) => {
+            error!("IQ stream: get_rx_stream failed: {}", e);
+            return;
+        }
+    };
+    if let Err(e) = receiver.send_command(&StreamCommand {
+        command_type: StreamCommandType::StartContinuous,
+        time: StreamTime::Now,
+    }) {
+        error!("IQ stream: StartContinuous failed: {}", e);
+        return;
+    }
+
+    let mut buffer = vec![Complex::<i16>::default(); IQ_BLOCK_SIZE];
+    // Fallback sample counter, in case the USRP metadata omits a time_spec on
+    // some packets. Both telescopes increment at the same rate, so if they both
+    // lose metadata, sample-count alignment still works as long as the initial
+    // offsets match.
+    let mut samples_received: u64 = 0;
+    while !cancellation_token.is_cancelled() {
+        let metadata = match receiver.receive_simple(buffer.as_mut()) {
+            Ok(m) => m,
+            Err(_) => break,
+        };
+
+        // Surface UHD receive errors (overflow, out-of-sequence, ...) — these
+        // indicate the pipeline is keeping up poorly and cross-correlation
+        // alignment is likely compromised. Keep streaming; the correlator's
+        // timestamp-alignment check will reset the integration on next drift.
+        if let Some(err) = metadata.last_error() {
+            warn!("IQ stream {address}: receive error {err:?}");
+        }
+
+        let timestamp_secs = match metadata.time_spec() {
+            Some(ts) => ts.seconds as f64 + ts.fraction,
+            None => {
+                warn!(
+                    "IQ stream from {}: receive packet had no time_spec; using sample counter",
+                    address
+                );
+                samples_received as f64 / config.bandwidth_hz
+            }
+        };
+        samples_received += IQ_BLOCK_SIZE as u64;
+
+        let samples: Vec<Complex<f32>> = buffer
+            .iter()
+            .map(|x| Complex::new(x.re as f32, x.im as f32))
+            .collect();
+
+        if tx
+            .send(IqBlock {
+                timestamp_secs,
+                samples,
+            })
+            .await
+            .is_err()
+        {
+            break;
+        }
+    }
+
+    if let Err(e) = receiver.send_command(&StreamCommand {
+        command_type: StreamCommandType::StopContinuous,
+        time: StreamTime::Now,
+    }) {
+        error!("IQ stream: StopContinuous failed: {}", e);
     }
 }
 

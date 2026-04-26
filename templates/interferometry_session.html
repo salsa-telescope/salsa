@@ -1,0 +1,254 @@
+<div class="section light">
+  <div class="flex items-center gap-4 mb-4">
+    <a href="{{ back_url }}" class="text-sm text-gray-500 hover:underline">&larr; {{ back_label }}</a>
+    <h2 class="text-xl font-semibold">
+      Session {{ session.id }}:
+      {{ session.telescope_a }} &times; {{ session.telescope_b }}
+    </h2>
+    <span id="running-indicator"
+          {% if !is_running %}style="display:none"{% endif %}
+          class="text-success font-medium text-sm">&#9679; Running</span>
+    <form id="stop-form" method="POST" action="/interferometry/stop" class="ml-2"
+          {% if !is_running %}style="display:none"{% endif %}>
+      <button type="submit" class="btn bg-danger hover:bg-danger-hover text-sm">Stop</button>
+    </form>
+  </div>
+
+  <div class="text-sm text-gray-500 mb-6 flex flex-wrap gap-x-6 gap-y-1">
+    <span>Start: {{ session.start_time.format("%Y-%m-%d %H:%M:%S UTC") }}</span>
+    {% if let Some(et) = session.end_time %}
+    <span>End: {{ et.format("%Y-%m-%d %H:%M:%S UTC") }}</span>
+    {% endif %}
+    <span>Target: {{ target_label }}</span>
+    <span>{{ center_freq_mhz|fmt("{:.3}") }} MHz &plusmn; {{ half_bw_mhz|fmt("{:.2}") }} MHz</span>
+    <span id="vis-count">{{ visibility_count }} integrations</span>
+  </div>
+
+  <div id="no-data" {% if visibility_count > 0 %}style="display:none"{% endif %}
+       class="text-gray-400 text-sm mb-4">
+    No data yet. Waiting for the first 1-second integration…
+  </div>
+
+  <div id="charts" class="grid grid-cols-1 lg:grid-cols-2 gap-6"
+       {% if visibility_count == 0 %}style="display:none"{% endif %}>
+    <div>
+      <h3 class="font-semibold text-sm mb-1 text-center">Amplitude vs frequency (time-averaged)</h3>
+      <div id="chart-amp-freq"></div>
+    </div>
+    <div>
+      <h3 class="font-semibold text-sm mb-1 text-center">Phase vs time (freq-averaged)</h3>
+      <div id="chart-phase-time"></div>
+    </div>
+    <div>
+      <h3 class="font-semibold text-sm mb-1 text-center">Phase vs frequency (time-averaged)</h3>
+      <div id="chart-phase-freq"></div>
+    </div>
+    <div>
+      <h3 class="font-semibold text-sm mb-1 text-center">Delay vs time</h3>
+      <div id="chart-delay-time"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  const SESSION_ID = {{ session.id }};
+  const IS_RUNNING = {{ is_running }};
+  const POLL_INTERVAL_MS = 2000;
+
+  // Running aggregate state across polls so each /data request only fetches new rows.
+  let allData = [];
+  let lastId = 0;
+  let sumRe = null;
+  let sumIm = null;
+  let freqCache = null;
+
+  const W = 480, H = 220, M = { top: 10, right: 20, bottom: 36, left: 56 };
+  const iw = W - M.left - M.right;
+  const ih = H - M.top - M.bottom;
+
+  function makeSvg(containerId) {
+    return d3.select('#' + containerId)
+      .append('svg')
+      .attr('width', W).attr('height', H)
+      .append('g')
+      .attr('transform', `translate(${M.left},${M.top})`);
+  }
+
+  function makeAxes(svg, x, y, xLabel, yLabel) {
+    svg.append('g').attr('class', 'x-axis').attr('transform', `translate(0,${ih})`).call(d3.axisBottom(x).ticks(5));
+    svg.append('g').attr('class', 'y-axis').call(d3.axisLeft(y).ticks(5));
+    svg.append('text').attr('class', 'x-label')
+      .attr('text-anchor', 'middle').attr('x', iw / 2).attr('y', ih + 32)
+      .attr('font-size', 11).attr('fill', '#555').text(xLabel);
+    svg.append('text').attr('class', 'y-label')
+      .attr('text-anchor', 'middle')
+      .attr('transform', `translate(-42,${ih / 2}) rotate(-90)`)
+      .attr('font-size', 11).attr('fill', '#555').text(yLabel);
+    return svg.append('path').attr('fill', 'none').attr('stroke', 'var(--color-accent)').attr('stroke-width', 1.5);
+  }
+
+  // ---- Amplitude vs frequency ----
+  const svgAf = makeSvg('chart-amp-freq');
+  const xAf = d3.scaleLinear().range([0, iw]);
+  const yAf = d3.scaleLinear().range([ih, 0]);
+  const lineAf = makeAxes(svgAf, xAf, yAf, 'Frequency [MHz]', 'Amplitude');
+
+  // ---- Phase vs time ----
+  const svgPt = makeSvg('chart-phase-time');
+  const xPt = d3.scaleTime().range([0, iw]);
+  const yPt = d3.scaleLinear().domain([-180, 180]).range([ih, 0]);
+  const linePt = makeAxes(svgPt, xPt, yPt, 'UTC time', 'Phase [deg]');
+
+  // ---- Phase vs frequency ----
+  const svgPf = makeSvg('chart-phase-freq');
+  const xPf = d3.scaleLinear().range([0, iw]);
+  const yPf = d3.scaleLinear().domain([-180, 180]).range([ih, 0]);
+  const linePf = makeAxes(svgPf, xPf, yPf, 'Frequency [MHz]', 'Phase [deg]');
+
+  // ---- Delay vs time ----
+  const svgDt = makeSvg('chart-delay-time');
+  const xDt = d3.scaleTime().range([0, iw]);
+  const yDt = d3.scaleLinear().range([ih, 0]);
+  const lineDt = makeAxes(svgDt, xDt, yDt, 'UTC time', 'Delay [ns]');
+
+  function updateTimeAxes(svg, x, y) {
+    svg.select('.x-axis').call(d3.axisBottom(x).ticks(5).tickFormat(d3.timeFormat('%H:%M:%S')));
+    svg.select('.y-axis').call(d3.axisLeft(y).ticks(5));
+  }
+
+  function updateLinearAxes(svg, x, y) {
+    svg.select('.x-axis').call(d3.axisBottom(x).ticks(5));
+    svg.select('.y-axis').call(d3.axisLeft(y).ticks(5));
+  }
+
+  // Pad a [min, max] domain by 10% on each side; handle the flat (min===max) case.
+  function padDomain([lo, hi]) {
+    const span = hi - lo;
+    const pad = span > 0 ? span * 0.1 : Math.abs(lo) * 0.1 || 1;
+    return [lo - pad, hi + pad];
+  }
+
+  // Auto-scale phase axes, but never exceed the meaningful ±180° range.
+  function phaseDomain(values) {
+    const [lo, hi] = padDomain(d3.extent(values));
+    return [Math.max(lo, -180), Math.min(hi, 180)];
+  }
+
+  // Circular mean of phases (degrees): average complex unit vectors, return phase of result.
+  function circularMeanDeg(phases) {
+    let re = 0, im = 0;
+    for (const p of phases) {
+      const r = p * Math.PI / 180;
+      re += Math.cos(r); im += Math.sin(r);
+    }
+    return Math.atan2(im / phases.length, re / phases.length) * 180 / Math.PI;
+  }
+
+  function ingest(newRows) {
+    if (!newRows || newRows.length === 0) return;
+    for (const row of newRows) {
+      if (row.id > lastId) lastId = row.id;
+      // One-time init of running sums using the first row's frequency grid.
+      if (!freqCache) {
+        freqCache = JSON.parse(row.frequencies_json);
+        sumRe = new Array(freqCache.length).fill(0);
+        sumIm = new Array(freqCache.length).fill(0);
+      }
+      const amps = JSON.parse(row.amplitudes_json);
+      const phases = JSON.parse(row.phases_json);
+      for (let i = 0; i < freqCache.length; i++) {
+        const r = phases[i] * Math.PI / 180;
+        sumRe[i] += amps[i] * Math.cos(r);
+        sumIm[i] += amps[i] * Math.sin(r);
+      }
+      // Keep a slim copy of per-integration scalars; the per-channel arrays are
+      // already folded into sumRe/sumIm so we don't need them again.
+      allData.push({
+        id: row.id,
+        time: row.time,
+        mean_phase_deg: row.mean_phase_deg,
+        delay_ns: row.delay_ns,
+      });
+    }
+  }
+
+  function render() {
+    if (allData.length === 0) return;
+
+    document.getElementById('no-data').style.display = 'none';
+    document.getElementById('charts').style.display = '';
+    document.getElementById('vis-count').textContent = allData.length + ' integrations';
+
+    const times = allData.map(d => new Date(d.time));
+    const timeExt = d3.extent(times);
+
+    const freqsMHz = freqCache.map(f => f / 1e6);
+    const avgAmps = sumRe.map((re, i) => Math.hypot(re, sumIm[i]) / allData.length);
+    const avgPhases = sumRe.map((re, i) => Math.atan2(sumIm[i], re) * 180 / Math.PI);
+
+    xAf.domain(d3.extent(freqsMHz));
+    yAf.domain(padDomain(d3.extent(avgAmps)));
+    updateLinearAxes(svgAf, xAf, yAf);
+    const afData = freqsMHz.map((f, i) => ({ f, a: avgAmps[i] }));
+    lineAf.datum(afData).attr('d', d3.line().x(d => xAf(d.f)).y(d => yAf(d.a)));
+
+    xPf.domain(d3.extent(freqsMHz));
+    yPf.domain(phaseDomain(avgPhases));
+    updateLinearAxes(svgPf, xPf, yPf);
+    const pfData = freqsMHz.map((f, i) => ({ f, p: avgPhases[i] }));
+    linePf.datum(pfData).attr('d', d3.line().x(d => xPf(d.f)).y(d => yPf(d.p)));
+
+    // Phase vs time (circular mean per integration)
+    xPt.domain(timeExt);
+    yPt.domain(phaseDomain(allData.map(d => d.mean_phase_deg)));
+    updateTimeAxes(svgPt, xPt, yPt);
+    linePt.datum(allData).attr('d', d3.line().x(d => xPt(new Date(d.time))).y(d => yPt(d.mean_phase_deg)));
+
+    // Delay vs time
+    xDt.domain(timeExt);
+    yDt.domain(padDomain(d3.extent(allData, d => d.delay_ns)));
+    updateTimeAxes(svgDt, xDt, yDt);
+    lineDt.datum(allData).attr('d', d3.line().x(d => xDt(new Date(d.time))).y(d => yDt(d.delay_ns)));
+  }
+
+  // Server caps each response; keep draining immediately whenever we get a full
+  // page so long archived sessions finish loading promptly instead of waiting
+  // for the next 2s tick. Server-side limit is rendered in from the route so
+  // the two stay in sync.
+  const MAX_ROWS_PER_RESPONSE = {{ max_rows_per_response }};
+
+  function updateRunningIndicator(running) {
+    const ind = document.getElementById('running-indicator');
+    const form = document.getElementById('stop-form');
+    if (ind) ind.style.display = running ? '' : 'none';
+    if (form) form.style.display = running ? '' : 'none';
+  }
+
+  // Returns the number of rows fetched, or -1 on error. -1 breaks the drain
+  // loop without propagating a rejection so the periodic poller still starts.
+  function poll() {
+    return fetch('/interferometry/' + SESSION_ID + '/data?after_id=' + lastId)
+      .then(r => r.json())
+      .then(resp => {
+        const rows = resp.rows || [];
+        ingest(rows);
+        updateRunningIndicator(!!resp.running);
+        render();
+        return rows.length;
+      })
+      .catch(e => { console.error(e); return -1; });
+  }
+
+  async function drain() {
+    while ((await poll()) === MAX_ROWS_PER_RESPONSE) { /* keep going */ }
+  }
+
+  drain().then(() => {
+    // Poll while the session is running, and for one extra tick afterwards so
+    // the client can observe the `running` flag flipping to false and clear
+    // the badge without a page refresh.
+    if (IS_RUNNING) setInterval(poll, POLL_INTERVAL_MS);
+  });
+})();
+</script>

@@ -2,18 +2,20 @@ use crate::coords::{Direction, Location};
 use crate::coords::{horizontal_from_equatorial, horizontal_from_galactic, horizontal_from_sun};
 use crate::models::telescope::Telescope;
 use crate::models::telescope_types::{
-    ObservedSpectra, ReceiverConfiguration, ReceiverError, TelescopeError, TelescopeInfo,
-    TelescopeStatus, TelescopeTarget,
+    IQ_BLOCK_SIZE, IqBlock, ObservedSpectra, ReceiverConfiguration, ReceiverError, TelescopeError,
+    TelescopeInfo, TelescopeStatus, TelescopeTarget,
 };
 use crate::tle_cache::TleCacheHandle;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use rand::Rng;
 use rand_distr::StandardNormal;
+use rustfft::num_complex::Complex;
 use std::f64::consts::PI;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Mutex;
+use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, trace};
 
 const FAKE_TELESCOPE_PARKING_HORIZONTAL: Direction = Direction {
@@ -47,6 +49,7 @@ struct Inner {
     stow_position: Option<Direction>,
     alive: bool,
     tle_cache: TleCacheHandle,
+    iq_cancellation_token: Option<CancellationToken>,
 }
 
 pub struct FakeTelescope {
@@ -88,6 +91,7 @@ pub fn create(
         stow_position,
         alive: true,
         tle_cache,
+        iq_cancellation_token: None,
     }));
 
     let task_inner = inner.clone();
@@ -166,12 +170,20 @@ impl Telescope for FakeTelescope {
         let mut inner = self.inner.lock().await;
 
         if receiver_configuration.integrate && !inner.receiver_configuration.integrate {
+            if inner.iq_cancellation_token.is_some() {
+                return Err(ReceiverError::IntegrationAlreadyRunning);
+            }
             info!("Starting integration");
             inner.current_spectra.clear();
             inner.receiver_configuration.integrate = true;
         } else if !receiver_configuration.integrate && inner.receiver_configuration.integrate {
             info!("Stopping integration");
             inner.receiver_configuration.integrate = false;
+        }
+        if !receiver_configuration.integrate
+            && let Some(token) = inner.iq_cancellation_token.take()
+        {
+            token.cancel();
         }
         Ok(inner.receiver_configuration)
     }
@@ -281,6 +293,57 @@ impl Telescope for FakeTelescope {
         let mut inner = self.inner.lock().await;
         inner.alive = false;
         debug!("Shutting down {}", inner.name);
+    }
+
+    async fn start_iq_stream(
+        &self,
+        config: ReceiverConfiguration,
+    ) -> Result<tokio::sync::mpsc::Receiver<IqBlock>, ReceiverError> {
+        let mut inner = self.inner.lock().await;
+        // Match SalsaTelescope: the receiver can only do one thing at a time,
+        // so reject if either an IQ stream or a single-dish integration is
+        // already active.
+        if inner.iq_cancellation_token.is_some() || inner.receiver_configuration.integrate {
+            return Err(ReceiverError::IntegrationAlreadyRunning);
+        }
+        let (tx, rx) = tokio::sync::mpsc::channel(8);
+        let token = CancellationToken::new();
+        inner.iq_cancellation_token = Some(token.clone());
+        let block_size = IQ_BLOCK_SIZE;
+        let block_duration = Duration::from_secs_f64(block_size as f64 / config.bandwidth_hz);
+        let bandwidth_hz = config.bandwidth_hz;
+        tokio::spawn(async move {
+            // Synthetic monotonic timestamp in seconds; each block is exactly
+            // block_size/bandwidth_hz apart, just like a real continuous stream.
+            let mut samples_emitted: u64 = 0;
+            while !token.is_cancelled() {
+                let samples: Vec<Complex<f32>> = {
+                    let mut rng = rand::rng();
+                    (0..block_size)
+                        .map(|_| {
+                            Complex::new(
+                                rng.sample::<f32, StandardNormal>(StandardNormal),
+                                rng.sample::<f32, StandardNormal>(StandardNormal),
+                            )
+                        })
+                        .collect()
+                };
+                let timestamp_secs = samples_emitted as f64 / bandwidth_hz;
+                samples_emitted += block_size as u64;
+                if tx
+                    .send(IqBlock {
+                        timestamp_secs,
+                        samples,
+                    })
+                    .await
+                    .is_err()
+                {
+                    break;
+                }
+                tokio::time::sleep(block_duration).await;
+            }
+        });
+        Ok(rx)
     }
 }
 

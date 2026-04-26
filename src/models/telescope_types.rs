@@ -89,6 +89,8 @@ pub struct TelescopeDefinition {
     pub t_rec_k: f64, // receiver noise temperature in Kelvin (added to ambient temp for Tsys)
     #[serde(default)]
     pub wind_warning_ms: Option<f64>, // warn if 10-min avg wind exceeds this (m/s); omit to disable
+    #[serde(default)]
+    pub gpsdo_enabled: bool, // use external GPSDO for clock/PPS sync (USRP N210)
 }
 
 #[derive(Deserialize, PartialEq, Debug, Clone)]
@@ -183,6 +185,7 @@ pub enum ObservationMode {
     #[default]
     FreqSwitched,
     Raw,
+    Interferometry,
 }
 
 fn default_max_elevation() -> f64 {
@@ -249,6 +252,22 @@ impl Default for ReceiverConfiguration {
             rfi_filter: default_rfi_filter(),
         }
     }
+}
+
+/// Fixed block size, in complex samples, for raw IQ streams feeding the
+/// correlator. Both telescope backends produce blocks of this size so the
+/// correlator can assume matched FFT lengths.
+pub const IQ_BLOCK_SIZE: usize = 8192;
+
+/// One block of raw IQ samples from an interferometry stream, tagged with the
+/// timestamp of the first sample. `timestamp_secs` is the USRP hardware time
+/// (post-PPS sync) for real telescopes, or a synthetic sample-count-derived
+/// time for the fake telescope — either way, two telescopes running with a
+/// shared PPS produce comparable values.
+#[derive(Debug, Clone)]
+pub struct IqBlock {
+    pub timestamp_secs: f64,
+    pub samples: Vec<rustfft::num_complex::Complex<f32>>,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]

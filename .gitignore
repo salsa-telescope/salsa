@@ -15,4 +15,4 @@ database.json
 
 # Runtime database files
 assets/database.sqlite3
-database.sqlite3.od
+database.sqlite3.old

@@ -34,7 +34,7 @@ tower-http = { version = "0.6.*", features = ["full"] }
 tracing = "0.1.44"
 tracing-journald = "0.3.2"
 tracing-subscriber = {version = "0.3.22", features = ["env-filter"]}
-uhd = "0.3.*"
+uhd = { git = "https://github.com/samcrow/uhd-rust" }
 
 [dev-dependencies]
 tempfile = "*"
