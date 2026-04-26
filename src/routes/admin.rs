@@ -29,6 +29,7 @@ pub fn routes(state: AppState) -> Router {
             "/local-users/{id}/password",
             post(set_local_password_handler),
         )
+        .route("/local-users/{id}/comment", post(set_local_comment_handler))
         .with_state(state)
 }
 
@@ -224,6 +225,28 @@ async fn set_local_password_handler(
     User::set_local_password(state.database_connection, id, form.password)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(Redirect::to("/admin").into_response())
+}
+
+#[derive(Deserialize)]
+struct SetCommentForm {
+    comment: String,
+}
+
+async fn set_local_comment_handler(
+    Extension(user): Extension<Option<User>>,
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+    Form(form): Form<SetCommentForm>,
+) -> Result<Response, StatusCode> {
+    require_admin(user)?;
+    User::set_local_comment(
+        state.database_connection,
+        id,
+        form.comment.trim().to_string(),
+    )
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     Ok(Redirect::to("/admin").into_response())
 }
 

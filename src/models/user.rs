@@ -196,6 +196,24 @@ impl User {
         Ok(())
     }
 
+    pub async fn set_local_comment(
+        connection: Arc<Mutex<Connection>>,
+        user_id: i64,
+        new_comment: String,
+    ) -> Result<(), InternalError> {
+        let conn = connection.lock().await;
+        let updated = conn
+            .execute(
+                "UPDATE local_user SET comment = ?1 WHERE user_id = ?2",
+                (&new_comment, user_id),
+            )
+            .map_err(|e| InternalError::new(format!("Failed to update comment: {e}")))?;
+        if updated == 0 {
+            return Err(InternalError::new("Not a local user".to_string()));
+        }
+        Ok(())
+    }
+
     pub async fn delete_local_by_id(
         connection: Arc<Mutex<Connection>>,
         user_id: i64,

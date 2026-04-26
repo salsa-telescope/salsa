@@ -118,7 +118,16 @@
       {% for (id, username, comment) in local_users %}
       <tr class="border-b last:border-0">
         <td class="py-2 pr-8 font-medium">{{ username }}</td>
-        <td class="py-2 pr-8 text-gray-500">{{ comment }}</td>
+        <td class="py-2 pr-8">
+          <form method="post" action="/admin/local-users/{{ id }}/comment" class="flex gap-2">
+            <input type="text" name="comment" value="{{ comment }}" placeholder="Comment"
+              class="border rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-accent-focus w-36" />
+            <button type="submit"
+              class="btn">
+              Save
+            </button>
+          </form>
+        </td>
         <td class="py-2 pr-8">
           <form method="post" action="/admin/local-users/{{ id }}/password" class="flex gap-2">
             <input type="password" name="password" placeholder="New password" required
