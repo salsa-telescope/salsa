@@ -10,7 +10,7 @@ A web application for controlling radio telescopes at Onsala Space Observatory. 
 
 ```bash
 cargo build          # Build (also downloads Tailwind CLI and compiles CSS)
-cargo run -- -c config/ -d data/   # Run server (needs config.toml + .secrets.toml)
+cargo run -- --config-dir config/ --database-dir data/   # Run server (needs config.toml + .secrets.toml)
 cargo test           # Run all tests
 cargo test coords    # Run tests matching "coords"
 ```
