@@ -7,7 +7,7 @@ use axum::{
     middleware::Next,
     response::Response,
 };
-use tracing::debug;
+use tracing::trace;
 
 pub const SESSION_COOKIE_NAME: &str = "session";
 
@@ -22,7 +22,7 @@ pub async fn session_middleware(
     mut request: Request,
     next: Next,
 ) -> Result<Response, StatusCode> {
-    debug!("Authenticating user session");
+    trace!("Authenticating user session");
     let mut should_reset_cookie = false;
     let user = if let Some(session_token) = get_session_token(&cookies) {
         if let Some(session) =
