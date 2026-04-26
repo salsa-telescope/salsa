@@ -107,7 +107,7 @@ pub async fn create_app(config_dir: &Path, database_dir: &Path) -> (Router, AppS
     );
     let webcam_snapshot_url = match secrets.webcam.as_ref() {
         Some(creds) => format!(
-            "{}/cgi-bin/api.cgi?cmd=Snap&channel=0&rs=salsa&user={}&password={}",
+            "{}/cgi-bin/api.cgi?cmd=Snap&channel=0&rs=salsa&user={}&password={}&width=1280&height=720",
             creds.url, creds.username, creds.password
         ),
         None => String::new(),
