@@ -68,7 +68,7 @@ async fn logout(
 #[derive(Template)]
 #[template(path = "login.html")]
 struct SelectAuthProvider {
-    provider_names: Vec<String>,
+    providers: Vec<(String, Option<String>)>,
     error: bool,
     rate_limited: bool,
 }
@@ -83,11 +83,11 @@ async fn login(
     State(state): State<AppState>,
     Query(query): Query<LoginQuery>,
 ) -> Result<impl IntoResponse, InternalError> {
-    let provider_names = state.secrets.get_auth_provider_names();
+    let providers = state.secrets.get_auth_providers_for_login();
     let rate_limited = query.error.as_deref() == Some("rate_limited");
     let error = !rate_limited && query.error.is_some();
     let content = SelectAuthProvider {
-        provider_names,
+        providers,
         error,
         rate_limited,
     }

@@ -2,12 +2,15 @@
   <div class="w-full flex-row justify-items-center">
     <div class="inline-flex flex-col gap-4">
       <p class="text-gray-600">Always use the same login method to keep access to your bookings and observations.</p>
-      <div class="inline-flex flex-col gap-2">
-        {% for provider in provider_names %}
+      <div class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-2 items-center w-fit">
+        {% for (provider, description) in providers %}
         <a href="/auth/redirect/{{ provider }}" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold text-lg py-4 px-8 rounded inline-flex items-center cursor-pointer">
           <img src="/oauth-{{ provider }}.svg" class="size-6 mr-2"/>
           <span>{{ provider | title }}</span>
         </a>
+        <p class="text-gray-500 text-xs max-w-xs">
+          {% if let Some(text) = description %}{{ text }}{% endif %}
+        </p>
         {% endfor %}
       </div>
 

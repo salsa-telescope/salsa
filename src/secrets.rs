@@ -20,6 +20,8 @@ pub struct AuthProvider {
     pub scopes: Vec<String>,
     pub client_id: String,
     pub client_secret: String,
+    #[serde(default)]
+    pub description: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -44,6 +46,17 @@ impl Secrets {
         let mut names: Vec<_> = self.auth_provider.keys().cloned().collect();
         names.sort();
         names
+    }
+
+    /// (provider name, optional description) sorted by name — for the login page.
+    pub fn get_auth_providers_for_login(&self) -> Vec<(String, Option<String>)> {
+        let mut entries: Vec<_> = self
+            .auth_provider
+            .iter()
+            .map(|(name, p)| (name.clone(), p.description.clone()))
+            .collect();
+        entries.sort_by(|a, b| a.0.cmp(&b.0));
+        entries
     }
 
     pub fn get_auth_provider(&self, provider_name: &str) -> Result<AuthProvider, InternalError> {
