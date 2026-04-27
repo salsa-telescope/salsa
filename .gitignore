@@ -4,7 +4,6 @@ target/
 /database.sqlite3
 /.secrets.toml
 /config.toml
-database.json
 
 # Tailwind CLI binary and compiled output
 /tailwindcss
@@ -13,6 +12,5 @@ database.json
 # macOS metadata
 .DS_Store
 
-# Runtime database files
-assets/database.sqlite3
-database.sqlite3.old
+# Local Claude Code guidance — not tracked
+CLAUDE.md
