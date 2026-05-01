@@ -18,8 +18,10 @@ sudo apt install libuhd-dev libuhd4.6.0 clang libclang-dev llvm-dev
 Then:
 
 ```bash
-cargo build
+cargo build --release
 ```
+The `release` option is required for the code to be efficient enough to handle the 
+data streams from the USRP N210 samplers.
 
 Tailwind CSS is compiled automatically via `build.rs` (the standalone Tailwind binary
 is downloaded on first build).
