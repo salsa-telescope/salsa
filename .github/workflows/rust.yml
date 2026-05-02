@@ -11,6 +11,8 @@ on:
         description: 'Deploy to SALSA webserver'
         type: boolean
         default: false
+  release:
+    types: [published]
 env:
   CARGO_TERM_COLOR: always
 
@@ -45,7 +47,8 @@ jobs:
   deploy:
     needs: build
     runs-on: salsa
-    if: github.ref == 'refs/heads/main' || inputs.deploy
+    if: github.event_name == 'release'
+    environment: Onsala
 
     concurrency:
       group: deploy-main
