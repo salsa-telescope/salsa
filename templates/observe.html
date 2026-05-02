@@ -189,11 +189,15 @@
                   <option value="25.0">25.0 MHz</option>
                 </select>
               </div>
+              {% if is_admin %}
               <div class="flex-1">
                 <label class="block text-sm text-gray-600">Gain [dB]</label>
                 <input type="number" name="gain_db" value="{{ info.default_gain_db }}" min="0" max="88" step="1"
                   class="border rounded px-2 py-1 bg-white w-full text-sm" />
               </div>
+              {% else %}
+              <input type="hidden" name="gain_db" value="{{ info.default_gain_db }}" />
+              {% endif %}
             </div>
             <div>
               <label class="block text-sm text-gray-600">Spectral channels</label>
