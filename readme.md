@@ -70,9 +70,8 @@ or Firefox for local development.
 
 ## Deployment
 
-The server runs as a systemd service on `salsa.oso.chalmers.se`. Deploys happen
-automatically on every push to `main` via GitHub Actions. A manual deploy can be
-triggered from the Actions tab using the "Deploy to SALSA webserver" workflow dispatch.
+The server runs as a systemd service on `salsa.oso.chalmers.se`.
+To update the version runnnig create a release in github (https://github.com/salsa-telescope/salsa/releases/new), this will automatically be deployed to the machine.
 
 View logs:
 ```bash
