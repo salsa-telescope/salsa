@@ -491,7 +491,7 @@ fn measure_single(
         .unwrap();
     receiver.receive_simple(buffer.as_mut()).unwrap();
 
-    // array to store power spectrum (abs of FFT result)
+    // Accumulate power spectrum (|FFT|^2) across stacked blocks
     let mut fft_abs: Vec<f64> = Vec::with_capacity(fft_pts);
     fft_abs.resize(fft_pts, 0.0);
     // setup fft
@@ -506,18 +506,17 @@ fn measure_single(
             .collect();
         // Do the FFT
         fft.process(&mut fft_buffer);
-        // Add absolute values to stacked spectrum
+        // Accumulate squared magnitudes (Welch's method).
         // Seems the pos/neg halves of spectrum are flipped, so reflip them
         // we want lowest frequency in element 0 and then increasing
         for i in 0..fft_pts / 2 {
-            fft_abs[i + fft_pts / 2] += fft_buffer[i].norm();
-            fft_abs[i] += fft_buffer[i + fft_pts / 2].norm();
+            fft_abs[i + fft_pts / 2] += fft_buffer[i].norm_sqr();
+            fft_abs[i] += fft_buffer[i + fft_pts / 2].norm_sqr();
         }
     }
-    // Normalise spectrum by number of stackings,
-    // do **2 to get power spectrum
+    // Average over the stacked blocks
     for val in fft_abs.iter_mut().take(fft_pts) {
-        *val = *val * *val / (nstack as f64);
+        *val /= nstack as f64;
     }
 
     // median window filter data
