@@ -207,22 +207,9 @@ async fn create_booking(
         .filter(|s| !s.is_empty())
         .map(str::to_string);
 
-    let booking = Booking {
-        id: -1,
-        start_time,
-        end_time,
-        user_id: user.id,
-        user_name: user.name.clone(),
-        user_provider: user.provider.clone(),
-        telescope_name: form.telescope.clone(),
-        description: description.clone(),
-        country: country.clone(),
-    };
-
     let maintenance = fetch_maintenance_set(state.database_connection.clone())
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    let bookings = Booking::fetch_all(state.database_connection.clone()).await?;
     let max_upcoming = state.booking_config.max_upcoming_bookings;
     let upcoming_count = Booking::fetch_for_user(state.database_connection.clone(), &user)
         .await?
@@ -240,28 +227,26 @@ async fn create_booking(
             "You have reached the maximum of {} upcoming bookings.",
             max_upcoming,
         ))
-    } else if !bookings
-        .iter()
-        .filter(|b| b.telescope_name == booking.telescope_name && b.overlaps(&booking))
-        .any(|_| true)
-    {
-        Booking::create(
+    } else {
+        let inserted = Booking::create(
             state.database_connection.clone(),
             user.clone(),
-            booking.telescope_name,
-            booking.start_time,
-            booking.end_time,
+            form.telescope.clone(),
+            start_time,
+            end_time,
             description,
             country,
         )
         .await?;
-        None
-    } else {
-        Some(format!(
-            "Slot at {} on {} is already booked.",
-            start_time.format("%H:%M"),
-            start_time.format("%Y-%m-%d"),
-        ))
+        if inserted {
+            None
+        } else {
+            Some(format!(
+                "Slot at {} on {} is already booked.",
+                start_time.format("%H:%M"),
+                start_time.format("%Y-%m-%d"),
+            ))
+        }
     };
 
     let week_start = week_monday(form.week.unwrap_or(now.date_naive()));

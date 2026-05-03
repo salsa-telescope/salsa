@@ -116,6 +116,45 @@ fn create_booking() {
 }
 
 #[test]
+fn cant_double_book_same_slot() {
+    let server = SalsaTestServer::spawn();
+    let user_a = server.add_local_user("alice", "password");
+    let user_b = server.add_local_user("bob", "password");
+
+    let next_hour = Utc::now()
+        .duration_round_up(TimeDelta::hours(1))
+        .expect("Should be possible to round up to closest hour")
+        .timestamp();
+    let form = [
+        ("start_timestamp", format!("{}", next_hour)),
+        ("telescope", "fake1".to_string()),
+    ];
+
+    let client_a = Client::builder().cookie_store(true).build().unwrap();
+    server.login(&client_a, &user_a);
+    let res_a = client_a
+        .post(server.addr() + "/bookings")
+        .form(&form)
+        .send()
+        .expect("Should be able to send request");
+    assert_eq!(StatusCode::OK, res_a.status());
+
+    let client_b = Client::builder().cookie_store(true).build().unwrap();
+    server.login(&client_b, &user_b);
+    let res_b = client_b
+        .post(server.addr() + "/bookings")
+        .form(&form)
+        .send()
+        .expect("Should be able to send request");
+    assert_eq!(StatusCode::OK, res_b.status());
+    let body = res_b.text().expect("Should be able to read body");
+    assert!(
+        body.contains("already booked"),
+        "Expected conflict message in body, got: {body}"
+    );
+}
+
+#[test]
 fn invalid_cookie_header_gives_bad_request() {
     let server = SalsaTestServer::spawn();
 

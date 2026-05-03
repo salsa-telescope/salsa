@@ -53,6 +53,10 @@ impl Booking {
         Ok(rows_deleted > 0)
     }
 
+    /// Insert a booking iff no overlapping booking exists for the same telescope.
+    /// Returns `true` if the row was inserted, `false` if a conflicting booking
+    /// already exists. The conflict check and insert run as a single SQL
+    /// statement, so this is safe against concurrent create requests.
     pub async fn create(
         connection: Arc<Mutex<Connection>>,
         user: User,
@@ -61,15 +65,21 @@ impl Booking {
         end: DateTime<Utc>,
         description: Option<String>,
         country: Option<String>,
-    ) -> Result<(), InternalError> {
+    ) -> Result<bool, InternalError> {
         let conn = connection.lock().await;
-        conn.execute(
+        let rows = conn.execute(
             "INSERT INTO booking (user_id, telescope_id, start_timestamp, end_timestamp, description, country)
-                 VALUES ((?1), (?2), (?3), (?4), (?5), (?6))",
+                 SELECT (?1), (?2), (?3), (?4), (?5), (?6)
+                 WHERE NOT EXISTS (
+                     SELECT 1 FROM booking
+                     WHERE telescope_id = (?2)
+                       AND start_timestamp < (?4)
+                       AND end_timestamp > (?3)
+                 )",
             (&user.id, &telescope_id, start.timestamp(), end.timestamp(), &description, &country),
         )
         .map_err(|err| InternalError::new(format!("Failed to insert booking in db: {err}")))?;
-        Ok(())
+        Ok(rows > 0)
     }
 
     pub async fn fetch_all(
