@@ -32,7 +32,7 @@ enum IntegrationKind {
 
 pub struct ActiveIntegration {
     cancellation_token: CancellationToken,
-    measurement_task: tokio::task::JoinHandle<()>,
+    measurement_task: tokio::task::JoinHandle<Result<(), TelescopeError>>,
     kind: IntegrationKind,
 }
 
@@ -220,7 +220,7 @@ impl Telescope for SalsaTelescope {
                         t_rec_k,
                         weather_cache,
                     )
-                    .await;
+                    .await
                 })
             };
             inner.active_integration = Some(ActiveIntegration {
@@ -240,8 +240,12 @@ impl Telescope for SalsaTelescope {
             drop(inner);
             if let Some(ai) = active {
                 ai.cancellation_token.cancel();
-                if let Err(err) = ai.measurement_task.await {
-                    error!("Error waiting for measurement task to finish: {err}");
+                match ai.measurement_task.await {
+                    Ok(Ok(())) => {}
+                    Ok(Err(err)) => error!("Measurement task failed before stop: {err}"),
+                    Err(join_err) => {
+                        error!("Error waiting for measurement task to finish: {join_err}")
+                    }
                 }
             }
             return Ok(result);
@@ -262,8 +266,12 @@ impl Telescope for SalsaTelescope {
         let kind = active_integration.as_ref().map(|ai| ai.kind);
         if let Some(ai) = active_integration {
             ai.cancellation_token.cancel();
-            if let Err(err) = ai.measurement_task.await {
-                error!("Error waiting for measurement task to finish: {err}");
+            match ai.measurement_task.await {
+                Ok(Ok(())) => {}
+                Ok(Err(err)) => error!("Measurement task failed before stop: {err}"),
+                Err(join_err) => {
+                    error!("Error waiting for measurement task to finish: {join_err}")
+                }
             }
         }
         // IQ streams do not produce ObservedSpectra. Returning the last entry of
@@ -357,9 +365,7 @@ impl Telescope for SalsaTelescope {
             let address = inner.receiver_address.clone();
             let gpsdo_enabled = inner.gpsdo_enabled;
             let token = cancellation_token.clone();
-            tokio::spawn(async move {
-                measure_iq(address, gpsdo_enabled, token, config, tx).await;
-            })
+            tokio::spawn(async move { measure_iq(address, gpsdo_enabled, token, config, tx).await })
         };
         inner.receiver_configuration.integrate = true;
         inner.active_integration = Some(ActiveIntegration {
@@ -375,10 +381,17 @@ impl Inner {
     async fn update(&mut self, _delta_time: Duration) -> Result<(), TelescopeError> {
         if let Some(active_integration) = self.active_integration.take() {
             if active_integration.measurement_task.is_finished() {
-                if let Err(error) = active_integration.measurement_task.await {
-                    error!("Error while waiting for measurement task: {}", error);
-                    self.last_receiver_error =
-                        Some(TelescopeError::ReceiverFailed(error.to_string()));
+                match active_integration.measurement_task.await {
+                    Ok(Ok(())) => {}
+                    Ok(Err(err)) => {
+                        error!("Measurement task failed: {}", err);
+                        self.last_receiver_error = Some(err);
+                    }
+                    Err(join_err) => {
+                        error!("Measurement task panicked: {}", join_err);
+                        self.last_receiver_error =
+                            Some(TelescopeError::ReceiverFailed(join_err.to_string()));
+                    }
                 }
             } else {
                 self.active_integration = Some(active_integration);
@@ -430,7 +443,7 @@ fn measure_switched(
     rfi_filter: bool,
     tsys: f64,
     spec: &mut Vec<f64>,
-) {
+) -> Result<(), TelescopeError> {
     let mut spec_sig: Vec<f64> = vec![];
     measure_single(
         usrp,
@@ -441,7 +454,7 @@ fn measure_switched(
         srate,
         rfi_filter,
         &mut spec_sig,
-    );
+    )?;
     let mut spec_ref: Vec<f64> = vec![];
     measure_single(
         usrp,
@@ -452,11 +465,12 @@ fn measure_switched(
         srate,
         rfi_filter,
         &mut spec_ref,
-    );
+    )?;
     // Form sig-ref difference and scale with Tsys
     for i in 0..avg_pts {
         spec.push(tsys * (spec_sig[i] - spec_ref[i]) / spec_ref[i]);
     }
+    Ok(())
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -469,17 +483,18 @@ fn measure_single(
     srate: f64,
     rfi_filter: bool,
     fft_avg: &mut Vec<f64>,
-) {
+) -> Result<(), TelescopeError> {
     let nsamp: f64 = tint * srate; // total number of samples to request
     let nstack: usize = (nsamp as usize) / fft_pts;
     let navg: usize = fft_pts / avg_pts;
 
+    // The N210 only has one input channel 0.
     usrp.set_rx_frequency(&TuneRequest::with_frequency(cfreq), 0)
-        .unwrap(); // The N210 only has one input channel 0.
+        .map_err(|e| TelescopeError::ReceiverFailed(format!("set_rx_frequency: {e}")))?;
 
     let mut receiver = usrp
         .get_rx_stream(&uhd::StreamArgs::<Complex<i16>>::new("sc16"))
-        .unwrap();
+        .map_err(|e| TelescopeError::ReceiverFailed(format!("get_rx_stream: {e}")))?;
 
     let mut buffer = vec![Complex::<i16>::default(); nsamp as usize];
 
@@ -488,8 +503,10 @@ fn measure_single(
             command_type: StreamCommandType::CountAndDone(buffer.len() as u64),
             time: StreamTime::Now,
         })
-        .unwrap();
-    receiver.receive_simple(buffer.as_mut()).unwrap();
+        .map_err(|e| TelescopeError::ReceiverFailed(format!("stream CountAndDone command: {e}")))?;
+    receiver
+        .receive_simple(buffer.as_mut())
+        .map_err(|e| TelescopeError::ReceiverFailed(format!("receive_simple: {e}")))?;
 
     // Accumulate power spectrum (|FFT|^2) across stacked blocks
     let mut fft_abs: Vec<f64> = Vec::with_capacity(fft_pts);
@@ -541,6 +558,7 @@ fn measure_single(
         let avg: f64 = fft_abs.iter().skip(navg * i).take(navg).sum();
         fft_avg.push(avg / (navg as f64));
     }
+    Ok(())
 }
 
 fn median(mut xs: Vec<f64>) -> f64 {
@@ -587,7 +605,7 @@ async fn measure(
     config: ReceiverConfiguration,
     t_rec_k: f64,
     weather_cache: WeatherCacheHandle,
-) {
+) -> Result<(), TelescopeError> {
     let tint: f64 = 1.0; // integration time per cycle, seconds
     let srate: f64 = config.bandwidth_hz;
     let sfreq: f64 = config.center_freq_hz;
@@ -599,14 +617,18 @@ async fn measure(
 
     // Setup usrp for taking data
     let args = format!("addr={}", address);
-    let mut usrp = Usrp::open(&args).unwrap(); // Brage
+    let mut usrp = Usrp::open(&args)
+        .map_err(|e| TelescopeError::ReceiverFailed(format!("open USRP at {address}: {e}")))?;
 
-    // The N210 only has one input channel 0.
-    usrp.set_rx_gain(gain, 0, "").unwrap(); // empty string to set all gains
-    usrp.set_rx_antenna("TX/RX", 0).unwrap();
-    usrp.set_rx_dc_offset_enabled(true, 0).unwrap();
-
-    usrp.set_rx_sample_rate(srate, 0).unwrap();
+    // The N210 only has one input channel 0. Empty string sets all gains.
+    usrp.set_rx_gain(gain, 0, "")
+        .map_err(|e| TelescopeError::ReceiverFailed(format!("set_rx_gain: {e}")))?;
+    usrp.set_rx_antenna("TX/RX", 0)
+        .map_err(|e| TelescopeError::ReceiverFailed(format!("set_rx_antenna: {e}")))?;
+    usrp.set_rx_dc_offset_enabled(true, 0)
+        .map_err(|e| TelescopeError::ReceiverFailed(format!("set_rx_dc_offset_enabled: {e}")))?;
+    usrp.set_rx_sample_rate(srate, 0)
+        .map_err(|e| TelescopeError::ReceiverFailed(format!("set_rx_sample_rate: {e}")))?;
 
     let tsys = ambient_temp_k_from_cache(&weather_cache) + t_rec_k;
     info!("Tsys = {:.1} K (T_rec = {:.1} K)", tsys, t_rec_k);
@@ -641,7 +663,7 @@ async fn measure(
                 config.rfi_filter,
                 tsys,
                 &mut spec,
-            ),
+            )?,
             ObservationMode::Raw => measure_single(
                 &mut usrp,
                 sfreq,
@@ -651,7 +673,7 @@ async fn measure(
                 srate,
                 config.rfi_filter,
                 &mut spec,
-            ),
+            )?,
             ObservationMode::Interferometry => break,
         };
         n += 1.0;
@@ -668,6 +690,7 @@ async fn measure(
             .to_std()
             .unwrap();
     }
+    Ok(())
 }
 
 /// Stream raw IQ blocks for interferometry cross-correlation.
@@ -679,61 +702,48 @@ async fn measure_iq(
     cancellation_token: CancellationToken,
     config: ReceiverConfiguration,
     tx: tokio::sync::mpsc::Sender<IqBlock>,
-) {
+) -> Result<(), TelescopeError> {
     let args = format!("addr={}", address);
-    let mut usrp = match Usrp::open(&args) {
-        Ok(u) => u,
-        Err(e) => {
-            error!("IQ stream: failed to open USRP at {}: {}", address, e);
-            return;
-        }
-    };
+    let mut usrp = Usrp::open(&args).map_err(|e| {
+        TelescopeError::ReceiverFailed(format!("IQ stream: open USRP at {address}: {e}"))
+    })?;
 
     if gpsdo_enabled {
         info!("Configuring external clock/PPS sync for {}", address);
-        if let Err(e) = usrp.set_clock_source("external", 0) {
-            error!("set_clock_source failed: {}", e);
-            return;
-        }
-        if let Err(e) = usrp.set_time_source("external", 0) {
-            error!("set_time_source failed: {}", e);
-            return;
-        }
+        usrp.set_clock_source("external", 0)
+            .map_err(|e| TelescopeError::ReceiverFailed(format!("set_clock_source: {e}")))?;
+        usrp.set_time_source("external", 0)
+            .map_err(|e| TelescopeError::ReceiverFailed(format!("set_time_source: {e}")))?;
         // Latch t=0 on the next PPS edge, then wait for it to settle.
-        if let Err(e) = usrp.set_time_next_pps(0, 0.0, 0) {
-            error!("set_time_next_pps failed: {}", e);
-            return;
-        }
+        usrp.set_time_next_pps(0, 0.0, 0)
+            .map_err(|e| TelescopeError::ReceiverFailed(format!("set_time_next_pps: {e}")))?;
         tokio::time::sleep(Duration::from_secs(2)).await;
         info!("External time sync complete for {}", address);
     }
 
-    usrp.set_rx_gain(config.gain_db, 0, "").unwrap();
-    usrp.set_rx_antenna("TX/RX", 0).unwrap();
-    usrp.set_rx_dc_offset_enabled(true, 0).unwrap();
-    usrp.set_rx_sample_rate(config.bandwidth_hz, 0).unwrap();
-    if let Err(e) = usrp.set_rx_frequency(&TuneRequest::with_frequency(config.center_freq_hz), 0) {
-        error!("IQ stream: set_rx_frequency failed: {}", e);
-        return;
-    }
+    usrp.set_rx_gain(config.gain_db, 0, "")
+        .map_err(|e| TelescopeError::ReceiverFailed(format!("set_rx_gain: {e}")))?;
+    usrp.set_rx_antenna("TX/RX", 0)
+        .map_err(|e| TelescopeError::ReceiverFailed(format!("set_rx_antenna: {e}")))?;
+    usrp.set_rx_dc_offset_enabled(true, 0)
+        .map_err(|e| TelescopeError::ReceiverFailed(format!("set_rx_dc_offset_enabled: {e}")))?;
+    usrp.set_rx_sample_rate(config.bandwidth_hz, 0)
+        .map_err(|e| TelescopeError::ReceiverFailed(format!("set_rx_sample_rate: {e}")))?;
+    usrp.set_rx_frequency(&TuneRequest::with_frequency(config.center_freq_hz), 0)
+        .map_err(|e| TelescopeError::ReceiverFailed(format!("set_rx_frequency: {e}")))?;
 
     // Open a single continuous stream once and pull IQ_BLOCK_SIZE samples at a time.
     // Re-tuning / reopening the stream per block would invalidate cross-correlation
     // because each setup introduces a fresh, uncorrelated time gap between telescopes.
-    let mut receiver = match usrp.get_rx_stream(&uhd::StreamArgs::<Complex<i16>>::new("sc16")) {
-        Ok(r) => r,
-        Err(e) => {
-            error!("IQ stream: get_rx_stream failed: {}", e);
-            return;
-        }
-    };
-    if let Err(e) = receiver.send_command(&StreamCommand {
-        command_type: StreamCommandType::StartContinuous,
-        time: StreamTime::Now,
-    }) {
-        error!("IQ stream: StartContinuous failed: {}", e);
-        return;
-    }
+    let mut receiver = usrp
+        .get_rx_stream(&uhd::StreamArgs::<Complex<i16>>::new("sc16"))
+        .map_err(|e| TelescopeError::ReceiverFailed(format!("get_rx_stream: {e}")))?;
+    receiver
+        .send_command(&StreamCommand {
+            command_type: StreamCommandType::StartContinuous,
+            time: StreamTime::Now,
+        })
+        .map_err(|e| TelescopeError::ReceiverFailed(format!("StartContinuous: {e}")))?;
 
     let mut buffer = vec![Complex::<i16>::default(); IQ_BLOCK_SIZE];
     // Fallback sample counter, in case the USRP metadata omits a time_spec on
@@ -788,8 +798,10 @@ async fn measure_iq(
         command_type: StreamCommandType::StopContinuous,
         time: StreamTime::Now,
     }) {
-        error!("IQ stream: StopContinuous failed: {}", e);
+        // Don't fail the whole stream just because the stop command didn't take.
+        warn!("IQ stream: StopContinuous failed: {}", e);
     }
+    Ok(())
 }
 
 #[cfg(test)]
