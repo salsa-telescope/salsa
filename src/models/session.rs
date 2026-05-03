@@ -1,4 +1,5 @@
 use base64::{Engine, prelude::BASE64_STANDARD};
+use chrono::Utc;
 use oauth2::CsrfToken;
 use rand::Rng;
 use rusqlite::Connection;
@@ -6,6 +7,15 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 
 use crate::{error::InternalError, models::user::User};
+
+/// How long a session cookie is valid for. Matches the cookie Max-Age set on
+/// login, and is enforced server-side so a leaked token can't be replayed
+/// indefinitely.
+pub const SESSION_LIFETIME_SECS: i64 = 30 * 24 * 60 * 60;
+
+/// How long a pending OAuth2 CSRF token stays valid. The user has this long
+/// to bounce off the provider and come back to the callback.
+pub const OAUTH2_PENDING_LIFETIME_SECS: i64 = 15 * 60;
 
 fn generate_random_bytes(num_bytes: usize) -> Vec<u8> {
     let mut result = vec![0; num_bytes];
@@ -24,8 +34,8 @@ pub async fn start_oauth2_login(
 ) -> Result<(), InternalError> {
     let conn = connection.lock().await;
     conn.execute(
-        "INSERT INTO pending_oauth2 (csrf_token, provider) VALUES ((?1), (?2))",
-        (csrf_token.secret(), provider),
+        "INSERT INTO pending_oauth2 (csrf_token, provider, created_at) VALUES ((?1), (?2), (?3))",
+        (csrf_token.secret(), provider, Utc::now().timestamp()),
     )
     .map_err(|err| {
         InternalError::new(format!(
@@ -40,10 +50,12 @@ pub async fn complete_oauth2_login(
     csrf_token: &str,
 ) -> Result<String, InternalError> {
     let conn = connection.lock().await;
+    let oldest_allowed = Utc::now().timestamp() - OAUTH2_PENDING_LIFETIME_SECS;
     let (id, provider) = conn
         .query_row(
-            "SELECT id, provider FROM pending_oauth2 WHERE csrf_token = (?1)",
-            (csrf_token,),
+            "SELECT id, provider FROM pending_oauth2 \
+             WHERE csrf_token = (?1) AND created_at > (?2)",
+            (csrf_token, oldest_allowed),
             |row| {
                 Ok((
                     row.get::<usize, i64>(0)
@@ -64,6 +76,36 @@ pub async fn complete_oauth2_login(
     Ok(provider)
 }
 
+/// Delete pending OAuth2 rows past their TTL. Called at startup to keep the
+/// table from accumulating abandoned flows over time.
+pub async fn purge_expired_pending_oauth2(
+    connection: Arc<Mutex<Connection>>,
+) -> Result<(), InternalError> {
+    let conn = connection.lock().await;
+    let oldest_allowed = Utc::now().timestamp() - OAUTH2_PENDING_LIFETIME_SECS;
+    conn.execute(
+        "DELETE FROM pending_oauth2 WHERE created_at <= (?1)",
+        (oldest_allowed,),
+    )
+    .map_err(|err| InternalError::new(format!("Failed to purge pending oauth2: {err}")))?;
+    Ok(())
+}
+
+/// Delete sessions past their TTL. Called at startup so leaked-but-unused
+/// tokens don't sit around indefinitely.
+pub async fn purge_expired_sessions(
+    connection: Arc<Mutex<Connection>>,
+) -> Result<(), InternalError> {
+    let conn = connection.lock().await;
+    let oldest_allowed = Utc::now().timestamp() - SESSION_LIFETIME_SECS;
+    conn.execute(
+        "DELETE FROM session WHERE created_at <= (?1)",
+        (oldest_allowed,),
+    )
+    .map_err(|err| InternalError::new(format!("Failed to purge sessions: {err}")))?;
+    Ok(())
+}
+
 pub struct Session {
     pub token: String,
     pub user: User,
@@ -75,11 +117,12 @@ impl Session {
         token: &str,
     ) -> Result<Option<Session>, InternalError> {
         let conn = connection.lock().await;
+        let oldest_allowed = Utc::now().timestamp() - SESSION_LIFETIME_SECS;
         match conn.query_row(
             "SELECT token, user.id, username, provider FROM session \
              INNER JOIN user ON session.user_id = user.id \
-             WHERE session.token = (?1)",
-            ((token),),
+             WHERE session.token = (?1) AND session.created_at > (?2)",
+            (token, oldest_allowed),
             |row| {
                 Ok((
                     row.get::<usize, String>(0)
@@ -116,8 +159,8 @@ impl Session {
         let conn = connection.lock().await;
         let token = create_session_token();
         conn.execute(
-            "INSERT INTO session (token, user_id) VALUES ((?1), (?2))",
-            (&token, &user.id),
+            "INSERT INTO session (token, user_id, created_at) VALUES ((?1), (?2), (?3))",
+            (&token, &user.id, Utc::now().timestamp()),
         )
         .map_err(|err| InternalError::new(format!("Failed to insert session in db: {err}")))?;
 
@@ -203,5 +246,88 @@ mod test {
             .unwrap()
             .unwrap();
         assert_eq!(created_session.token, fetched_sesssion.token);
+    }
+
+    #[tokio::test]
+    async fn test_expired_session_is_rejected() {
+        let connection = create_connection().unwrap();
+        let user = User::create_from_external(
+            connection.clone(),
+            "test".to_string(),
+            "test".to_string(),
+            "1",
+        )
+        .await
+        .unwrap();
+        let session = Session::create(connection.clone(), &user).await.unwrap();
+        // Backdate the session past the lifetime
+        let stale = Utc::now().timestamp() - SESSION_LIFETIME_SECS - 1;
+        connection
+            .lock()
+            .await
+            .execute(
+                "UPDATE session SET created_at = (?1) WHERE token = (?2)",
+                (stale, &session.token),
+            )
+            .unwrap();
+        assert!(
+            Session::fetch(connection.clone(), &session.token)
+                .await
+                .unwrap()
+                .is_none()
+        );
+    }
+
+    #[tokio::test]
+    async fn test_expired_pending_oauth2_is_rejected() {
+        let connection = create_connection().unwrap();
+        let csrf_token = CsrfToken::new_random();
+        start_oauth2_login(connection.clone(), "test", &csrf_token)
+            .await
+            .unwrap();
+        let stale = Utc::now().timestamp() - OAUTH2_PENDING_LIFETIME_SECS - 1;
+        connection
+            .lock()
+            .await
+            .execute(
+                "UPDATE pending_oauth2 SET created_at = (?1) WHERE csrf_token = (?2)",
+                (stale, csrf_token.secret()),
+            )
+            .unwrap();
+        assert!(
+            complete_oauth2_login(connection, csrf_token.secret())
+                .await
+                .is_err()
+        );
+    }
+
+    #[tokio::test]
+    async fn test_purge_expired_sessions_removes_old_rows() {
+        let connection = create_connection().unwrap();
+        let user = User::create_from_external(
+            connection.clone(),
+            "test".to_string(),
+            "test".to_string(),
+            "1",
+        )
+        .await
+        .unwrap();
+        let session = Session::create(connection.clone(), &user).await.unwrap();
+        let stale = Utc::now().timestamp() - SESSION_LIFETIME_SECS - 1;
+        connection
+            .lock()
+            .await
+            .execute(
+                "UPDATE session SET created_at = (?1) WHERE token = (?2)",
+                (stale, &session.token),
+            )
+            .unwrap();
+        purge_expired_sessions(connection.clone()).await.unwrap();
+        let count: i64 = connection
+            .lock()
+            .await
+            .query_row("SELECT COUNT(*) FROM session", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(count, 0);
     }
 }

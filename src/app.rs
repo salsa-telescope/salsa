@@ -18,6 +18,7 @@ use crate::database::create_sqlite_database_on_disk;
 use crate::login_rate_limiter::LoginRateLimiterHandle;
 use crate::middleware::cookies::cookies_middleware;
 use crate::middleware::session::session_middleware;
+use crate::models::session::{purge_expired_pending_oauth2, purge_expired_sessions};
 use crate::models::telescope::{TelescopeCollectionHandle, create_telescope_collection};
 use crate::routes;
 use crate::secrets::Secrets;
@@ -77,6 +78,12 @@ pub async fn create_app(config_dir: &Path, database_dir: &Path) -> (Router, AppS
         create_sqlite_database_on_disk(database_dir.join("database.sqlite3"))
             .expect("failed to create sqlite database"),
     ));
+    purge_expired_sessions(database_connection.clone())
+        .await
+        .expect("failed to purge expired sessions on startup");
+    purge_expired_pending_oauth2(database_connection.clone())
+        .await
+        .expect("failed to purge expired pending oauth2 on startup");
     let config_path = config_dir.join("config.toml");
     let config_str = std::fs::read_to_string(&config_path).unwrap_or_default();
     let salsa_config: SalsaConfig =
