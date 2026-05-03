@@ -75,6 +75,22 @@ impl TelescopeTracker {
     ) -> Result<TelescopeTarget, TelescopeError> {
         let mut state = self.state.lock().unwrap();
         assert!(!state.quit);
+        // Validate elevation at set time when we can compute the target's
+        // current horizontal. Satellites without a TLE in cache are skipped —
+        // the periodic update loop will surface the error once the TLE arrives.
+        if let Some(raw) =
+            calculate_target_horizontal(target, state.location, Utc::now(), &state.tle_cache)
+        {
+            let horizontal = apply_offset(raw, az_offset_rad, el_offset_rad);
+            if horizontal.elevation < state.min_elevation_rad
+                || horizontal.elevation > state.max_elevation_rad
+            {
+                return Err(TelescopeError::TargetOutOfElevationRange {
+                    min_deg: state.min_elevation_rad.to_degrees(),
+                    max_deg: state.max_elevation_rad.to_degrees(),
+                });
+            }
+        }
         state.target = Some(target);
         state.az_offset_rad = az_offset_rad;
         state.el_offset_rad = el_offset_rad;
