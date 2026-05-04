@@ -43,11 +43,11 @@ cp .secrets.toml.example config/.secrets.toml
 ## Running
 
 ```bash
-cargo run -- -c config/ -d data/
+cargo run -- --config-dir config/ --database-dir data/
 ```
 
-- `-c` — directory containing `config.toml` and `.secrets.toml`
-- `-d` — directory where the SQLite database will be stored
+- `--config-dir` — directory containing `config.toml` and `.secrets.toml`
+- `--database-dir` — directory where the SQLite database will be stored
 
 ## Testing
 
