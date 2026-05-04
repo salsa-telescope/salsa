@@ -301,9 +301,10 @@ async fn authenticate_from_oauth2(
                 .get(&provider.display_name_field)
                 .map(|username| username.as_str())
             else {
+                let keys: Vec<&String> = user_data.keys().collect();
                 return Err(InternalError::new(format!(
-                    "No {} field in user object returned from {}",
-                    &provider.display_name_field, &provider.user_uri
+                    "No '{}' field in user object returned from {}; available keys: {keys:?}",
+                    &provider.display_name_field, &provider.user_uri,
                 )));
             };
             User::create_from_external(
