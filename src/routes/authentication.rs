@@ -255,7 +255,7 @@ async fn authenticate_from_oauth2(
     // 5. We use the token to get the identity of the user from oauth2 provider.
     let user_data: Map<String, Value> = http_client
         .get(&provider.user_uri)
-        .header(USER_AGENT, "salsa/1.0.0")
+        .header(USER_AGENT, "salsa")
         .bearer_auth(token.access_token().secret())
         .send()
         .await

@@ -64,7 +64,6 @@ fn controller_connection(mut stream: TcpStream) {
 
 #[derive(Parser, Debug)]
 #[command(name = "simsalsabin", author, version, about, long_about = None)]
-#[command(version = "1.0.0")]
 struct Args {
     #[arg(short, long)]
     port: Option<u16>,
