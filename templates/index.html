@@ -80,7 +80,7 @@
             {{ content }}
         </div>
         <footer>
-            Made by weirdos 🦆 ({% if build_url == "" %} {{version_description}} {% else %} <a href={{build_url}}>build</a> {% endif %})
+            Made by weirdos 🦆 ({% if build_url == "" %} {{version_description}} {% else %} <a href={{build_url}}>{{version_description}}</a> {% endif %})
         </footer>
         <div id="lightbox" onclick="this.classList.add('hidden');this.classList.remove('flex')" class="hidden fixed inset-0 bg-black/85 z-[1000] cursor-zoom-out items-center justify-center p-8">
             <img id="lightbox-img" class="max-w-[90vw] max-h-[90vh] object-contain rounded shadow-[0_0_60px_rgba(0,0,0,0.5)]">

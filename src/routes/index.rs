@@ -29,14 +29,25 @@ pub async fn get_index(Extension(user): Extension<Option<User>>) -> Response {
 
 const GITHUB_SERVER_URL: Option<&'static str> = option_env!("GITHUB_SERVER_URL");
 const GITHUB_REPOSITORY: Option<&'static str> = option_env!("GITHUB_REPOSITORY");
-const GITHUB_RUN_ID: Option<&'static str> = option_env!("GITHUB_RUN_ID");
 
 pub fn render_main(user: Option<User>, content: String) -> String {
-    let build_url = match (GITHUB_SERVER_URL, GITHUB_REPOSITORY, GITHUB_RUN_ID) {
-        (Some(server_url), Some(repository), Some(run_id)) => {
-            format!("{}/{}/actions/runs/{}", server_url, repository, run_id)
-        }
+    let build_url = match (GITHUB_SERVER_URL, GITHUB_REPOSITORY) {
+        (Some(server_url), Some(repository)) => format!(
+            "{}/{}/releases/tag/v{}",
+            server_url,
+            repository,
+            env!("CARGO_PKG_VERSION")
+        ),
         _ => String::new(),
+    };
+    let version_description = if build_url.is_empty() {
+        format!(
+            "v{}, on branch {}",
+            env!("CARGO_PKG_VERSION"),
+            env!("GIT_BRANCH_NAME")
+        )
+    } else {
+        format!("v{}", env!("CARGO_PKG_VERSION"))
     };
     let is_admin = user.as_ref().is_some_and(|u| u.is_admin);
     let name = match &user {
@@ -48,7 +59,7 @@ pub fn render_main(user: Option<User>, content: String) -> String {
         is_admin,
         content,
         build_url,
-        version_description: format!("local build on branch {}", env!("GIT_BRANCH_NAME")),
+        version_description,
     }
     .render()
     .expect("Template should always succeed")
