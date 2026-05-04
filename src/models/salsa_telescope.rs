@@ -6,7 +6,6 @@ use crate::models::telescope_types::{
 };
 use crate::telescope_tracker::TelescopeTracker;
 use crate::tle_cache::TleCacheHandle;
-use crate::weather_cache::WeatherCacheHandle;
 use async_trait::async_trait;
 use chrono::Utc;
 use std::iter::zip;
@@ -52,9 +51,8 @@ struct Inner {
     webcam_crop: Option<[f64; 4]>,
     default_ref_freq_hz: f64,
     default_gain_db: f64,
-    t_rec_k: f64,
+    tsys_k: f64,
     wind_warning_ms: Option<f64>,
-    weather_cache: WeatherCacheHandle,
     receiver_connected: Arc<tokio::sync::Mutex<bool>>,
     controller_connected: bool,
 }
@@ -77,10 +75,9 @@ pub fn create(
     webcam_crop: Option<[f64; 4]>,
     default_ref_freq_hz: f64,
     default_gain_db: f64,
-    t_rec_k: f64,
+    tsys_k: f64,
     wind_warning_ms: Option<f64>,
     tle_cache: TleCacheHandle,
-    weather_cache: WeatherCacheHandle,
 ) -> SalsaTelescope {
     let receiver_connected = Arc::new(tokio::sync::Mutex::new(false));
     let ping_connected = receiver_connected.clone();
@@ -113,9 +110,8 @@ pub fn create(
         webcam_crop,
         default_ref_freq_hz,
         default_gain_db,
-        t_rec_k,
+        tsys_k,
         wind_warning_ms,
-        weather_cache,
         receiver_connected,
         controller_connected: false,
     }));
@@ -209,16 +205,14 @@ impl Telescope for SalsaTelescope {
                 let address = inner.receiver_address.clone();
                 let measurements = inner.measurements.clone();
                 let cancellation_token = cancellation_token.clone();
-                let t_rec_k = inner.t_rec_k;
-                let weather_cache = inner.weather_cache.clone();
+                let tsys_k = inner.tsys_k;
                 tokio::spawn(async move {
                     measure(
                         address,
                         measurements,
                         cancellation_token,
                         receiver_configuration,
-                        t_rec_k,
-                        weather_cache,
+                        tsys_k,
                     )
                     .await
                 })
@@ -574,37 +568,12 @@ fn median(mut xs: Vec<f64>) -> f64 {
     }
 }
 
-const AMBIENT_TEMP_FALLBACK_K: f64 = 285.0;
-
-fn ambient_temp_k_from_cache(weather_cache: &WeatherCacheHandle) -> f64 {
-    let result = weather_cache.get().and_then(|w| {
-        if w.age_secs() > 120 || !(-30.0..=50.0).contains(&w.temp_c) {
-            return None;
-        }
-        Some(w.temp_c + 273.15)
-    });
-    match result {
-        Some(t) => {
-            info!("Ambient temperature: {:.1} K", t);
-            t
-        }
-        None => {
-            warn!(
-                "Could not get ambient temperature from cache, using fallback {} K",
-                AMBIENT_TEMP_FALLBACK_K
-            );
-            AMBIENT_TEMP_FALLBACK_K
-        }
-    }
-}
-
 async fn measure(
     address: String,
     measurements: Arc<Mutex<Vec<Measurement>>>,
     cancellation_token: CancellationToken,
     config: ReceiverConfiguration,
-    t_rec_k: f64,
-    weather_cache: WeatherCacheHandle,
+    tsys_k: f64,
 ) -> Result<(), TelescopeError> {
     let tint: f64 = 1.0; // integration time per cycle, seconds
     let srate: f64 = config.bandwidth_hz;
@@ -630,8 +599,8 @@ async fn measure(
     usrp.set_rx_sample_rate(srate, 0)
         .map_err(|e| TelescopeError::ReceiverFailed(format!("set_rx_sample_rate: {e}")))?;
 
-    let tsys = ambient_temp_k_from_cache(&weather_cache) + t_rec_k;
-    info!("Tsys = {:.1} K (T_rec = {:.1} K)", tsys, t_rec_k);
+    let tsys = tsys_k;
+    info!("Tsys = {:.1} K (from config)", tsys);
 
     {
         let mut measurements = measurements.clone().lock_owned().await;

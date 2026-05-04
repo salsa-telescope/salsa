@@ -85,8 +85,8 @@ pub struct TelescopeDefinition {
     pub default_ref_freq_mhz: f64, // default reference frequency in MHz (for freq-switched mode)
     #[serde(default = "default_gain_db")]
     pub default_gain_db: f64, // default receiver gain in dB
-    #[serde(default)]
-    pub t_rec_k: f64, // receiver noise temperature in Kelvin (added to ambient temp for Tsys)
+    #[serde(default = "default_tsys_k")]
+    pub tsys_k: f64, // system temperature in K; scales switched-mode spectra to antenna temperature (Ta)
     #[serde(default)]
     pub wind_warning_ms: Option<f64>, // warn if 10-min avg wind exceeds this (m/s); omit to disable
     #[serde(default)]
@@ -190,6 +190,10 @@ pub enum ObservationMode {
 
 fn default_max_elevation() -> f64 {
     175.0
+}
+
+fn default_tsys_k() -> f64 {
+    300.0
 }
 
 fn default_center_freq_hz() -> f64 {
