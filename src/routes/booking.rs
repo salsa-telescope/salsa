@@ -217,7 +217,9 @@ async fn create_booking(
         .filter(|b| b.end_time > now)
         .count();
 
-    let error = if !user.is_admin && maintenance.contains(&form.telescope) {
+    let error = if end_time <= now {
+        Some("Cannot book a slot that has already ended.".to_string())
+    } else if !user.is_admin && maintenance.contains(&form.telescope) {
         Some(format!(
             "{} is currently under maintenance.",
             form.telescope

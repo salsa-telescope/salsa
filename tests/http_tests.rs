@@ -116,6 +116,32 @@ fn create_booking() {
 }
 
 #[test]
+fn cant_book_a_past_slot() {
+    let server = SalsaTestServer::spawn();
+    let user = server.add_local_user("user", "password");
+
+    let client = Client::builder().cookie_store(true).build().unwrap();
+    server.login(&client, &user);
+    // Slot that ended a day ago.
+    let past = (Utc::now() - chrono::Duration::days(1)).timestamp();
+    let res = client
+        .post(server.addr() + "/bookings")
+        .form(&[
+            ("start_timestamp", format!("{}", past).as_str()),
+            ("telescope", "fake1"),
+        ])
+        .send()
+        .expect("Should be able to send request");
+
+    assert_eq!(StatusCode::OK, res.status());
+    let body = res.text().expect("Should be able to read body");
+    assert!(
+        body.contains("already ended"),
+        "Expected past-slot error in body, got: {body}"
+    );
+}
+
+#[test]
 fn cant_double_book_same_slot() {
     let server = SalsaTestServer::spawn();
     let user_a = server.add_local_user("alice", "password");
