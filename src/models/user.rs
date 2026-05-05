@@ -193,6 +193,14 @@ impl User {
         if updated == 0 {
             return Err(InternalError::new("Not a local user".to_string()));
         }
+        // Invalidate any existing sessions so a compromised account can't stay
+        // logged in after the password is reset.
+        conn.execute("DELETE FROM session WHERE user_id = ?1", (user_id,))
+            .map_err(|e| {
+                InternalError::new(format!(
+                    "Failed to invalidate sessions after password change: {e}"
+                ))
+            })?;
         Ok(())
     }
 
