@@ -43,6 +43,7 @@ telescope_type = "Fake"
 # default_gain_db = 60.0
 # tsys_k = 300.0  # system temperature in K; scales switched-mode spectra to antenna temperature (Ta)
 # wind_warning_ms = 18.0  # warn users if 10-min avg wind exceeds this (m/s); omit to disable
+# gpsdo_enabled = true    # use external 10 MHz reference and PPS for clock sync; required for interferometry
 
 # [[telescopes]]
 # name = "vale"
@@ -58,6 +59,7 @@ telescope_type = "Fake"
 # default_gain_db = 60.0
 # tsys_k = 300.0  # system temperature in K; scales switched-mode spectra to antenna temperature (Ta)
 # wind_warning_ms = 18.0  # warn users if 10-min avg wind exceeds this (m/s); omit to disable
+# gpsdo_enabled = true    # use external 10 MHz reference and PPS for clock sync; required for interferometry
 
 # [[telescopes]]
 # name = "brage"
@@ -73,3 +75,4 @@ telescope_type = "Fake"
 # default_gain_db = 60.0
 # tsys_k = 300.0  # system temperature in K; scales switched-mode spectra to antenna temperature (Ta)
 # wind_warning_ms = 18.0  # warn users if 10-min avg wind exceeds this (m/s); omit to disable
+# gpsdo_enabled = true    # use external 10 MHz reference and PPS for clock sync; required for interferometry
