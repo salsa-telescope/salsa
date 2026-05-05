@@ -105,23 +105,26 @@ async fn fetch_weather(client: &reqwest::Client) -> Option<WeatherData> {
 }
 
 pub fn start_weather_refresh(cache: WeatherCacheHandle) {
-    tokio::spawn(async move {
-        let client = reqwest::Client::builder()
-            .timeout(Duration::from_secs(10))
-            .build()
-            .expect("Building reqwest client should not fail");
-        // First tick fires immediately, then every 5 minutes
-        let mut ticker = interval(WEATHER_REFRESH_INTERVAL);
-        loop {
-            ticker.tick().await;
-            if let Some(data) = fetch_weather(&client).await {
-                info!(
-                    "Weather cache updated: {:.1}°C, {:.1} m/s {}",
-                    data.temp_c,
-                    data.wind_avg_ms,
-                    data.wind_compass()
-                );
-                *cache.data.write().unwrap() = Some(data);
+    crate::supervised_task::spawn_supervised("weather_refresh", move || {
+        let cache = cache.clone();
+        async move {
+            let client = reqwest::Client::builder()
+                .timeout(Duration::from_secs(10))
+                .build()
+                .expect("Building reqwest client should not fail");
+            // First tick fires immediately, then every 5 minutes
+            let mut ticker = interval(WEATHER_REFRESH_INTERVAL);
+            loop {
+                ticker.tick().await;
+                if let Some(data) = fetch_weather(&client).await {
+                    info!(
+                        "Weather cache updated: {:.1}°C, {:.1} m/s {}",
+                        data.temp_c,
+                        data.wind_avg_ms,
+                        data.wind_compass()
+                    );
+                    *cache.data.write().unwrap() = Some(data);
+                }
             }
         }
     });

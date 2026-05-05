@@ -135,17 +135,20 @@ async fn fetch_elements(client: &reqwest::Client) -> Vec<sgp4::Elements> {
 }
 
 pub fn start_tle_refresh(cache: TleCacheHandle) {
-    tokio::spawn(async move {
-        let client = reqwest::Client::new();
-        // First tick fires immediately, then every 24h
-        let mut ticker = interval(TLE_REFRESH_INTERVAL);
-        loop {
-            ticker.tick().await;
-            let elements = fetch_elements(&client).await;
-            if !elements.is_empty() {
-                let n = elements.len();
-                *cache.elements.write().unwrap() = elements;
-                info!("TLE cache updated: {} satellites total", n);
+    crate::supervised_task::spawn_supervised("tle_refresh", move || {
+        let cache = cache.clone();
+        async move {
+            let client = reqwest::Client::new();
+            // First tick fires immediately, then every 24h
+            let mut ticker = interval(TLE_REFRESH_INTERVAL);
+            loop {
+                ticker.tick().await;
+                let elements = fetch_elements(&client).await;
+                if !elements.is_empty() {
+                    let n = elements.len();
+                    *cache.elements.write().unwrap() = elements;
+                    info!("TLE cache updated: {} satellites total", n);
+                }
             }
         }
     });

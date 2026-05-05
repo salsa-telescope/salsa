@@ -12,6 +12,7 @@ pub mod middleware;
 pub mod models;
 pub mod routes;
 pub mod secrets;
+pub mod supervised_task;
 pub mod telescope_controller;
 pub mod telescope_tracker;
 pub mod tle_cache;
