@@ -4,7 +4,7 @@ use askama::Template;
 use axum::{
     Extension, Router,
     extract::{ConnectInfo, Form, Path, Query, State},
-    http::{HeaderMap, HeaderValue, StatusCode, header::SET_COOKIE},
+    http::{HeaderMap, StatusCode, header::SET_COOKIE},
     response::{Html, IntoResponse, Redirect, Response},
     routing::{get, post},
 };
@@ -181,21 +181,10 @@ async fn redirect_to_auth_provider(
         .url();
 
     start_oauth2_login(state.database_connection.clone(), &provider, &token).await?;
-    let cookie = format!(
-        "{}={}; SameSite=Lax; HttpOnly; Secure; Path=/",
-        SESSION_COOKIE_NAME,
-        token.secret()
-    );
-
-    let mut headers = HeaderMap::new();
-    headers.insert(
-        SET_COOKIE,
-        HeaderValue::from_str(&cookie).expect("cookie will always be valid"),
-    );
 
     info!("Sending user to {provider} to authenticate");
 
-    Ok((headers, Redirect::to(url.as_ref())))
+    Ok(Redirect::to(url.as_ref()))
 }
 
 #[derive(Debug, Deserialize)]
