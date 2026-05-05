@@ -97,6 +97,15 @@ they only document what the unit file should look like. Changes to them
 need to be applied manually with `sudo systemctl daemon-reload && sudo
 systemctl restart salsa` after editing the unit on the host.
 
+### Kernel UDP buffer sizes
+
+UHD streams USRP samples over UDP and needs the kernel's per-socket
+buffer caps bumped above the default 200 KB, otherwise packets are
+dropped under high-throughput interferometry streams. Copy
+[`deploy/sysctl.d/99-salsa.conf`](deploy/sysctl.d/99-salsa.conf) to
+`/etc/sysctl.d/99-salsa.conf` and apply with `sudo sysctl --system`
+(or just reboot — `systemd-sysctl.service` re-applies it at boot).
+
 ### TLS certificate
 
 Obtain a certificate via certbot (standalone mode — no web server needed):
