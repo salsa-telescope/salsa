@@ -102,9 +102,14 @@ systemctl restart salsa` after editing the unit on the host.
 UHD streams USRP samples over UDP and needs the kernel's per-socket
 buffer caps bumped above the default 200 KB, otherwise packets are
 dropped under high-throughput interferometry streams. Copy
-[`deploy/sysctl.d/99-salsa.conf`](deploy/sysctl.d/99-salsa.conf) to
-`/etc/sysctl.d/99-salsa.conf` and apply with `sudo sysctl --system`
+[`deploy/sysctl.d/zz-salsa.conf`](deploy/sysctl.d/zz-salsa.conf) to
+`/etc/sysctl.d/zz-salsa.conf` and apply with `sudo sysctl --system`
 (or just reboot — `systemd-sysctl.service` re-applies it at boot).
+
+The `zz-` prefix is intentional: `libuhd-dev` ships
+`/etc/sysctl.d/uhd-usrp2.conf` with smaller defaults that would
+otherwise override ours (sysctl files load in lexical order and the
+later file wins). Keep the `zz-` prefix on any rename.
 
 ### TLS certificate
 
