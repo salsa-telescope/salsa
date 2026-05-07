@@ -70,7 +70,7 @@ function get_telescope_from_location() {
     .attr("font-size", "12px")
     .attr("fill", "#6b7280");
   // y-axis
-  const yTickFormat = d3.format(".3~s");
+  const yTickFormat = d3.format(".3~r");
   const yAxis = svg
     .append("g")
     .attr("transform", `translate(${margin},0)`)
