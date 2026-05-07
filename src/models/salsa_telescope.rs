@@ -283,6 +283,11 @@ impl Telescope for SalsaTelescope {
         })
     }
 
+    async fn clear_measurements(&self) {
+        let inner = self.inner.lock().await;
+        inner.measurements.lock().await.clear();
+    }
+
     async fn get_info(&self) -> Result<TelescopeInfo, TelescopeError> {
         let inner = self.inner.lock().await;
         let receiver_connected = *inner.receiver_connected.lock().await;

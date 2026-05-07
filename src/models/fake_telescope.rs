@@ -217,6 +217,10 @@ impl Telescope for FakeTelescope {
         Some(result)
     }
 
+    async fn clear_measurements(&self) {
+        self.inner.lock().await.current_spectra.clear();
+    }
+
     async fn get_info(&self) -> Result<TelescopeInfo, TelescopeError> {
         let inner = self.inner.lock().await;
 

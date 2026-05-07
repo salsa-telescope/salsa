@@ -32,6 +32,10 @@ pub trait Telescope: Send + Sync {
     /// accumulated spectra. Returns None if integration was not running. Calling this twice
     /// always returns None on the second call, preventing double-saves.
     async fn stop_integration(&self) -> Option<ObservedSpectra>;
+    /// Drop the in-memory cache of the most recent spectrum so the next user
+    /// of this telescope does not see the previous user's data on the live
+    /// page. Safe to call when no integration is active; idempotent.
+    async fn clear_measurements(&self);
     async fn get_info(&self) -> Result<TelescopeInfo, TelescopeError>;
     async fn shutdown(&self);
     /// Start streaming raw IQ blocks for interferometry correlation.

@@ -113,6 +113,10 @@ pub fn start(state: AppState) {
                         stop_correlator_session(&state, correlator).await;
                     }
 
+                    // Drop the previous booking's spectrum from memory so the
+                    // next user does not see it on the live observe page.
+                    telescope.clear_measurements().await;
+
                     if stop_ok {
                         match current_user {
                             Some(u) => {
