@@ -508,12 +508,18 @@ fn measure_single(
     // setup fft
     let mut planner = FftPlanner::new();
     let fft = planner.plan_fft_forward(fft_pts);
-    // Loop through the samples, taking fft_pts each time
+    // Loop through the samples, taking fft_pts each time. Samples come from
+    // the USRP as i16 (sc16), so we rescale to ±1.0 (fraction of ADC full
+    // scale) before the FFT — otherwise |FFT|² lands in the 10⁹+ range purely
+    // from the digitiser's count scale, which is not a physical unit.
+    const ADC_FULL_SCALE: f64 = 32768.0;
     for n in 0..nstack {
         let mut fft_buffer: Vec<Complex<f64>> = buffer[n * fft_pts..(n + 1) * fft_pts]
             .iter()
             .copied()
-            .map(|x| Complex::<f64>::new(x.re as f64, x.im as f64))
+            .map(|x| {
+                Complex::<f64>::new(x.re as f64 / ADC_FULL_SCALE, x.im as f64 / ADC_FULL_SCALE)
+            })
             .collect();
         // Do the FFT
         fft.process(&mut fft_buffer);

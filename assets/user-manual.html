@@ -135,7 +135,11 @@ you may also change the settings if you want.</p>
         automatically.</li>
         <li><strong>Observation mode</strong> — <em>Frequency-switched</em> mode alternates
         between the target frequency and a reference frequency to subtract background and
-        standing waves. <em>Raw</em> mode records without switching.</li>
+        standing waves; the spectrum is calibrated against the system temperature and the
+        y-axis is in <strong>antenna temperature (K)</strong>. Use this mode for the HI line.
+        <em>Raw</em> mode records without switching, so no calibration is applied; the y-axis
+        is the received power as a <strong>fraction of the digitiser's full-scale range</strong>
+        (dimensionless), and only relative differences between observations are meaningful.</li>
         <li><strong>RFI filter</strong> — A median filter to reduce radio frequency
         interference. Enable if you see narrow spikes in your spectrum.</li>
       </ul>
