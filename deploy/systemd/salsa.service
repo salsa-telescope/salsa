@@ -6,6 +6,9 @@ After=network.target
 User=salsa
 WorkingDirectory=/home/salsa/bin
 ExecStart=/home/salsa/bin/target/release/salsa --port 443 --log-to-journald --config-dir /home/salsa/config/ --database-dir /home/salsa/data/
+Environment="RUST_LOG=info,rustls=error"
+Environment="KEY_FILE_PATH=/etc/letsencrypt/live/salsa.oso.chalmers.se/privkey.pem"
+Environment="CERT_FILE_PATH=/etc/letsencrypt/live/salsa.oso.chalmers.se/fullchain.pem"
 AmbientCapabilities=CAP_NET_BIND_SERVICE CAP_NET_RAW CAP_SYS_NICE
 CapabilityBoundingSet=CAP_NET_BIND_SERVICE CAP_NET_RAW CAP_SYS_NICE
 Restart=always

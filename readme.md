@@ -85,16 +85,23 @@ sudo systemctl restart salsa
 
 ### Systemd service
 
-The unit file lives at `/etc/systemd/system/salsa.service` and a drop-in
-with host-local environment variables (TLS cert paths, `RUST_LOG`) lives at
-`/etc/systemd/system/salsa.service.d/override.conf`. Templates for both
-are in [`deploy/systemd/`](deploy/systemd/) — copy them to those paths on
-a fresh install and fill in the cert paths in the drop-in (edit with
-`sudo systemctl edit salsa`).
+The unit file lives at `/etc/systemd/system/salsa.service`. The template
+in [`deploy/systemd/salsa.service`](deploy/systemd/salsa.service) is the
+exact contents — copy it across on a fresh install:
 
-These templates are not pushed to the server by the deploy workflow;
-they only document what the unit file should look like. Changes to them
-need to be applied manually with `sudo systemctl daemon-reload && sudo
+```bash
+sudo cp deploy/systemd/salsa.service /etc/systemd/system/salsa.service
+sudo systemctl daemon-reload
+sudo systemctl enable salsa
+```
+
+The unit hardcodes the production hostname (cert paths under
+`/etc/letsencrypt/live/salsa.oso.chalmers.se/`). If you ever deploy on
+another host, edit the `KEY_FILE_PATH` / `CERT_FILE_PATH` lines.
+
+This template is not pushed to the server by the deploy workflow; it
+only documents what the unit file should look like. Changes to it need
+to be applied manually with `sudo systemctl daemon-reload && sudo
 systemctl restart salsa` after editing the unit on the host.
 
 ### Kernel UDP buffer sizes
@@ -137,7 +144,7 @@ Steps to set up the service on a fresh Linux machine (work in progress):
 - Create a `salsaowners` group and add both users to it
 - Install the GitHub Actions runner daemon as the `githubrunner` user
 - Create the deployment directory `/home/salsa/bin` owned by `salsa:salsaowners`
-- Create the systemd service file and drop-in (see above) and run `sudo systemctl enable salsa`
+- Install the systemd unit file (see above) and run `sudo systemctl enable salsa`
 - Set up the TLS certificate (see above)
 - Place `config.toml` and `.secrets.toml` in the config directory
 
