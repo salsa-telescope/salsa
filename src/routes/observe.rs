@@ -74,7 +74,21 @@ async fn get_observe_landing(
             .filter(|b| b.active_at(&now))
             .map(|b| b.telescope_name)
             .collect::<Vec<_>>();
-    let interferometry_available = active_bookings.len() >= 2 && user.is_admin;
+    let interferometry_available = if active_bookings.len() >= 2 && user.is_admin {
+        let mut all_capable = true;
+        for name in &active_bookings {
+            match state.telescopes.get(name).await {
+                Some(tel) if tel.interferometry_capable().await => {}
+                _ => {
+                    all_capable = false;
+                    break;
+                }
+            }
+        }
+        all_capable
+    } else {
+        false
+    };
     let content = ObserveLandingTemplate {
         active_bookings,
         interferometry_available,

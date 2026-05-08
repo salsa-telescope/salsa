@@ -222,6 +222,10 @@ impl Telescope for FakeTelescope {
         self.inner.lock().await.current_spectra.clear();
     }
 
+    async fn interferometry_capable(&self) -> bool {
+        true
+    }
+
     async fn get_info(&self) -> Result<TelescopeInfo, TelescopeError> {
         let inner = self.inner.lock().await;
 

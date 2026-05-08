@@ -468,6 +468,16 @@ async fn post_start(
             )
                 .into_response();
         };
+        if !tel.interferometry_capable().await {
+            return (
+                StatusCode::BAD_REQUEST,
+                format!(
+                    "Telescope {tel_id} cannot participate in interferometry — \
+                     external 10 MHz / PPS clock sync (gpsdo_enabled) is required."
+                ),
+            )
+                .into_response();
+        }
         match tel.get_info().await {
             Ok(info) if info.status == TelescopeStatus::Tracking => infos.push(info),
             Ok(_) => {

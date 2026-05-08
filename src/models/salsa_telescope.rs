@@ -289,6 +289,10 @@ impl Telescope for SalsaTelescope {
         inner.measurements.lock().await.clear();
     }
 
+    async fn interferometry_capable(&self) -> bool {
+        self.inner.lock().await.gpsdo_enabled
+    }
+
     async fn get_info(&self) -> Result<TelescopeInfo, TelescopeError> {
         let inner = self.inner.lock().await;
         let receiver_connected = *inner.receiver_connected.lock().await;
