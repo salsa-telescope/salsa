@@ -410,12 +410,25 @@ function updateCsvLink() {
   const blob = new Blob([rows.join("\n")], { type: "text/csv" });
   const dlCsv = document.getElementById("download-csv");
   if (dlCsv && dlCsv.dataset.originalHref) {
-    // Use server href only when showing raw frequency with no baseline subtraction
+    // Use the server href when showing raw frequency with no baseline subtraction —
+    // the server's Content-Disposition then picks the filename. For a client-side
+    // blob URL we have to set the filename ourselves: mirror the server's pattern
+    // (SALSA-<telescope>-<tag>.csv) and append suffixes that signal which client-side
+    // transformations were applied.
     const isReset = analysisState.correctedAmps.every((v, i) => v === analysisState.rawAmps[i]);
     if (isReset && xHeader === "frequency_hz") {
       dlCsv.href = dlCsv.dataset.originalHref;
+      dlCsv.download = "";
     } else {
+      const tag = new Date(dlCsv.dataset.startTime)
+        .toISOString()
+        .slice(0, 19)
+        .replace(/[-:]/g, "");
+      let suffix = "";
+      if (!isReset) suffix += "_baseline_subtracted";
+      if (xHeader === "vlsr_km_s") suffix += "_vlsr";
       dlCsv.href = URL.createObjectURL(blob);
+      dlCsv.download = `SALSA-${dlCsv.dataset.telescopeId}-${tag}${suffix}.csv`;
     }
   }
 }
@@ -517,6 +530,8 @@ function loadObservation(id) {
       if (dlCsv) {
         dlCsv.href = `/observations/${id}/csv`;
         dlCsv.dataset.originalHref = `/observations/${id}/csv`;
+        dlCsv.dataset.telescopeId = data.telescope_id;
+        dlCsv.dataset.startTime = data.start_time;
       }
       const dlFits = document.getElementById("download-fits");
       if (dlFits) dlFits.href = `/observations/${id}/fits`;
