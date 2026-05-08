@@ -203,10 +203,13 @@ target. </p>
       analysis results are not saved — take notes or export before leaving the page.</p>
 
       <h5 class="font-semibold text-gray-800">Baseline correction</h5>
-      <p>Select a frequency range on the spectrum
-      that contains only noise (no signal), then choose a polynomial order (linear or
-      quadratic) and click <em>Fit baseline</em>. The fitted baseline is subtracted from
-      the spectrum.</p>
+      <p>Pick one or more frequency ranges that contain only noise (no signal),
+      choose a polynomial order (linear or quadratic), then click <em>Fit</em>.
+      A dashed orange curve shows the fitted polynomial. If it looks right,
+      click <em>Subtract</em> to apply it; the spectrum flattens and the dashed
+      curve disappears. If it doesn't, adjust the picks or the order and Fit
+      again. <em>Clear</em> wipes the picked ranges, the pending fit, and undoes
+      any previously applied subtraction — restoring the original spectrum.</p>
 
       <figure class="my-2 max-w-xl">
         <img src="/baseline_example.png" alt="Baseline regions selected on a spectrum before fitting" class="rounded-lg w-full">

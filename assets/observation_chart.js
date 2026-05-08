@@ -179,6 +179,10 @@ function updateAnalysisUI() {
   if (btnFit) {
     btnFit.disabled = analysisState.baselineRanges.length === 0 || mode === "baseline";
   }
+  const btnSubtract = document.getElementById("btn-subtract-baseline");
+  if (btnSubtract) {
+    btnSubtract.disabled = !analysisState.pendingBaselineCoeffs || mode === "baseline";
+  }
   const btnFitGaussian = document.getElementById("btn-fit-gaussian");
   if (btnFitGaussian) {
     btnFitGaussian.disabled = analysisState.gaussianSeeds.length === 0 || mode === "gaussian";
@@ -214,7 +218,7 @@ function updateAnalysisUI() {
   }
 }
 
-function fitAndSubtractBaseline() {
+function fitBaseline() {
   if (!analysisState || analysisState.baselineRanges.length === 0) return;
   const { freqsHz, correctedAmps } = analysisState;
   const degree = parseInt(document.getElementById("baseline-order").value, 10);
@@ -241,11 +245,22 @@ function fitAndSubtractBaseline() {
     alert("Baseline fit failed (singular matrix).");
     return;
   }
-  analysisState.baselineCoeffs = coeffs;
+  // Stage the fit as a preview — actual subtraction happens on Subtract.
+  analysisState.pendingBaselineCoeffs = coeffs;
+  updateAnalysisUI();
+  updateOverlays();
+}
+
+function subtractBaseline() {
+  if (!analysisState || !analysisState.pendingBaselineCoeffs) return;
+  const coeffs = analysisState.pendingBaselineCoeffs;
+  const { freqsHz, correctedAmps } = analysisState;
   analysisState.correctedAmps = correctedAmps.map((amp, i) => {
     const xd = chartRefs.freqToDisplay(freqsHz[i]);
     return amp - evalPoly(coeffs, xd);
   });
+  analysisState.baselineCoeffs = coeffs;
+  analysisState.pendingBaselineCoeffs = null;
   analysisState.baselineRanges = [];
   analysisState.pendingRangeStart = null;
   chartRefs.rescaleAndRedraw();
@@ -255,10 +270,18 @@ function fitAndSubtractBaseline() {
 
 function clearBaseline() {
   if (!analysisState) return;
+  // Restore the original data so a previous subtraction is undone, and drop
+  // any pending fit / picked ranges. Gaussian state is left alone — its own
+  // Clear button handles that.
+  analysisState.correctedAmps = analysisState.rawAmps.slice();
   analysisState.baselineRanges = [];
   analysisState.pendingRangeStart = null;
+  analysisState.pendingBaselineCoeffs = null;
+  analysisState.baselineCoeffs = null;
+  if (chartRefs) chartRefs.rescaleAndRedraw();
   updateAnalysisUI();
   updateOverlays();
+  updateCsvLink();
 }
 
 function fitGaussians() {
@@ -320,6 +343,7 @@ function resetAnalysis() {
   analysisState.pendingRangeStart = null;
   analysisState.gaussianSeeds = [];
   analysisState.gaussianFits = [];
+  analysisState.pendingBaselineCoeffs = null;
   analysisState.baselineCoeffs = null;
   analysisState.clickMode = null;
   document.getElementById("gaussian-results").innerHTML = "";
@@ -360,10 +384,29 @@ function updateOverlays() {
       .attr("clip-path", "url(#plot-clip)");
   }
 
-  // Fitted baseline curve is not drawn after subtraction: the data has been
-  // shifted by the polynomial, so the polynomial itself sits parallel-but-
-  // offset above the subtracted spectrum, which is just visually confusing.
+  // Pending baseline curve: shown after Fit, removed by Subtract or Clear.
+  // The earlier behaviour drew the curve even after subtraction, which left
+  // the polynomial sitting parallel-but-offset above the now-flattened data.
+  // Keying the overlay off pendingBaselineCoeffs keeps the preview where it's
+  // useful (verifying the fit before committing) and gone where it'd be
+  // confusing (after the data has been shifted).
   baselineCurveG.selectAll("path").remove();
+  if (analysisState.pendingBaselineCoeffs) {
+    const { freqsHz } = analysisState;
+    const curvePoints = freqsHz.map((f) => {
+      const xd = freqToDisplay(f);
+      return { x: xd, y: evalPoly(analysisState.pendingBaselineCoeffs, xd) };
+    });
+    const lineFn = d3.line().x((d) => x(d.x)).y((d) => y(d.y));
+    baselineCurveG.append("path")
+      .datum(curvePoints)
+      .attr("fill", "none")
+      .attr("stroke", "orange")
+      .attr("stroke-width", 1.5)
+      .attr("stroke-dasharray", "4,3")
+      .attr("clip-path", "url(#plot-clip)")
+      .attr("d", lineFn);
+  }
 
   // Gaussian seed dots
   gaussianDotsG.selectAll("circle").remove();
@@ -518,6 +561,11 @@ function loadObservation(id) {
         pendingRangeStart: null,
         gaussianSeeds: [],
         gaussianFits: [],
+        // Most recent fit, drawn as a dashed preview line. Set by Fit, cleared
+        // by Subtract or Clear.
+        pendingBaselineCoeffs: null,
+        // Coefficients last *applied* to correctedAmps. Used by the CSV-filename
+        // logic to detect that a subtraction has happened.
         baselineCoeffs: null,
         clickMode: null,
       };

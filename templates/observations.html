@@ -166,9 +166,11 @@
                 <option value="2">2 (quadratic)</option>
               </select>
             </div>
-            <div class="flex gap-2">
-              <button id="btn-fit-baseline" onclick="fitAndSubtractBaseline()" disabled
-                class="text-xs px-2 py-1 bg-accent-light text-accent rounded hover:bg-accent-light disabled:opacity-40 disabled:cursor-not-allowed">Fit &amp; subtract</button>
+            <div class="flex gap-2 flex-wrap">
+              <button id="btn-fit-baseline" onclick="fitBaseline()" disabled
+                class="text-xs px-2 py-1 bg-accent-light text-accent rounded hover:bg-accent-light disabled:opacity-40 disabled:cursor-not-allowed">Fit</button>
+              <button id="btn-subtract-baseline" onclick="subtractBaseline()" disabled
+                class="text-xs px-2 py-1 bg-accent-light text-accent rounded hover:bg-accent-light disabled:opacity-40 disabled:cursor-not-allowed">Subtract</button>
               <button onclick="clearBaseline()" class="text-xs px-2 py-1 bg-gray-100 rounded hover:bg-gray-200">Clear</button>
             </div>
           </div>
