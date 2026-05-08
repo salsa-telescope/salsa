@@ -331,24 +331,10 @@ function updateOverlays() {
       .attr("clip-path", "url(#plot-clip)");
   }
 
-  // Fitted baseline curve
+  // Fitted baseline curve is not drawn after subtraction: the data has been
+  // shifted by the polynomial, so the polynomial itself sits parallel-but-
+  // offset above the subtracted spectrum, which is just visually confusing.
   baselineCurveG.selectAll("path").remove();
-  if (analysisState.baselineCoeffs) {
-    const { freqsHz } = analysisState;
-    const curvePoints = freqsHz.map((f) => {
-      const xd = freqToDisplay(f);
-      return { x: xd, y: evalPoly(analysisState.baselineCoeffs, xd) };
-    });
-    const lineFn = d3.line().x((d) => x(d.x)).y((d) => y(d.y));
-    baselineCurveG.append("path")
-      .datum(curvePoints)
-      .attr("fill", "none")
-      .attr("stroke", "orange")
-      .attr("stroke-width", 1.5)
-      .attr("stroke-dasharray", "4,3")
-      .attr("clip-path", "url(#plot-clip)")
-      .attr("d", lineFn);
-  }
 
   // Gaussian seed dots
   gaussianDotsG.selectAll("circle").remove();
