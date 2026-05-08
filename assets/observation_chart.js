@@ -45,10 +45,38 @@ function evalPoly(coeffs, x) {
 // Multi-Gaussian Levenberg–Marquardt fit.
 // seeds: [{amplitude, center, sigma}] in display units
 // Returns [{amplitude, center, sigma, fwhm}]
+//
+// Each peak's center is constrained to the midpoint between its neighboring
+// seeds (clamped to the data range at the edges) — a peak can wander at
+// most halfway toward the next picked peak. This stops two seeds from
+// converging onto the same peak and prevents a peak from drifting outside
+// the visible data.
 function lmFitGaussians(xs, ys, seeds) {
   let params = seeds.flatMap((s) => [s.amplitude, s.center, s.sigma]);
   const n = xs.length;
   const m = params.length;
+
+  // Per-seed [lo, hi] center bounds. Sort seed indices by center, then walk
+  // them in order to get each peak's neighbors.
+  const xMin = Math.min(...xs);
+  const xMax = Math.max(...xs);
+  const sortedIdx = seeds.map((_, i) => i).sort((a, b) => seeds[a].center - seeds[b].center);
+  const centerBounds = new Array(seeds.length);
+  for (let pos = 0; pos < sortedIdx.length; pos++) {
+    const i = sortedIdx[pos];
+    const c = seeds[i].center;
+    const lo = pos === 0 ? xMin : (c + seeds[sortedIdx[pos - 1]].center) / 2;
+    const hi = pos === sortedIdx.length - 1 ? xMax : (c + seeds[sortedIdx[pos + 1]].center) / 2;
+    centerBounds[i] = [lo, hi];
+  }
+  function clampCenters(p) {
+    for (let k = 0; k < seeds.length; k++) {
+      const [lo, hi] = centerBounds[k];
+      const idx = k * 3 + 1;
+      if (p[idx] < lo) p[idx] = lo;
+      else if (p[idx] > hi) p[idx] = hi;
+    }
+  }
 
   function model(p, x) {
     let sum = 0;
@@ -96,6 +124,7 @@ function lmFitGaussians(xs, ys, seeds) {
     const delta = solveLinear(Aug, Jtr);
     if (!delta) break;
     const newParams = params.map((p, j) => p + delta[j]);
+    clampCenters(newParams);
     const oldCost = r.reduce((s, v) => s + v * v, 0);
     const newCost = residuals(newParams).reduce((s, v) => s + v * v, 0);
     if (newCost < oldCost) {
