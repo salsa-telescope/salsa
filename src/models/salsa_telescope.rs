@@ -196,7 +196,7 @@ impl Telescope for SalsaTelescope {
                 return Err(ReceiverError::IntegrationAlreadyRunning);
             }
 
-            info!("Starting integration");
+            info!("Starting integration on {}", inner.name);
             inner.receiver_configuration.integrate = true;
             inner.last_receiver_error = None;
             inner.measurements.lock().await.clear();
@@ -223,7 +223,7 @@ impl Telescope for SalsaTelescope {
                 kind: IntegrationKind::Spectrum,
             });
         } else if !receiver_configuration.integrate && inner.receiver_configuration.integrate {
-            info!("Stopping integration");
+            info!("Stopping integration on {}", inner.name);
             inner.receiver_configuration.integrate = false;
             let result = inner.receiver_configuration;
             // Take the task out so we can await it without holding the inner lock,
@@ -253,6 +253,7 @@ impl Telescope for SalsaTelescope {
             if !inner.receiver_configuration.integrate {
                 return None;
             }
+            info!("Stopping integration on {}", inner.name);
             inner.receiver_configuration.integrate = false;
             inner.active_integration.take()
         };

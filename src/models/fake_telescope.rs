@@ -173,11 +173,11 @@ impl Telescope for FakeTelescope {
             if inner.iq_cancellation_token.is_some() {
                 return Err(ReceiverError::IntegrationAlreadyRunning);
             }
-            info!("Starting integration");
+            info!("Starting integration on {}", &inner.name);
             inner.current_spectra.clear();
             inner.receiver_configuration.integrate = true;
         } else if !receiver_configuration.integrate && inner.receiver_configuration.integrate {
-            info!("Stopping integration");
+            info!("Stopping integration on {}", &inner.name);
             inner.receiver_configuration.integrate = false;
         }
         if !receiver_configuration.integrate
@@ -193,6 +193,7 @@ impl Telescope for FakeTelescope {
         if !inner.receiver_configuration.integrate {
             return None;
         }
+        info!("Stopping integration on {}", &inner.name);
         inner.receiver_configuration.integrate = false;
         if inner.current_spectra.is_empty() {
             return None;
