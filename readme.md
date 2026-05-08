@@ -9,17 +9,28 @@ templates, [HTMX](https://htmx.org), and [Tailwind CSS](https://tailwindcss.com)
 
 ## Building
 
+These instructions are for a development machine that compiles SALSA
+locally. The production server does not build — it runs a pre-compiled
+binary produced by CI (see [Deployment](#deployment) below); its
+dependencies are listed separately there.
+
 On Debian/Ubuntu, install the build dependencies first:
 
 ```bash
 sudo apt install libuhd-dev libuhd4.6.0 clang libclang-dev llvm-dev
 ```
 
+`libuhd-dev` and the clang/LLVM packages are needed for the UHD
+bindings (`uhd-usrp-sys`, which uses `bindgen`). `libuhd4.6.0` is
+the runtime library — it is also a transitive dependency of
+`libuhd-dev`, so installing the dev package alone pulls it in.
+
 Then:
 
 ```bash
 cargo build --release
 ```
+
 The `release` option is required for the code to be efficient enough to handle the 
 data streams from the USRP N210 samplers.
 
@@ -136,17 +147,20 @@ post_hook = systemctl start salsa.service
 
 ### Initial server setup (WIP)
 
-Steps to set up the service on a fresh Linux machine (work in progress):
+Steps to set up the service on a fresh Linux machine (work in progress).
+The production host runs a pre-compiled binary produced by CI, so it
+does not need Rust, the UHD headers, or any build tooling — only the
+UHD runtime library:
 
-- Install Rust: https://rust-lang.org/tools/install
-- Install build dependencies: `sudo apt install libuhd-dev libuhd4.6.0 clang libclang-dev llvm-dev`
+- Install runtime dependencies: `sudo apt install libuhd4.6.0` (optionally `uhd-host` for the `uhd_find_devices` debug CLI)
 - Create a `salsa` user and a `githubrunner` user
 - Create a `salsaowners` group and add both users to it
 - Install the GitHub Actions runner daemon as the `githubrunner` user
-- Create the deployment directory `/home/salsa/bin` owned by `salsa:salsaowners`
+- Create the deployment directory `/home/salsa/bin` owned by `salsa:salsaowners` with mode `2775`, and `chgrp salsaowners /home/salsa` so the runner can traverse into it
+- Create `/home/salsa/config` (`salsa:salsa`, `700`) and `/home/salsa/data` (`salsa:salsa`, `700`)
 - Install the systemd unit file (see above) and run `sudo systemctl enable salsa`
 - Set up the TLS certificate (see above)
-- Place `config.toml` and `.secrets.toml` in the config directory
+- Place `config.toml` and `.secrets.toml` in the config directory (mode `600`, owner `salsa:salsa`)
 
 ## Architecture
 
