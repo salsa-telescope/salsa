@@ -17,6 +17,7 @@ pub fn routes(state: AppState) -> Router {
     Router::new()
         .route("/", get(get_support))
         .route("/manual", get(get_support_manual))
+        .route("/google-sheets-guide", get(get_google_sheets_guide))
         .with_state(state)
 }
 
@@ -26,6 +27,20 @@ async fn get_support_manual(
 ) -> impl IntoResponse {
     let content = read_to_string("assets/user-manual.html")
         .unwrap_or_else(|_| "<p>User manual not available.</p>".to_string());
+    let content = if headers.get("hx-request").is_some() {
+        content
+    } else {
+        render_main(user, content)
+    };
+    Html(content)
+}
+
+async fn get_google_sheets_guide(
+    Extension(user): Extension<Option<User>>,
+    headers: HeaderMap,
+) -> impl IntoResponse {
+    let content = read_to_string("assets/google-sheets-guide.html")
+        .unwrap_or_else(|_| "<p>Google Sheets guide not available.</p>".to_string());
     let content = if headers.get("hx-request").is_some() {
         content
     } else {
