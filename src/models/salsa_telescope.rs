@@ -555,29 +555,96 @@ fn measure_single(
         *val /= nstack as f64;
     }
 
-    // median window filter data
-    if rfi_filter {
-        let mwkernel = 32; //median window filter size, power of 2
-        let threshold = 0.1; // threshold where to cut data and replace with median
-        let nchunks = fft_pts / mwkernel;
-        for i in 0..nchunks {
-            let chunk = &mut fft_abs[i * mwkernel..(i + 1) * mwkernel];
-            let m = median(chunk.to_vec());
-            for val in chunk.iter_mut() {
-                let diff = (*val - m).abs();
-                if diff > threshold * m {
-                    *val = m;
-                }
-            }
-        }
-    }
-
     // Average spectrum to save data
     for i in 0..avg_pts {
         let avg: f64 = fft_abs.iter().skip(navg * i).take(navg).sum();
         fft_avg.push(avg / (navg as f64));
     }
+
+    if rfi_filter {
+        clip_rfi_spikes(fft_avg);
+    }
     Ok(())
+}
+
+/// Robust narrow-band RFI clipper for an averaged power spectrum.
+///
+/// The previous chunk-aligned, percentage-of-median clip had three failure
+/// modes: a 32-channel chunk centred on a spike could shift its own median;
+/// the 10 % threshold scaled with the bandpass envelope rather than with
+/// noise level; and clipping only the central bin left adjacent leakage
+/// bins unfiltered, producing a residual lump after averaging.
+///
+/// This version, in two passes:
+///   1. Compute a wide running-median baseline. The window is set well
+///      beyond any expected real emission (HI is at most ~20 channels
+///      wide on the default 512-channel / 2.5 MHz output) so the median
+///      is dominated by continuum even inside an emission feature.
+///   2. For each channel, compute the residual against the baseline,
+///      then estimate the local noise from an annular neighbourhood
+///      (channels at distance `STAT_INNER..=STAT_OUTER`). Excluding the
+///      candidate's immediate neighbours keeps FFT-leakage bins out of
+///      its own noise estimate.
+///   3. Flag channels with residual > K_SIGMA * MAD-σ. Replace the
+///      channel and ±REPLACE_PAD neighbours (leakage) with the baseline
+///      value at that bin.
+///
+/// Two passes catch small spikes whose statistics were masked by larger
+/// ones cleaned in pass one.
+fn clip_rfi_spikes(spec: &mut [f64]) {
+    const BASELINE_HW: usize = 64;
+    const STAT_INNER: usize = 4;
+    const STAT_OUTER: usize = 24;
+    const K_SIGMA: f64 = 4.5;
+    const REPLACE_PAD: usize = 1;
+    const PASSES: usize = 2;
+
+    let n = spec.len();
+    if n == 0 {
+        return;
+    }
+    for _ in 0..PASSES {
+        let baseline: Vec<f64> = (0..n)
+            .map(|i| {
+                let lo = i.saturating_sub(BASELINE_HW);
+                let hi = (i + BASELINE_HW + 1).min(n);
+                median(spec[lo..hi].to_vec())
+            })
+            .collect();
+        let residual: Vec<f64> = (0..n).map(|i| spec[i] - baseline[i]).collect();
+        let mut flagged = vec![false; n];
+        for i in 0..n {
+            let lo = i.saturating_sub(STAT_OUTER);
+            let hi = (i + STAT_OUTER + 1).min(n);
+            let ann: Vec<f64> = (lo..hi)
+                .filter(|&j| {
+                    let d = j.abs_diff(i);
+                    d > STAT_INNER && d <= STAT_OUTER
+                })
+                .map(|j| residual[j])
+                .collect();
+            if ann.is_empty() {
+                continue;
+            }
+            let m = median(ann.clone());
+            let mad = median(ann.iter().map(|x| (x - m).abs()).collect()) * 1.4826;
+            if mad == 0.0 {
+                continue;
+            }
+            if residual[i] - m > K_SIGMA * mad {
+                let plo = i.saturating_sub(REPLACE_PAD);
+                let phi = (i + REPLACE_PAD + 1).min(n);
+                for slot in &mut flagged[plo..phi] {
+                    *slot = true;
+                }
+            }
+        }
+        for i in 0..n {
+            if flagged[i] {
+                spec[i] = baseline[i];
+            }
+        }
+    }
 }
 
 fn median(mut xs: Vec<f64>) -> f64 {
@@ -801,6 +868,47 @@ async fn measure_iq(
 #[cfg(test)]
 mod test {
     use super::*;
+
+    #[test]
+    fn clip_rfi_keeps_broad_signal() {
+        // Synthetic 512-channel power spectrum modelled on vale's sig.csv
+        // (May 2026 RFI test data): bandpass envelope, deterministic
+        // pseudo-noise, a 21-channel HI emission feature, and a giant
+        // narrow RFI spike.
+        let n = 512;
+        let noise = |i: usize| -> f64 {
+            let f = i as f64;
+            (f * 0.713).sin() * 8.0 + (f * 1.317).cos() * 7.0 + (f * 0.209).sin() * 6.0
+        };
+        let mut spec: Vec<f64> = (0..n)
+            .map(|i| {
+                let x = (i as f64 - n as f64 / 2.0) / (n as f64 / 2.0);
+                325.0 + 50.0 * (1.0 - x * x).max(0.0).sqrt() + noise(i)
+            })
+            .collect();
+        for v in &mut spec[235..=255] {
+            *v += 40.0;
+        }
+        spec[173] = 2473.0;
+
+        let original = spec.clone();
+        clip_rfi_spikes(&mut spec);
+
+        // The giant narrow spike must be clipped down close to baseline.
+        assert!(
+            spec[173] < 500.0,
+            "giant spike at 173 not clipped (was {}, now {})",
+            original[173],
+            spec[173],
+        );
+        // The broad HI feature must survive — peak preserved within a few percent.
+        let hi_peak_before = original[235..=255].iter().cloned().fold(f64::MIN, f64::max);
+        let hi_peak_after = spec[235..=255].iter().cloned().fold(f64::MIN, f64::max);
+        assert!(
+            hi_peak_after > hi_peak_before * 0.95,
+            "HI feature degraded (peak was {hi_peak_before}, now {hi_peak_after})",
+        );
+    }
 
     #[test]
     fn test_rot2prog_bytes_to_angle_documented() {
