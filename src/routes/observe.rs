@@ -3,7 +3,10 @@ use crate::coords::{
     Direction, Location, horizontal_from_equatorial, horizontal_from_galactic, horizontal_from_sun,
     vlsrcorr_from_galactic,
 };
-use crate::models::booking::{booking_is_active, consecutive_booking_end};
+use crate::geoip::lookup_country;
+use crate::middleware::session::SESSION_COOKIE_NAME;
+use crate::models::booking::{consecutive_booking_end, is_authorized_for_telescope};
+use crate::models::guest::{EndReason, GuestSession, StartError, touch_if_guest};
 use crate::models::maintenance::fetch_maintenance_set;
 use crate::models::observation::Observation;
 use crate::models::telescope::Telescope;
@@ -18,8 +21,8 @@ use crate::tle_cache::TleCacheHandle;
 
 use askama::Template;
 use axum::body::Body;
-use axum::extract::{Path, Query, State};
-use axum::http::{HeaderMap, StatusCode};
+use axum::extract::{ConnectInfo, Path, Query, State};
+use axum::http::{HeaderMap, StatusCode, header::SET_COOKIE};
 use axum::response::{Html, IntoResponse, Redirect, Response};
 use axum::{Extension, Form};
 use axum::{
@@ -29,9 +32,10 @@ use axum::{
 use chrono::{Duration, Utc};
 use rusqlite::Connection;
 use serde::Deserialize;
+use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use tracing::{debug, error};
+use tracing::{debug, error, info};
 
 pub fn routes(state: AppState) -> Router {
     let observe_routes = Router::new()
@@ -47,8 +51,23 @@ pub fn routes(state: AppState) -> Router {
         .route("/satellites", get(get_satellites));
     Router::new()
         .route("/", get(get_observe_landing))
+        .route("/guest/start/{telescope_id}", post(start_guest_session))
+        .route("/guest/end", post(end_guest_session))
         .nest("/{telescope_id}", observe_routes)
         .with_state(state)
+}
+
+/// Fetch the user's active guest session, if any. Returns `None` for
+/// non-guest users (cheap short-circuit) and silently swallows query
+/// errors — the banner is best-effort UI.
+async fn maybe_guest_session_for(state: &AppState, user: &User) -> Option<GuestSession> {
+    if user.provider != "guest" {
+        return None;
+    }
+    GuestSession::fetch_active_for_user(state.database_connection.clone(), user.id)
+        .await
+        .ok()
+        .flatten()
 }
 
 #[derive(Template)]
@@ -309,9 +328,11 @@ async fn set_target(
     Form(target): Form<Target>,
 ) -> Result<Response, StatusCode> {
     let user = user.ok_or(StatusCode::UNAUTHORIZED)?;
-    if !booking_is_active(state.database_connection.clone(), &user, &telescope_id).await? {
+    if !is_authorized_for_telescope(state.database_connection.clone(), &user, &telescope_id).await?
+    {
         return Err(StatusCode::UNAUTHORIZED);
     }
+    touch_if_guest(state.database_connection.clone(), &user).await;
 
     let telescope = state
         .telescopes
@@ -445,6 +466,11 @@ pub(crate) async fn save_observation(
     spectra: &ObservedSpectra,
     tle_cache: &TleCacheHandle,
 ) {
+    // Guest sessions are explicitly ephemeral — the live spectrum is shown
+    // in the chart while observing, but nothing is persisted to the DB.
+    if user.provider == "guest" {
+        return;
+    }
     let integration_time_secs = spectra.observation_time.as_secs_f64();
     let start_time =
         Utc::now() - Duration::milliseconds(spectra.observation_time.as_millis() as i64);
@@ -558,9 +584,11 @@ async fn stop_telescope(
     Path(telescope_id): Path<String>,
 ) -> Result<impl IntoResponse, StatusCode> {
     let user = user.ok_or(StatusCode::UNAUTHORIZED)?;
-    if !booking_is_active(state.database_connection.clone(), &user, &telescope_id).await? {
+    if !is_authorized_for_telescope(state.database_connection.clone(), &user, &telescope_id).await?
+    {
         return Err(StatusCode::UNAUTHORIZED);
     }
+    touch_if_guest(state.database_connection.clone(), &user).await;
     let telescope = state
         .telescopes
         .get(&telescope_id)
@@ -640,9 +668,11 @@ async fn start_observe(
     Form(form): Form<ObserveForm>,
 ) -> Result<impl IntoResponse, StatusCode> {
     let user = user.ok_or(StatusCode::UNAUTHORIZED)?;
-    if !booking_is_active(state.database_connection.clone(), &user, &telescope_id).await? {
+    if !is_authorized_for_telescope(state.database_connection.clone(), &user, &telescope_id).await?
+    {
         return Err(StatusCode::UNAUTHORIZED);
     }
+    touch_if_guest(state.database_connection.clone(), &user).await;
 
     let telescope = state
         .telescopes
@@ -728,7 +758,8 @@ async fn start_observe(
         });
     }
 
-    let in_maintenance = fetch_maintenance_set(state.database_connection)
+    let guest_session = maybe_guest_session_for(&state, &user).await;
+    let in_maintenance = fetch_maintenance_set(state.database_connection.clone())
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
         .contains(&telescope_id);
@@ -737,6 +768,7 @@ async fn start_observe(
         in_maintenance,
         user.is_admin,
         &state.weather_cache,
+        guest_session.as_ref(),
     )
     .await?;
     Ok(Html(content).into_response())
@@ -748,9 +780,11 @@ async fn stop_observe(
     Path(telescope_id): Path<String>,
 ) -> Result<impl IntoResponse, StatusCode> {
     let user = user.ok_or(StatusCode::UNAUTHORIZED)?;
-    if !booking_is_active(state.database_connection.clone(), &user, &telescope_id).await? {
+    if !is_authorized_for_telescope(state.database_connection.clone(), &user, &telescope_id).await?
+    {
         return Err(StatusCode::UNAUTHORIZED);
     }
+    touch_if_guest(state.database_connection.clone(), &user).await;
 
     let telescope = state
         .telescopes
@@ -765,7 +799,8 @@ async fn stop_observe(
         &state.tle_cache,
     )
     .await;
-    let in_maintenance = fetch_maintenance_set(state.database_connection)
+    let guest_session = maybe_guest_session_for(&state, &user).await;
+    let in_maintenance = fetch_maintenance_set(state.database_connection.clone())
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
         .contains(&telescope_id);
@@ -774,6 +809,7 @@ async fn stop_observe(
         in_maintenance,
         user.is_admin,
         &state.weather_cache,
+        guest_session.as_ref(),
     )
     .await?;
     Ok(Html(content))
@@ -786,7 +822,8 @@ async fn get_observe(
     headers: HeaderMap,
 ) -> Result<impl IntoResponse, StatusCode> {
     let user = user.ok_or(StatusCode::UNAUTHORIZED)?;
-    if !booking_is_active(state.database_connection.clone(), &user, &telescope_id).await? {
+    if !is_authorized_for_telescope(state.database_connection.clone(), &user, &telescope_id).await?
+    {
         return Ok(Redirect::to(&format!("/observe/{telescope_id}/not-available")).into_response());
     }
     let maintenance = fetch_maintenance_set(state.database_connection.clone())
@@ -802,11 +839,13 @@ async fn get_observe(
         .get(&telescope_id)
         .await
         .ok_or(StatusCode::NOT_FOUND)?;
+    let guest_session = maybe_guest_session_for(&state, &user).await;
     let content = observe(
         telescope.as_ref(),
         in_maintenance,
         user.is_admin,
         &state.weather_cache,
+        guest_session.as_ref(),
     )
     .await?;
     let content = if headers.get("hx-request").is_some() {
@@ -886,6 +925,10 @@ struct ObserveTemplate {
     freq_min_mhz: u32,
     freq_max_mhz: u32,
     wind_warning: bool,
+    guest_started_at: Option<i64>,
+    guest_last_activity_at: Option<i64>,
+    guest_idle_secs: i64,
+    guest_ceiling_secs: i64,
 }
 
 fn fmt_deg(deg: f64) -> String {
@@ -900,6 +943,7 @@ async fn observe(
     in_maintenance: bool,
     is_admin: bool,
     weather_cache: &crate::weather_cache::WeatherCacheHandle,
+    guest_session: Option<&GuestSession>,
 ) -> Result<String, StatusCode> {
     let info = telescope.get_info().await.map_err(|err| {
         error!("Failed to get info {err}");
@@ -957,7 +1001,123 @@ async fn observe(
         freq_min_mhz,
         freq_max_mhz,
         wind_warning,
+        guest_started_at: guest_session.map(|g| g.started_at.timestamp()),
+        guest_last_activity_at: guest_session.map(|g| g.last_activity_at.timestamp()),
+        guest_idle_secs: crate::models::guest::GUEST_IDLE_RELEASE_SECS,
+        guest_ceiling_secs: crate::models::guest::GUEST_SESSION_HARD_CEILING_SECS,
     }
     .render()
     .expect("Template rendering should always succeed"))
+}
+
+/// Start a guest session for an unauthenticated visitor on the given
+/// telescope. Refuses if the telescope is in maintenance, currently held
+/// by a real booking, has a real booking starting within the next
+/// `GUEST_START_PROTECT_SECS`, or is already held by another guest. On
+/// success, sets the session cookie and redirects to the observe page.
+async fn start_guest_session(
+    Extension(user): Extension<Option<User>>,
+    State(state): State<AppState>,
+    Path(telescope_id): Path<String>,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+) -> Response {
+    // Already-logged-in users (real or guest) shouldn't be re-issued a
+    // guest cookie. Send them to the regular observe flow.
+    if user.is_some() {
+        return Redirect::to(&format!("/observe/{telescope_id}")).into_response();
+    }
+    // Telescope must exist and not be under maintenance.
+    if !state.telescopes.contains_key(&telescope_id).await {
+        return guest_start_error_response("Telescope not found.");
+    }
+    let maintenance = match fetch_maintenance_set(state.database_connection.clone()).await {
+        Ok(m) => m,
+        Err(_) => return guest_start_error_response("Internal error checking maintenance."),
+    };
+    if maintenance.contains(&telescope_id) {
+        return guest_start_error_response("Telescope is currently under maintenance.");
+    }
+
+    let country = lookup_country(addr.ip());
+    match GuestSession::start(state.database_connection.clone(), &telescope_id, country).await {
+        Ok((user, gs, session)) => {
+            info!(
+                "Guest session {} started: user_id={} telescope={}",
+                gs.id, user.id, gs.telescope_id
+            );
+            let cookie = format!(
+                "{SESSION_COOKIE_NAME}={}; SameSite=Lax; HttpOnly; Secure; Path=/; Max-Age=2592000",
+                session.token
+            );
+            let mut headers = HeaderMap::new();
+            headers.insert(
+                SET_COOKIE,
+                cookie.parse().expect("Cookie should be parseable"),
+            );
+            (headers, Redirect::to(&format!("/observe/{telescope_id}"))).into_response()
+        }
+        Err(StartError::TelescopeBusy) => {
+            guest_start_error_response("This telescope is currently booked.")
+        }
+        Err(StartError::GuestAlreadyActive) => {
+            guest_start_error_response("Another guest is currently using this telescope.")
+        }
+        Err(StartError::Internal(err)) => {
+            error!("Failed to start guest session: {err:?}");
+            guest_start_error_response("Internal error starting guest session.")
+        }
+    }
+}
+
+fn guest_start_error_response(message: &str) -> Response {
+    Html(format!(
+        "<!DOCTYPE html><html><body><p>{message}</p>\
+         <p><a href=\"/\">Return to home</a></p></body></html>"
+    ))
+    .into_response()
+}
+
+/// Explicit "End session" from the guest banner. Looks up the caller's
+/// active guest session, ends it (reason=User), and redirects to home.
+/// The accompanying telescope cleanup (stop_integration / telescope.stop)
+/// is done by the guest_monitor background task — same path as idle and
+/// preempted ends — so this handler stays thin and the cleanup logic
+/// lives in one place.
+async fn end_guest_session(
+    Extension(user): Extension<Option<User>>,
+    State(state): State<AppState>,
+) -> Response {
+    let Some(user) = user else {
+        return Redirect::to("/").into_response();
+    };
+    if user.provider != "guest" {
+        return Redirect::to("/").into_response();
+    }
+    let active =
+        match GuestSession::fetch_active_for_user(state.database_connection.clone(), user.id).await
+        {
+            Ok(Some(gs)) => gs,
+            _ => return Redirect::to("/").into_response(),
+        };
+    if let Err(err) = GuestSession::end(
+        state.database_connection.clone(),
+        active.id,
+        EndReason::User,
+    )
+    .await
+    {
+        error!("Failed to end guest session {}: {err:?}", active.id);
+    } else {
+        info!("Guest session {} ended by user", active.id);
+    }
+    // The session row is deleted by GuestSession::end, so the cookie is
+    // now backed by nothing — proactively clear it on this response too.
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        SET_COOKIE,
+        format!("{SESSION_COOKIE_NAME}=deleted; Path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT")
+            .parse()
+            .expect("Cookie should be parseable"),
+    );
+    (headers, Redirect::to("/")).into_response()
 }

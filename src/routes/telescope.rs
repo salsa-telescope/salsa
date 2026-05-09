@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use crate::app::AppState;
 use crate::coords::vlsrcorr_from_galactic;
-use crate::models::booking::booking_is_active;
+use crate::models::booking::is_authorized_for_telescope;
 use crate::models::telescope::Telescope;
 use crate::models::telescope_types::TelescopeStatus;
 use crate::models::telescope_types::{TelescopeError, TelescopeInfo, TelescopeTarget};
@@ -39,7 +39,7 @@ async fn spectrum_handle_upgrade(
     State(state): State<AppState>,
 ) -> Result<impl IntoResponse, StatusCode> {
     let user = user.ok_or(StatusCode::UNAUTHORIZED)?;
-    if !booking_is_active(state.database_connection, &user, &telescope_id).await? {
+    if !is_authorized_for_telescope(state.database_connection, &user, &telescope_id).await? {
         return Err(StatusCode::UNAUTHORIZED);
     }
     let telescope = state

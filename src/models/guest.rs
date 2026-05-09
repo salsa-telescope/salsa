@@ -211,21 +211,59 @@ impl GuestSession {
         Ok(())
     }
 
-    /// Mark a guest session as ended. Idempotent: a session already ended
-    /// stays at its first end_reason (won't be overwritten).
+    /// Mark a guest session as ended and delete the auth session row that
+    /// backed its cookie. Idempotent: a session already ended stays at its
+    /// first end_reason (won't be overwritten). Deleting the auth session
+    /// means the next request from that browser cleanly reverts to
+    /// anonymous instead of staying "logged in" as the dead guest user.
     pub async fn end(
         connection: Arc<Mutex<Connection>>,
         id: i64,
         reason: EndReason,
     ) -> Result<(), InternalError> {
         let conn = connection.lock().await;
-        conn.execute(
-            "UPDATE guest_session SET ended_at = ?1, end_reason = ?2
-             WHERE id = ?3 AND ended_at IS NULL",
-            (Utc::now().timestamp(), reason.as_db_str(), id),
-        )
-        .map_err(|e| InternalError::new(format!("Failed to end guest session: {e}")))?;
+        let updated = conn
+            .execute(
+                "UPDATE guest_session SET ended_at = ?1, end_reason = ?2
+                 WHERE id = ?3 AND ended_at IS NULL",
+                (Utc::now().timestamp(), reason.as_db_str(), id),
+            )
+            .map_err(|e| InternalError::new(format!("Failed to end guest session: {e}")))?;
+        if updated > 0 {
+            // Look up the user_id and clear their auth session.
+            if let Ok(user_id) = conn.query_row(
+                "SELECT user_id FROM guest_session WHERE id = ?1",
+                (id,),
+                |r| r.get::<_, i64>(0),
+            ) {
+                conn.execute("DELETE FROM session WHERE user_id = ?1", (user_id,))
+                    .map_err(|e| {
+                        InternalError::new(format!("Failed to delete guest auth session: {e}"))
+                    })?;
+            }
+        }
         Ok(())
+    }
+
+    /// Every guest session that hasn't ended yet, across all telescopes.
+    /// Used by the guest_monitor task to scan for idle / ceiling / preempted
+    /// sessions on each tick.
+    pub async fn fetch_all_active(
+        connection: Arc<Mutex<Connection>>,
+    ) -> Result<Vec<GuestSession>, InternalError> {
+        let conn = connection.lock().await;
+        let mut stmt = conn
+            .prepare(
+                "SELECT id, user_id, telescope_id, started_at, ended_at, last_activity_at,
+                        end_reason, country
+                 FROM guest_session
+                 WHERE ended_at IS NULL",
+            )
+            .map_err(|e| InternalError::new(format!("Failed to prepare statement: {e}")))?;
+        stmt.query_map([], map_row)
+            .map_err(|e| InternalError::new(format!("Failed to query_map: {e}")))?
+            .map(|r| r.map_err(|err| InternalError::new(format!("Failed to map row: {err}"))))
+            .collect()
     }
 
     pub async fn fetch_active_for_telescope(
@@ -281,6 +319,19 @@ impl GuestSession {
             .map_err(|e| InternalError::new(format!("Failed to query_map: {e}")))?
             .map(|r| r.map_err(|err| InternalError::new(format!("Failed to map row: {err}"))))
             .collect()
+    }
+}
+
+/// Convenience for handlers: touch the idle clock if (and only if) the
+/// caller is a guest. Best-effort — logs but does not propagate errors,
+/// since failing to refresh the idle timestamp is not worth blocking a
+/// telescope command on.
+pub async fn touch_if_guest(connection: Arc<Mutex<Connection>>, user: &User) {
+    if user.provider != "guest" {
+        return;
+    }
+    if let Err(e) = GuestSession::touch_activity(connection, user.id).await {
+        tracing::warn!("Failed to touch guest activity for user {}: {e:?}", user.id);
     }
 }
 

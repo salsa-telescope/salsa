@@ -238,6 +238,22 @@ pub async fn booking_is_active(
         .any(|b| b.active_at(&Utc::now()) && b.telescope_name == telescope_id))
 }
 
+/// Authorisation gate for the observe page and its sub-handlers: returns
+/// true if the user has either a real booking active right now or an
+/// active guest session. Guest sessions live in their own table (see
+/// `models::guest`) precisely so the booking calendar stays untouched —
+/// this helper is where the two paths meet.
+pub async fn is_authorized_for_telescope(
+    connection: Arc<Mutex<Connection>>,
+    user: &User,
+    telescope_id: &str,
+) -> Result<bool, InternalError> {
+    if booking_is_active(connection.clone(), user, telescope_id).await? {
+        return Ok(true);
+    }
+    crate::models::guest::guest_is_active(connection, user, telescope_id).await
+}
+
 #[cfg(test)]
 mod test {
     use super::*;

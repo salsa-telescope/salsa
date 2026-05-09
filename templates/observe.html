@@ -11,6 +11,25 @@
     Strong wind warning: wind speed is above the safe limit. Please stow the telescope and return when the storm has ended. You may still observe, but do so at your own risk.
   </div>
   {% endif %}
+  {% if let Some(started_at) = guest_started_at %}
+    {% if let Some(last_activity_at) = guest_last_activity_at %}
+  <div id="guest-banner"
+       class="text-sm bg-info-light border border-info-border rounded px-3 py-2 mb-2 flex items-center gap-2 flex-wrap"
+       data-started-at="{{ started_at }}"
+       data-last-activity-at="{{ last_activity_at }}"
+       data-idle-secs="{{ guest_idle_secs }}"
+       data-ceiling-secs="{{ guest_ceiling_secs }}">
+    <span class="font-semibold">Guest session</span>
+    <span>·</span>
+    <span id="guest-countdown" class="text-gray-700">…</span>
+    <span class="text-gray-500">·</span>
+    <span class="text-gray-500">data is not saved</span>
+    <form method="POST" action="/observe/guest/end" class="ml-auto">
+      <button class="btn bg-danger hover:bg-danger-hover text-sm" type="submit">End session</button>
+    </form>
+  </div>
+    {% endif %}
+  {% endif %}
 
   <div class="flex flex-col lg:flex-row gap-6">
 
@@ -666,4 +685,51 @@
   }
 
   pageLoad();
+
+  // Guest session countdown.
+  // Idle counter resets when the user issues a telescope command (the
+  // server has just done the same touch on its side). The hard ceiling
+  // counts down from started_at and never resets. We display whichever
+  // limit is closer.
+  (function () {
+      const banner = document.getElementById('guest-banner');
+      if (!banner) return;
+      const startedAt = parseInt(banner.dataset.startedAt, 10);
+      let lastActivityAt = parseInt(banner.dataset.lastActivityAt, 10);
+      const idleSecs = parseInt(banner.dataset.idleSecs, 10);
+      const ceilingSecs = parseInt(banner.dataset.ceilingSecs, 10);
+      const out = document.getElementById('guest-countdown');
+      const fmt = (s) => {
+          const m = Math.floor(s / 60);
+          const r = Math.max(0, s) % 60;
+          return m + ':' + String(r).padStart(2, '0');
+      };
+      function tick() {
+          const now = Math.floor(Date.now() / 1000);
+          const idleLeft = idleSecs - (now - lastActivityAt);
+          const hardLeft = ceilingSecs - (now - startedAt);
+          if (idleLeft <= 0 || hardLeft <= 0) {
+              out.textContent = 'ending…';
+              return;
+          }
+          if (idleLeft <= hardLeft) {
+              out.textContent = 'idle release in ' + fmt(idleLeft);
+          } else {
+              out.textContent = 'session ends in ' + fmt(hardLeft);
+          }
+      }
+      tick();
+      setInterval(tick, 1000);
+      // Reset idle on any HTMX request to a command endpoint. The server
+      // performs the same touch in-handler; this just keeps the displayed
+      // countdown honest.
+      document.body.addEventListener('htmx:afterRequest', function (e) {
+          const path = (e.detail && e.detail.requestConfig && e.detail.requestConfig.path) || '';
+          if (path.includes('/set-target') || path.includes('/observe/') && path.includes('/observe') ||
+              path.includes('/stop-telescope') || path.endsWith('/stop')) {
+              lastActivityAt = Math.floor(Date.now() / 1000);
+              tick();
+          }
+      });
+  })();
 </script>

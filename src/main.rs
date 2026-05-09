@@ -1,6 +1,6 @@
 use axum_server::tls_rustls::RustlsConfig;
 use clap::Parser;
-use salsa::{app, app::teardown_app, booking_monitor, logging};
+use salsa::{app, app::teardown_app, booking_monitor, guest_monitor, logging};
 use std::net::SocketAddr;
 use std::net::TcpListener;
 use std::path::PathBuf;
@@ -42,6 +42,7 @@ async fn main() {
 
     let (app, state) = app::create_app(&args.config_dir, &args.database_dir).await;
     booking_monitor::start(state.clone());
+    guest_monitor::start(state.clone());
 
     // Runtime heartbeat: if scheduling is healthy, this loop wakes every
     // ~500 ms. A skew well above that means tokio worker threads are
