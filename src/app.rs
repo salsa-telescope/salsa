@@ -1,6 +1,6 @@
 use axum::extract::{MatchedPath, State};
 use axum::http::{HeaderMap, Request, Uri};
-use axum::middleware;
+use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Redirect, Response};
 use axum::{Router, routing::get};
 use rusqlite::Connection;
@@ -9,7 +9,7 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use tower_http::services::ServeDir;
 use tower_http::trace::TraceLayer;
-use tracing::{debug, debug_span};
+use tracing::{debug, debug_span, warn};
 
 use serde::Deserialize;
 
@@ -172,7 +172,8 @@ pub async fn create_app(config_dir: &Path, database_dir: &Path) -> (Router, AppS
             state.clone(),
             session_middleware,
         ))
-        .route_layer(middleware::from_fn(cookies_middleware));
+        .route_layer(middleware::from_fn(cookies_middleware))
+        .layer(middleware::from_fn(slow_request_middleware));
 
     let assets_path = "assets";
     debug!("serving asserts from {}", assets_path);
@@ -192,6 +193,29 @@ pub async fn teardown_app(app: AppState) {
     for telescope in app.telescopes.get_all().await {
         telescope.shutdown().await;
     }
+}
+
+/// Logs at WARN whenever a request takes longer than this. Helps surface
+/// the freezes users have reported: the suspicion is that long blocking
+/// FFI work in `measure()` starves the runtime, and the symptom would be
+/// otherwise-trivial requests (HTMX polls, asset fetches) ballooning into
+/// multi-second waits. Pair with the heartbeat task in main.rs.
+async fn slow_request_middleware(req: Request<axum::body::Body>, next: Next) -> Response {
+    let method = req.method().clone();
+    let path = req.uri().path().to_string();
+    let start = std::time::Instant::now();
+    let response = next.run(req).await;
+    let elapsed = start.elapsed();
+    if elapsed > std::time::Duration::from_millis(1000) {
+        warn!(
+            "slow request: {} {} took {} ms (status {})",
+            method,
+            path,
+            elapsed.as_millis(),
+            response.status()
+        );
+    }
+    response
 }
 
 pub fn create_redirect_app(https_port: u16) -> Router {

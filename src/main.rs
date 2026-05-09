@@ -5,7 +5,7 @@ use std::net::SocketAddr;
 use std::net::TcpListener;
 use std::path::PathBuf;
 use tokio::signal;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -42,6 +42,25 @@ async fn main() {
 
     let (app, state) = app::create_app(&args.config_dir, &args.database_dir).await;
     booking_monitor::start(state.clone());
+
+    // Runtime heartbeat: if scheduling is healthy, this loop wakes every
+    // ~500 ms. A skew well above that means tokio worker threads are
+    // starved (e.g. by long blocking FFI calls) — the symptom users see
+    // as a frozen page.
+    tokio::spawn(async move {
+        let mut last = std::time::Instant::now();
+        loop {
+            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+            let elapsed = last.elapsed();
+            if elapsed > std::time::Duration::from_millis(1500) {
+                warn!(
+                    "tokio runtime stall: heartbeat slept {} ms (expected ~500 ms)",
+                    elapsed.as_millis()
+                );
+            }
+            last = std::time::Instant::now();
+        }
+    });
 
     let listener = TcpListener::bind(addr).unwrap();
     info!("listening on {}", listener.local_addr().unwrap());
