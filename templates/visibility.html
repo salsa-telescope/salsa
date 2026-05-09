@@ -1,0 +1,75 @@
+<div class="section light space-y-6">
+
+  <div class="space-y-2">
+    <p class="text-sm text-gray-500">
+      <a href="/support">← Support &amp; documentation</a>
+    </p>
+    <h2 class="text-3xl font-semibold">Target visibility</h2>
+    <p class="text-sm text-gray-500">
+      For a given target and date, see when it is above the horizon at the
+      SALSA site (Onsala, Sweden) and therefore observable. The chart shows
+      elevation as a function of UTC time across the chosen day. The
+      <strong>10°</strong> line is a typical observability cutoff for
+      atmospheric extinction; individual telescope mounts may have their
+      own elevation limits which are enforced when you actually point.
+    </p>
+  </div>
+
+  <form method="get" action="/support/visibility" class="space-y-3 text-sm bg-gray-50 border border-gray-200 rounded-lg p-4">
+    <div class="flex flex-wrap gap-3 items-end">
+      <div>
+        <label class="block text-gray-600 mb-1">Coordinate system</label>
+        <select id="coord-select" name="coord" onchange="updateXYVisibility()" class="border rounded px-2 py-1 bg-white">
+          <option value="galactic" {% if coord == "galactic" %}selected{% endif %}>Galactic</option>
+          <option value="equatorial" {% if coord == "equatorial" %}selected{% endif %}>Equatorial</option>
+          <option value="sun" {% if coord == "sun" %}selected{% endif %}>Sun</option>
+        </select>
+      </div>
+      <div id="x-field">
+        <label class="block text-gray-600 mb-1" id="x-label">X</label>
+        <input type="number" name="x" value="{{ x }}" step="0.01" class="border rounded px-2 py-1 bg-white w-32" />
+      </div>
+      <div id="y-field">
+        <label class="block text-gray-600 mb-1" id="y-label">Y</label>
+        <input type="number" name="y" value="{{ y }}" step="0.01" class="border rounded px-2 py-1 bg-white w-32" />
+      </div>
+      <div>
+        <label class="block text-gray-600 mb-1">Date (UTC)</label>
+        <input type="date" name="date" value="{{ date }}" class="border rounded px-2 py-1 bg-white" />
+      </div>
+      <button type="submit" class="btn">Compute</button>
+    </div>
+  </form>
+
+  {% if let Some(err) = error %}
+  <p class="callout">{{ err }}</p>
+  {% endif %}
+
+  {% if let Some(res) = result %}
+  <div class="space-y-3">
+    <p class="text-sm">{{ res.summary }}</p>
+    <div class="overflow-x-auto">{{ res.svg }}</div>
+  </div>
+  {% endif %}
+
+  <script>
+    function updateXYVisibility() {
+        const coord = document.getElementById('coord-select').value;
+        const xField = document.getElementById('x-field');
+        const yField = document.getElementById('y-field');
+        const xLabel = document.getElementById('x-label');
+        const yLabel = document.getElementById('y-label');
+        const isSun = coord === 'sun';
+        xField.style.display = isSun ? 'none' : '';
+        yField.style.display = isSun ? 'none' : '';
+        if (coord === 'galactic') {
+            xLabel.textContent = 'Galactic longitude (°)';
+            yLabel.textContent = 'Galactic latitude (°)';
+        } else if (coord === 'equatorial') {
+            xLabel.textContent = 'Right ascension (°)';
+            yLabel.textContent = 'Declination (°)';
+        }
+    }
+    updateXYVisibility();
+  </script>
+</div>

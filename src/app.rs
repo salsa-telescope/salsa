@@ -138,6 +138,7 @@ pub async fn create_app(config_dir: &Path, database_dir: &Path) -> (Router, AppS
         .nest("/experiments", routes::experiments::routes())
         .nest("/support", routes::support::routes(state.clone()))
         .nest("/technical", routes::technical::routes())
+        .nest("/visibility", routes::visibility::routes())
         .nest("/auth", routes::authentication::routes(state.clone()))
         .nest("/observe", routes::observe::routes(state.clone()))
         .nest("/bookings", routes::booking::routes(state.clone()))
