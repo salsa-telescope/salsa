@@ -8,14 +8,6 @@
     <p class="text-sm text-gray-500">How to book and operate the SALSA telescopes.</p>
   </div>
 
-  <p class="callout">
-    <strong>Browser requirements:</strong> SALSA needs a recent browser. Tested with
-    <strong>Firefox 128+</strong>, <strong>Chrome 111+</strong>, and <strong>Safari 16.4+</strong>
-    (or any later version of those). On older browsers the page may render with a broken
-    layout — items stacking vertically that should be side-by-side. Update your browser
-    and reload.
-  </p>
-
   <!-- ToC -->
   <nav class="bg-gray-50 border border-gray-200 rounded-lg p-5 text-sm">
     <p class="font-semibold text-gray-800 mb-3">Contents</p>
@@ -35,6 +27,7 @@
           <li><a href="#analysis" class="underline hover:text-gray-900">4.2 Spectral analysis tools</a></li>
         </ol>
       </li>
+      <li><a href="#troubleshooting" class="underline text-gray-700 hover:text-gray-900">5. Troubleshooting</a></li>
     </ol>
   </nav>
 
@@ -229,6 +222,21 @@ target. </p>
         <img src="/gauss_example.png" alt="Three Gaussian components fitted to a spectrum" class="rounded-lg w-full">
         <figcaption class="text-sm text-gray-500 mt-1">The result after fitting three Gaussian components to a spectrum. Fitted parameters such as central velocity for each peak are shown in the lower right as G1, G2, G3.</figcaption>
       </figure>
+    </div>
+  </details>
+
+  <!-- 5. Troubleshooting -->
+  <details open class="space-y-4 text-gray-700">
+    <summary class="cursor-pointer"><h3 id="troubleshooting" class="text-2xl font-semibold text-gray-800 inline">5. Troubleshooting</h3></summary>
+
+    <div class="space-y-2">
+      <h4 class="text-lg font-semibold text-gray-800">Page layout is broken — items stacking vertically</h4>
+      <p>SALSA's interface uses recent CSS features that older browsers don't
+      support. You'll need at least <strong>Firefox 128</strong>,
+      <strong>Chrome 111</strong>, or <strong>Safari 16.4</strong> (or any
+      later version). On older browsers, parts of the page that should appear
+      side by side render stacked vertically instead — update your browser
+      and reload.</p>
     </div>
   </details>
 
