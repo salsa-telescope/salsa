@@ -233,6 +233,16 @@
         </td>
       </tr>
       {% endif %}
+      {% if !guest_countries.is_empty() %}
+      <tr>
+        <td class="py-2 pr-8 text-gray-500 align-top">Countries ({{ guest_countries.len() }})</td>
+        <td class="py-2 font-medium">
+          {% for (code, count) in guest_countries %}
+          {{ code }} ({{ count }}){% if !loop.last %}, {% endif %}
+          {% endfor %}
+        </td>
+      </tr>
+      {% endif %}
       {% endif %}
     </tbody>
   </table>

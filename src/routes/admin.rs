@@ -57,6 +57,7 @@ struct AdminTemplate {
     guest_session_total_minutes: i64,
     guest_session_median_seconds: Option<i64>,
     guest_end_reasons: Vec<(String, usize)>, // (reason, count) sorted by count desc
+    guest_countries: Vec<(String, usize)>,   // (country code, count) sorted by count desc
     local_users: Vec<(i64, String, String)>, // (id, username, comment)
     local_user_error: Option<String>,
     announcement: String,
@@ -168,6 +169,15 @@ async fn get_admin(
     }
     let mut guest_end_reasons: Vec<(String, usize)> = reason_counts.into_iter().collect();
     guest_end_reasons.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
+    let mut guest_country_counts: std::collections::HashMap<String, usize> =
+        std::collections::HashMap::new();
+    for g in &guest_rows {
+        if let Some(c) = &g.country {
+            *guest_country_counts.entry(c.clone()).or_default() += 1;
+        }
+    }
+    let mut guest_countries: Vec<(String, usize)> = guest_country_counts.into_iter().collect();
+    guest_countries.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
 
     let local_users = User::fetch_all_local(state.database_connection.clone())
         .await
@@ -190,6 +200,7 @@ async fn get_admin(
         guest_session_total_minutes,
         guest_session_median_seconds,
         guest_end_reasons,
+        guest_countries,
         local_users,
         local_user_error,
         announcement,
