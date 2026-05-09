@@ -8,7 +8,7 @@ use crate::app::AppState;
 use crate::models::booking::Booking;
 use crate::models::user::User;
 use crate::routes::interferometry::stop_correlator_session;
-use crate::routes::observe::save_observation;
+use crate::routes::observe::stop_and_save_observation;
 
 pub fn start(state: AppState) {
     crate::supervised_task::spawn_supervised("booking_monitor", move || {
@@ -70,26 +70,13 @@ pub fn start(state: AppState) {
                         None => continue,
                     };
 
-                    let info = telescope.get_info().await;
-                    if let Some(spectra) = telescope.stop_integration().await {
-                        match &info {
-                            Ok(info) => {
-                                save_observation(
-                                    state.database_connection.clone(),
-                                    &prev_user,
-                                    info,
-                                    &spectra,
-                                    &state.tle_cache,
-                                )
-                                .await;
-                            }
-                            Err(err) => {
-                                error!(
-                                    "Booking monitor: failed to get telescope info for saving observation: {err:?}"
-                                );
-                            }
-                        }
-                    }
+                    stop_and_save_observation(
+                        telescope.as_ref(),
+                        state.database_connection.clone(),
+                        &prev_user,
+                        &state.tle_cache,
+                    )
+                    .await;
 
                     let mut stop_ok = true;
 

@@ -42,6 +42,11 @@ pub trait Telescope: Send + Sync {
     /// correlator cannot match A/B blocks. Fake telescopes synthesise aligned
     /// timestamps internally and are always capable.
     async fn interferometry_capable(&self) -> bool;
+    /// A clone of the current integration's cancellation token, or `None` if
+    /// no integration is in flight. Used by the fixed-duration auto-stop
+    /// task to bail out cleanly when the integration it was started for
+    /// has already been stopped (manually or by another mechanism).
+    async fn current_integration_token(&self) -> Option<tokio_util::sync::CancellationToken>;
     async fn get_info(&self) -> Result<TelescopeInfo, TelescopeError>;
     async fn shutdown(&self);
     /// Start streaming raw IQ blocks for interferometry correlation.

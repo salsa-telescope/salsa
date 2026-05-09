@@ -411,6 +411,33 @@ async fn set_target(
     Ok(error_response(String::new()))
 }
 
+/// Stop the in-flight integration on `telescope` and persist the resulting
+/// spectrum to the database. Three call sites use this: the End button
+/// handler, the booking_monitor at handover, and the fixed-duration auto-stop
+/// task started by `start_observe`. Each previously inlined the same
+/// `get_info → stop_integration → save_observation` sequence; centralising it
+/// keeps the behaviour identical and makes future changes (e.g. adding
+/// instrumentation) a one-place edit.
+pub(crate) async fn stop_and_save_observation(
+    telescope: &dyn Telescope,
+    connection: Arc<Mutex<Connection>>,
+    user: &User,
+    tle_cache: &TleCacheHandle,
+) {
+    // get_info before stop so the snapshot reflects the integration's target.
+    let info_result = telescope.get_info().await;
+    if let Some(spectra) = telescope.stop_integration().await {
+        match info_result {
+            Ok(info) => {
+                save_observation(connection, user, &info, &spectra, tle_cache).await;
+            }
+            Err(err) => {
+                error!("Failed to get telescope info while stopping integration: {err}");
+            }
+        }
+    }
+}
+
 pub(crate) async fn save_observation(
     connection: Arc<Mutex<Connection>>,
     user: &User,
@@ -600,6 +627,10 @@ struct ObserveForm {
     spectral_channels: usize,
     #[serde(default = "default_rfi_filter")]
     rfi_filter: bool,
+    #[serde(default)]
+    integration_mode: Option<String>, // "interactive" (default) or "fixed"
+    #[serde(default)]
+    integration_time_secs: Option<f64>,
 }
 
 async fn start_observe(
@@ -672,6 +703,31 @@ async fn start_observe(
             error!("Failed to set target {err}.");
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
+
+    // Fixed-duration mode: spawn a task that races the configured sleep
+    // against this integration's cancellation token. If the user clicks End
+    // first (or the booking ends), the token is cancelled and the task
+    // exits without acting on whatever integration may follow.
+    if let (Some("fixed"), Some(secs)) =
+        (form.integration_mode.as_deref(), form.integration_time_secs)
+        && secs > 0.0
+        && secs.is_finite()
+        && let Some(token) = telescope.current_integration_token().await
+    {
+        let telescope_clone = telescope.clone();
+        let user_clone = user.clone();
+        let db = state.database_connection.clone();
+        let tle_cache = state.tle_cache.clone();
+        tokio::spawn(async move {
+            tokio::select! {
+                _ = tokio::time::sleep(std::time::Duration::from_secs_f64(secs)) => {
+                    stop_and_save_observation(telescope_clone.as_ref(), db, &user_clone, &tle_cache).await;
+                }
+                _ = token.cancelled() => {}
+            }
+        });
+    }
+
     let in_maintenance = fetch_maintenance_set(state.database_connection)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
@@ -702,20 +758,13 @@ async fn stop_observe(
         .await
         .ok_or(StatusCode::NOT_FOUND)?;
 
-    let info = telescope.get_info().await.map_err(|err| {
-        error!("Failed to get telescope info: {err}");
-        StatusCode::INTERNAL_SERVER_ERROR
-    })?;
-    if let Some(spectra) = telescope.stop_integration().await {
-        save_observation(
-            state.database_connection.clone(),
-            &user,
-            &info,
-            &spectra,
-            &state.tle_cache,
-        )
-        .await;
-    }
+    stop_and_save_observation(
+        telescope.as_ref(),
+        state.database_connection.clone(),
+        &user,
+        &state.tle_cache,
+    )
+    .await;
     let in_maintenance = fetch_maintenance_set(state.database_connection)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?

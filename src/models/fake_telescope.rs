@@ -50,6 +50,7 @@ struct Inner {
     alive: bool,
     tle_cache: TleCacheHandle,
     iq_cancellation_token: Option<CancellationToken>,
+    spectrum_cancellation_token: Option<CancellationToken>,
 }
 
 pub struct FakeTelescope {
@@ -92,6 +93,7 @@ pub fn create(
         alive: true,
         tle_cache,
         iq_cancellation_token: None,
+        spectrum_cancellation_token: None,
     }));
 
     let task_inner = inner.clone();
@@ -176,9 +178,13 @@ impl Telescope for FakeTelescope {
             info!("Starting integration on {}", &inner.name);
             inner.current_spectra.clear();
             inner.receiver_configuration.integrate = true;
+            inner.spectrum_cancellation_token = Some(CancellationToken::new());
         } else if !receiver_configuration.integrate && inner.receiver_configuration.integrate {
             info!("Stopping integration on {}", &inner.name);
             inner.receiver_configuration.integrate = false;
+            if let Some(token) = inner.spectrum_cancellation_token.take() {
+                token.cancel();
+            }
         }
         if !receiver_configuration.integrate
             && let Some(token) = inner.iq_cancellation_token.take()
@@ -195,6 +201,9 @@ impl Telescope for FakeTelescope {
         }
         info!("Stopping integration on {}", &inner.name);
         inner.receiver_configuration.integrate = false;
+        if let Some(token) = inner.spectrum_cancellation_token.take() {
+            token.cancel();
+        }
         if inner.current_spectra.is_empty() {
             return None;
         }
@@ -224,6 +233,10 @@ impl Telescope for FakeTelescope {
 
     async fn interferometry_capable(&self) -> bool {
         true
+    }
+
+    async fn current_integration_token(&self) -> Option<CancellationToken> {
+        self.inner.lock().await.spectrum_cancellation_token.clone()
     }
 
     async fn get_info(&self) -> Result<TelescopeInfo, TelescopeError> {

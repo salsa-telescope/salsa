@@ -145,6 +145,25 @@
           <summary class="cursor-pointer text-gray-500 select-none">Advanced receiver settings</summary>
           <div class="mt-2 space-y-2">
             <div>
+              <label class="block text-sm text-gray-600 mb-1">Integration time</label>
+              <div class="flex flex-wrap gap-x-4 gap-y-1 items-center">
+                <label class="flex items-center gap-1 cursor-pointer">
+                  <input type="radio" name="integration_mode" value="interactive" checked
+                    onchange="updateIntegrationTimeVisibility()" />
+                  Interactive end
+                </label>
+                <label class="flex items-center gap-1 cursor-pointer">
+                  <input type="radio" name="integration_mode" value="fixed"
+                    onchange="updateIntegrationTimeVisibility()" />
+                  Fixed:
+                  <input type="number" id="integration-time-secs" name="integration_time_secs"
+                    value="60" min="1" max="3600" step="1" disabled
+                    class="border rounded px-2 py-0.5 w-20 disabled:opacity-50" />
+                  seconds
+                </label>
+              </div>
+            </div>
+            <div>
               <label class="block text-sm text-gray-600 mb-1">Mode</label>
               <div class="flex gap-4">
                 <label class="flex items-center gap-1 cursor-pointer">
@@ -373,6 +392,12 @@
       if (refField && freqSwitched) refField.classList.toggle('hidden', !freqSwitched.checked);
   }
 
+  function updateIntegrationTimeVisibility() {
+      const fixed = document.querySelector("input[name='integration_mode'][value='fixed']");
+      const input = document.getElementById('integration-time-secs');
+      if (input && fixed) input.disabled = !fixed.checked;
+  }
+
   function coordinateSystemChanged(e) {
       const x_label = document.querySelector("form label[for='x']");
       const y_label = document.querySelector("form label[for='y']");
@@ -521,12 +546,23 @@
       const powerStr = (window.observePowerLevel !== undefined)
           ? '  |  Avg. power: ' + window.observePowerLevel.toFixed(2)
           : '';
+      // Fixed-duration mode: render "X / N s" so the user can see progress.
+      // Read the form values directly — they're disabled during integration,
+      // so they reflect what was submitted at start.
+      const fixedRadio = document.querySelector("input[name='integration_mode'][value='fixed']");
+      const targetInput = document.getElementById('integration-time-secs');
+      let targetSecs = null;
+      if (fixedRadio && fixedRadio.checked && targetInput) {
+          const v = parseFloat(targetInput.value);
+          if (Number.isFinite(v) && v > 0) targetSecs = Math.round(v);
+      }
+      const elapsedStr = targetSecs !== null ? serverSecs + ' / ' + targetSecs : '' + serverSecs;
       if (isMeasuring) {
           if (!wasObserving && window.reconnectSpectrumSocket) window.reconnectSpectrumSocket();
           wasObserving = true;
           timerEl.classList.remove('hidden');
-          elapsedEl.textContent = serverSecs;
-          if (window.setChartTitle) window.setChartTitle('Integrating: ' + serverSecs + 's' + powerStr);
+          elapsedEl.textContent = elapsedStr;
+          if (window.setChartTitle) window.setChartTitle('Integrating: ' + elapsedStr + 's' + powerStr);
       } else {
           wasObserving = false;
           timerEl.classList.add('hidden');
@@ -542,12 +578,22 @@
           "details input[name='center_freq_mhz'], details input[name='ref_freq_mhz'], " +
           "details select[name='bandwidth_mhz'], details input[name='gain_db'], " +
           "details input[name='mode'], details select[name='spectral_channels'], " +
-          "details input[name='rfi_filter']"
+          "details input[name='rfi_filter'], details input[name='integration_mode']"
       );
       advancedInputs.forEach(el => {
           el.disabled = observing;
           el.classList.toggle('opacity-50', observing);
       });
+      // The integration-time-secs number input is conditionally enabled by
+      // updateIntegrationTimeVisibility; only re-enable here if the radio is
+      // currently set to "fixed" AND we're not observing. Otherwise keep
+      // disabled.
+      const timeInput = document.getElementById('integration-time-secs');
+      if (timeInput) {
+          const fixedChecked = document.querySelector("input[name='integration_mode'][value='fixed']")?.checked;
+          timeInput.disabled = observing || !fixedChecked;
+          timeInput.classList.toggle('opacity-50', observing);
+      }
   }
 
   function setTrackingState(tracking) {
