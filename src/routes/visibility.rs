@@ -47,7 +47,6 @@ struct VisibilityForm {
 }
 
 struct VisibilityResult {
-    summary: String,
     svg: String,
 }
 
@@ -125,8 +124,13 @@ fn compute_visibility(coord: &str, x_deg: f64, y_deg: f64, date: NaiveDate) -> V
 
     let n_steps = 24 * 60 / SAMPLE_STEP_MIN;
     let mut samples: Vec<(i64, f64)> = Vec::with_capacity((n_steps + 1) as usize);
-    let mut first_above: Option<i64> = None;
-    let mut last_above: Option<i64> = None;
+    // All contiguous windows where elevation >= threshold. The sidereal day is
+    // ~4 minutes shorter than 24h, so some targets rise twice in one UTC day —
+    // we need to collect every window, not just the first-above / last-above
+    // pair (which would falsely report a single mega-window covering the gap).
+    let mut windows: Vec<(i64, i64)> = Vec::new();
+    let mut current_start: Option<i64> = None;
+    let mut last_above_min: i64 = 0;
     let mut max_el = f64::NEG_INFINITY;
     let mut max_at: i64 = 0;
 
@@ -145,37 +149,52 @@ fn compute_visibility(coord: &str, x_deg: f64, y_deg: f64, date: NaiveDate) -> V
         let el = dir.elevation.to_degrees();
         samples.push((minutes, el));
         if el >= VISIBILITY_THRESHOLD_DEG {
-            if first_above.is_none() {
-                first_above = Some(minutes);
+            if current_start.is_none() {
+                current_start = Some(minutes);
             }
-            last_above = Some(minutes);
+            last_above_min = minutes;
+        } else if let Some(start) = current_start.take() {
+            windows.push((start, last_above_min));
         }
         if el > max_el {
             max_el = el;
             max_at = minutes;
         }
     }
+    if let Some(start) = current_start {
+        windows.push((start, last_above_min));
+    }
 
-    let summary = match (first_above, last_above) {
-        (Some(f), Some(l)) => format!(
-            "Above {threshold:.0}° from {start} to {end} UTC. Maximum {max:.1}° at {peak} UTC.",
+    let target_label = match coord {
+        "galactic" => format!("Galactic {x_deg}°, {y_deg}°"),
+        "equatorial" => format!("Equatorial {x_deg}°, {y_deg}°"),
+        "sun" => "Sun".to_string(),
+        _ => coord.to_string(),
+    };
+    let title_line1 = format!("{target_label} on {date} (UTC)");
+    let title_line2 = if windows.is_empty() {
+        format!(
+            "Not above {threshold:.0}° at any time. Peak {max:.1}° at {peak}.",
             threshold = VISIBILITY_THRESHOLD_DEG,
-            start = fmt_hhmm(f),
-            end = fmt_hhmm(l),
             max = max_el,
             peak = fmt_hhmm(max_at),
-        ),
-        _ => format!(
-            "Not above {threshold:.0}° at any time on this date. Peak elevation {max:.1}° at {peak} UTC.",
+        )
+    } else {
+        let windows_str = windows
+            .iter()
+            .map(|(s, e)| format!("{} to {}", fmt_hhmm(*s), fmt_hhmm(*e)))
+            .collect::<Vec<_>>()
+            .join(", and ");
+        format!(
+            "Above {threshold:.0}° from {windows_str}. Max {max:.1}° at {peak}.",
             threshold = VISIBILITY_THRESHOLD_DEG,
             max = max_el,
             peak = fmt_hhmm(max_at),
-        ),
+        )
     };
 
     VisibilityResult {
-        summary,
-        svg: build_svg(&samples),
+        svg: build_svg(&samples, &title_line1, &title_line2),
     }
 }
 
@@ -183,12 +202,14 @@ fn fmt_hhmm(minutes: i64) -> String {
     format!("{:02}:{:02}", minutes / 60, minutes % 60)
 }
 
-fn build_svg(samples: &[(i64, f64)]) -> String {
+fn build_svg(samples: &[(i64, f64)], title_line1: &str, title_line2: &str) -> String {
     let width = 720.0_f64;
-    let height = 320.0_f64;
+    let height = 360.0_f64;
     let m_left = 60.0_f64;
     let m_right = 20.0_f64;
-    let m_top = 20.0_f64;
+    // Top margin holds two title lines (line 1 ~y=20, line 2 ~y=38) plus a
+    // little breathing room before the plot area.
+    let m_top = 56.0_f64;
     let m_bottom = 40.0_f64;
     let plot_w = width - m_left - m_right;
     let plot_h = height - m_top - m_bottom;
@@ -231,8 +252,14 @@ fn build_svg(samples: &[(i64, f64)]) -> String {
     let y_label_pos_x = 14.0_f64;
     let y_label_pos_y = m_top + plot_h / 2.0;
 
+    let title_x = width / 2.0;
+    let title_l1 = escape_xml(title_line1);
+    let title_l2 = escape_xml(title_line2);
+
     format!(
         r##"<svg viewBox="0 0 {width:.0} {height:.0}" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;">
+  <text x="{title_x:.2}" y="22" text-anchor="middle" font-size="13" font-weight="600" fill="#111827">{title_l1}</text>
+  <text x="{title_x:.2}" y="42" text-anchor="middle" font-size="12" fill="#4b5563">{title_l2}</text>
   <rect x="{m_left:.2}" y="{m_top:.2}" width="{plot_w:.2}" height="{plot_h:.2}" fill="#f9fafb" stroke="none"/>
   <line x1="{m_left:.2}" y1="{m_top:.2}" x2="{m_left:.2}" y2="{plot_bottom:.2}" stroke="#9ca3af"/>
   <line x1="{m_left:.2}" y1="{plot_bottom:.2}" x2="{plot_right:.2}" y2="{plot_bottom:.2}" stroke="#9ca3af"/>
@@ -246,4 +273,10 @@ fn build_svg(samples: &[(i64, f64)]) -> String {
 </svg>"##,
         threshold = VISIBILITY_THRESHOLD_DEG,
     )
+}
+
+fn escape_xml(s: &str) -> String {
+    s.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
 }
