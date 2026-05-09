@@ -34,6 +34,7 @@
             <li><a href="#s1-2" class="underline hover:text-gray-900">1.2 Galactic coordinates: longitude and latitude</a></li>
             <li><a href="#s1-3" class="underline hover:text-gray-900">1.3 Radio emission from atomic hydrogen</a></li>
             <li><a href="#s1-4" class="underline hover:text-gray-900">1.4 The Doppler effect</a></li>
+            <li><a href="#s1-5" class="underline hover:text-gray-900">1.5 The Local Standard of Rest</a></li>
           </ol>
         </li>
         <li><a href="#ch2" class="underline text-gray-700 hover:text-gray-900">2. The structure and kinematics of the Milky Way</a>
@@ -217,6 +218,31 @@
       frequencies. The frequency will be shifted up or down when the signal reaches
       us, depending on whether the gas cloud that we observe is approaching us or
       receding from us.</p>
+    </div>
+
+    <div class="space-y-3">
+      <h4 id="s1-5" class="text-lg font-semibold text-gray-800">1.5 The Local Standard of Rest</h4>
+      <p>The velocity computed from the Doppler formula above is <em>relative to
+      the telescope</em> — but the telescope is not stationary. Earth rotates,
+      orbits the Sun, and the Sun itself moves through the Galaxy. If you observe
+      the same hydrogen cloud at different times of day or year, the
+      telescope-frame velocity changes simply because the telescope's motion
+      has changed, even though the cloud has not.</p>
+      <p>To make measurements comparable across different times and observing
+      sites, astronomers convert this telescope-frame velocity into the
+      <strong>Local Standard of Rest (LSR)</strong> frame: a notional frame at
+      the Sun's position with the Sun's peculiar motion removed. In the LSR
+      frame, gas clouds in the Galaxy have well-defined velocities that match
+      published HI maps and rotation-curve measurements.</p>
+      <p>SALSA computes and applies this correction <em>automatically</em>
+      whenever you observe a galactic-coordinate target, using the 21 cm
+      hydrogen-line rest frequency (1420.405 MHz) as the reference. The
+      velocity axis on the spectrum chart is therefore in the LSR frame for
+      galactic targets — directly comparable with literature values without
+      further correction. For non-galactic targets (Sun, satellites), no
+      LSR correction is computed.</p>
+      <p>For more on the LSR frame and how it is defined, see
+      <a href="https://en.wikipedia.org/wiki/Local_standard_of_rest">Wikipedia: Local standard of rest</a>.</p>
     </div>
   </details>
 
