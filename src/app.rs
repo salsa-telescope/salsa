@@ -15,6 +15,7 @@ use serde::Deserialize;
 
 use crate::correlator::CorrelatorHandle;
 use crate::database::create_sqlite_database_on_disk;
+use crate::guest_rate_limiter::GuestStartLimiterHandle;
 use crate::login_rate_limiter::LoginRateLimiterHandle;
 use crate::middleware::cookies::cookies_middleware;
 use crate::middleware::session::session_middleware;
@@ -69,6 +70,7 @@ pub struct AppState {
     pub tle_cache: TleCacheHandle,
     pub weather_cache: WeatherCacheHandle,
     pub login_rate_limiter: LoginRateLimiterHandle,
+    pub guest_start_limiter: GuestStartLimiterHandle,
     /// At most one correlator session running at a time.
     pub active_correlator: Arc<Mutex<Option<CorrelatorHandle>>>,
 }
@@ -96,6 +98,7 @@ pub async fn create_app(config_dir: &Path, database_dir: &Path) -> (Router, AppS
     let weather_cache = WeatherCacheHandle::new();
     start_weather_refresh(weather_cache.clone());
     let login_rate_limiter = LoginRateLimiterHandle::new();
+    let guest_start_limiter = GuestStartLimiterHandle::new();
     let telescopes = create_telescope_collection(
         config_path
             .to_str()
@@ -127,6 +130,7 @@ pub async fn create_app(config_dir: &Path, database_dir: &Path) -> (Router, AppS
         tle_cache,
         weather_cache,
         login_rate_limiter,
+        guest_start_limiter,
         active_correlator: Arc::new(Mutex::new(None)),
     };
 

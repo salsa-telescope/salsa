@@ -1025,6 +1025,12 @@ async fn start_guest_session_auto(
     if user.is_some() {
         return Redirect::to("/observe").into_response();
     }
+    if state.guest_start_limiter.check_and_record(addr.ip()) {
+        return guest_start_error_response(
+            "Too many guest sessions started from this address. \
+             Please wait a few minutes, or create a free account to reserve a time slot.",
+        );
+    }
     let mut names = state.telescopes.get_names().await;
     let preferred_order = ["torre", "vale", "brage"];
     names.sort_by_key(|n| {
@@ -1087,6 +1093,12 @@ async fn start_guest_session(
     // guest cookie. Send them to the regular observe flow.
     if user.is_some() {
         return Redirect::to(&format!("/observe/{telescope_id}")).into_response();
+    }
+    if state.guest_start_limiter.check_and_record(addr.ip()) {
+        return guest_start_error_response(
+            "Too many guest sessions started from this address. \
+             Please wait a few minutes, or create a free account to reserve a time slot.",
+        );
     }
     // Telescope must exist and not be under maintenance.
     if !state.telescopes.contains_key(&telescope_id).await {

@@ -12,6 +12,7 @@ use tracing::info;
 
 use crate::app::AppState;
 use crate::models::booking::Booking;
+use crate::models::guest::GuestSession;
 use crate::models::maintenance::{fetch_maintenance_set, set_maintenance};
 use crate::models::support_announcement::{fetch_support_announcement, set_support_announcement};
 use crate::models::telescope_types::TelescopeError;
@@ -51,6 +52,11 @@ struct AdminTemplate {
     total_hours: i64,
     unique_users: usize,
     countries: Vec<(String, usize)>, // (country code, booking count), sorted by count desc
+    guest_sessions_total: usize,
+    guest_sessions_completed: usize,
+    guest_session_total_minutes: i64,
+    guest_session_median_seconds: Option<i64>,
+    guest_end_reasons: Vec<(String, usize)>, // (reason, count) sorted by count desc
     local_users: Vec<(i64, String, String)>, // (id, username, comment)
     local_user_error: Option<String>,
     announcement: String,
@@ -132,6 +138,37 @@ async fn get_admin(
     }
     let mut countries: Vec<(String, usize)> = country_counts.into_iter().collect();
     countries.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
+
+    // Guest session stats. Only count completed sessions for duration —
+    // an in-flight session has an unknown duration. We still surface the
+    // total count so admins can see "10 started this week, 8 completed".
+    let guest_rows =
+        GuestSession::fetch_in_range(state.database_connection.clone(), from_dt, to_dt)
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let guest_sessions_total = guest_rows.len();
+    let mut durations: Vec<i64> = guest_rows
+        .iter()
+        .filter_map(|g| g.ended_at.map(|e| (e - g.started_at).num_seconds()))
+        .collect();
+    let guest_sessions_completed = durations.len();
+    let guest_session_total_minutes: i64 = durations.iter().sum::<i64>() / 60;
+    durations.sort_unstable();
+    let guest_session_median_seconds = if durations.is_empty() {
+        None
+    } else {
+        Some(durations[durations.len() / 2])
+    };
+    let mut reason_counts: std::collections::HashMap<String, usize> =
+        std::collections::HashMap::new();
+    for g in &guest_rows {
+        if let Some(r) = &g.end_reason {
+            *reason_counts.entry(r.clone()).or_default() += 1;
+        }
+    }
+    let mut guest_end_reasons: Vec<(String, usize)> = reason_counts.into_iter().collect();
+    guest_end_reasons.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
+
     let local_users = User::fetch_all_local(state.database_connection.clone())
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
@@ -148,6 +185,11 @@ async fn get_admin(
         total_hours,
         unique_users,
         countries,
+        guest_sessions_total,
+        guest_sessions_completed,
+        guest_session_total_minutes,
+        guest_session_median_seconds,
+        guest_end_reasons,
         local_users,
         local_user_error,
         announcement,
