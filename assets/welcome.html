@@ -1,7 +1,10 @@
 <div class="section dark welcome">
     <h1>Radio astronomy in your browser</h1>
     <div><p>Learn radio astronomy with real radio telescopes available for free for anyone to use.</p></div>
-    <div class="flex gap-4 justify-center">
+    <div class="flex flex-wrap gap-4 justify-center">
+        <form method="POST" action="/observe/guest/start" class="contents">
+            <button type="submit" class="btn px-8 py-3.5 text-base font-semibold bg-white text-brand hover:bg-brand-border">Observe now</button>
+        </form>
         <a href="/bookings" class="btn px-8 py-3.5 text-base font-semibold bg-white text-brand hover:bg-brand-border">Book a telescope</a>
     </div>
 </div>

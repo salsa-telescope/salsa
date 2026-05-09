@@ -51,6 +51,7 @@ pub fn routes(state: AppState) -> Router {
         .route("/satellites", get(get_satellites));
     Router::new()
         .route("/", get(get_observe_landing))
+        .route("/guest/start", post(start_guest_session_auto))
         .route("/guest/start/{telescope_id}", post(start_guest_session))
         .route("/guest/end", post(end_guest_session))
         .nest("/{telescope_id}", observe_routes)
@@ -1008,6 +1009,67 @@ async fn observe(
     }
     .render()
     .expect("Template rendering should always succeed"))
+}
+
+/// Auto-pick variant for the "Observe now" button on the welcome page.
+/// Walks the telescope list in the same order the rest of the UI uses
+/// (preferred order: torre, vale, brage, then anything else) and tries
+/// each one until `GuestSession::start` succeeds. If every telescope is
+/// in maintenance or held, returns a small HTML page explaining the
+/// situation with a link back home.
+async fn start_guest_session_auto(
+    Extension(user): Extension<Option<User>>,
+    State(state): State<AppState>,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+) -> Response {
+    if user.is_some() {
+        return Redirect::to("/observe").into_response();
+    }
+    let mut names = state.telescopes.get_names().await;
+    let preferred_order = ["torre", "vale", "brage"];
+    names.sort_by_key(|n| {
+        let lower = n.to_lowercase();
+        let pos = preferred_order.iter().position(|&p| p == lower.as_str());
+        (pos.is_none(), pos.unwrap_or(usize::MAX), lower)
+    });
+    let maintenance = match fetch_maintenance_set(state.database_connection.clone()).await {
+        Ok(m) => m,
+        Err(_) => return guest_start_error_response("Internal error checking maintenance."),
+    };
+
+    let country = lookup_country(addr.ip());
+    for name in names {
+        if maintenance.contains(&name) {
+            continue;
+        }
+        match GuestSession::start(state.database_connection.clone(), &name, country.clone()).await {
+            Ok((_user, gs, session)) => {
+                info!(
+                    "Guest session {} started (auto-pick): user_id={} telescope={}",
+                    gs.id, gs.user_id, gs.telescope_id
+                );
+                let cookie = format!(
+                    "{SESSION_COOKIE_NAME}={}; SameSite=Lax; HttpOnly; Secure; Path=/; Max-Age=2592000",
+                    session.token
+                );
+                let mut headers = HeaderMap::new();
+                headers.insert(
+                    SET_COOKIE,
+                    cookie.parse().expect("Cookie should be parseable"),
+                );
+                return (headers, Redirect::to(&format!("/observe/{name}"))).into_response();
+            }
+            Err(StartError::TelescopeBusy) | Err(StartError::GuestAlreadyActive) => continue,
+            Err(StartError::Internal(err)) => {
+                error!("Failed to start guest session (auto-pick on {name}): {err:?}");
+                return guest_start_error_response("Internal error starting guest session.");
+            }
+        }
+    }
+    guest_start_error_response(
+        "All telescopes are currently in use. \
+         Please try again in a few minutes, or create a free account to reserve a time slot.",
+    )
 }
 
 /// Start a guest session for an unauthenticated visitor on the given
