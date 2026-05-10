@@ -136,7 +136,12 @@ pub async fn create_app(config_dir: &Path, database_dir: &Path) -> (Router, AppS
 
     let mut app = Router::new()
         .route("/", get(routes::index::get_index))
-        .nest("/account", routes::account::routes(state.clone()))
+        .nest(
+            "/account",
+            routes::account::routes(state.clone()).route_layer(middleware::from_fn(
+                crate::middleware::no_guests::reject_guests,
+            )),
+        )
         .nest("/admin", routes::admin::routes(state.clone()))
         .nest("/about", routes::about::routes())
         .nest("/experiments", routes::experiments::routes())
@@ -145,9 +150,19 @@ pub async fn create_app(config_dir: &Path, database_dir: &Path) -> (Router, AppS
         .nest("/visibility", routes::visibility::routes())
         .nest("/auth", routes::authentication::routes(state.clone()))
         .nest("/observe", routes::observe::routes(state.clone()))
-        .nest("/bookings", routes::booking::routes(state.clone()))
+        .nest(
+            "/bookings",
+            routes::booking::routes(state.clone()).route_layer(middleware::from_fn(
+                crate::middleware::no_guests::reject_guests,
+            )),
+        )
         .nest("/telescope", routes::telescope::routes(state.clone()))
-        .nest("/observations", routes::observations::routes(state.clone()))
+        .nest(
+            "/observations",
+            routes::observations::routes(state.clone()).route_layer(middleware::from_fn(
+                crate::middleware::no_guests::reject_guests,
+            )),
+        )
         .nest(
             "/live",
             routes::live::routes(webcam_snapshot_url, state.clone()),

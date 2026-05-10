@@ -88,7 +88,15 @@ pub fn start(state: AppState) {
     });
 }
 
-async fn end_session(state: &AppState, guest: &GuestSession, reason: EndReason) {
+/// Stop the telescope cleanly and mark a guest session ended.
+///
+/// Used by both this monitor (idle / ceiling / preempted ends) and the
+/// user-facing "End session" handler. Doing it in one place keeps the
+/// shutdown order canonical: stop integration, stop slewing, clear the
+/// in-memory spectrum (so the next user does not inherit the previous
+/// guest's data on screen), then mark the session ended (which also
+/// deletes the auth session row backing the cookie).
+pub async fn end_session(state: &AppState, guest: &GuestSession, reason: EndReason) {
     let synthetic_user = User {
         id: guest.user_id,
         name: format!("guest-{}", guest.user_id),

@@ -720,13 +720,20 @@
       }
       tick();
       setInterval(tick, 1000);
-      // Reset idle on any HTMX request to a command endpoint. The server
-      // performs the same touch in-handler; this just keeps the displayed
-      // countdown honest.
+      // Reset idle only on the POST endpoints that the server's touch_if_guest
+      // is wired into. The hourly polls for /preview, /state, /booking-end-time,
+      // etc. are explicitly excluded — sitting on the page should not keep the
+      // session alive.
       document.body.addEventListener('htmx:afterRequest', function (e) {
-          const path = (e.detail && e.detail.requestConfig && e.detail.requestConfig.path) || '';
-          if (path.includes('/set-target') || path.includes('/observe/') && path.includes('/observe') ||
-              path.includes('/stop-telescope') || path.endsWith('/stop')) {
+          const cfg = e.detail && e.detail.requestConfig;
+          if (!cfg) return;
+          const verb = (cfg.verb || '').toLowerCase();
+          if (verb !== 'post') return;
+          const path = cfg.path || '';
+          if (path.endsWith('/set-target') ||
+              path.endsWith('/observe') ||
+              path.endsWith('/stop') ||
+              path.endsWith('/stop-telescope')) {
               lastActivityAt = Math.floor(Date.now() / 1000);
               tick();
           }

@@ -85,6 +85,17 @@ async fn get_observe_landing(
     let Some(user) = user else {
         return Redirect::to("/auth/login").into_response();
     };
+    // Guests don't book — the landing page would be empty for them. Send
+    // them straight to their active session's telescope page so the
+    // "Observe" nav link is a way back into the session, not a dead end.
+    if user.provider == "guest" {
+        if let Some(gs) = maybe_guest_session_for(&state, &user).await {
+            return Redirect::to(&format!("/observe/{}", gs.telescope_id)).into_response();
+        }
+        // Cookie still alive but session ended (idle/preempted/etc.) —
+        // nothing useful to show; bounce home.
+        return Redirect::to("/").into_response();
+    }
     let now = chrono::Utc::now();
     let active_bookings =
         crate::models::booking::Booking::fetch_for_user(state.database_connection.clone(), &user)
@@ -1151,12 +1162,12 @@ fn guest_start_error_response(message: &str) -> Response {
     .into_response()
 }
 
-/// Explicit "End session" from the guest banner. Looks up the caller's
-/// active guest session, ends it (reason=User), and redirects to home.
-/// The accompanying telescope cleanup (stop_integration / telescope.stop)
-/// is done by the guest_monitor background task — same path as idle and
-/// preempted ends — so this handler stays thin and the cleanup logic
-/// lives in one place.
+/// Explicit "End session" from the guest banner or main-nav button.
+/// Stops the telescope cleanly, clears the cached spectrum, and marks
+/// the guest_session row ended via the shared `guest_monitor::end_session`
+/// helper. Same shutdown order as idle / ceiling / preempted ends, so
+/// the next visitor never inherits the previous guest's tracking
+/// target or last-seen spectrum.
 async fn end_guest_session(
     Extension(user): Extension<Option<User>>,
     State(state): State<AppState>,
@@ -1173,17 +1184,7 @@ async fn end_guest_session(
             Ok(Some(gs)) => gs,
             _ => return Redirect::to("/").into_response(),
         };
-    if let Err(err) = GuestSession::end(
-        state.database_connection.clone(),
-        active.id,
-        EndReason::User,
-    )
-    .await
-    {
-        error!("Failed to end guest session {}: {err:?}", active.id);
-    } else {
-        info!("Guest session {} ended by user", active.id);
-    }
+    crate::guest_monitor::end_session(&state, &active, EndReason::User).await;
     // The session row is deleted by GuestSession::end, so the cookie is
     // now backed by nothing — proactively clear it on this response too.
     let mut headers = HeaderMap::new();

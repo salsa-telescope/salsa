@@ -51,9 +51,13 @@
             </div>
             <nav id="main-nav">
                 <a href="/about" class="nav-link" onclick="closeAllPanels()">About</a>
+                {% if !is_guest %}
                 <a href="/bookings" class="nav-link" onclick="closeAllPanels()">Bookings</a>
+                {% endif %}
                 <a href="/observe" class="nav-link" onclick="closeAllPanels()">Observe</a>
+                {% if !is_guest %}
                 <a href="/observations" class="nav-link" onclick="closeAllPanels()">Observation archive</a>
+                {% endif %}
                 <a href="/support" class="nav-link" onclick="closeAllPanels()">Support</a>
                 <a href="/live" class="nav-link" onclick="closeAllPanels()">Live status</a>
                 {% if is_admin %}
@@ -62,6 +66,10 @@
                 <span class="nav-spacer"></span>
                 {% if name == "" %}
                 <a href="/auth/login" class="nav-link">Login</a>
+                {% else if is_guest %}
+                <form method="POST" action="/observe/guest/end" class="contents">
+                    <button type="submit" class="nav-link">End session</button>
+                </form>
                 {% else %}
                 <button class="nav-user-toggle" onclick="toggleUser()">
                     <svg class="w-5 h-5 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">

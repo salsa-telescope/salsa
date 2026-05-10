@@ -13,6 +13,7 @@ use crate::models::user::User;
 struct IndexTemplate {
     name: String,
     is_admin: bool,
+    is_guest: bool,
     content: String,
     build_url: String,
     version_description: String,
@@ -50,6 +51,7 @@ pub fn render_main(user: Option<User>, content: String) -> String {
         format!("v{}", env!("CARGO_PKG_VERSION"))
     };
     let is_admin = user.as_ref().is_some_and(|u| u.is_admin);
+    let is_guest = user.as_ref().is_some_and(|u| u.provider == "guest");
     let name = match &user {
         Some(u) => u.name.clone(),
         None => String::new(),
@@ -57,6 +59,7 @@ pub fn render_main(user: Option<User>, content: String) -> String {
     IndexTemplate {
         name,
         is_admin,
+        is_guest,
         content,
         build_url,
         version_description,
