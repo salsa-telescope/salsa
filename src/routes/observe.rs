@@ -54,6 +54,7 @@ pub fn routes(state: AppState) -> Router {
         .route("/guest/start", post(start_guest_session_auto))
         .route("/guest/start/{telescope_id}", post(start_guest_session))
         .route("/guest/end", post(end_guest_session))
+        .route("/guest/status", get(get_guest_status))
         .nest("/{telescope_id}", observe_routes)
         .with_state(state)
 }
@@ -1160,6 +1161,33 @@ fn guest_start_error_response(message: &str) -> Response {
          <p><a href=\"/\">Return to home</a></p></body></html>"
     ))
     .into_response()
+}
+
+/// Lightweight status probe for the guest banner JS. Returns 200 OK
+/// while the caller's guest session is active, 410 Gone otherwise (no
+/// guest session, or it has ended). The page polls this every few
+/// seconds so a server-side end (idle / ceiling / preempted) — which
+/// the rest of the page wouldn't otherwise notice — triggers a clean
+/// reload to the welcome page.
+async fn get_guest_status(
+    Extension(user): Extension<Option<User>>,
+    State(state): State<AppState>,
+) -> Response {
+    let active = match user {
+        Some(u) if u.provider == "guest" => {
+            GuestSession::fetch_active_for_user(state.database_connection, u.id)
+                .await
+                .ok()
+                .flatten()
+                .is_some()
+        }
+        _ => false,
+    };
+    if active {
+        StatusCode::OK.into_response()
+    } else {
+        StatusCode::GONE.into_response()
+    }
 }
 
 /// Explicit "End session" from the guest banner or main-nav button.

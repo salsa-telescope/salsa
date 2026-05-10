@@ -14,17 +14,18 @@
   {% if let Some(started_at) = guest_started_at %}
     {% if let Some(last_activity_at) = guest_last_activity_at %}
   <div id="guest-banner"
-       class="text-sm bg-info-light border border-info-border rounded px-3 py-2 mb-2 flex items-center gap-2 flex-wrap"
+       class="text-sm bg-info-light border border-info-border rounded px-3 py-2 mb-2 flex items-start gap-3 flex-wrap"
        data-started-at="{{ started_at }}"
        data-last-activity-at="{{ last_activity_at }}"
        data-idle-secs="{{ guest_idle_secs }}"
        data-ceiling-secs="{{ guest_ceiling_secs }}">
-    <span class="font-semibold">Guest session</span>
-    <span>·</span>
-    <span id="guest-countdown" class="text-gray-700">…</span>
-    <span class="text-gray-500">·</span>
-    <span class="text-gray-500">data is not saved</span>
-    <form method="POST" action="/observe/guest/end" class="ml-auto">
+    <div class="flex-1 min-w-0 leading-snug">
+      <span class="font-semibold">Guest session.</span>
+      You can use this telescope until a registered user books it. Your session will end automatically
+      <span id="guest-countdown" class="font-medium">in …</span>.
+      Data is not saved.
+    </div>
+    <form method="POST" action="/observe/guest/end" class="flex-shrink-0">
       <button class="btn bg-danger hover:bg-danger-hover text-sm" type="submit">End session</button>
     </form>
   </div>
@@ -709,17 +710,31 @@
           const idleLeft = idleSecs - (now - lastActivityAt);
           const hardLeft = ceilingSecs - (now - startedAt);
           if (idleLeft <= 0 || hardLeft <= 0) {
-              out.textContent = 'ending…';
+              out.textContent = 'shortly';
               return;
           }
           if (idleLeft <= hardLeft) {
-              out.textContent = 'idle release in ' + fmt(idleLeft);
+              out.textContent = 'in ' + fmt(idleLeft) + ' unless you send Track / Stop or Begin / End commands';
           } else {
-              out.textContent = 'session ends in ' + fmt(hardLeft);
+              out.textContent = 'in ' + fmt(hardLeft) + ' (maximum session length reached)';
           }
       }
       tick();
       setInterval(tick, 1000);
+      // Poll the server every few seconds for whether this session is
+      // still alive. Catches three cases the local timer can't see:
+      //   - real-booking preemption (server ends the guest within ~5s
+      //     of the hour boundary; the page wouldn't otherwise notice)
+      //   - clock skew between client and server crossing the limit
+      //   - the user clicked End session in another tab
+      // On 410 (session gone) we reload to the welcome page; the cookie
+      // has been deleted server-side, so the reload lands as anonymous.
+      setInterval(async function () {
+          try {
+              const r = await fetch('/observe/guest/status', { cache: 'no-store' });
+              if (r.status === 410) window.location.href = '/';
+          } catch (_) { /* network blip — try again on next tick */ }
+      }, 5000);
       // Reset idle only on the POST endpoints that the server's touch_if_guest
       // is wired into. The hourly polls for /preview, /state, /booking-end-time,
       // etc. are explicitly excluded — sitting on the page should not keep the
