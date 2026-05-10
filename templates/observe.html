@@ -2,7 +2,7 @@
 <div id="observe-section" class="section light">
   <div id="errors" class="mb-1"></div>
   {% if in_maintenance %}
-  <div class="text-sm font-semibold text-warning bg-warning-light border border-warning-border rounded px-3 py-2 mb-2">
+  <div class="text-sm font-semibold text-warning bg-warning-bg border border-warning-border rounded px-3 py-2 mb-2">
     This telescope is currently in maintenance mode.
   </div>
   {% endif %}
@@ -14,14 +14,14 @@
   {% if let Some(started_at) = guest_started_at %}
     {% if let Some(last_activity_at) = guest_last_activity_at %}
   <div id="guest-banner"
-       class="text-sm bg-info-light border border-info-border rounded px-3 py-2 mb-2 flex items-start gap-3 flex-wrap"
+       class="text-sm bg-info-bg border border-info-border rounded px-3 py-2 mb-2 flex items-start gap-3 flex-wrap"
        data-started-at="{{ started_at }}"
        data-last-activity-at="{{ last_activity_at }}"
        data-idle-secs="{{ guest_idle_secs }}"
        data-ceiling-secs="{{ guest_ceiling_secs }}">
     <div class="flex-1 min-w-0 leading-snug">
       <span class="font-semibold">Guest session</span> —
-      ends in <span id="guest-countdown-time" class="font-semibold text-accent">…</span>
+      ends in <span id="guest-countdown-time" class="font-semibold text-link">…</span>
       <span id="guest-countdown-note" class="text-gray-600"></span>,
       or sooner if a registered user books this telescope. Data is not saved.
     </div>
@@ -41,7 +41,7 @@
       <div id="telescope-status" hx-get="/telescope/{{ info.id }}/state" hx-trigger="every 1s">{{ state_html }}</div>
 
       <!-- Booking warning (shown at T-5min) -->
-      <div id="booking-warning" class="hidden text-sm font-semibold text-warning bg-warning-light border border-warning-border rounded px-3 py-2"></div>
+      <div id="booking-warning" class="hidden text-sm font-semibold text-warning bg-warning-bg border border-warning-border rounded px-3 py-2"></div>
 
       <!-- Target input -->
       <div>

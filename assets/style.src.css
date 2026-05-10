@@ -3,67 +3,52 @@
 @source "../assets/";
 
 @theme {
-  /* Brand */
-  --color-brand: #02344a;
-  --color-brand-light: #25617a;
-  --color-brand-bg: #f0f5f7;
-  --color-brand-border: #d6e1e5;
-  --color-brand-dark: #1a1d1f;
+  /* ── Brand · structural surfaces ─────────────────────────── */
+  --color-brand:        #02344a;  /* header, primary CTA, calendar header */
+  --color-brand-hover:  #1d5170;  /* nav-link:hover, button:hover */
+  --color-brand-bg:     #eef4f7;  /* section.light bg */
+  --color-brand-border: #cfdde3;  /* card & row borders inside brand-bg */
+  --color-brand-dark:   #0f1418;  /* hero / starfield surface */
 
-  /* Interactive accent (buttons, links, focus rings) */
-  --color-accent: #4f46e5;
-  --color-accent-hover: #6366f1;
-  --color-accent-dark: #3730a3;
-  --color-accent-light: #e0e7ff;
-  --color-accent-focus: #818cf8;
+  /* ── Link & focus · derived from teal · replaces indigo accent ── */
+  --color-link:         #0e6b8c;
+  --color-link-hover:   #08506c;
+  --color-focus:        #3b9bbf;  /* focus ring · visible on light + dark */
 
-  /* Semantic status */
-  --color-success: #15803d;
-  --color-success-hover: #16a34a;
+  /* ── Semantic · 4-step scale per role ─────────────────────── */
+  --color-success:        #15803d;
+  --color-success-hover:  #16a34a;
+  --color-success-bg:     #e7f5ec;
+  --color-success-border: #a7d8b6;
 
-  --color-warning: #a16207;
-  --color-warning-light: #fefce8;
-  --color-warning-hover: #ca8a04;
-  --color-warning-border: #fcd34d;
+  --color-warning:        #9a6a07;
+  --color-warning-hover:  #b07d09;
+  --color-warning-bg:     #fdf6e0;  /* also: callout bg */
+  --color-warning-border: #e8c97a;
 
-  --color-danger: #dc2626;
-  --color-danger-hover: #ef4444;
+  --color-danger:         #c62828;
+  --color-danger-hover:   #dc2626;
+  --color-danger-bg:      #fbe9e9;
+  --color-danger-border:  #e8b3b3;
 
-  --color-info: #2563eb;
+  --color-info:           #1d4ed8;
+  --color-info-bg:        #e6edfb;
+  --color-info-border:    #b6c5ed;
 
-  /* Callout boxes */
-  --color-callout: #fffbeb;
-  --color-callout-border: #fcd34d;
+  /* ── Neutral ramp · 5 steps · cool to harmonise with teal ── */
+  --color-neutral-900: #1a1d1f;  /* body text */
+  --color-neutral-700: #4b5258;  /* muted text */
+  --color-neutral-500: #7a8088;  /* tertiary text · ≥14px only (AA) */
+  --color-neutral-300: #cfd4d8;  /* borders */
+  --color-neutral-100: #eef1f3;  /* subtle borders, slot-past, slot-disabled */
 
-  /* Muted text and borders */
-  --color-muted: #555;
-  --color-muted-light: #777;
-  --color-muted-border: #ccc;
-  --color-subtle-border: #e0e0e0;
-
-  /* Calendar slots */
-  --color-slot-free: #c8e6c9;
-  --color-slot-free-hover: #81c784;
-  --color-slot-mine: #90caf9;
-  --color-slot-mine-hover: #64b5f6;
-  --color-slot-other: #ef9a9a;
-  --color-slot-disabled: #e8e8e8;
-  --color-slot-past: #e0e0e0;
-  --color-slot-maintenance: #fff3cd;
-
-  /* Notification */
-  --color-notify-success: #66BB6A;
-  --color-notify-success-bg: #E8F5E9;
-  --color-notify-error: #E57373;
-  --color-notify-error-bg: #FFEBEE;
-
-  /* Booking actions */
-  --color-observe: #7b1fa2;
-  --color-observe-border: #ce93d8;
-  --color-observe-bg: #f3e5f5;
-  --color-delete: #c62828;
-  --color-delete-border: #ef9a9a;
-  --color-delete-bg: #ffebee;
+  /* ── Calendar slots · aliased into semantic hue families ───── */
+  --color-slot-free:        #bfe0c4;  /* success hue, calendar lightness */
+  --color-slot-free-hover:  #8ec896;
+  --color-slot-mine:        #bcd2f0;  /* info hue */
+  --color-slot-mine-hover:  #8eb1e0;
+  --color-slot-other:       #e8b3b3;  /* = danger-border */
+  --color-slot-maint:       #f3dca0;  /* warning hue */
 }
 
 body {
@@ -104,7 +89,7 @@ body {
     background-color: var(--color-brand-dark);
 }
 .section a:not(.btn) {
-    color: var(--color-brand);
+    color: var(--color-link);
     text-decoration: none;
 }
 .section a:not(.btn):hover {
@@ -214,15 +199,15 @@ body {
 @layer components {
     .callout {
         @apply border-l-4 rounded px-4 py-2 text-sm my-2;
-        background-color: var(--color-callout);
-        border-color: var(--color-callout-border);
+        background-color: var(--color-warning-bg);
+        border-color: var(--color-warning-border);
     }
     .btn {
         @apply inline-block px-3 py-1 text-sm rounded-md text-white no-underline cursor-pointer;
-        background-color: var(--color-accent);
+        background-color: var(--color-brand);
     }
     .btn:hover {
-        background-color: var(--color-accent-hover);
+        background-color: var(--color-brand-hover);
     }
 }
 header {
@@ -281,7 +266,7 @@ header {
     align-items: center;
 }
 .nav-link:hover {
-    background-color: var(--color-brand-light);
+    background-color: var(--color-brand-hover);
 }
 
 .nav-spacer {
@@ -298,7 +283,7 @@ header {
     position: relative;
 }
 .nav-user-toggle:hover {
-    background-color: var(--color-brand-light);
+    background-color: var(--color-brand-hover);
 }
 .nav-user-dropdown {
     display: none;
@@ -382,7 +367,7 @@ body.user-open .nav-user-dropdown {
         min-width: 0;
         width: 100%;
         box-shadow: none;
-        border-top: 1px solid var(--color-brand-light);
+        border-top: 1px solid var(--color-brand-hover);
     }
 
     .nav-user-dropdown .nav-link {
@@ -396,8 +381,7 @@ body.user-open .nav-user-dropdown {
 }
 
 footer {
-    /* TODO: Need less contrast here */
-    color: var(--color-brand-border);
+    color: var(--color-neutral-500);
     padding: 20px;
     text-align: center;
     font-size: 90%;
@@ -432,12 +416,12 @@ footer {
 }
 .my-booking-time {
     font-size: 13px;
-    color: var(--color-muted);
+    color: var(--color-neutral-700);
 }
 .my-booking-description {
     flex-basis: 100%;
     font-size: 13px;
-    color: var(--color-muted);
+    color: var(--color-neutral-700);
     font-style: italic;
     margin-top: -4px;
 }
@@ -459,14 +443,14 @@ footer {
     background: var(--color-brand-border);
 }
 .my-booking-observe {
-    color: var(--color-observe);
-    border-color: var(--color-observe-border);
+    color: var(--color-brand);
+    border-color: var(--color-brand-border);
 }
 .my-booking-observe:hover {
-    background: var(--color-observe-bg);
+    background: var(--color-brand-bg);
 }
 .my-booking-observe-pending {
-    color: var(--color-muted);
+    color: var(--color-neutral-700);
     border-color: var(--color-brand-border);
     cursor: default;
     opacity: 0.7;
@@ -475,11 +459,11 @@ footer {
     background: white;
 }
 .my-booking-delete {
-    color: var(--color-delete);
-    border-color: var(--color-delete-border);
+    color: var(--color-danger);
+    border-color: var(--color-danger-border);
 }
 .my-booking-delete:hover {
-    background: var(--color-delete-bg);
+    background: var(--color-danger-bg);
 }
 
 /* Calendar navigation */
@@ -523,7 +507,7 @@ footer {
     background: white;
     cursor: pointer;
     font-size: 14px;
-    color: var(--color-muted);
+    color: var(--color-neutral-700);
 }
 .telescope-tab-btn:hover {
     background: var(--color-brand-bg);
@@ -546,7 +530,7 @@ footer {
     padding: 10px 14px;
     margin-bottom: 16px;
     font-size: 13px;
-    color: var(--color-muted);
+    color: var(--color-neutral-700);
 }
 .calendar-info-row {
     display: flex;
@@ -561,7 +545,7 @@ footer {
     font-family: 'Roboto Mono', monospace;
 }
 .calendar-help {
-    color: var(--color-muted-light);
+    color: var(--color-neutral-500);
     margin: 4px 0 0;
 }
 .calendar-legend {
@@ -581,7 +565,7 @@ footer {
     width: 16px;
     height: 16px;
     border-radius: 2px;
-    border: 1px solid var(--color-muted-border);
+    border: 1px solid var(--color-neutral-300);
 }
 
 /* Calendar grid */
@@ -613,7 +597,7 @@ footer {
     text-align: right;
     padding-right: 6px;
     font-size: 11px;
-    color: var(--color-muted);
+    color: var(--color-neutral-700);
     white-space: nowrap;
 }
 
@@ -621,7 +605,7 @@ footer {
 .calendar-slot {
     height: 22px;
     min-width: 80px;
-    border: 1px solid var(--color-subtle-border);
+    border: 1px solid var(--color-neutral-100);
     cursor: default;
 }
 
@@ -650,18 +634,18 @@ footer {
 
 /* Disabled — at booking limit */
 .calendar-slot-disabled {
-    background: var(--color-slot-disabled);
+    background: var(--color-neutral-100);
     cursor: not-allowed;
 }
 
 /* Past — gray */
 .calendar-slot-past {
-    background: var(--color-slot-past);
+    background: var(--color-neutral-100);
 }
 
 /* Maintenance — yellow */
 .calendar-slot-maintenance {
-    background: var(--color-slot-maintenance);
+    background: var(--color-slot-maint);
     cursor: not-allowed;
 }
 
@@ -680,12 +664,4 @@ footer {
 /* Lightbox */
 figure img {
     cursor: zoom-in;
-}
-
-/* Content links */
-.section a:not(.btn) {
-    color: var(--color-accent);
-}
-.section a:not(.btn):hover {
-    color: var(--color-accent-dark);
 }
