@@ -20,10 +20,10 @@
        data-idle-secs="{{ guest_idle_secs }}"
        data-ceiling-secs="{{ guest_ceiling_secs }}">
     <div class="flex-1 min-w-0 leading-snug">
-      <span class="font-semibold">Guest session.</span>
-      You can use this telescope until a registered user books it. Your session will end automatically
-      <span id="guest-countdown" class="font-medium">in …</span>.
-      Data is not saved.
+      <span class="font-semibold">Guest session</span> —
+      ends in <span id="guest-countdown-time" class="font-semibold text-accent">…</span>
+      <span id="guest-countdown-note" class="text-gray-600"></span>,
+      or sooner if a registered user books this telescope. Data is not saved.
     </div>
     <form method="POST" action="/observe/guest/end" class="flex-shrink-0">
       <button class="btn bg-danger hover:bg-danger-hover text-sm" type="submit">End session</button>
@@ -699,7 +699,8 @@
       let lastActivityAt = parseInt(banner.dataset.lastActivityAt, 10);
       const idleSecs = parseInt(banner.dataset.idleSecs, 10);
       const ceilingSecs = parseInt(banner.dataset.ceilingSecs, 10);
-      const out = document.getElementById('guest-countdown');
+      const timeEl = document.getElementById('guest-countdown-time');
+      const noteEl = document.getElementById('guest-countdown-note');
       const fmt = (s) => {
           const m = Math.floor(s / 60);
           const r = Math.max(0, s) % 60;
@@ -710,13 +711,16 @@
           const idleLeft = idleSecs - (now - lastActivityAt);
           const hardLeft = ceilingSecs - (now - startedAt);
           if (idleLeft <= 0 || hardLeft <= 0) {
-              out.textContent = 'shortly';
+              timeEl.textContent = 'shortly';
+              noteEl.textContent = '';
               return;
           }
           if (idleLeft <= hardLeft) {
-              out.textContent = 'in ' + fmt(idleLeft) + ' unless you send Track / Stop or Begin / End commands';
+              timeEl.textContent = fmt(idleLeft);
+              noteEl.textContent = 'unless you keep using the controls below';
           } else {
-              out.textContent = 'in ' + fmt(hardLeft) + ' (maximum session length reached)';
+              timeEl.textContent = fmt(hardLeft);
+              noteEl.textContent = '(maximum session length reached)';
           }
       }
       tick();
