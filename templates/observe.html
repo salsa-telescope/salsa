@@ -107,12 +107,12 @@
             <div class="mt-2 flex gap-2">
               <div class="flex-1">
                 <label class="block text-sm text-gray-600">Az. offset [deg]</label>
-                <input type="number" name="az_offset_deg" value="0" step="0.1"
+                <input type="number" name="az_offset_deg" value="0" step="0.1" lang="en"
                   class="border rounded px-2 py-1 bg-white w-full text-sm" />
               </div>
               <div class="flex-1">
                 <label class="block text-sm text-gray-600">El. offset [deg]</label>
-                <input type="number" name="el_offset_deg" value="0" step="0.1"
+                <input type="number" name="el_offset_deg" value="0" step="0.1" lang="en"
                   class="border rounded px-2 py-1 bg-white w-full text-sm" />
               </div>
             </div>
@@ -201,13 +201,13 @@
             <div class="flex gap-2">
               <div class="flex-1">
                 <label class="block text-sm text-gray-600">Center freq. [MHz]</label>
-                <input type="number" name="center_freq_mhz" value="1420.4" step="0.1"
+                <input type="number" name="center_freq_mhz" value="1420.4" step="0.1" lang="en"
                   min="{{ freq_min_mhz }}" max="{{ freq_max_mhz }}"
                   class="border rounded px-2 py-1 bg-white w-full text-sm" />
               </div>
               <div id="ref-freq-field" class="flex-1">
                 <label class="block text-sm text-gray-600">Ref. freq. [MHz]</label>
-                <input type="number" name="ref_freq_mhz" value="{{ info.default_ref_freq_mhz }}" step="0.1"
+                <input type="number" name="ref_freq_mhz" value="{{ info.default_ref_freq_mhz }}" step="0.1" lang="en"
                   min="{{ freq_min_mhz }}" max="{{ freq_max_mhz }}"
                   class="border rounded px-2 py-1 bg-white w-full text-sm" />
               </div>
@@ -254,7 +254,7 @@
                 <p id="spectral-resolution" class="text-xs text-gray-400 mt-1"></p>
             </div>
             <div>
-              <label class="block text-sm text-gray-600 mb-1">RFI filter (median window)</label>
+              <label class="block text-sm text-gray-600 mb-1">RFI filter (sliding MAD-σ)</label>
               <div class="flex gap-4">
                 <label class="flex items-center gap-1 cursor-pointer">
                   <input type="radio" name="rfi_filter" value="true" checked />

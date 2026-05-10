@@ -35,11 +35,21 @@
   <details open class="space-y-4 text-gray-700">
     <summary class="cursor-pointer"><h3 id="account" class="text-2xl font-semibold text-gray-800 inline">1. Creating an account</h3></summary>
 
-    <p>To use SALSA you need to log in. Click <strong>Login</strong> in the top navigation bar
-    and follow the instructions to authenticate. SALSA supports several login providers —
-    choose whichever you already have an account with.
-    Once logged in your name will appear in the top navigation bar. Clicking it reveals
-    account settings and a log out link.</p>
+    <p>To make a real booking and save your observations you need to log in. Click
+    <strong>Login</strong> in the top navigation bar and follow the instructions to
+    authenticate. SALSA supports several login providers — choose whichever you
+    already have an account with. Once logged in your name will appear in the top
+    navigation bar. Clicking it reveals account settings and a log out link.</p>
+
+    <p><strong>Just want to try?</strong> The <strong>Observe now</strong> button on
+    the welcome page starts a guest session on the first available telescope without
+    asking for a login. Guest sessions are short (up to 30 minutes, and they release
+    automatically after about 3 minutes of inactivity) so they don't lock telescopes
+    away from registered users; a real booking on the same telescope will also end
+    your guest session immediately. Guest observations are <strong>not saved</strong>
+    — the live spectrum is shown in the chart while you observe, but nothing is
+    written to the observation archive. Create an account if you want longer
+    sessions, scheduled bookings, or downloadable data.</p>
   </details>
 
   <!-- 2. Booking -->
@@ -153,8 +163,15 @@ you may also change the settings if you want.</p>
         <em>Raw</em> mode records without switching, so no calibration is applied; the y-axis
         is the received power as a <strong>fraction of the digitiser's full-scale range</strong>
         (dimensionless), and only relative differences between observations are meaningful.</li>
-        <li><strong>RFI filter</strong> — A median filter to reduce radio frequency
-        interference. Enable if you see narrow spikes in your spectrum.</li>
+        <li><strong>RFI filter</strong> — A sliding-window robust statistical filter
+        that removes narrow radio-frequency interference spikes from each cycle's
+        spectrum. The site has some local RFI (most noticeably on <em>vale</em>),
+        so the filter is <strong>enabled by default</strong> and should normally
+        be left on. It builds a baseline tracking the bandpass shape and any broad
+        real signal (such as the HI line), then flags channels deviating more than
+        a few MAD-σ above that baseline and replaces them with the baseline value
+        — narrow spikes go away, broad emission is preserved. Disable only if you
+        specifically want to inspect raw, unfiltered data.</li>
       </ul>
     </div>
 
