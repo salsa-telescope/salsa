@@ -189,7 +189,10 @@ async fn redirect_to_auth_provider(
 
 #[derive(Debug, Deserialize)]
 struct AuthRequest {
-    code: String,
+    code: Option<String>,
+    // Set by the provider when the flow ends without an authorization code,
+    // e.g. `access_denied` when the user cancels at the consent screen.
+    error: Option<String>,
     // We store the CSRF token in the state.
     state: String,
 }
@@ -209,6 +212,13 @@ async fn authenticate_from_oauth2(
             }
         };
 
+    let Some(code) = query.code else {
+        if let Some(error) = &query.error {
+            debug!("OAuth2 provider {provider_name} returned error: {error}");
+        }
+        return Ok(Redirect::to("/auth/login").into_response());
+    };
+
     // 4. We use that code to request an authorization token from oauth2 provider.
     let http_client = reqwest::ClientBuilder::new()
         .redirect(reqwest::redirect::Policy::none())
@@ -226,7 +236,7 @@ async fn authenticate_from_oauth2(
             TokenUrl::new(provider.token_uri.clone()).expect("Hardcoded URL should always work."),
         );
     let token = match client
-        .exchange_code(AuthorizationCode::new(query.code.clone()))
+        .exchange_code(AuthorizationCode::new(code))
         .request_async(&http_client)
         .await
     {
