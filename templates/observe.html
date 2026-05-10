@@ -2,7 +2,7 @@
 <div id="observe-section" class="section light">
   <div id="errors" class="mb-1"></div>
   {% if in_maintenance %}
-  <div class="text-sm font-semibold text-warning bg-warning-light border border-warning-border rounded px-3 py-2 mb-2">
+  <div class="text-sm font-semibold text-warning bg-warning-bg border border-warning-border rounded px-3 py-2 mb-2">
     This telescope is currently in maintenance mode.
   </div>
   {% endif %}
@@ -41,7 +41,7 @@
       <div id="telescope-status" hx-get="/telescope/{{ info.id }}/state" hx-trigger="every 1s">{{ state_html }}</div>
 
       <!-- Booking warning (shown at T-5min) -->
-      <div id="booking-warning" class="hidden text-sm font-semibold text-warning bg-warning-light border border-warning-border rounded px-3 py-2"></div>
+      <div id="booking-warning" class="hidden text-sm font-semibold text-warning bg-warning-bg border border-warning-border rounded px-3 py-2"></div>
 
       <!-- Target input -->
       <div>
