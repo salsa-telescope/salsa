@@ -33,6 +33,7 @@
 
   --color-info:           #1d4ed8;
   --color-info-bg:        #e6edfb;
+  --color-info-border:    #b6c5ed;
 
   /* ── Neutral ramp · 5 steps · cool to harmonise with teal ── */
   --color-neutral-900: #1a1d1f;  /* body text */
@@ -420,7 +421,7 @@ footer {
 .my-booking-description {
     flex-basis: 100%;
     font-size: 13px;
-    color: var(--color-muted);
+    color: var(--color-neutral-700);
     font-style: italic;
     margin-top: -4px;
 }
@@ -449,7 +450,7 @@ footer {
     background: var(--color-brand-bg);
 }
 .my-booking-observe-pending {
-    color: var(--color-muted);
+    color: var(--color-neutral-700);
     border-color: var(--color-brand-border);
     cursor: default;
     opacity: 0.7;
