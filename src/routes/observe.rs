@@ -991,7 +991,12 @@ async fn observe(
             fmt_deg(elevation.to_degrees()),
         ),
         Some(TelescopeTarget::Satellite { norad_id }) => (norad_id.to_string(), String::new()),
-        Some(TelescopeTarget::Sun) | None => (String::new(), String::new()),
+        Some(TelescopeTarget::Sun) => (String::new(), String::new()),
+        // Idle telescope (fresh booking, no continuation): pre-fill a
+        // bright HI-line target in the Galactic disk so a first-time
+        // visitor can hit Track and see real signal without first
+        // having to know what coordinates to enter.
+        None => ("140".to_string(), "0".to_string()),
     };
     let state_html = telescope_state(&info.id, telescope).await;
     let (freq_min_mhz, freq_max_mhz) = if is_admin {
