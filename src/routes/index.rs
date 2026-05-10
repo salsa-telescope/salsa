@@ -3,8 +3,10 @@ use std::fs::read_to_string;
 use askama::Template;
 use axum::{
     Extension,
+    extract::Query,
     response::{Html, IntoResponse, Response},
 };
+use serde::Deserialize;
 
 use crate::models::user::User;
 
@@ -19,13 +21,78 @@ struct IndexTemplate {
     version_description: String,
 }
 
-pub async fn get_index(Extension(user): Extension<Option<User>>) -> Response {
-    Html(render_main(
-        user,
-        // TODO: Read this file at startup.
-        read_to_string("assets/welcome.html").expect("Reading static data should always work"),
+#[derive(Deserialize)]
+pub struct IndexQuery {
+    /// Set by failed POST /observe/guest/start* redirects so the welcome
+    /// page can render an explanatory banner above the hero. See
+    /// `guest_error_banner` for the codes recognised.
+    #[serde(default)]
+    pub guest_error: Option<String>,
+}
+
+pub async fn get_index(
+    Extension(user): Extension<Option<User>>,
+    Query(query): Query<IndexQuery>,
+) -> Response {
+    // TODO: Read this file at startup.
+    let mut content =
+        read_to_string("assets/welcome.html").expect("Reading static data should always work");
+    if let Some(banner) = query.guest_error.as_deref().and_then(guest_error_banner) {
+        content = format!("{banner}{content}");
+    }
+    Html(render_main(user, content)).into_response()
+}
+
+/// Render a styled welcome-page banner for a known guest-start failure
+/// code. Unknown codes return None so unexpected values from a
+/// hand-edited URL just show the normal welcome page.
+fn guest_error_banner(code: &str) -> Option<String> {
+    let (kind, message) = match code {
+        "all_busy" => (
+            "warning",
+            "All telescopes are currently in use. Please try again in a few minutes, \
+             or create a free account to reserve a time slot.",
+        ),
+        "all_maintenance" => (
+            "warning",
+            "All telescopes are currently in maintenance. Please try again later.",
+        ),
+        "busy" => (
+            "warning",
+            "That telescope is currently booked. Please try again later, \
+             or create a free account to reserve a time slot.",
+        ),
+        "maintenance" => (
+            "warning",
+            "That telescope is currently in maintenance. Please try again later.",
+        ),
+        "guest_active" => (
+            "warning",
+            "Another guest is currently using that telescope. Please try again in a moment.",
+        ),
+        "rate_limited" => (
+            "warning",
+            "Too many guest sessions started from your address. Please wait a few minutes, \
+             or create a free account to reserve a time slot.",
+        ),
+        "not_found" => ("danger", "Telescope not found."),
+        "internal" => (
+            "danger",
+            "Something went wrong starting the guest session. Please try again.",
+        ),
+        _ => return None,
+    };
+    let (bg, border, text) = match kind {
+        "danger" => ("bg-red-50", "border-red-300", "text-red-700"),
+        _ => ("bg-warning-light", "border-warning-border", "text-warning"),
+    };
+    Some(format!(
+        "<div class=\"section light\">\
+           <div class=\"max-w-3xl mx-auto text-sm font-semibold {text} {bg} border {border} rounded px-4 py-3\">\
+             {message}\
+           </div>\
+         </div>"
     ))
-    .into_response()
 }
 
 const GITHUB_SERVER_URL: Option<&'static str> = option_env!("GITHUB_SERVER_URL");

@@ -1043,10 +1043,7 @@ async fn start_guest_session_auto(
         return Redirect::to("/observe").into_response();
     }
     if state.guest_start_limiter.check_and_record(addr.ip()) {
-        return guest_start_error_response(
-            "Too many guest sessions started from this address. \
-             Please wait a few minutes, or create a free account to reserve a time slot.",
-        );
+        return guest_start_error_response("rate_limited");
     }
     let mut names = state.telescopes.get_names().await;
     let preferred_order = ["torre", "vale", "brage"];
@@ -1057,14 +1054,16 @@ async fn start_guest_session_auto(
     });
     let maintenance = match fetch_maintenance_set(state.database_connection.clone()).await {
         Ok(m) => m,
-        Err(_) => return guest_start_error_response("Internal error checking maintenance."),
+        Err(_) => return guest_start_error_response("internal"),
     };
 
     let country = lookup_country(addr.ip());
+    let mut all_in_maintenance = true;
     for name in names {
         if maintenance.contains(&name) {
             continue;
         }
+        all_in_maintenance = false;
         match GuestSession::start(state.database_connection.clone(), &name, country.clone()).await {
             Ok((_user, gs, session)) => {
                 info!(
@@ -1085,14 +1084,15 @@ async fn start_guest_session_auto(
             Err(StartError::TelescopeBusy) | Err(StartError::GuestAlreadyActive) => continue,
             Err(StartError::Internal(err)) => {
                 error!("Failed to start guest session (auto-pick on {name}): {err:?}");
-                return guest_start_error_response("Internal error starting guest session.");
+                return guest_start_error_response("internal");
             }
         }
     }
-    guest_start_error_response(
-        "All telescopes are currently in use. \
-         Please try again in a few minutes, or create a free account to reserve a time slot.",
-    )
+    if all_in_maintenance {
+        guest_start_error_response("all_maintenance")
+    } else {
+        guest_start_error_response("all_busy")
+    }
 }
 
 /// Start a guest session for an unauthenticated visitor on the given
@@ -1112,21 +1112,18 @@ async fn start_guest_session(
         return Redirect::to(&format!("/observe/{telescope_id}")).into_response();
     }
     if state.guest_start_limiter.check_and_record(addr.ip()) {
-        return guest_start_error_response(
-            "Too many guest sessions started from this address. \
-             Please wait a few minutes, or create a free account to reserve a time slot.",
-        );
+        return guest_start_error_response("rate_limited");
     }
     // Telescope must exist and not be under maintenance.
     if !state.telescopes.contains_key(&telescope_id).await {
-        return guest_start_error_response("Telescope not found.");
+        return guest_start_error_response("not_found");
     }
     let maintenance = match fetch_maintenance_set(state.database_connection.clone()).await {
         Ok(m) => m,
-        Err(_) => return guest_start_error_response("Internal error checking maintenance."),
+        Err(_) => return guest_start_error_response("internal"),
     };
     if maintenance.contains(&telescope_id) {
-        return guest_start_error_response("Telescope is currently under maintenance.");
+        return guest_start_error_response("maintenance");
     }
 
     let country = lookup_country(addr.ip());
@@ -1147,25 +1144,20 @@ async fn start_guest_session(
             );
             (headers, Redirect::to(&format!("/observe/{telescope_id}"))).into_response()
         }
-        Err(StartError::TelescopeBusy) => {
-            guest_start_error_response("This telescope is currently booked.")
-        }
-        Err(StartError::GuestAlreadyActive) => {
-            guest_start_error_response("Another guest is currently using this telescope.")
-        }
+        Err(StartError::TelescopeBusy) => guest_start_error_response("busy"),
+        Err(StartError::GuestAlreadyActive) => guest_start_error_response("guest_active"),
         Err(StartError::Internal(err)) => {
             error!("Failed to start guest session: {err:?}");
-            guest_start_error_response("Internal error starting guest session.")
+            guest_start_error_response("internal")
         }
     }
 }
 
-fn guest_start_error_response(message: &str) -> Response {
-    Html(format!(
-        "<!DOCTYPE html><html><body><p>{message}</p>\
-         <p><a href=\"/\">Return to home</a></p></body></html>"
-    ))
-    .into_response()
+/// Bounce a failed guest-start back to the welcome page with a query
+/// param the index handler turns into a styled banner. Keeps the user
+/// on familiar ground rather than dropping them on a bare error page.
+fn guest_start_error_response(reason: &str) -> Response {
+    Redirect::to(&format!("/?guest_error={reason}")).into_response()
 }
 
 /// Lightweight status probe for the guest banner JS. Returns 200 OK
