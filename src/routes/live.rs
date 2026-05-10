@@ -14,6 +14,8 @@ use tokio::sync::Mutex;
 use tracing::{debug, error, info};
 
 use crate::app::AppState;
+use crate::models::booking::Booking;
+use crate::models::guest::GuestSession;
 use crate::models::maintenance::fetch_maintenance_set;
 use crate::models::telescope_types::{TelescopeStatus, TelescopeTarget};
 use crate::models::user::User;
@@ -219,6 +221,7 @@ struct TelescopeStatusCard {
     controller_connected: Option<bool>,
     receiver_connected: Option<bool>,
     in_maintenance: bool,
+    calendar_status: &'static str,
 }
 
 #[derive(Template)]
@@ -238,12 +241,25 @@ async fn get_telescopes_status(State(state): State<WebcamState>) -> Html<String>
     let maintenance_set = fetch_maintenance_set(state.app_state.database_connection.clone())
         .await
         .unwrap_or_default();
+    let active_bookings = Booking::fetch_active(state.app_state.database_connection.clone())
+        .await
+        .unwrap_or_default();
+    let active_guests = GuestSession::fetch_all_active(state.app_state.database_connection.clone())
+        .await
+        .unwrap_or_default();
     let mut telescopes = Vec::new();
     for name in names {
         let Some(telescope) = state.app_state.telescopes.get(&name).await else {
             continue;
         };
         let in_maintenance = maintenance_set.contains(&name);
+        let calendar_status = if active_guests.iter().any(|g| g.telescope_id == name) {
+            "Guest"
+        } else if active_bookings.iter().any(|b| b.telescope_name == name) {
+            "Booked"
+        } else {
+            "Free"
+        };
         let (status, target, position, error, controller_connected, receiver_connected) =
             match telescope.get_info().await {
                 Ok(info) => {
@@ -290,6 +306,7 @@ async fn get_telescopes_status(State(state): State<WebcamState>) -> Html<String>
             controller_connected,
             receiver_connected,
             in_maintenance,
+            calendar_status,
         });
     }
     Html(
