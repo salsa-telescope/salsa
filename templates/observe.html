@@ -706,11 +706,18 @@
           const r = Math.max(0, s) % 60;
           return m + ':' + String(r).padStart(2, '0');
       };
+      // Tracks which local condition caused the session to end. Stays
+      // null while the session is healthy; first-trip wins so a quick
+      // idle timeout that races with the status poll keeps its reason.
+      let observedEndReason = null;
       function tick() {
           const now = Math.floor(Date.now() / 1000);
           const idleLeft = idleSecs - (now - lastActivityAt);
           const hardLeft = ceilingSecs - (now - startedAt);
           if (idleLeft <= 0 || hardLeft <= 0) {
+              if (!observedEndReason) {
+                  observedEndReason = idleLeft <= 0 ? 'idle' : 'ceiling';
+              }
               timeEl.textContent = 'shortly';
               noteEl.textContent = '';
               return;
@@ -736,7 +743,13 @@
       setInterval(async function () {
           try {
               const r = await fetch('/observe/guest/status', { cache: 'no-store' });
-              if (r.status === 410) window.location.href = '/';
+              if (r.status === 410) {
+                  // If a local timer hit zero, that's the reason; otherwise
+                  // the session was killed by something we couldn't observe
+                  // locally — most commonly preemption by a real booking.
+                  const reason = observedEndReason || 'preempted';
+                  window.location.href = '/?guest_ended=' + reason;
+              }
           } catch (_) { /* network blip — try again on next tick */ }
       }, 5000);
       // Reset idle only on the POST endpoints that the server's touch_if_guest

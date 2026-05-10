@@ -28,6 +28,11 @@ pub struct IndexQuery {
     /// `guest_error_banner` for the codes recognised.
     #[serde(default)]
     pub guest_error: Option<String>,
+    /// Set when a guest session has just ended (user clicked End,
+    /// idle/ceiling timeout, or preemption). Tells the visitor what
+    /// happened rather than dumping them silently on the welcome page.
+    #[serde(default)]
+    pub guest_ended: Option<String>,
 }
 
 pub async fn get_index(
@@ -38,6 +43,8 @@ pub async fn get_index(
     let mut content =
         read_to_string("assets/welcome.html").expect("Reading static data should always work");
     if let Some(banner) = query.guest_error.as_deref().and_then(guest_error_banner) {
+        content = format!("{banner}{content}");
+    } else if let Some(banner) = query.guest_ended.as_deref().and_then(guest_ended_banner) {
         content = format!("{banner}{content}");
     }
     Html(render_main(user, content)).into_response()
@@ -89,6 +96,42 @@ fn guest_error_banner(code: &str) -> Option<String> {
     Some(format!(
         "<div class=\"section light\">\
            <div class=\"max-w-3xl mx-auto text-sm font-semibold {text} {bg} border {border} rounded px-4 py-3\">\
+             {message}\
+           </div>\
+         </div>"
+    ))
+}
+
+/// Render a styled welcome-page banner explaining how a just-finished
+/// guest session ended. Reasons match the `EndReason` variants
+/// (`user`, `idle`, `ceiling`, `preempted`); unknown codes return None
+/// so a hand-edited URL falls through to the normal welcome page.
+fn guest_ended_banner(reason: &str) -> Option<String> {
+    let message = match reason {
+        "user" => {
+            "Your guest session has ended. Thanks for trying SALSA — \
+             click <strong>Observe now</strong> to start another, or \
+             create a free account to reserve a longer time slot."
+        }
+        "idle" => {
+            "Your guest session ended due to inactivity. \
+             Click <strong>Observe now</strong> to start another, or \
+             create a free account to reserve a longer time slot."
+        }
+        "ceiling" => {
+            "Your guest session reached the 30-minute maximum and ended. \
+             Create a free account to reserve a longer time slot."
+        }
+        "preempted" => {
+            "Your guest session ended because a registered user booked this telescope. \
+             Click <strong>Observe now</strong> to try another telescope, or \
+             create a free account to reserve your own time slot."
+        }
+        _ => return None,
+    };
+    Some(format!(
+        "<div class=\"section light\">\
+           <div class=\"max-w-3xl mx-auto text-sm text-info bg-info-light border border-info-border rounded px-4 py-3\">\
              {message}\
            </div>\
          </div>"

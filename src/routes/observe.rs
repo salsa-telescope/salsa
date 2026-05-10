@@ -1219,5 +1219,5 @@ async fn end_guest_session(
             .parse()
             .expect("Cookie should be parseable"),
     );
-    (headers, Redirect::to("/")).into_response()
+    (headers, Redirect::to("/?guest_ended=user")).into_response()
 }
