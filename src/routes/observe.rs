@@ -317,15 +317,17 @@ impl IntoResponse for ReceiverError {
     }
 }
 
+#[derive(Template)]
+#[template(path = "error_callout.html")]
+struct ErrorCallout {
+    message: String,
+}
+
 fn error_response(message: String) -> Response {
     // Create a response that will specifically update the error box on the page.
-    let body = if message.is_empty() {
-        String::new()
-    } else {
-        format!(
-            "<div class=\"text-sm font-semibold text-red-700 bg-red-50 border border-red-300 rounded px-3 py-2\">{message}</div>"
-        )
-    };
+    let body = ErrorCallout { message }
+        .render()
+        .expect("Rendering error_callout.html should never fail");
     Response::builder()
         .status(StatusCode::OK) // Needs to be ok to be picked up by htmx.
         .header("HX-Retarget", "#errors")

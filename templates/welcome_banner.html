@@ -1,0 +1,9 @@
+<div class="section light">
+  {% if kind == "danger" %}
+  <div class="max-w-3xl mx-auto callout bg-danger-bg border-danger-border font-semibold text-danger">{{ message|safe }}</div>
+  {% else if kind == "warning" %}
+  <div class="max-w-3xl mx-auto callout bg-warning-bg border-warning-border font-semibold text-warning">{{ message|safe }}</div>
+  {% else %}
+  <div class="max-w-3xl mx-auto callout bg-info-bg border-info-border text-info">{{ message|safe }}</div>
+  {% endif %}
+</div>

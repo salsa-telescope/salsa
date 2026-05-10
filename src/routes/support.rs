@@ -1,5 +1,6 @@
 use std::fs::read_to_string;
 
+use askama::Template;
 use axum::{
     Extension, Router,
     extract::State,
@@ -73,7 +74,13 @@ async fn get_support(
 }
 
 fn render_announcement_banner(message: &str) -> String {
-    format!(
-        r#"<div class="section light pb-0"><div class="border-l-4 border-warning-border bg-warning-light text-brand-dark rounded px-4 py-3"><div class="font-semibold mb-1">Known issue</div><p class="whitespace-pre-line">{message}</p></div></div>"#
-    )
+    KnownIssueBanner { message }
+        .render()
+        .expect("known_issue_banner")
+}
+
+#[derive(Template)]
+#[template(path = "known_issue_banner.html")]
+struct KnownIssueBanner<'a> {
+    message: &'a str,
 }

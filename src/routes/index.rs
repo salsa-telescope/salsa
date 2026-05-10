@@ -43,17 +43,24 @@ pub async fn get_index(
     let mut content =
         read_to_string("assets/welcome.html").expect("Reading static data should always work");
     if let Some(banner) = query.guest_error.as_deref().and_then(guest_error_banner) {
-        content = format!("{banner}{content}");
+        content = format!("{}{}", banner.render().expect("welcome_banner"), content);
     } else if let Some(banner) = query.guest_ended.as_deref().and_then(guest_ended_banner) {
-        content = format!("{banner}{content}");
+        content = format!("{}{}", banner.render().expect("welcome_banner"), content);
     }
     Html(render_main(user, content)).into_response()
 }
 
-/// Render a styled welcome-page banner for a known guest-start failure
-/// code. Unknown codes return None so unexpected values from a
-/// hand-edited URL just show the normal welcome page.
-fn guest_error_banner(code: &str) -> Option<String> {
+#[derive(Template)]
+#[template(path = "welcome_banner.html")]
+struct WelcomeBanner {
+    kind: &'static str,
+    message: &'static str,
+}
+
+/// Resolve a known guest-start failure code into a banner. Unknown
+/// codes return None so unexpected values from a hand-edited URL just
+/// show the normal welcome page.
+fn guest_error_banner(code: &str) -> Option<WelcomeBanner> {
     let (kind, message) = match code {
         "all_busy" => (
             "warning",
@@ -89,24 +96,14 @@ fn guest_error_banner(code: &str) -> Option<String> {
         ),
         _ => return None,
     };
-    let (bg, border, text) = match kind {
-        "danger" => ("bg-red-50", "border-red-300", "text-red-700"),
-        _ => ("bg-warning-light", "border-warning-border", "text-warning"),
-    };
-    Some(format!(
-        "<div class=\"section light\">\
-           <div class=\"max-w-3xl mx-auto text-sm font-semibold {text} {bg} border {border} rounded px-4 py-3\">\
-             {message}\
-           </div>\
-         </div>"
-    ))
+    Some(WelcomeBanner { kind, message })
 }
 
-/// Render a styled welcome-page banner explaining how a just-finished
-/// guest session ended. Reasons match the `EndReason` variants
-/// (`user`, `idle`, `ceiling`, `preempted`); unknown codes return None
-/// so a hand-edited URL falls through to the normal welcome page.
-fn guest_ended_banner(reason: &str) -> Option<String> {
+/// Resolve a guest-session-ended reason into a banner. Reasons match
+/// the `EndReason` variants (`user`, `idle`, `ceiling`, `preempted`);
+/// unknown codes return None so a hand-edited URL falls through to
+/// the normal welcome page.
+fn guest_ended_banner(reason: &str) -> Option<WelcomeBanner> {
     let message = match reason {
         "user" => {
             "Your guest session has ended. Thanks for trying SALSA — \
@@ -129,13 +126,10 @@ fn guest_ended_banner(reason: &str) -> Option<String> {
         }
         _ => return None,
     };
-    Some(format!(
-        "<div class=\"section light\">\
-           <div class=\"max-w-3xl mx-auto text-sm text-info bg-info-light border border-info-border rounded px-4 py-3\">\
-             {message}\
-           </div>\
-         </div>"
-    ))
+    Some(WelcomeBanner {
+        kind: "info",
+        message,
+    })
 }
 
 const GITHUB_SERVER_URL: Option<&'static str> = option_env!("GITHUB_SERVER_URL");
