@@ -14,14 +14,14 @@
   {% if let Some(started_at) = guest_started_at %}
     {% if let Some(last_activity_at) = guest_last_activity_at %}
   <div id="guest-banner"
-       class="callout bg-info-bg border-info-border flex items-start gap-3 flex-wrap"
+       class="callout bg-warning-bg border-warning-border py-3 mb-4 flex items-center gap-3 flex-wrap"
        data-started-at="{{ started_at }}"
        data-last-activity-at="{{ last_activity_at }}"
        data-idle-secs="{{ guest_idle_secs }}"
        data-ceiling-secs="{{ guest_ceiling_secs }}">
     <div class="flex-1 min-w-0 leading-snug">
       <span class="font-semibold">Guest session</span> —
-      ends in <span id="guest-countdown-time" class="font-semibold text-link">…</span>
+      ends in <span id="guest-countdown-time" class="font-semibold text-warning">…</span>
       <span id="guest-countdown-note" class="text-gray-600"></span>,
       or sooner if a registered user books this telescope. Data is not saved.
     </div>
