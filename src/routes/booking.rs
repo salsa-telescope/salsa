@@ -389,7 +389,7 @@ async fn build_bookings_page(
             .filter(|b| b.end_time > now)
             .collect();
     let all_users = if user.is_admin {
-        User::fetch_all(state.database_connection.clone())
+        User::fetch_all_non_guest(state.database_connection.clone())
             .await
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
     } else {

@@ -274,10 +274,18 @@ impl User {
         Ok(())
     }
 
-    pub async fn fetch_all(connection: Arc<Mutex<Connection>>) -> Result<Vec<User>, InternalError> {
+    /// Every non-guest user, ordered by id. Guests are synthetic per-session
+    /// rows that hold no bookings or observations, so they would only add
+    /// noise to admin filter dropdowns.
+    pub async fn fetch_all_non_guest(
+        connection: Arc<Mutex<Connection>>,
+    ) -> Result<Vec<User>, InternalError> {
         let conn = connection.lock().await;
         let mut stmt = conn
-            .prepare("SELECT id, username, provider FROM user ORDER BY id ASC")
+            .prepare(
+                "SELECT id, username, provider FROM user
+                 WHERE provider != 'guest' ORDER BY id ASC",
+            )
             .map_err(|err| InternalError::new(format!("Failed to prepare statement: {err}")))?;
         let users = stmt
             .query_map([], |row| {
