@@ -169,7 +169,14 @@
   </form>
 
   <h3 class="font-semibold mt-12 mb-2">Usage report</h3>
-  <p class="text-gray-500 text-sm mb-4">Summarise user activity in a given time range.</p>
+  <p class="text-gray-500 text-sm mb-4">
+    Summarise user activity in a given time range. <strong>Total bookings</strong>
+    counts a run of consecutive slots reserved by the same user on the same
+    telescope as a single booking; <strong>total booked hours</strong> sums the
+    raw slot durations. <strong>Guest sessions</strong> are anonymous
+    &ldquo;Observe now&rdquo; usage and live in their own table — they do not
+    affect the booking counts above.
+  </p>
   <form hx-get="/admin" hx-target="#page" hx-push-url="true" class="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-4 text-sm">
     <label class="text-gray-600">From</label>
     <input type="date" name="from" value="{{ usage_from }}" class="border rounded px-2 py-1" />

@@ -120,7 +120,7 @@ async fn get_admin(
     let bookings = Booking::fetch_in_range(state.database_connection.clone(), from_dt, to_dt)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    let total_bookings = bookings.len();
+    let total_bookings = count_booking_segments(&bookings);
     let total_hours = bookings
         .iter()
         .map(|b| (b.end_time - b.start_time).num_hours())
@@ -358,4 +358,103 @@ async fn toggle_maintenance(
         .headers_mut()
         .insert("HX-Redirect", HeaderValue::from_static("/admin"));
     Ok(response)
+}
+
+/// Collapse runs of adjacent slots reserved by the same user on the same
+/// telescope into a single booking. Since the calendar UI stores each slot
+/// as its own row, the raw row count tracks total booked hours, not how
+/// many distinct reservations users made.
+fn count_booking_segments(bookings: &[Booking]) -> usize {
+    if bookings.is_empty() {
+        return 0;
+    }
+    let mut idx: Vec<usize> = (0..bookings.len()).collect();
+    idx.sort_by(|&a, &b| {
+        let ba = &bookings[a];
+        let bb = &bookings[b];
+        ba.telescope_name
+            .cmp(&bb.telescope_name)
+            .then(ba.user_id.cmp(&bb.user_id))
+            .then(ba.start_time.cmp(&bb.start_time))
+    });
+    let mut segments = 1;
+    for w in idx.windows(2) {
+        let prev = &bookings[w[0]];
+        let curr = &bookings[w[1]];
+        if prev.telescope_name != curr.telescope_name
+            || prev.user_id != curr.user_id
+            || prev.end_time != curr.start_time
+        {
+            segments += 1;
+        }
+    }
+    segments
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use chrono::DateTime;
+
+    fn booking(user_id: i64, telescope: &str, start: i64, end: i64) -> Booking {
+        Booking {
+            id: 0,
+            start_time: DateTime::from_timestamp(start, 0).unwrap(),
+            end_time: DateTime::from_timestamp(end, 0).unwrap(),
+            telescope_name: telescope.to_string(),
+            user_id,
+            user_name: String::new(),
+            user_provider: String::new(),
+            description: None,
+            country: None,
+        }
+    }
+
+    #[test]
+    fn empty_input_is_zero_segments() {
+        assert_eq!(count_booking_segments(&[]), 0);
+    }
+
+    #[test]
+    fn single_booking_is_one_segment() {
+        assert_eq!(count_booking_segments(&[booking(1, "vale", 0, 3600)]), 1);
+    }
+
+    #[test]
+    fn adjacent_same_user_same_telescope_merges() {
+        let rows = vec![
+            booking(1, "vale", 0, 3600),
+            booking(1, "vale", 3600, 7200),
+            booking(1, "vale", 7200, 10800),
+        ];
+        assert_eq!(count_booking_segments(&rows), 1);
+    }
+
+    #[test]
+    fn gap_breaks_segment() {
+        let rows = vec![booking(1, "vale", 0, 3600), booking(1, "vale", 7200, 10800)];
+        assert_eq!(count_booking_segments(&rows), 2);
+    }
+
+    #[test]
+    fn different_user_breaks_segment() {
+        let rows = vec![booking(1, "vale", 0, 3600), booking(2, "vale", 3600, 7200)];
+        assert_eq!(count_booking_segments(&rows), 2);
+    }
+
+    #[test]
+    fn different_telescope_breaks_segment() {
+        let rows = vec![booking(1, "vale", 0, 3600), booking(1, "brage", 3600, 7200)];
+        assert_eq!(count_booking_segments(&rows), 2);
+    }
+
+    #[test]
+    fn input_order_does_not_matter() {
+        let ordered = vec![booking(1, "vale", 0, 3600), booking(1, "vale", 3600, 7200)];
+        let reversed = vec![booking(1, "vale", 3600, 7200), booking(1, "vale", 0, 3600)];
+        assert_eq!(
+            count_booking_segments(&ordered),
+            count_booking_segments(&reversed)
+        );
+    }
 }
