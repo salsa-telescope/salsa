@@ -729,6 +729,18 @@ async fn start_observe(
             "Gain must be between {GAIN_MIN_DB} and {GAIN_MAX_DB} dB."
         )));
     }
+    if !VALID_BANDWIDTH_MHZ.contains(&form.bandwidth_mhz) {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+    if !VALID_SPECTRAL_CHANNELS.contains(&form.spectral_channels) {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+    if form.integration_mode.as_deref() == Some("fixed")
+        && let Some(secs) = form.integration_time_secs
+        && !(secs.is_finite() && secs > 0.0 && secs <= MAX_INTEGRATION_TIME_SECS)
+    {
+        return Err(StatusCode::BAD_REQUEST);
+    }
 
     telescope
         .set_receiver_configuration(ReceiverConfiguration {
@@ -924,6 +936,14 @@ pub const FREQ_MAX_ADMIN_MHZ: u32 = 2300;
 // distributed across all stages via empty-name set_rx_gain.
 const GAIN_MIN_DB: f64 = 0.0;
 const GAIN_MAX_DB: f64 = 88.0;
+
+// Allowlists mirroring the observe.html <select> options. Values outside
+// these sets cannot be produced by the form, so they imply tampering — and
+// since `spectral_channels` flows into a `vec![0.0; n]` and `bandwidth_mhz`
+// sizes the IQ sample buffer, an unbounded value can OOM-abort the process.
+const VALID_BANDWIDTH_MHZ: &[f64] = &[1.0, 2.5, 5.0, 10.0, 25.0];
+const VALID_SPECTRAL_CHANNELS: &[usize] = &[64, 128, 256, 512, 1024, 2048, 4096, 8192];
+const MAX_INTEGRATION_TIME_SECS: f64 = 3600.0;
 
 #[derive(Template)]
 #[template(path = "observe.html", escape = "none")]
