@@ -61,6 +61,8 @@ struct AdminTemplate {
     local_users: Vec<(i64, String, String)>, // (id, username, comment)
     local_user_error: Option<String>,
     announcement: String,
+    users_by_provider: Vec<(String, usize)>, // (provider, count) sorted by count desc, guests excluded
+    users_total: usize,
 }
 
 async fn get_admin(
@@ -182,6 +184,10 @@ async fn get_admin(
     let local_users = User::fetch_all_local(state.database_connection.clone())
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let users_by_provider = User::count_by_provider_non_guest(state.database_connection.clone())
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let users_total = users_by_provider.iter().map(|(_, c)| c).sum();
     let announcement = fetch_support_announcement(state.database_connection)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
@@ -204,6 +210,8 @@ async fn get_admin(
         local_users,
         local_user_error,
         announcement,
+        users_by_provider,
+        users_total,
     }
     .render()
     .expect("Template rendering should always succeed");

@@ -274,6 +274,33 @@ impl User {
         Ok(())
     }
 
+    /// Count registered (non-guest) users grouped by authentication
+    /// provider, ordered by count descending then provider name. Used by
+    /// the admin page to show how many real accounts exist per provider.
+    pub async fn count_by_provider_non_guest(
+        connection: Arc<Mutex<Connection>>,
+    ) -> Result<Vec<(String, usize)>, InternalError> {
+        let conn = connection.lock().await;
+        let mut stmt = conn
+            .prepare(
+                "SELECT provider, COUNT(*) FROM user
+                 WHERE provider != 'guest'
+                 GROUP BY provider
+                 ORDER BY COUNT(*) DESC, provider ASC",
+            )
+            .map_err(|err| InternalError::new(format!("Failed to prepare statement: {err}")))?;
+        let rows = stmt
+            .query_map([], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)? as usize))
+            })
+            .map_err(|err| InternalError::new(format!("Failed to query providers: {err}")))?;
+        let mut res = Vec::new();
+        for r in rows {
+            res.push(r.map_err(|err| InternalError::new(format!("Failed to map row: {err}")))?);
+        }
+        Ok(res)
+    }
+
     /// Every non-guest user, ordered by id. Guests are synthetic per-session
     /// rows that hold no bookings or observations, so they would only add
     /// noise to admin filter dropdowns.
