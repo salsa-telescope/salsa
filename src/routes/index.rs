@@ -1,5 +1,3 @@
-use std::fs::read_to_string;
-
 use askama::Template;
 use axum::{
     Extension,
@@ -39,19 +37,22 @@ pub async fn get_index(
     Extension(user): Extension<Option<User>>,
     Query(query): Query<IndexQuery>,
 ) -> Response {
-    // TODO: Read this file at startup.
-    let mut content =
-        read_to_string("assets/welcome.html").expect("Reading static data should always work");
-    if let Some(banner) = query.guest_error.as_deref().and_then(guest_error_banner) {
-        content = format!("{}{}", banner.render().expect("welcome_banner"), content);
-    } else if let Some(banner) = query.guest_ended.as_deref().and_then(guest_ended_banner) {
-        content = format!("{}{}", banner.render().expect("welcome_banner"), content);
-    }
+    // guest_error takes priority over guest_ended if both happen to be set.
+    let banner = query
+        .guest_error
+        .as_deref()
+        .and_then(guest_error_banner)
+        .or_else(|| query.guest_ended.as_deref().and_then(guest_ended_banner));
+    let content = WelcomeTemplate { banner }.render().expect("welcome");
     Html(render_main(user, content)).into_response()
 }
 
 #[derive(Template)]
-#[template(path = "welcome_banner.html")]
+#[template(path = "welcome.html")]
+struct WelcomeTemplate {
+    banner: Option<WelcomeBanner>,
+}
+
 struct WelcomeBanner {
     kind: &'static str,
     message: &'static str,

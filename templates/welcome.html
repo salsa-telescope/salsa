@@ -1,4 +1,13 @@
 <div class="section dark welcome">
+    {% if let Some(banner) = banner %}
+    {% if banner.kind == "danger" %}
+    <div class="callout bg-danger-bg border-danger-border font-semibold text-danger max-w-2xl mx-auto text-left mb-10">{{ banner.message|safe }}</div>
+    {% else if banner.kind == "warning" %}
+    <div class="callout bg-warning-bg border-warning-border font-semibold text-warning max-w-2xl mx-auto text-left mb-10">{{ banner.message|safe }}</div>
+    {% else %}
+    <div class="callout bg-info-bg border-info-border text-info max-w-2xl mx-auto text-left mb-10">{{ banner.message|safe }}</div>
+    {% endif %}
+    {% endif %}
     <h1>Radio astronomy in your browser</h1>
     <div><p>Learn radio astronomy with real radio telescopes available for free for anyone to use.</p></div>
     <div class="flex flex-wrap gap-4 justify-center">
