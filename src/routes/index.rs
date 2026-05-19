@@ -43,7 +43,13 @@ pub async fn get_index(
         .as_deref()
         .and_then(guest_error_banner)
         .or_else(|| query.guest_ended.as_deref().and_then(guest_ended_banner));
-    let content = WelcomeTemplate { banner }.render().expect("welcome");
+    // Session-ended banners (heading.is_some()) replace the hero entirely
+    // — the banner's own CTAs do the job of the "Observe now"/"Book a
+    // telescope" buttons. Start-failure banners sit above the hero.
+    let show_hero = banner.as_ref().is_none_or(|b| b.heading.is_none());
+    let content = WelcomeTemplate { banner, show_hero }
+        .render()
+        .expect("welcome");
     Html(render_main(user, content)).into_response()
 }
 
@@ -51,18 +57,27 @@ pub async fn get_index(
 #[template(path = "welcome.html")]
 struct WelcomeTemplate {
     banner: Option<WelcomeBanner>,
+    show_hero: bool,
 }
 
 struct WelcomeBanner {
     kind: &'static str,
+    /// Some => "card" layout (heading + body + CTAs) that replaces the
+    /// hero. None => plain colored callout above the hero (used by the
+    /// start-failure banners).
+    heading: Option<&'static str>,
     message: &'static str,
+    /// Label for an "Observe again"-style POST CTA on the session-ended
+    /// card. Suppressed for `ceiling` (the user just hit the 30 min cap
+    /// — pointing them back at another guest session is misleading).
+    observe_again_label: Option<&'static str>,
 }
 
 /// Resolve a known guest-start failure code into a banner. Unknown
 /// codes return None so unexpected values from a hand-edited URL just
 /// show the normal welcome page.
 fn guest_error_banner(code: &str) -> Option<WelcomeBanner> {
-    let (kind, message) = match code {
+    let (kind, message): (&'static str, &'static str) = match code {
         "all_busy" => (
             "warning",
             "All telescopes are currently in use. Please try again in a few minutes, \
@@ -97,39 +112,60 @@ fn guest_error_banner(code: &str) -> Option<WelcomeBanner> {
         ),
         _ => return None,
     };
-    Some(WelcomeBanner { kind, message })
+    Some(WelcomeBanner {
+        kind,
+        heading: None,
+        message,
+        observe_again_label: None,
+    })
 }
 
 /// Resolve a guest-session-ended reason into a banner. Reasons match
 /// the `EndReason` variants (`user`, `idle`, `ceiling`, `preempted`);
 /// unknown codes return None so a hand-edited URL falls through to
 /// the normal welcome page.
+///
+/// Tone split: `user` and `ceiling` are normal session conclusions
+/// (info blue); `idle` and `preempted` are involuntary ends (warning
+/// yellow).
 fn guest_ended_banner(reason: &str) -> Option<WelcomeBanner> {
-    let message = match reason {
-        "user" => {
-            "Your guest session has ended. Thanks for trying SALSA — \
-             click <strong>Observe now</strong> to start another, or \
-             create a free account to reserve a longer time slot."
-        }
-        "idle" => {
-            "Your guest session ended due to inactivity. \
-             Click <strong>Observe now</strong> to start another, or \
-             create a free account to reserve a longer time slot."
-        }
-        "ceiling" => {
-            "Your guest session reached the 30-minute maximum and ended. \
-             Create a free account to reserve a longer time slot."
-        }
-        "preempted" => {
-            "Your guest session ended because a registered user booked this telescope. \
-             Click <strong>Observe now</strong> to try another telescope, or \
-             create a free account to reserve your own time slot."
-        }
+    let (kind, heading, message, observe_again): (
+        &'static str,
+        &'static str,
+        &'static str,
+        Option<&'static str>,
+    ) = match reason {
+        "user" => (
+            "info",
+            "Session ended",
+            "Thanks for trying SALSA.",
+            Some("Observe again"),
+        ),
+        "idle" => (
+            "warning",
+            "Session timed out",
+            "Your guest session ended due to inactivity.",
+            Some("Observe again"),
+        ),
+        "ceiling" => (
+            "info",
+            "30-minute limit reached",
+            "Your guest session reached the maximum length for unregistered visitors.",
+            None,
+        ),
+        "preempted" => (
+            "warning",
+            "Telescope reserved by another user",
+            "Your guest session ended because a registered user booked this telescope.",
+            Some("Try another telescope"),
+        ),
         _ => return None,
     };
     Some(WelcomeBanner {
-        kind: "info",
+        kind,
+        heading: Some(heading),
         message,
+        observe_again_label: observe_again,
     })
 }
 

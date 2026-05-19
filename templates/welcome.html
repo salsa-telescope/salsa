@@ -1,13 +1,38 @@
 <div class="section dark welcome">
     {% if let Some(banner) = banner %}
-    {% if banner.kind == "danger" %}
-    <div class="callout bg-danger-bg border-danger-border font-semibold text-danger max-w-2xl mx-auto text-left mb-10">{{ banner.message|safe }}</div>
-    {% else if banner.kind == "warning" %}
-    <div class="callout bg-warning-bg border-warning-border font-semibold text-warning max-w-2xl mx-auto text-left mb-10">{{ banner.message|safe }}</div>
-    {% else %}
-    <div class="callout bg-info-bg border-info-border text-info max-w-2xl mx-auto text-left mb-10">{{ banner.message|safe }}</div>
+        {% if let Some(heading) = banner.heading %}
+            {# Session-ended card: replaces the hero. Light pastel background
+               on the dark hero so it reads as the page's primary content. #}
+            {% if banner.kind == "warning" %}
+            <div class="max-w-md mx-auto bg-warning-bg border-l-4 border-warning-border rounded-lg px-3 py-3 text-center text-neutral-900">
+                <div class="text-xl mb-3"><strong class="text-warning">{{ heading }}:</strong> {{ banner.message }}</div>
+            {% else %}
+            <div class="max-w-md mx-auto bg-info-bg border-l-4 border-info-border rounded-lg px-3 py-3 text-center text-neutral-900">
+                <div class="text-xl mb-3"><strong class="text-info">{{ heading }}:</strong> {{ banner.message }}</div>
+            {% endif %}
+                <div class="flex justify-center gap-3">
+                    {% if let Some(obs_label) = banner.observe_again_label %}
+                    <form method="POST" action="/observe/guest/start" class="contents">
+                        <button type="submit" class="btn px-4 py-1.5 text-base font-semibold">{{ obs_label }}</button>
+                    </form>
+                    <a href="/auth/login" class="inline-block px-4 py-1.5 text-base font-semibold rounded-md border border-brand text-brand hover:bg-brand hover:text-white no-underline cursor-pointer">Create an account</a>
+                    {% else %}
+                    <a href="/auth/login" class="btn px-4 py-1.5 text-base font-semibold">Create an account</a>
+                    {% endif %}
+                </div>
+            </div>
+        {% else %}
+            {# Start-failure callout: sits above the hero, hero still shown below. #}
+            {% if banner.kind == "danger" %}
+            <div class="callout bg-danger-bg border-danger-border font-semibold text-danger max-w-2xl mx-auto text-left mb-10">{{ banner.message|safe }}</div>
+            {% else if banner.kind == "warning" %}
+            <div class="callout bg-warning-bg border-warning-border font-semibold text-warning max-w-2xl mx-auto text-left mb-10">{{ banner.message|safe }}</div>
+            {% else %}
+            <div class="callout bg-info-bg border-info-border text-info max-w-2xl mx-auto text-left mb-10">{{ banner.message|safe }}</div>
+            {% endif %}
+        {% endif %}
     {% endif %}
-    {% endif %}
+    {% if show_hero %}
     <h1>Radio astronomy in your browser</h1>
     <div><p>Learn radio astronomy with real radio telescopes available for free for anyone to use.</p></div>
     <div class="flex flex-wrap gap-4 justify-center">
@@ -16,6 +41,7 @@
         </form>
         <a href="/bookings" class="btn px-8 py-3.5 text-base font-semibold">Book a telescope</a>
     </div>
+    {% endif %}
 </div>
 
 <div class="section light">
