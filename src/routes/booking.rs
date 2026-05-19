@@ -2,6 +2,7 @@ use crate::app::AppState;
 use crate::geoip::lookup_country;
 use crate::models::booking::Booking;
 use crate::models::maintenance::fetch_maintenance_set;
+use crate::models::support_announcement::fetch_support_announcement;
 use crate::models::user::User;
 use crate::routes::index::render_main;
 use askama::Template;
@@ -137,6 +138,7 @@ struct BookingsTemplate {
     is_admin: bool,
     viewed_user_id: i64,
     all_users: Vec<User>,
+    announcement: Option<String>,
 }
 
 async fn get_bookings(
@@ -373,7 +375,13 @@ async fn build_bookings_page(
     let days: Vec<NaiveDate> = (0..7).map(|d| week_start + Duration::days(d)).collect();
     let hours: Vec<u32> = (0..24).collect();
 
-    let telescope_names = state.telescopes.get_names().await;
+    let mut telescope_names = state.telescopes.get_names().await;
+    let preferred_order = ["torre", "vale", "brage"];
+    telescope_names.sort_by_key(|n| {
+        let lower = n.to_lowercase();
+        let pos = preferred_order.iter().position(|&p| p == lower.as_str());
+        (pos.is_none(), pos.unwrap_or(usize::MAX), lower)
+    });
     let maintenance_set = fetch_maintenance_set(state.database_connection.clone())
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
@@ -395,6 +403,10 @@ async fn build_bookings_page(
     } else {
         vec![]
     };
+    let announcement = fetch_support_announcement(state.database_connection.clone())
+        .await
+        .ok()
+        .flatten();
 
     let slots = build_calendar_slots(week_start, &telescope_names, &all_bookings, user, now);
 
@@ -423,6 +435,7 @@ async fn build_bookings_page(
         is_admin: user.is_admin,
         viewed_user_id,
         all_users,
+        announcement,
     }
     .render()
     .expect("Template rendering should always succeed");

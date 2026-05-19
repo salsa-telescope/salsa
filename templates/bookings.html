@@ -1,3 +1,12 @@
+{% if let Some(message) = announcement %}
+<div class="section light pb-0">
+  <div class="callout bg-warning-bg border-warning-border text-brand-dark">
+    <div class="font-semibold mb-1">Known issue</div>
+    <p class="whitespace-pre-line">{{ message }}</p>
+  </div>
+</div>
+{% endif %}
+
 <div class="section light">
   {% for e in error %}
   <div class="callout bg-danger-bg border-danger-border">{{ e }}</div>
