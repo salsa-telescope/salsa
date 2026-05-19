@@ -67,7 +67,10 @@ async fn get_visibility(
     headers: HeaderMap,
 ) -> impl IntoResponse {
     let coord = form.coord.as_deref().unwrap_or("galactic").to_string();
-    let x_val = form.x.unwrap_or(0.0);
+    // Match the observe page's idle-telescope default (glon=140, glat=0):
+    // a bright HI-line target in the Galactic disk that's a sensible
+    // first-look without the user having to pick coordinates.
+    let x_val = form.x.unwrap_or(140.0);
     let y_val = form.y.unwrap_or(0.0);
     let today = Utc::now().date_naive().format("%Y-%m-%d").to_string();
     let date_str = form
