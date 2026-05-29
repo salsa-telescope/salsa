@@ -74,7 +74,9 @@ impl TelescopeTracker {
         el_offset_rad: f64,
     ) -> Result<TelescopeTarget, TelescopeError> {
         let mut state = self.state.lock().unwrap();
-        assert!(!state.quit);
+        if state.quit {
+            return Err(TelescopeError::TelescopeNotConnected);
+        }
         // Validate elevation at set time when we can compute the target's
         // current horizontal. Satellites without a TLE in cache are skipped —
         // the periodic update loop will surface the error once the TLE arrives.
@@ -99,7 +101,9 @@ impl TelescopeTracker {
 
     pub fn stop(&mut self) -> Result<(), TelescopeError> {
         let mut state = self.state.lock().unwrap();
-        assert!(!state.quit);
+        if state.quit {
+            return Err(TelescopeError::TelescopeNotConnected);
+        }
         state.target = None;
         Ok(())
     }
@@ -107,13 +111,17 @@ impl TelescopeTracker {
     #[allow(dead_code)]
     pub fn restart(&self) {
         let mut state = self.state.lock().unwrap();
-        assert!(!state.quit);
+        if state.quit {
+            return;
+        }
         state.should_restart = true;
     }
 
     pub fn info(&self) -> Result<TelescopeTrackerInfo, TelescopeError> {
         let state = self.state.lock().unwrap();
-        assert!(!state.quit);
+        if state.quit {
+            return Err(TelescopeError::TelescopeNotConnected);
+        }
         let current_horizontal = state.current_direction;
         let commanded_horizontal = state.commanded_horizontal;
         let status = match commanded_horizontal {
@@ -386,4 +394,46 @@ fn directions_are_close(a: Direction, b: Direction, tol: f64) -> bool {
     // Therefore we have the "tol" multiplier here, which scales the allowed error.
     let epsilon = tol * 0.1_f64.to_radians();
     (a.azimuth - b.azimuth).abs() < epsilon && (a.elevation - b.elevation).abs() < epsilon
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // Past behaviour: route handlers racing teardown would call into the
+    // tracker after shutdown set state.quit=true and the four entry points
+    // would panic the tokio worker (seen in /var/log/syslog.3.gz on 2026-05-08).
+    // Now each method must return TelescopeNotConnected instead.
+    #[tokio::test]
+    async fn methods_after_shutdown_return_not_connected_instead_of_panicking() {
+        let mut tracker = TelescopeTracker::new(
+            // Reserved port 0 / unroutable address — the background task's
+            // connect attempts will fail, but that's fine for this test:
+            // we only exercise the trait-method paths.
+            "127.0.0.1:1".to_string(),
+            Location {
+                longitude: 0.0,
+                latitude: 0.0,
+            },
+            0.0,
+            std::f64::consts::PI,
+            TleCacheHandle::new(),
+        );
+        tracker.shutdown().await;
+
+        assert!(matches!(
+            tracker.info(),
+            Err(TelescopeError::TelescopeNotConnected)
+        ));
+        assert!(matches!(
+            tracker.stop(),
+            Err(TelescopeError::TelescopeNotConnected)
+        ));
+        assert!(matches!(
+            tracker.set_target(TelescopeTarget::Sun, 0.0, 0.0),
+            Err(TelescopeError::TelescopeNotConnected)
+        ));
+        // restart() returns nothing; just ensure it doesn't panic.
+        tracker.restart();
+    }
 }
