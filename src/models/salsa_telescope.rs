@@ -206,7 +206,7 @@ impl Telescope for SalsaTelescope {
                 let measurements = inner.measurements.clone();
                 let cancellation_token = cancellation_token.clone();
                 let tsys_k = inner.tsys_k;
-                tokio::spawn(async move {
+                tokio::task::spawn_blocking(move || {
                     measure(
                         address,
                         measurements,
@@ -214,7 +214,6 @@ impl Telescope for SalsaTelescope {
                         receiver_configuration,
                         tsys_k,
                     )
-                    .await
                 })
             };
             inner.active_integration = Some(ActiveIntegration {
@@ -378,7 +377,9 @@ impl Telescope for SalsaTelescope {
             let address = inner.receiver_address.clone();
             let gpsdo_enabled = inner.gpsdo_enabled;
             let token = cancellation_token.clone();
-            tokio::spawn(async move { measure_iq(address, gpsdo_enabled, token, config, tx).await })
+            tokio::task::spawn_blocking(move || {
+                measure_iq(address, gpsdo_enabled, token, config, tx)
+            })
         };
         inner.receiver_configuration.integrate = true;
         inner.active_integration = Some(ActiveIntegration {
@@ -455,6 +456,7 @@ fn measure_switched(
     srate: f64,
     rfi_filter: bool,
     tsys: f64,
+    cancellation_token: &CancellationToken,
     spec: &mut Vec<f64>,
 ) -> Result<(), TelescopeError> {
     let mut spec_sig: Vec<f64> = vec![];
@@ -468,6 +470,14 @@ fn measure_switched(
         rfi_filter,
         &mut spec_sig,
     )?;
+    // Bail between sig and ref if a stop has been requested — otherwise the
+    // outer loop's only cancellation check is at the top, and the user waits
+    // out the full ~1 s iteration. Leaving `spec` empty signals the outer loop
+    // to skip the averaging update and exit cleanly. (Raw mode has no such
+    // halfway point, so it still has to wait one full block.)
+    if cancellation_token.is_cancelled() {
+        return Ok(());
+    }
     let mut spec_ref: Vec<f64> = vec![];
     measure_single(
         usrp,
@@ -660,7 +670,11 @@ fn median(mut xs: Vec<f64>) -> f64 {
     }
 }
 
-async fn measure(
+// Sync function intended to run on tokio's blocking thread pool via
+// `spawn_blocking`. The hot loop is pure FFI (`receive_simple`) and CPU work
+// (FFT, RFI filter); running it on an async worker would block one of the
+// shared runtime threads for ~1 s per iteration and starve unrelated requests.
+fn measure(
     address: String,
     measurements: Arc<Mutex<Vec<Measurement>>>,
     cancellation_token: CancellationToken,
@@ -695,7 +709,7 @@ async fn measure(
     info!("Tsys = {:.1} K (from config)", tsys);
 
     {
-        let mut measurements = measurements.clone().lock_owned().await;
+        let mut measurements = measurements.blocking_lock();
         let mut measurement = Measurement {
             amps: vec![0.0; avg_pts],
             freqs: vec![0.0; avg_pts],
@@ -723,6 +737,7 @@ async fn measure(
                 srate,
                 config.rfi_filter,
                 tsys,
+                &cancellation_token,
                 &mut spec,
             )?,
             ObservationMode::Raw => measure_single(
@@ -737,9 +752,15 @@ async fn measure(
             )?,
             ObservationMode::Interferometry => break,
         };
+        // measure_switched leaves spec empty when it bails on cancellation.
+        // Skip the averaging update; the outer while-condition re-checks the
+        // token next iteration.
+        if spec.is_empty() {
+            continue;
+        }
         n += 1.0;
 
-        let mut measurements = measurements.lock().await;
+        let mut measurements = measurements.blocking_lock();
         let Some(measurement) = measurements.last_mut() else {
             break;
         };
@@ -757,7 +778,9 @@ async fn measure(
 /// Stream raw IQ blocks for interferometry cross-correlation.
 /// Sends blocks of IQ_BLOCK_SIZE Complex<f32> samples over `tx`.
 /// Exits when `cancellation_token` fires or the receiver drops the channel.
-async fn measure_iq(
+///
+/// Sync function intended to run via `spawn_blocking` — see `measure()`.
+fn measure_iq(
     address: String,
     gpsdo_enabled: bool,
     cancellation_token: CancellationToken,
@@ -778,7 +801,7 @@ async fn measure_iq(
         // Latch t=0 on the next PPS edge, then wait for it to settle.
         usrp.set_time_next_pps(0, 0.0, 0)
             .map_err(|e| TelescopeError::ReceiverFailed(format!("set_time_next_pps: {e}")))?;
-        tokio::time::sleep(Duration::from_secs(2)).await;
+        std::thread::sleep(Duration::from_secs(2));
         info!("External time sync complete for {}", address);
     }
 
@@ -844,11 +867,10 @@ async fn measure_iq(
             .collect();
 
         if tx
-            .send(IqBlock {
+            .blocking_send(IqBlock {
                 timestamp_secs,
                 samples,
             })
-            .await
             .is_err()
         {
             break;
