@@ -15,6 +15,10 @@ pub struct User {
     pub name: String,
     pub provider: String,
     pub is_admin: bool,
+    /// Preferred IANA timezone for displaying dates and times. `None` until
+    /// the user picks one (or it's auto-detected from the browser on first
+    /// login); treated as UTC for display via [`User::tz`].
+    pub timezone: Option<chrono_tz::Tz>,
 }
 
 async fn hash_password(password: String) -> Result<String, InternalError> {
@@ -30,6 +34,32 @@ async fn hash_password(password: String) -> Result<String, InternalError> {
 }
 
 impl User {
+    /// Effective display timezone, defaulting to UTC when the user hasn't
+    /// chosen one yet.
+    pub fn tz(&self) -> chrono_tz::Tz {
+        self.timezone.unwrap_or(chrono_tz::UTC)
+    }
+
+    /// Persist the user's preferred timezone. The value is validated
+    /// against the IANA database before storing so we never keep junk, and
+    /// the canonical name is written back.
+    pub async fn set_timezone(
+        connection: Arc<Mutex<Connection>>,
+        user_id: i64,
+        timezone: &str,
+    ) -> Result<(), InternalError> {
+        let tz: chrono_tz::Tz = timezone
+            .parse()
+            .map_err(|_| InternalError::new(format!("Invalid timezone: {timezone}")))?;
+        let conn = connection.lock().await;
+        conn.execute(
+            "UPDATE user SET timezone = ?1 WHERE id = ?2",
+            (tz.name(), user_id),
+        )
+        .map_err(|e| InternalError::new(format!("Failed to update timezone: {e}")))?;
+        Ok(())
+    }
+
     pub async fn create_from_external(
         connection: Arc<Mutex<Connection>>,
         name: String,
@@ -47,6 +77,7 @@ impl User {
             name,
             provider,
             is_admin: false,
+            timezone: None,
         })
     }
 
@@ -94,6 +125,7 @@ impl User {
             name: username,
             provider: "local".to_string(),
             is_admin: false,
+            timezone: None,
         })
     }
 
@@ -144,6 +176,7 @@ impl User {
                 name,
                 provider: "local".to_string(),
                 is_admin: false,
+                timezone: None,
             }))
         } else {
             Ok(None)
@@ -321,6 +354,7 @@ impl User {
                     name: row.get(1)?,
                     provider: row.get(2).unwrap_or_default(),
                     is_admin: false,
+                    timezone: None,
                 })
             })
             .map_err(|err| InternalError::new(format!("Failed to query users: {err}")))?;
@@ -354,6 +388,7 @@ impl User {
                 name,
                 provider,
                 is_admin: false,
+                timezone: None,
             })),
             Err(Error::QueryReturnedNoRows) => Ok(None),
             Err(err) => Err(InternalError::new(format!(

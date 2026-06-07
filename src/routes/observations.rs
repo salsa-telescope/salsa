@@ -4,6 +4,7 @@ use crate::models::interferometry::InterferometrySession;
 use crate::models::observation::Observation;
 use crate::models::user::User;
 use crate::routes::index::render_main;
+use crate::timefmt::InTz;
 use askama::Template;
 use axum::extract::{Path, Query, State};
 use axum::http::header;
@@ -11,6 +12,7 @@ use axum::http::{HeaderMap, StatusCode};
 use axum::response::{Html, IntoResponse, Json, Redirect, Response};
 use axum::{Extension, Router, routing::get};
 use chrono::{DateTime, Utc};
+use chrono_tz::Tz;
 use serde::{Deserialize, Serialize};
 
 const PAGE_SIZE: i64 = 10;
@@ -65,6 +67,8 @@ struct ObservationsTemplate {
     total_count: i64,
     // interferometry fields
     interferometry_sessions: Vec<InterfSessionRow>,
+    /// Display timezone, used by `.in_tz(tz)` calls in the template.
+    tz: Tz,
 }
 
 fn make_interf_rows(
@@ -100,6 +104,7 @@ fn build_observations_template(
     all_users: Vec<User>,
     show_interferometry_tab: bool,
     interferometry_sessions: Vec<InterfSessionRow>,
+    tz: Tz,
 ) -> ObservationsTemplate {
     let total_pages = ((total_count as usize).saturating_sub(1) / PAGE_SIZE as usize) + 1;
     let current_page = current_page.min(total_pages.max(1));
@@ -126,6 +131,7 @@ fn build_observations_template(
         all_users,
         show_interferometry_tab,
         interferometry_sessions,
+        tz,
     }
 }
 
@@ -201,6 +207,7 @@ async fn get_observations(
         all_users,
         show_interferometry_tab,
         interferometry_sessions,
+        user.tz(),
     )
     .render()
     .expect("Template rendering should always succeed");
@@ -252,6 +259,7 @@ async fn delete_observation(
         vec![],
         interf_count > 0,
         vec![],
+        user.tz(),
     )
     .render()
     .expect("Template rendering should always succeed");
@@ -320,6 +328,7 @@ async fn delete_interferometry_session(
         vec![],
         show_interferometry_tab,
         interferometry_sessions,
+        user.tz(),
     )
     .render()
     .expect("Template rendering should always succeed");

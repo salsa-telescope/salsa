@@ -172,6 +172,7 @@ impl GuestSession {
             name: username,
             provider: "guest".to_string(),
             is_admin: false,
+            timezone: None,
         };
         let started_at = DateTime::<Utc>::from_timestamp(now_ts, 0).unwrap_or_default();
         let session = Session {

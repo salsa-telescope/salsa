@@ -16,9 +16,9 @@
   </div>
 
   <div class="text-sm text-gray-500 mb-6 flex flex-wrap gap-x-6 gap-y-1">
-    <span>Start: {{ session.start_time.format("%Y-%m-%d %H:%M:%S UTC") }}</span>
+    <span>Start: {{ session.start_time.in_tz(tz).format("%Y-%m-%d %H:%M:%S %Z") }}</span>
     {% if let Some(et) = session.end_time %}
-    <span>End: {{ et.format("%Y-%m-%d %H:%M:%S UTC") }}</span>
+    <span>End: {{ et.in_tz(tz).format("%Y-%m-%d %H:%M:%S %Z") }}</span>
     {% endif %}
     <span>Target: {{ target_label }}</span>
     <span>{{ center_freq_mhz|fmt("{:.3}") }} MHz &plusmn; {{ half_bw_mhz|fmt("{:.2}") }} MHz</span>

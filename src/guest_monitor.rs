@@ -102,6 +102,7 @@ pub async fn end_session(state: &AppState, guest: &GuestSession, reason: EndReas
         name: format!("guest-{}", guest.user_id),
         provider: "guest".to_string(),
         is_admin: false,
+        timezone: None,
     };
     if let Some(telescope) = state.telescopes.get(&guest.telescope_id).await {
         stop_and_save_observation(

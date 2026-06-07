@@ -90,6 +90,59 @@
         <footer>
             Made by weirdos 🦆 ({% if build_url == "" %} {{version_description}} {% else %} <a href={{build_url}}>{{version_description}}</a> {% endif %})
         </footer>
+        {% if detect_timezone %}
+        <script>
+            // First login without a saved timezone: detect the browser's
+            // IANA zone once, store it, and reload so times render locally.
+            // The flag is read back after the reload to confirm it to the user.
+            (function() {
+                try {
+                    var tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+                    if (!tz) return;
+                    fetch('/account/timezone', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body: 'timezone=' + encodeURIComponent(tz)
+                    }).then(function(r) {
+                        if (r.ok) {
+                            try { sessionStorage.setItem('salsa-tz-autoset', tz); } catch (e) {}
+                            location.reload();
+                        }
+                    });
+                } catch (e) { /* leave timezone unset; stays UTC */ }
+            })();
+        </script>
+        {% endif %}
+        <script>
+            // One-shot confirmation toast after a timezone was auto-detected.
+            (function() {
+                var tz;
+                try { tz = sessionStorage.getItem('salsa-tz-autoset'); } catch (e) { return; }
+                if (!tz) return;
+                try { sessionStorage.removeItem('salsa-tz-autoset'); } catch (e) {}
+                var toast = document.createElement('div');
+                toast.className = 'callout bg-info-bg border-info-border text-info';
+                toast.style.cssText = 'position:fixed;bottom:1rem;right:1rem;max-width:24rem;z-index:1100;box-shadow:0 4px 12px rgba(0,0,0,0.15);display:flex;gap:0.75rem;align-items:flex-start';
+                var msg = document.createElement('div');
+                msg.style.flex = '1';
+                msg.append('Timezone set to ');
+                var strong = document.createElement('strong');
+                strong.textContent = tz;
+                msg.append(strong, ' from your browser. Change it on your ');
+                var link = document.createElement('a');
+                link.href = '/account';
+                link.textContent = 'profile';
+                msg.append(link, '.');
+                var close = document.createElement('button');
+                close.setAttribute('aria-label', 'Dismiss');
+                close.textContent = '✕';
+                close.style.cssText = 'flex-shrink:0;cursor:pointer;line-height:1';
+                close.onclick = function() { toast.remove(); };
+                toast.append(msg, close);
+                document.body.appendChild(toast);
+                setTimeout(function() { toast.remove(); }, 10000);
+            })();
+        </script>
         <div id="lightbox" onclick="this.classList.add('hidden');this.classList.remove('flex')" class="hidden fixed inset-0 bg-black/85 z-[1000] cursor-zoom-out items-center justify-center p-8">
             <img id="lightbox-img" class="max-w-[90vw] max-h-[90vh] object-contain rounded shadow-[0_0_60px_rgba(0,0,0,0.5)]">
         </div>

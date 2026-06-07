@@ -17,5 +17,6 @@ pub mod secrets;
 pub mod supervised_task;
 pub mod telescope_controller;
 pub mod telescope_tracker;
+pub mod timefmt;
 pub mod tle_cache;
 pub mod weather_cache;

@@ -17,6 +17,9 @@ struct IndexTemplate {
     content: String,
     build_url: String,
     version_description: String,
+    /// True for a logged-in, non-guest user who hasn't set a timezone yet,
+    /// triggering a one-shot browser-timezone auto-detect in the layout.
+    detect_timezone: bool,
 }
 
 #[derive(Deserialize)]
@@ -193,6 +196,9 @@ pub fn render_main(user: Option<User>, content: String) -> String {
     };
     let is_admin = user.as_ref().is_some_and(|u| u.is_admin);
     let is_guest = user.as_ref().is_some_and(|u| u.provider == "guest");
+    let detect_timezone = user
+        .as_ref()
+        .is_some_and(|u| u.provider != "guest" && u.timezone.is_none());
     let name = match &user {
         Some(u) => u.name.clone(),
         None => String::new(),
@@ -204,6 +210,7 @@ pub fn render_main(user: Option<User>, content: String) -> String {
         content,
         build_url,
         version_description,
+        detect_timezone,
     }
     .render()
     .expect("Template should always succeed")

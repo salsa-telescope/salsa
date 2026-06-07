@@ -1,4 +1,4 @@
-<div class="section light">
+<div class="section light" id="account-card">
   <h2 class="text-xl font-semibold mb-4">Account</h2>
   <dl class="text-sm space-y-2 grid grid-cols-[max-content_auto] gap-x-4 gap-y-1">
     <dt class="text-gray-500">Username</dt>
@@ -10,6 +10,29 @@
     <dt class="text-gray-500">Account type</dt>
     <dd>{% if user.is_admin %}Admin{% else %}User{% endif %}</dd>
   </dl>
+
+  <div class="mt-6 pt-4 border-t border-gray-200">
+    <label for="timezone-select" class="block text-sm font-medium text-gray-700 mb-1">Timezone</label>
+    <p class="text-sm text-gray-500 mb-2">
+      Dates and times across SALSA — including the bookings calendar — are shown in this timezone.
+    </p>
+    <div class="flex items-center gap-3 flex-wrap">
+      <select id="timezone-select" name="timezone"
+        hx-post="/account/timezone"
+        hx-trigger="change"
+        hx-target="#account-card"
+        hx-swap="outerHTML"
+        class="border rounded px-2 py-1 text-sm bg-white">
+        {% for tz in timezones %}
+        <option value="{{ tz.name }}"{% if tz.selected %} selected{% endif %}>{{ tz.name }}</option>
+        {% endfor %}
+      </select>
+      {% if saved %}
+      <span class="text-sm text-success">Saved ✓ — applies as you navigate.</span>
+      {% endif %}
+    </div>
+  </div>
+
   <p class="text-sm text-gray-600 mt-6 pt-4 border-t border-gray-200">
     Enjoying SALSA? We'd love to hear about it — what you observed,
     what surprised you, what you used the data for. Drop us a line at
