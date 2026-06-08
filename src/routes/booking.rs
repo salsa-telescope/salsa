@@ -5,6 +5,7 @@ use crate::models::maintenance::fetch_maintenance_set;
 use crate::models::support_announcement::fetch_support_announcement;
 use crate::models::user::User;
 use crate::routes::index::render_main;
+use crate::timefmt::InTz;
 use askama::Template;
 use axum::extract::{ConnectInfo, Path, Query};
 use axum::http::{HeaderMap, HeaderValue, header};
@@ -16,7 +17,8 @@ use axum::{
     http::StatusCode,
     routing::{delete, get},
 };
-use chrono::{DateTime, Datelike, Duration, NaiveDate, Utc};
+use chrono::{DateTime, Datelike, Duration, LocalResult, NaiveDate, Offset, TimeZone, Utc};
+use chrono_tz::Tz;
 use serde::Deserialize;
 use std::net::SocketAddr;
 
@@ -35,6 +37,9 @@ pub enum SlotStatus {
     MineActive,
     OtherUser,
     Past,
+    /// A local-time grid cell that maps to no bookable hour because the
+    /// user's clocks skipped it on a DST spring-forward day.
+    Unavailable,
 }
 
 #[derive(Debug, Clone)]
@@ -47,12 +52,21 @@ pub struct CalendarSlot {
     pub booked_by: Option<String>,
 }
 
+/// Lay out the calendar grid in the user's local timezone. The bookable
+/// unit stays a whole UTC hour (identical for every user, regardless of
+/// their zone); this only chooses which (local day, local hour) cell each
+/// canonical slot is shown in, and labels rows with local time. `off_min`
+/// is the minute component of the zone's UTC offset (0 for whole-hour
+/// zones, 30/45 for the half/quarter-hour ones) so the local wall-clock
+/// time of every cell lands exactly on a whole UTC hour.
 fn build_calendar_slots(
     week_start: NaiveDate,
     telescope_names: &[String],
     bookings: &[Booking],
     user: &User,
     now: DateTime<Utc>,
+    tz: Tz,
+    off_min: u32,
 ) -> Vec<Vec<Vec<CalendarSlot>>> {
     let mut result = Vec::new();
 
@@ -62,7 +76,27 @@ fn build_calendar_slots(
             let day = week_start + Duration::days(day_offset);
             let mut day_slots = Vec::new();
             for hour in 0..24 {
-                let start_time = day.and_hms_opt(hour, 0, 0).unwrap().and_utc();
+                // Map this local wall-clock cell back to its UTC instant.
+                let naive = day.and_hms_opt(hour, off_min, 0).unwrap();
+                let start_time = match tz.from_local_datetime(&naive) {
+                    LocalResult::Single(dt) => dt.with_timezone(&Utc),
+                    // DST fall-back: two instants share this local time;
+                    // show the earliest, the later one is just unreachable
+                    // from the grid that day.
+                    LocalResult::Ambiguous(dt, _) => dt.with_timezone(&Utc),
+                    // DST spring-forward: this local hour doesn't exist.
+                    LocalResult::None => {
+                        day_slots.push(CalendarSlot {
+                            start_time: now,
+                            telescope_name: telescope.clone(),
+                            status: SlotStatus::Unavailable,
+                            booking_id: None,
+                            is_current_hour: false,
+                            booked_by: None,
+                        });
+                        continue;
+                    }
+                };
                 let end_time = start_time + Duration::hours(1);
 
                 let is_current_hour = now >= start_time && now < end_time;
@@ -131,6 +165,9 @@ struct BookingsTemplate {
     next_week: String,
     days: Vec<NaiveDate>,
     hours: Vec<u32>,
+    /// Local wall-clock label for each grid row (e.g. "16:00", or "16:30"
+    /// in half-hour zones), indexed by hour 0..24.
+    hour_labels: Vec<String>,
     slots: Vec<Vec<Vec<CalendarSlot>>>,
     upcoming_count: usize,
     max_upcoming_bookings: u32,
@@ -139,6 +176,12 @@ struct BookingsTemplate {
     viewed_user_id: i64,
     all_users: Vec<User>,
     announcement: Option<String>,
+    /// Display timezone, used by `.in_tz(tz)` calls in the template.
+    tz: Tz,
+    /// IANA name (e.g. "Europe/Stockholm") for the help text and JS.
+    tz_name: String,
+    /// Current zone abbreviation (e.g. "CEST") for column/label headers.
+    tz_abbr: String,
 }
 
 async fn get_bookings(
@@ -161,7 +204,11 @@ async fn get_bookings(
         user.id
     };
     let now = Utc::now();
-    let week_start = week_monday(query.week.unwrap_or(now.date_naive()));
+    let week_start = week_monday(
+        query
+            .week
+            .unwrap_or(now.with_timezone(&user.tz()).date_naive()),
+    );
     let content = build_bookings_page(&state, &user, viewed_user_id, now, week_start, None).await?;
 
     let content = if headers.get("hx-request").is_some() {
@@ -245,15 +292,19 @@ async fn create_booking(
         if inserted {
             None
         } else {
+            let local = start_time.with_timezone(&user.tz());
             Some(format!(
                 "Slot at {} on {} is already booked.",
-                start_time.format("%H:%M"),
-                start_time.format("%Y-%m-%d"),
+                local.format("%H:%M %Z"),
+                local.format("%Y-%m-%d"),
             ))
         }
     };
 
-    let week_start = week_monday(form.week.unwrap_or(now.date_naive()));
+    let week_start = week_monday(
+        form.week
+            .unwrap_or(now.with_timezone(&user.tz()).date_naive()),
+    );
     let content = build_bookings_page(&state, &user, user.id, now, week_start, error).await?;
 
     let content = if headers.get("hx-request").is_some() {
@@ -291,7 +342,11 @@ async fn delete_booking(
     }
 
     let now = Utc::now();
-    let week_start = week_monday(query.week.unwrap_or(now.date_naive()));
+    let week_start = week_monday(
+        query
+            .week
+            .unwrap_or(now.with_timezone(&user.tz()).date_naive()),
+    );
     let viewed_user_id = if user.is_admin {
         query.user_id.unwrap_or(user.id)
     } else {
@@ -365,6 +420,20 @@ async fn build_bookings_page(
     week_start: NaiveDate,
     error: Option<String>,
 ) -> Result<String, StatusCode> {
+    let tz = user.tz();
+    // Minute component of the current UTC offset (0, 30 or 45). The whole
+    // grid is laid out at this minute past the local hour so every cell
+    // maps to a whole UTC hour.
+    let off_min = (now
+        .with_timezone(&tz)
+        .offset()
+        .fix()
+        .local_minus_utc()
+        .rem_euclid(3600)
+        / 60) as u32;
+    let tz_name = tz.name().to_string();
+    let tz_abbr = now.with_timezone(&tz).format("%Z").to_string();
+
     let week_end = week_start + Duration::days(6);
     let prev_week = (week_start - Duration::weeks(1))
         .format("%Y-%m-%d")
@@ -374,6 +443,7 @@ async fn build_bookings_page(
         .to_string();
     let days: Vec<NaiveDate> = (0..7).map(|d| week_start + Duration::days(d)).collect();
     let hours: Vec<u32> = (0..24).collect();
+    let hour_labels: Vec<String> = (0..24).map(|h| format!("{h:02}:{off_min:02}")).collect();
 
     let mut telescope_names = state.telescopes.get_names().await;
     let preferred_order = ["torre", "vale", "brage"];
@@ -408,7 +478,15 @@ async fn build_bookings_page(
         .ok()
         .flatten();
 
-    let slots = build_calendar_slots(week_start, &telescope_names, &all_bookings, user, now);
+    let slots = build_calendar_slots(
+        week_start,
+        &telescope_names,
+        &all_bookings,
+        user,
+        now,
+        tz,
+        off_min,
+    );
 
     let upcoming_count = my_bookings.len();
     let max_upcoming_bookings = state.booking_config.max_upcoming_bookings;
@@ -428,6 +506,7 @@ async fn build_bookings_page(
         next_week,
         days,
         hours,
+        hour_labels,
         slots,
         upcoming_count,
         max_upcoming_bookings,
@@ -436,6 +515,9 @@ async fn build_bookings_page(
         viewed_user_id,
         all_users,
         announcement,
+        tz,
+        tz_name,
+        tz_abbr,
     }
     .render()
     .expect("Template rendering should always succeed");
