@@ -26,6 +26,30 @@ Onsala Space Observatory, 57°24'N, 11°55'E, approximately 5 m above sea level.
       </div>
 
       <div class="space-y-2">
+        <h3 class="text-lg font-semibold text-gray-800">System temperature calibration</h3>
+        <p>SALSA can observe in two modes: a raw total-power mode, and a
+frequency-switched mode in which a reference spectrum at an offset frequency is
+subtracted. In frequency-switched mode the output is the normalized difference
+(sig − ref) / ref, which is scaled to antenna temperature via
+T<sub>a</sub> = T<sub>sys</sub> · (sig − ref) / ref. The scale factor
+T<sub>sys</sub> was fixed by comparing a SALSA spectrum toward a bright HI region
+with the same region from the
+<a href="https://www.astro.uni-bonn.de/hisurvey/AllSky_profiles/">Bonn AllSky HI survey</a>
+(GASS/LAB), convolved to SALSA's 6° beam. Since the Bonn survey is on a calibrated
+brightness-temperature scale, matching the two (allowing for main-beam efficiency)
+yields T<sub>sys</sub> ≈ 300 K.</p>
+        <p>This is an approximate, single-point calibration and the absolute scale
+should be treated with caution. It assumes a fixed T<sub>sys</sub>, whereas the
+true value varies with elevation, ambient temperature and time, and it depends on
+the poorly known main-beam efficiency of the small holey dish and on stray
+radiation entering the sidelobes from sky-filling Galactic HI. A further caveat is
+the convolution itself: the Bonn server specifies that the requested effective
+FWHM should be below 1°, so asking for SALSA's 6° beam goes outside the survey's
+intended range — the resulting profile may miss flux or rest on an unreliable
+spatial mapping, adding further uncertainty to the comparison.</p>
+      </div>
+
+      <div class="space-y-2">
         <h3 class="text-lg font-semibold text-gray-800">Dish, horn and optics</h3>
 	<p>The dish is 2.3 m in diameter. The surface has holes of about 5 mm
 in diameter, letting air through to reduce wind resistance. The holes do limit
