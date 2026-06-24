@@ -20,6 +20,7 @@ Onsala Space Observatory, 57°24'N, 11°55'E, approximately 5 m above sea level.
         <ul class="list-disc list-inside space-y-1">
           <li>Dish diameter: 2.3 m (main beam ~6° at 21 cm)</li>
           <li>Frequency range: 1350–1600 MHz (up to 25 MHz instantaneous bandwidth)</li>
+          <li>Velocity resolution (HI): ~1 km/s at the standard 2.5 MHz bandwidth / 512 channels, down to ~26 m/s at 1 MHz / 8192 channels</li>
           <li>System temperature: T<sub>sys</sub> ≈ 300 K</li>
           <li>Rotation speed: 1.5° / second </li>
         </ul>
@@ -47,6 +48,22 @@ the convolution itself: the Bonn server specifies that the requested effective
 FWHM should be below 1°, so asking for SALSA's 6° beam goes outside the survey's
 intended range — the resulting profile may miss flux or rest on an unreliable
 spatial mapping, adding further uncertainty to the comparison.</p>
+      </div>
+
+      <div class="space-y-2">
+        <h3 class="text-lg font-semibold text-gray-800">Velocity reference frame (VLSR)</h3>
+        <p>Velocities measured from the 21 cm line are first relative to the
+telescope, which moves with the Earth and Sun. For galactic targets SALSA converts
+these to the Local Standard of Rest (LSR) frame so they are directly comparable
+with published HI data (see the experiments page for the concept). The correction
+is the sum of two terms: the Sun's 20 km/s motion toward the standard apex near
+Vega (RA 18ʰ, Dec +30°), projected onto the target direction, and the Earth's
+orbital motion about the Sun, approximated as a 30 km/s circular velocity. No
+correction is applied to non-galactic targets (Sun, satellites).</p>
+        <p>SALSA uses the classical "Standard Solar Motion" to define the LSR — the
+same convention as legacy HI surveys such as LAB — so velocities are directly
+comparable with those maps. The model is accurate to well within the standard
+~1 km/s resolution.</p>
       </div>
 
       <div class="space-y-2">
