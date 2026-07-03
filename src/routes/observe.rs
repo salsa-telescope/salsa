@@ -603,6 +603,51 @@ async fn wait_for_deadline(deadline: Option<tokio::time::Instant>) {
     }
 }
 
+/// Watch a running integration and stop+save it early on either of two events:
+/// the antenna leaving Tracking (a cable-unwrap slew, or the target sinking out
+/// of the elevation range — either way `measure()` would keep averaging
+/// off-source samples into the block), or an optional fixed-duration deadline.
+/// Both race the integration's cancellation token, so a manual End or booking
+/// handover pre-empts the monitor and it exits without touching a later run.
+#[allow(clippy::too_many_arguments)]
+async fn monitor_integration(
+    telescope: Arc<dyn Telescope>,
+    token: tokio_util::sync::CancellationToken,
+    fixed_deadline: Option<tokio::time::Instant>,
+    db: Arc<Mutex<Connection>>,
+    user: User,
+    tle_cache: TleCacheHandle,
+    telescope_id: String,
+) {
+    let mut ticker = tokio::time::interval(std::time::Duration::from_secs(1));
+    ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+    loop {
+        tokio::select! {
+            _ = token.cancelled() => break,
+            _ = wait_for_deadline(fixed_deadline) => {
+                stop_and_save_observation(telescope.as_ref(), db.clone(), &user, &tle_cache).await;
+                break;
+            }
+            _ = ticker.tick() => {
+                match telescope.get_info().await {
+                    Ok(info) if info.status != TelescopeStatus::Tracking => {
+                        warn!(
+                            "Stopping integration on {telescope_id}: antenna left tracking (status {:?}) mid-integration",
+                            info.status
+                        );
+                        stop_and_save_observation(telescope.as_ref(), db.clone(), &user, &tle_cache).await;
+                        break;
+                    }
+                    Ok(_) => {}
+                    Err(err) => warn!(
+                        "Integration monitor could not read info for {telescope_id}: {err}"
+                    ),
+                }
+            }
+        }
+    }
+}
+
 async fn stop_telescope(
     Extension(user): Extension<Option<User>>,
     State(state): State<AppState>,
@@ -787,40 +832,15 @@ async fn start_observe(
             }
             _ => None,
         };
-        let telescope_clone = telescope.clone();
-        let user_clone = user.clone();
-        let db = state.database_connection.clone();
-        let tle_cache = state.tle_cache.clone();
-        let telescope_id = telescope_id.clone();
-        tokio::spawn(async move {
-            let mut ticker = tokio::time::interval(std::time::Duration::from_secs(1));
-            ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
-            loop {
-                tokio::select! {
-                    _ = token.cancelled() => break,
-                    _ = wait_for_deadline(fixed_deadline) => {
-                        stop_and_save_observation(telescope_clone.as_ref(), db.clone(), &user_clone, &tle_cache).await;
-                        break;
-                    }
-                    _ = ticker.tick() => {
-                        match telescope_clone.get_info().await {
-                            Ok(info) if info.status != TelescopeStatus::Tracking => {
-                                warn!(
-                                    "Stopping integration on {telescope_id}: antenna left tracking (status {:?}) mid-integration",
-                                    info.status
-                                );
-                                stop_and_save_observation(telescope_clone.as_ref(), db.clone(), &user_clone, &tle_cache).await;
-                                break;
-                            }
-                            Ok(_) => {}
-                            Err(err) => warn!(
-                                "Integration monitor could not read info for {telescope_id}: {err}"
-                            ),
-                        }
-                    }
-                }
-            }
-        });
+        tokio::spawn(monitor_integration(
+            telescope.clone(),
+            token,
+            fixed_deadline,
+            state.database_connection.clone(),
+            user.clone(),
+            state.tle_cache.clone(),
+            telescope_id.clone(),
+        ));
     }
 
     let guest_session = maybe_guest_session_for(&state, &user).await;
@@ -1280,4 +1300,152 @@ async fn end_guest_session(
             .expect("Cookie should be parseable"),
     );
     (headers, Redirect::to("/?guest_ended=user")).into_response()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::coords::{Direction, Location};
+    use crate::models::telescope_types::IqBlock;
+    use async_trait::async_trait;
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use tokio_util::sync::CancellationToken;
+
+    // A telescope that reports Slewing while an integration is in progress —
+    // the exact state the FakeTelescope cannot produce (its own set_target
+    // stops integration, and it never autonomously slews), so we mock it to
+    // isolate the monitor's tracking-loss stop. Records whether the monitor
+    // called stop_integration.
+    struct SlewingMock {
+        stop_called: Arc<AtomicBool>,
+    }
+
+    fn info_slewing_and_measuring() -> TelescopeInfo {
+        TelescopeInfo {
+            id: "mock".to_string(),
+            status: TelescopeStatus::Slewing,
+            commanded_horizontal: Some(Direction {
+                azimuth: 0.0,
+                elevation: 1.0,
+            }),
+            current_horizontal: Some(Direction {
+                azimuth: 3.0,
+                elevation: 1.0,
+            }),
+            current_target: None,
+            most_recent_error: None,
+            measurement_in_progress: true,
+            latest_observation: None,
+            stow_position: None,
+            az_offset_rad: 0.0,
+            el_offset_rad: 0.0,
+            location: Location {
+                longitude: 0.0,
+                latitude: 0.0,
+            },
+            min_elevation_rad: 0.0,
+            max_elevation_rad: std::f64::consts::PI,
+            webcam_crop: None,
+            receiver_connected: None,
+            controller_connected: None,
+            wind_warning_ms: None,
+            default_ref_freq_mhz: 1417.9,
+            default_gain_db: 60.0,
+        }
+    }
+
+    #[async_trait]
+    impl Telescope for SlewingMock {
+        async fn get_info(&self) -> Result<TelescopeInfo, TelescopeError> {
+            Ok(info_slewing_and_measuring())
+        }
+        async fn stop_integration(&self) -> Option<ObservedSpectra> {
+            self.stop_called.store(true, Ordering::SeqCst);
+            Some(ObservedSpectra {
+                frequencies: vec![0.0],
+                spectra: vec![0.0],
+                observation_time: std::time::Duration::from_secs(1),
+            })
+        }
+        async fn set_target(
+            &self,
+            _t: TelescopeTarget,
+            _az: f64,
+            _el: f64,
+        ) -> Result<TelescopeTarget, TelescopeError> {
+            unimplemented!()
+        }
+        async fn stop(&self) -> Result<(), TelescopeError> {
+            unimplemented!()
+        }
+        async fn set_receiver_configuration(
+            &self,
+            _c: ReceiverConfiguration,
+        ) -> Result<ReceiverConfiguration, ReceiverError> {
+            unimplemented!()
+        }
+        async fn clear_measurements(&self) {
+            unimplemented!()
+        }
+        async fn interferometry_capable(&self) -> bool {
+            unimplemented!()
+        }
+        async fn current_integration_token(&self) -> Option<CancellationToken> {
+            unimplemented!()
+        }
+        async fn shutdown(&self) {
+            unimplemented!()
+        }
+        async fn start_iq_stream(
+            &self,
+            _c: ReceiverConfiguration,
+        ) -> Result<tokio::sync::mpsc::Receiver<IqBlock>, ReceiverError> {
+            unimplemented!()
+        }
+    }
+
+    // The monitor must stop the integration once the telescope reports it is no
+    // longer Tracking. A guest user is used so save_observation short-circuits
+    // and the in-memory DB is never touched. If the tracking-loss check were
+    // removed the monitor would loop forever and the timeout would trip.
+    #[tokio::test]
+    async fn monitor_stops_integration_when_tracking_lost() {
+        let stop_called = Arc::new(AtomicBool::new(false));
+        let telescope: Arc<dyn Telescope> = Arc::new(SlewingMock {
+            stop_called: stop_called.clone(),
+        });
+        let db = Arc::new(Mutex::new(
+            Connection::open_in_memory().expect("in-memory sqlite"),
+        ));
+        let guest = User {
+            id: 1,
+            name: "guest".to_string(),
+            provider: "guest".to_string(),
+            is_admin: false,
+            timezone: None,
+        };
+
+        let finished = tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            monitor_integration(
+                telescope,
+                CancellationToken::new(),
+                None,
+                db,
+                guest,
+                TleCacheHandle::new(),
+                "mock".to_string(),
+            ),
+        )
+        .await;
+
+        assert!(
+            finished.is_ok(),
+            "monitor should stop the off-target integration and return, not loop"
+        );
+        assert!(
+            stop_called.load(Ordering::SeqCst),
+            "monitor should have called stop_integration"
+        );
+    }
 }
