@@ -35,7 +35,7 @@ use serde::Deserialize;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 
 pub fn routes(state: AppState) -> Router {
     let observe_routes = Router::new()
@@ -593,6 +593,16 @@ pub(crate) async fn save_observation(
     }
 }
 
+/// Await a fixed-duration deadline, or never resolve when there is none.
+/// Lets the integration monitor's `select!` include an optional timeout arm
+/// without special-casing interactive (open-ended) integrations.
+async fn wait_for_deadline(deadline: Option<tokio::time::Instant>) {
+    match deadline {
+        Some(deadline) => tokio::time::sleep_until(deadline).await,
+        None => std::future::pending().await,
+    }
+}
+
 async fn stop_telescope(
     Extension(user): Extension<Option<User>>,
     State(state): State<AppState>,
@@ -761,26 +771,54 @@ async fn start_observe(
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
 
-    // Fixed-duration mode: spawn a task that races the configured sleep
-    // against this integration's cancellation token. If the user clicks End
-    // first (or the booking ends), the token is cancelled and the task
-    // exits without acting on whatever integration may follow.
-    if let (Some("fixed"), Some(secs)) =
-        (form.integration_mode.as_deref(), form.integration_time_secs)
-        && secs > 0.0
-        && secs.is_finite()
-        && let Some(token) = telescope.current_integration_token().await
-    {
+    // Monitor the running integration and stop+save it early on two events:
+    //   * The antenna loses track (e.g. a cable-unwrap slew swings it far off
+    //     target). measure() would otherwise keep averaging off-source samples
+    //     into the same block, silently corrupting a long integration, so we
+    //     cut it off as soon as status leaves Tracking.
+    //   * Fixed-duration mode reaches its configured length.
+    // Both race against this integration's cancellation token: if the user
+    // clicks End first (or the booking ends) the token fires and the task
+    // exits without touching whatever integration may follow.
+    if let Some(token) = telescope.current_integration_token().await {
+        let fixed_deadline = match (form.integration_mode.as_deref(), form.integration_time_secs) {
+            (Some("fixed"), Some(secs)) if secs > 0.0 && secs.is_finite() => {
+                Some(tokio::time::Instant::now() + std::time::Duration::from_secs_f64(secs))
+            }
+            _ => None,
+        };
         let telescope_clone = telescope.clone();
         let user_clone = user.clone();
         let db = state.database_connection.clone();
         let tle_cache = state.tle_cache.clone();
+        let telescope_id = telescope_id.clone();
         tokio::spawn(async move {
-            tokio::select! {
-                _ = tokio::time::sleep(std::time::Duration::from_secs_f64(secs)) => {
-                    stop_and_save_observation(telescope_clone.as_ref(), db, &user_clone, &tle_cache).await;
+            let mut ticker = tokio::time::interval(std::time::Duration::from_secs(1));
+            ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+            loop {
+                tokio::select! {
+                    _ = token.cancelled() => break,
+                    _ = wait_for_deadline(fixed_deadline) => {
+                        stop_and_save_observation(telescope_clone.as_ref(), db.clone(), &user_clone, &tle_cache).await;
+                        break;
+                    }
+                    _ = ticker.tick() => {
+                        match telescope_clone.get_info().await {
+                            Ok(info) if info.status != TelescopeStatus::Tracking => {
+                                warn!(
+                                    "Stopping integration on {telescope_id}: antenna left tracking (status {:?}) mid-integration",
+                                    info.status
+                                );
+                                stop_and_save_observation(telescope_clone.as_ref(), db.clone(), &user_clone, &tle_cache).await;
+                                break;
+                            }
+                            Ok(_) => {}
+                            Err(err) => warn!(
+                                "Integration monitor could not read info for {telescope_id}: {err}"
+                            ),
+                        }
+                    }
                 }
-                _ = token.cancelled() => {}
             }
         });
     }
