@@ -577,6 +577,11 @@
           if (Number.isFinite(v) && v > 0) targetSecs = Math.round(v);
       }
       const elapsedStr = targetSecs !== null ? serverSecs + ' / ' + targetSecs : '' + serverSecs;
+      // The backend stops an integration if the antenna leaves the target
+      // (a cable-unwrap slew, or the target sinking out of the elevation
+      // range). Detect that measuring→stopped edge here so we can tell the
+      // observer why their run ended.
+      const stoppedNow = wasObserving && !isMeasuring;
       if (isMeasuring) {
           if (!wasObserving && window.reconnectSpectrumSocket) window.reconnectSpectrumSocket();
           wasObserving = true;
@@ -588,6 +593,25 @@
           timerEl.classList.add('hidden');
           elapsedEl.textContent = '0';
           if (window.setChartTitle) window.setChartTitle(serverSecs > 0 ? 'Integration time: ' + serverSecs + 's' + powerStr : '');
+          if (stoppedNow) maybeNotifyOffTargetStop();
+      }
+  }
+
+  // Show an info notice when an integration was stopped because the antenna
+  // moved off the target, distinguishing it from the benign stops (manual
+  // End and fixed-duration completion both keep status Tracking; a booking
+  // handover leaves status Idle with no error line). Reads the just-swapped
+  // status DOM: Slewing means a slew off target, while Idle with an
+  // elevation-range error means the target sank below the horizon.
+  function maybeNotifyOffTargetStop() {
+      const status = document.querySelector('#telescope-status h2 span')?.textContent.trim() || '';
+      const errEl = document.querySelector('#telescope-status p.text-danger');
+      const elevationLost = status === 'Idle' && errEl && /elevation/i.test(errEl.textContent);
+      if (status === 'Slewing' || elevationLost) {
+          document.getElementById('errors').innerHTML =
+              '<div class="rounded-md border border-info-border bg-info-bg px-3 py-2 text-sm text-info">' +
+              'Integration stopped: the telescope moved off the target. The data collected so far ' +
+              'has been saved to your <a href="/observations">observation archive</a>.</div>';
       }
   }
 
