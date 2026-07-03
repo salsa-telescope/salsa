@@ -40,6 +40,7 @@ pub fn start(state: AppState) {
                         name: b.user_name.clone(),
                         provider: b.user_provider.clone(),
                         is_admin: false,
+                        timezone: None,
                     });
                     let previous_user = active_users.get(telescope_name).cloned();
 

@@ -38,7 +38,7 @@
     <div class="my-booking-row">
       <div class="my-booking-info">
         <span class="my-booking-telescope">{{ booking.telescope_name }}</span>
-        <span class="my-booking-time">{{ booking.start_time.format("%Y-%m-%d %H:%M") }}&ndash;{{ booking.end_time.format("%H:%M") }} UTC</span>
+        <span class="my-booking-time">{{ booking.start_time.in_tz(tz).format("%Y-%m-%d %H:%M") }}&ndash;{{ booking.end_time.in_tz(tz).format("%H:%M %Z") }}</span>
         {% if let Some(desc) = booking.description %}
         <span class="my-booking-description">{{ desc }}</span>
         {% endif %}
@@ -47,7 +47,7 @@
         {% if booking.active_at(now) %}
         <a href="observe/{{ booking.telescope_name }}" class="my-booking-btn my-booking-observe">Observe</a>
         {% else %}
-        <span class="my-booking-btn my-booking-observe my-booking-observe-pending" title="Observe opens at {{ booking.start_time.format("%Y-%m-%d %H:%M") }} UTC">Observe</span>
+        <span class="my-booking-btn my-booking-observe my-booking-observe-pending" title="Observe opens at {{ booking.start_time.in_tz(tz).format("%Y-%m-%d %H:%M %Z") }}">Observe</span>
         {% endif %}
         <button
           hx-delete="bookings/{{ booking.id }}?week={{ week_start }}{% if is_admin %}&user_id={{ viewed_user_id }}{% endif %}"
@@ -84,7 +84,7 @@
       <span class="legend-item"><span class="legend-swatch calendar-slot-past"></span> Past</span>
       <span class="legend-item"><span class="legend-swatch calendar-slot-maintenance"></span> Maintenance</span>
     </div>
-    <p class="calendar-help">All times are in UTC. Click a green slot to book it. Click a blue slot to cancel.</p>
+    <p class="calendar-help">All times are shown in your timezone ({{ tz_name }}, {{ tz_abbr }}) &mdash; change it on your <a href="/account">profile</a>. Click a green slot to book it. Click a blue slot to cancel.</p>
   </div>
 
   <div class="telescope-tabs">
@@ -100,14 +100,14 @@
   </div>
 
   <script>
+  var SALSA_TZ = "{{ tz_name }}";
   (function() {
     function updateClock() {
-      var now = new Date();
-      var h = String(now.getUTCHours()).padStart(2, '0');
-      var m = String(now.getUTCMinutes()).padStart(2, '0');
-      var s = String(now.getUTCSeconds()).padStart(2, '0');
       var el = document.getElementById('utc-clock');
-      if (el) el.textContent = h + ':' + m + ':' + s + ' UTC';
+      if (el) el.textContent = new Intl.DateTimeFormat('sv-SE', {
+        timeZone: SALSA_TZ, hour: '2-digit', minute: '2-digit',
+        second: '2-digit', hour12: false, timeZoneName: 'short'
+      }).format(new Date());
     }
     updateClock();
     setInterval(updateClock, 1000);
@@ -131,7 +131,7 @@
     <table class="calendar-grid">
       <thead>
         <tr>
-          <th class="calendar-hour-label">UTC</th>
+          <th class="calendar-hour-label">{{ tz_abbr }}</th>
           {% for day in days %}
           <th class="calendar-header-cell">{{ day.format("%a %d") }}</th>
           {% endfor %}
@@ -140,7 +140,7 @@
       <tbody>
         {% for hour in hours %}
         <tr>
-          <td class="calendar-hour-label">{{ hour }}:00</td>
+          <td class="calendar-hour-label">{{ hour_labels[hour as usize] }}</td>
           {% for day_idx in 0..7 %}
           {% let slot = slots[tel_idx][day_idx][hour as usize] %}
           {% match slot.status %}
@@ -151,7 +151,7 @@
               hx-target="#page"
               hx-confirm="book"
               hx-vals='{"start_timestamp": {{ slot.start_time.timestamp() }}, "telescope": "{{ slot.telescope_name }}", "week": "{{ week_start }}"}'
-              title="Book {{ slot.telescope_name }} at {{ slot.start_time.format("%Y-%m-%d %H:%M") }} UTC (maintenance mode)"
+              title="Book {{ slot.telescope_name }} at {{ slot.start_time.in_tz(tz).format("%Y-%m-%d %H:%M %Z") }} (maintenance mode)"
               style="cursor: pointer;">
           </td>
           {% else if maintenance_telescopes[tel_idx] %}
@@ -168,7 +168,7 @@
               hx-target="#page"
               hx-confirm="book"
               hx-vals='{"start_timestamp": {{ slot.start_time.timestamp() }}, "telescope": "{{ slot.telescope_name }}", "week": "{{ week_start }}"}'
-              title="Book {{ slot.telescope_name }} at {{ slot.start_time.format("%Y-%m-%d %H:%M") }} UTC">
+              title="Book {{ slot.telescope_name }} at {{ slot.start_time.in_tz(tz).format("%Y-%m-%d %H:%M %Z") }}">
           </td>
           {% endif %}
           {% when SlotStatus::Mine %}
@@ -209,6 +209,9 @@
           {% when SlotStatus::Past %}
           <td class="calendar-slot calendar-slot-past">
           </td>
+          {% when SlotStatus::Unavailable %}
+          <td class="calendar-slot calendar-slot-past" title="This hour does not exist in your timezone (daylight-saving change)">
+          </td>
           {% endmatch %}
           {% endfor %}
         </tr>
@@ -234,7 +237,7 @@
       <div id="confirm-dialog-range" class="hidden mb-4">
         <label class="text-sm text-gray-600">Until:
           <select id="confirm-dialog-until" class="ml-1 border rounded px-2 py-1 bg-white text-sm"></select>
-          <span class="text-gray-500 text-xs ml-1">UTC</span>
+          <span class="text-gray-500 text-xs ml-1">{{ tz_abbr }}</span>
         </label>
       </div>
       <div id="confirm-dialog-description-wrap" class="hidden mb-4">
@@ -265,19 +268,20 @@
     var slotData = [];
     var remaining = {% if is_admin %}9999{% else %}{{ max_upcoming_bookings }} - {{ upcoming_count }}{% endif %};
 
-    function pad(n) { return String(n).padStart(2, '0'); }
-    function tsToUTC(ts) {
-      var d = new Date(parseInt(ts, 10) * 1000);
-      return d.getUTCFullYear() + '-' + pad(d.getUTCMonth()+1) + '-' + pad(d.getUTCDate()) +
-        ' ' + pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes());
+    function tsToLocalDateTime(ts) {
+      return new Intl.DateTimeFormat('sv-SE', { timeZone: SALSA_TZ,
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', hour12: false })
+        .format(new Date(parseInt(ts, 10) * 1000));
     }
-    function tsToTime(ts) {
-      var d = new Date(parseInt(ts, 10) * 1000);
-      return pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes());
+    function tsToLocalTime(ts) {
+      return new Intl.DateTimeFormat('sv-SE', { timeZone: SALSA_TZ,
+        hour: '2-digit', minute: '2-digit', hour12: false })
+        .format(new Date(parseInt(ts, 10) * 1000));
     }
-    function tsEndTime(ts) {
-      return tsToTime(parseInt(ts, 10) + 3600);
-    }
+    function tsEndTime(ts) { return tsToLocalTime(parseInt(ts, 10) + 3600); }
+    var SALSA_TZ_ABBR = ((new Intl.DateTimeFormat('en', { timeZone: SALSA_TZ, timeZoneName: 'short' })
+      .formatToParts(new Date()).find(function(p) { return p.type === 'timeZoneName'; })) || {}).value || '';
 
     function getConsecutiveAfter(td, cls) {
       var row = td.parentElement;
@@ -329,7 +333,7 @@
           document.getElementById('confirm-dialog-title').textContent = 'Confirm booking';
           document.getElementById('confirm-dialog-msg').innerHTML =
             'Book <strong class="text-gray-900">' + (vals.telescope||'') + '</strong>' +
-            ' from <strong class="text-gray-900">' + tsToTime(vals.start_timestamp) + '</strong> UTC';
+            ' from <strong class="text-gray-900">' + tsToLocalTime(vals.start_timestamp) + '</strong> ' + SALSA_TZ_ABBR;
           slotData.forEach(function(s) {
             var o = document.createElement('option');
             o.textContent = tsEndTime(s.vals.start_timestamp);
@@ -341,7 +345,7 @@
           document.getElementById('confirm-dialog-title').textContent = 'Confirm booking';
           document.getElementById('confirm-dialog-msg').innerHTML =
             'Book <strong class="text-gray-900">' + (vals.telescope||'') + '</strong>' +
-            ' at <strong class="text-gray-900">' + tsToUTC(vals.start_timestamp) + '</strong> UTC?';
+            ' at <strong class="text-gray-900">' + tsToLocalDateTime(vals.start_timestamp) + '</strong> ' + SALSA_TZ_ABBR + '?';
           ok.textContent = 'Book 1 slot';
         }
 
@@ -362,7 +366,7 @@
           document.getElementById('confirm-dialog-title').textContent = 'Cancel booking';
           document.getElementById('confirm-dialog-msg').innerHTML =
             'Cancel <strong class="text-gray-900">' + tel + '</strong>' +
-            ' from <strong class="text-gray-900">' + tsToTime(ts) + '</strong> UTC' + bookedBySuffix;
+            ' from <strong class="text-gray-900">' + tsToLocalTime(ts) + '</strong> ' + SALSA_TZ_ABBR + bookedBySuffix;
           slotData.forEach(function(s) {
             var o = document.createElement('option');
             o.textContent = tsEndTime(s.ts);
@@ -375,7 +379,7 @@
           document.getElementById('confirm-dialog-title').textContent = 'Cancel booking';
           document.getElementById('confirm-dialog-msg').innerHTML =
             'Cancel <strong class="text-gray-900">' + tel + '</strong>' +
-            ' at <strong class="text-gray-900">' + tsToUTC(ts) + '</strong> UTC?' + bookedBySuffix;
+            ' at <strong class="text-gray-900">' + tsToLocalDateTime(ts) + '</strong> ' + SALSA_TZ_ABBR + '?' + bookedBySuffix;
           ok.textContent = 'Cancel booking';
         }
       }

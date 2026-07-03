@@ -9,6 +9,7 @@ use crate::routes::index::render_main;
 use crate::routes::observe::{
     FREQ_MAX_ADMIN_MHZ, FREQ_MAX_USER_MHZ, FREQ_MIN_ADMIN_MHZ, FREQ_MIN_USER_MHZ,
 };
+use crate::timefmt::InTz;
 
 use askama::Template;
 use axum::extract::{Path, Query, State};
@@ -727,6 +728,8 @@ struct SessionTemplate {
     back_url: String,
     back_label: String,
     max_rows_per_response: i64,
+    /// Display timezone, used by `.in_tz(tz)` calls in the template.
+    tz: chrono_tz::Tz,
 }
 
 #[derive(Deserialize)]
@@ -801,6 +804,7 @@ async fn get_session(
         back_url,
         back_label,
         max_rows_per_response: MAX_VISIBILITY_ROWS_PER_REQUEST,
+        tz: user.tz(),
     }
     .render()
     .expect("template ok");
