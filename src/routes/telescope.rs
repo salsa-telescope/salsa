@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::app::AppState;
-use crate::coords::vlsrcorr_from_galactic;
+use crate::coords::{PRACTICAL_ELEVATION_LIMIT_DEG, vlsrcorr_from_galactic};
 use crate::models::booking::is_authorized_for_telescope;
 use crate::models::telescope::Telescope;
 use crate::models::telescope_types::TelescopeStatus;
@@ -136,6 +136,7 @@ struct TelescopeStateTemplate {
     info: TelescopeInfo,
     status: String,
     error: String,
+    low_elevation_deg: Option<f64>,
 }
 
 #[derive(Template)]
@@ -160,6 +161,18 @@ pub async fn telescope_state(telescope_id: &str, telescope: &dyn Telescope) -> S
         }
         Ok(info) => TelescopeStateTemplate {
             info: info.clone(),
+            // Elevation-range checks only reject targets below the
+            // telescope's hard minimum; a commanded position can still sit
+            // low enough that the ground degrades the spectrum. Only warn
+            // while the telescope is actually going to / on a target; an
+            // idle telescope's commanded position is meaningless.
+            low_elevation_deg: match &info.status {
+                TelescopeStatus::Idle => None,
+                TelescopeStatus::Slewing | TelescopeStatus::Tracking => info
+                    .commanded_horizontal
+                    .map(|dir| dir.elevation.to_degrees())
+                    .filter(|el| *el < PRACTICAL_ELEVATION_LIMIT_DEG),
+            },
             status: match &info.status {
                 TelescopeStatus::Idle => "Idle".to_string(),
                 TelescopeStatus::Slewing => "Slewing".to_string(),

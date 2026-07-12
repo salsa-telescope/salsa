@@ -27,6 +27,13 @@ pub const ONSALA_LOCATION: Location = Location {
     latitude: 57.3934 * PI / 180.0,
 };
 
+/// Recommended lower elevation limit at the SALSA site: below this the
+/// ground and surrounding buildings degrade the spectrum. Used as the
+/// visibility-planner threshold and the low-elevation warning limit.
+/// Mirrored in assets/observation_chart.js (archive view highlight) and
+/// quoted in templates/visibility.html — update those too when changing.
+pub const PRACTICAL_ELEVATION_LIMIT_DEG: f64 = 15.0;
+
 #[derive(Serialize, Deserialize, PartialEq, Debug, Copy, Clone)]
 pub struct Direction {
     pub azimuth: f64,

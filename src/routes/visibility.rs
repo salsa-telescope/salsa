@@ -21,13 +21,13 @@ use chrono_tz::Tz;
 use serde::Deserialize;
 
 use crate::coords::{
-    Direction, ONSALA_LOCATION, horizontal_from_equatorial, horizontal_from_galactic,
-    horizontal_from_sun,
+    Direction, ONSALA_LOCATION, PRACTICAL_ELEVATION_LIMIT_DEG, horizontal_from_equatorial,
+    horizontal_from_galactic, horizontal_from_sun,
 };
 use crate::models::user::User;
 use crate::routes::index::render_main;
 
-const VISIBILITY_THRESHOLD_DEG: f64 = 10.0;
+const VISIBILITY_THRESHOLD_DEG: f64 = PRACTICAL_ELEVATION_LIMIT_DEG;
 // Sample every 10 minutes across the day. A normal day gives 145 points
 // (0:00 inclusive ... 24:00 inclusive); DST transition days a few more or
 // fewer.

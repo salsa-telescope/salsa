@@ -612,13 +612,15 @@ function loadObservation(id) {
       if (elOff && Math.abs(elOff) >= 0.05) offsetParts.push(`el ${elOff >= 0 ? "+" : ""}${elOff.toFixed(1)}°`);
       const offsetStr = offsetParts.length > 0 ? ` + offset ${offsetParts.join(", ")}` : "";
       // Commanded az/el at observation start (server-computed, offsets
-      // included). Elevations below the 10° practical horizon usually
-      // explain a weird spectrum, so they get highlighted.
+      // included). Elevations below the recommended limit usually explain
+      // a weird spectrum, so they get highlighted. Mirrors
+      // PRACTICAL_ELEVATION_LIMIT_DEG in src/coords.rs.
+      const LOW_ELEVATION_DEG = 15;
       const hasAzEl = data.elevation_deg !== null && data.elevation_deg !== undefined;
       const azElStr = hasAzEl
         ? `az ${data.azimuth_deg.toFixed(1)}°, el ${data.elevation_deg.toFixed(1)}°`
         : "";
-      const lowElevation = hasAzEl && data.elevation_deg < 10;
+      const lowElevation = hasAzEl && data.elevation_deg < LOW_ELEVATION_DEG;
       const titlePre = `${data.telescope_id} — ${coordLabel} ${coordStr}${offsetStr} — ${intTime}s  |  `;
       const titlePost = `${hasAzEl ? "  |  " : ""}Avg. power: ${powerLevel.toFixed(2)}`;
       const titleLine2 = startTime;
