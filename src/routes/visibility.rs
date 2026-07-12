@@ -21,16 +21,12 @@ use chrono_tz::Tz;
 use serde::Deserialize;
 
 use crate::coords::{
-    Direction, Location, horizontal_from_equatorial, horizontal_from_galactic, horizontal_from_sun,
+    Direction, ONSALA_LOCATION, horizontal_from_equatorial, horizontal_from_galactic,
+    horizontal_from_sun,
 };
 use crate::models::user::User;
 use crate::routes::index::render_main;
 
-// SALSA telescopes are co-located at Onsala Space Observatory; the same
-// values are used as defaults in config.toml.example. The visibility planner
-// always uses this site (telescopes are too close to differ on visibility).
-const ONSALA_LON_DEG: f64 = 11.9188;
-const ONSALA_LAT_DEG: f64 = 57.3934;
 const VISIBILITY_THRESHOLD_DEG: f64 = 10.0;
 // Sample every 10 minutes across the day. A normal day gives 145 points
 // (0:00 inclusive ... 24:00 inclusive); DST transition days a few more or
@@ -162,10 +158,7 @@ fn compute_visibility(
     date: NaiveDate,
     tz: Tz,
 ) -> VisibilityResult {
-    let location = Location {
-        longitude: ONSALA_LON_DEG.to_radians(),
-        latitude: ONSALA_LAT_DEG.to_radians(),
-    };
+    let location = ONSALA_LOCATION;
     let x_rad = x_deg.to_radians();
     let y_rad = y_deg.to_radians();
     let (day_start, day_len_min) = local_day_span(tz, date);

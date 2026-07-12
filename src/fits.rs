@@ -14,6 +14,8 @@ pub struct SpectrumMeta<'a> {
     pub integration_time_secs: f64,
     pub start_time: &'a str,
     pub vlsr_correction_mps: Option<f64>,
+    pub azimuth_deg: Option<f64>,
+    pub elevation_deg: Option<f64>,
 }
 
 fn card_logical(key: &str, val: bool, comment: &str) -> [u8; 80] {
@@ -130,6 +132,18 @@ pub fn write_spectrum_fits(meta: &SpectrumMeta) -> Vec<u8> {
         // HI rest frequency
         card_float("RESTFRQ", 1_420_405_751.77, "HI rest frequency (Hz)"),
     ];
+
+    // Commanded pointing direction at observation start, offsets included
+    if let Some(az) = meta.azimuth_deg {
+        header.push(card_float("AZIMUTH", az, "commanded azimuth at start (deg)"));
+    }
+    if let Some(el) = meta.elevation_deg {
+        header.push(card_float(
+            "ELEVATIO",
+            el,
+            "commanded elevation at start (deg)",
+        ));
+    }
 
     // VLSR: modern WCS (VELOSYS + SPECSYS) and legacy (VELO-LSR) for compatibility
     if let Some(vlsr_mps) = meta.vlsr_correction_mps {

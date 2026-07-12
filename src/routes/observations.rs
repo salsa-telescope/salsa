@@ -348,6 +348,8 @@ struct ObservationData {
     vlsr_correction_mps: Option<f64>,
     az_offset_deg: Option<f64>,
     el_offset_deg: Option<f64>,
+    azimuth_deg: Option<f64>,
+    elevation_deg: Option<f64>,
 }
 
 async fn get_observation_data(
@@ -367,6 +369,7 @@ async fn get_observation_data(
     let amplitudes: Vec<f64> = serde_json::from_str(&observation.amplitudes_json)
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
+    let horizontal = observation.horizontal();
     Ok(Json(ObservationData {
         frequencies,
         amplitudes,
@@ -379,6 +382,8 @@ async fn get_observation_data(
         vlsr_correction_mps: observation.vlsr_correction_mps,
         az_offset_deg: observation.az_offset_deg,
         el_offset_deg: observation.el_offset_deg,
+        azimuth_deg: horizontal.map(|(az, _)| az),
+        elevation_deg: horizontal.map(|(_, el)| el),
     })
     .into_response())
 }
@@ -423,6 +428,10 @@ async fn get_observation_csv(
         "# Target: {:.4}, {:.4} deg\n",
         observation.target_x, observation.target_y
     ));
+    if let Some((az, el)) = observation.horizontal() {
+        csv.push_str(&format!("# Azimuth at start: {az:.2} deg\n"));
+        csv.push_str(&format!("# Elevation at start: {el:.2} deg\n"));
+    }
     csv.push_str(&format!(
         "# Integration time: {:.0} s\n",
         observation.integration_time_secs
@@ -477,6 +486,7 @@ async fn get_observation_fits(
     let tag = observation.start_time.format("%Y%m%dT%H%M%S").to_string();
     let filename = format!("SALSA-{}-{}.fits", observation.telescope_id, tag);
 
+    let horizontal = observation.horizontal();
     let fits_bytes = write_spectrum_fits(&SpectrumMeta {
         frequencies: &frequencies,
         amplitudes: &amplitudes,
@@ -487,6 +497,8 @@ async fn get_observation_fits(
         integration_time_secs: observation.integration_time_secs,
         start_time: &observation.start_time.to_rfc3339(),
         vlsr_correction_mps: observation.vlsr_correction_mps,
+        azimuth_deg: horizontal.map(|(az, _)| az),
+        elevation_deg: horizontal.map(|(_, el)| el),
     });
 
     Ok((

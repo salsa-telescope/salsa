@@ -19,6 +19,14 @@ pub struct Location {
     pub latitude: f64,
 }
 
+/// Onsala Space Observatory, where all SALSA telescopes are co-located
+/// (they are too close together to differ in az/el for any target).
+/// The same values are used as defaults in config.toml.example.
+pub const ONSALA_LOCATION: Location = Location {
+    longitude: 11.9188 * PI / 180.0,
+    latitude: 57.3934 * PI / 180.0,
+};
+
 #[derive(Serialize, Deserialize, PartialEq, Debug, Copy, Clone)]
 pub struct Direction {
     pub azimuth: f64,

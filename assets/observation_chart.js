@@ -611,7 +611,16 @@ function loadObservation(id) {
       if (azOff && Math.abs(azOff) >= 0.05) offsetParts.push(`az ${azOff >= 0 ? "+" : ""}${azOff.toFixed(1)}°`);
       if (elOff && Math.abs(elOff) >= 0.05) offsetParts.push(`el ${elOff >= 0 ? "+" : ""}${elOff.toFixed(1)}°`);
       const offsetStr = offsetParts.length > 0 ? ` + offset ${offsetParts.join(", ")}` : "";
-      const titleLine1 = `${data.telescope_id} — ${coordLabel} ${coordStr}${offsetStr} — ${intTime}s  |  Avg. power: ${powerLevel.toFixed(2)}`;
+      // Commanded az/el at observation start (server-computed, offsets
+      // included). Elevations below the 10° practical horizon usually
+      // explain a weird spectrum, so they get highlighted.
+      const hasAzEl = data.elevation_deg !== null && data.elevation_deg !== undefined;
+      const azElStr = hasAzEl
+        ? `az ${data.azimuth_deg.toFixed(1)}°, el ${data.elevation_deg.toFixed(1)}°`
+        : "";
+      const lowElevation = hasAzEl && data.elevation_deg < 10;
+      const titlePre = `${data.telescope_id} — ${coordLabel} ${coordStr}${offsetStr} — ${intTime}s  |  `;
+      const titlePost = `${hasAzEl ? "  |  " : ""}Avg. power: ${powerLevel.toFixed(2)}`;
       const titleLine2 = startTime;
 
       const vlsrCorrection = data.vlsr_correction_mps;
@@ -663,10 +672,17 @@ function loadObservation(id) {
         .attr("text-anchor", "middle")
         .attr("font-size", "12px")
         .attr("fill", "#6b7280");
-      titleGroup.append("tspan")
+      const titleLine1 = titleGroup.append("tspan")
         .attr("x", width / 2)
-        .attr("dy", "1em")
-        .text(titleLine1);
+        .attr("dy", "1em");
+      titleLine1.append("tspan").text(titlePre);
+      if (hasAzEl) {
+        titleLine1.append("tspan")
+          .attr("fill", lowElevation ? "#b45309" : null)
+          .attr("font-weight", lowElevation ? "600" : null)
+          .text(azElStr);
+      }
+      titleLine1.append("tspan").text(titlePost);
       titleGroup.append("tspan")
         .attr("x", width / 2)
         .attr("dy", "1.2em")

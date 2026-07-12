@@ -5,6 +5,7 @@ use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 
+use crate::coords::{ONSALA_LOCATION, horizontal_from_equatorial, horizontal_from_galactic};
 use crate::error::InternalError;
 use crate::models::user::User;
 
@@ -178,5 +179,105 @@ impl Observation {
             Some(Err(err)) => Err(InternalError::new(format!("Failed to map row: {err}"))),
             None => Ok(None),
         }
+    }
+
+    /// Commanded azimuth/elevation in degrees at the start of the
+    /// observation, including any pointing offsets. Horizontal-type
+    /// targets (horizontal, sun, gnss) store az/el as the target
+    /// coordinates; equatorial and galactic targets are converted for
+    /// the SALSA site at `start_time`, reconstructing the same pointing
+    /// math the telescope used. This is the commanded direction, not a
+    /// readback — a mechanically stuck telescope would still report it.
+    pub fn horizontal(&self) -> Option<(f64, f64)> {
+        let (az_deg, el_deg) = match self.coordinate_system.as_str() {
+            "horizontal" | "sun" => (self.target_x, self.target_y),
+            s if s.starts_with("gnss") => (self.target_x, self.target_y),
+            "equatorial" => {
+                let dir = horizontal_from_equatorial(
+                    ONSALA_LOCATION,
+                    self.start_time,
+                    self.target_x.to_radians(),
+                    self.target_y.to_radians(),
+                );
+                (dir.azimuth.to_degrees(), dir.elevation.to_degrees())
+            }
+            "galactic" => {
+                let dir = horizontal_from_galactic(
+                    ONSALA_LOCATION,
+                    self.start_time,
+                    self.target_x.to_radians(),
+                    self.target_y.to_radians(),
+                );
+                (dir.azimuth.to_degrees(), dir.elevation.to_degrees())
+            }
+            _ => return None,
+        };
+        Some((
+            (az_deg + self.az_offset_deg.unwrap_or(0.0)).rem_euclid(360.0),
+            el_deg + self.el_offset_deg.unwrap_or(0.0),
+        ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::TimeZone;
+
+    fn observation(coordinate_system: &str, target_x: f64, target_y: f64) -> Observation {
+        Observation {
+            id: 1,
+            user_id: 1,
+            telescope_id: "test".to_string(),
+            start_time: Utc.with_ymd_and_hms(2026, 7, 12, 12, 0, 0).unwrap(),
+            coordinate_system: coordinate_system.to_string(),
+            target_x,
+            target_y,
+            integration_time_secs: 60.0,
+            frequencies_json: "[]".to_string(),
+            amplitudes_json: "[]".to_string(),
+            vlsr_correction_mps: None,
+            az_offset_deg: None,
+            el_offset_deg: None,
+        }
+    }
+
+    #[test]
+    fn galactic_horizontal_matches_pointing_math() {
+        let obs = observation("galactic", 140.0, 0.0);
+        let dir = horizontal_from_galactic(
+            ONSALA_LOCATION,
+            obs.start_time,
+            140.0_f64.to_radians(),
+            0.0,
+        );
+        let (az, el) = obs.horizontal().unwrap();
+        assert!((az - dir.azimuth.to_degrees()).abs() < 1e-9);
+        assert!((el - dir.elevation.to_degrees()).abs() < 1e-9);
+    }
+
+    #[test]
+    fn horizontal_targets_pass_through_and_apply_offsets() {
+        let mut obs = observation("sun", 180.0, 45.0);
+        obs.az_offset_deg = Some(1.5);
+        obs.el_offset_deg = Some(-0.5);
+        assert_eq!(obs.horizontal(), Some((181.5, 44.5)));
+    }
+
+    #[test]
+    fn azimuth_wraps_around_north() {
+        let mut obs = observation("horizontal", 359.0, 30.0);
+        obs.az_offset_deg = Some(2.0);
+        let (az, _) = obs.horizontal().unwrap();
+        assert!((az - 1.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn gnss_and_unknown_systems() {
+        assert_eq!(
+            observation("gnss:GPS BIII-6", 120.0, 60.0).horizontal(),
+            Some((120.0, 60.0))
+        );
+        assert_eq!(observation("stow", 0.0, 0.0).horizontal(), None);
     }
 }
