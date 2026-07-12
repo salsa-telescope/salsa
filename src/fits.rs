@@ -139,7 +139,11 @@ pub fn write_spectrum_fits(meta: &SpectrumMeta) -> Vec<u8> {
 
     // Commanded pointing direction at observation start, offsets included
     if let Some(az) = meta.azimuth_deg {
-        header.push(card_float("AZIMUTH", az, "commanded azimuth at start (deg)"));
+        header.push(card_float(
+            "AZIMUTH",
+            az,
+            "commanded azimuth at start (deg)",
+        ));
     }
     if let Some(el) = meta.elevation_deg {
         header.push(card_float(

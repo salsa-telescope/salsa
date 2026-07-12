@@ -245,12 +245,8 @@ mod tests {
     #[test]
     fn galactic_horizontal_matches_pointing_math() {
         let obs = observation("galactic", 140.0, 0.0);
-        let dir = horizontal_from_galactic(
-            ONSALA_LOCATION,
-            obs.start_time,
-            140.0_f64.to_radians(),
-            0.0,
-        );
+        let dir =
+            horizontal_from_galactic(ONSALA_LOCATION, obs.start_time, 140.0_f64.to_radians(), 0.0);
         let (az, el) = obs.horizontal().unwrap();
         assert!((az - dir.azimuth.to_degrees()).abs() < 1e-9);
         assert!((el - dir.elevation.to_degrees()).abs() < 1e-9);
