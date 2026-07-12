@@ -12,6 +12,8 @@ pub struct SpectrumMeta<'a> {
     pub target_x: f64,
     pub target_y: f64,
     pub integration_time_secs: f64,
+    /// FITS ISO-8601 time: `YYYY-MM-DDThh:mm:ss`, implicitly UTC. The
+    /// standard allows no timezone offset — astropy rejects e.g. `+00:00`.
     pub start_time: &'a str,
     pub vlsr_correction_mps: Option<f64>,
     pub azimuth_deg: Option<f64>,
@@ -68,10 +70,12 @@ fn card_end() -> [u8; 80] {
     record
 }
 
-fn pad_to_block(data: &mut Vec<u8>) {
+// The FITS standard requires header blocks padded with ASCII spaces and
+// data blocks padded with zeros (astropy warns on null-padded headers).
+fn pad_to_block(data: &mut Vec<u8>, fill: u8) {
     let rem = data.len() % BLOCK_SIZE;
     if rem != 0 {
-        data.resize(data.len() + (BLOCK_SIZE - rem), 0);
+        data.resize(data.len() + (BLOCK_SIZE - rem), fill);
     }
 }
 
@@ -163,13 +167,13 @@ pub fn write_spectrum_fits(meta: &SpectrumMeta) -> Vec<u8> {
 
     // Serialize header, padded to block boundary
     let mut bytes: Vec<u8> = header.iter().flat_map(|r| r.iter().copied()).collect();
-    pad_to_block(&mut bytes);
+    pad_to_block(&mut bytes, b' ');
 
     // Data: amplitudes as big-endian IEEE 754 float32
     for &amp in meta.amplitudes {
         bytes.extend_from_slice(&(amp as f32).to_be_bytes());
     }
-    pad_to_block(&mut bytes);
+    pad_to_block(&mut bytes, 0);
 
     bytes
 }

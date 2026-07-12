@@ -495,7 +495,10 @@ async fn get_observation_fits(
         target_x: observation.target_x,
         target_y: observation.target_y,
         integration_time_secs: observation.integration_time_secs,
-        start_time: &observation.start_time.to_rfc3339(),
+        start_time: &observation
+            .start_time
+            .format("%Y-%m-%dT%H:%M:%S")
+            .to_string(),
         vlsr_correction_mps: observation.vlsr_correction_mps,
         azimuth_deg: horizontal.map(|(az, _)| az),
         elevation_deg: horizontal.map(|(_, el)| el),
