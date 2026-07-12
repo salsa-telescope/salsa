@@ -8,7 +8,7 @@
     <p class="text-sm text-gray-500">
       For a given target and date, see when it is above the horizon at the
       SALSA site (Onsala, Sweden) and therefore observable. The chart shows
-      elevation as a function of UTC time across the chosen day. The
+      elevation across the chosen day, with times in {{ tz_name }}. The
       <strong>10°</strong> line is a practical lower limit set by the ground
       and surrounding buildings.
     </p>
@@ -33,7 +33,7 @@
         <input type="number" name="y" value="{{ y }}" step="0.01" class="border rounded px-2 py-1 bg-white w-32" />
       </div>
       <div>
-        <label class="block text-gray-600 mb-1">Date (UTC)</label>
+        <label class="block text-gray-600 mb-1">Date ({{ tz_name }})</label>
         <input type="date" name="date" value="{{ date }}" class="border rounded px-2 py-1 bg-white" />
       </div>
       <button type="submit" class="btn">Compute</button>
@@ -46,6 +46,7 @@
 
   {% if let Some(res) = result %}
   <div class="overflow-x-auto">{{ res.svg }}</div>
+  <p class="text-xs text-gray-500">Hover or tap the chart to read off time and elevation.</p>
   {% endif %}
 
   <script>
@@ -67,5 +68,55 @@
         }
     }
     updateXYVisibility();
+
+    // Crosshair readout: the SVG from visibility.rs carries the sampled
+    // curve ("HH:MM,elevation" pairs) and plot geometry as data attributes,
+    // plus a hidden .vis-cursor group. Pointer moves snap the cursor to the
+    // nearest sample; pointerdown makes it work on touch screens too.
+    (function () {
+        const svg = document.querySelector('svg[data-samples]');
+        if (!svg) return;
+        const samples = svg.dataset.samples.split(';').map(function (pair) {
+            const parts = pair.split(',');
+            return { label: parts[0], el: parseFloat(parts[1]) };
+        });
+        const mLeft = parseFloat(svg.dataset.mleft);
+        const mTop = parseFloat(svg.dataset.mtop);
+        const plotW = parseFloat(svg.dataset.plotw);
+        const plotH = parseFloat(svg.dataset.ploth);
+        const cursor = svg.querySelector('.vis-cursor');
+        const line = svg.querySelector('.vis-cursor-line');
+        const dot = svg.querySelector('.vis-cursor-dot');
+        const text = svg.querySelector('.vis-cursor-text');
+        const capture = svg.querySelector('.vis-capture');
+        const viewW = svg.viewBox.baseVal.width;
+
+        function show(evt) {
+            // The SVG scales to its container with preserved aspect ratio,
+            // so screen-to-viewBox is a plain proportional mapping.
+            const rect = svg.getBoundingClientRect();
+            const xView = (evt.clientX - rect.left) * viewW / rect.width;
+            const frac = Math.min(1, Math.max(0, (xView - mLeft) / plotW));
+            const i = Math.round(frac * (samples.length - 1));
+            const s = samples[i];
+            const x = mLeft + (i / (samples.length - 1)) * plotW;
+            const y = mTop + (90 - Math.min(90, Math.max(0, s.el))) / 90 * plotH;
+            line.setAttribute('x1', x);
+            line.setAttribute('x2', x);
+            dot.setAttribute('cx', x);
+            dot.setAttribute('cy', y);
+            text.textContent = s.label + ' · ' + s.el.toFixed(1) + '°';
+            const onLeftHalf = x < mLeft + plotW / 2;
+            text.setAttribute('x', onLeftHalf ? x + 8 : x - 8);
+            text.setAttribute('text-anchor', onLeftHalf ? 'start' : 'end');
+            cursor.setAttribute('visibility', 'visible');
+        }
+
+        capture.addEventListener('pointermove', show);
+        capture.addEventListener('pointerdown', show);
+        capture.addEventListener('pointerleave', function () {
+            cursor.setAttribute('visibility', 'hidden');
+        });
+    })();
   </script>
 </div>
