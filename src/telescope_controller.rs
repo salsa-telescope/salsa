@@ -5,6 +5,11 @@ use std::net::{SocketAddr, TcpStream};
 use std::str::FromStr;
 use std::time::Duration;
 
+/// Timeout for connecting to and talking with the ROT2PROG rotor
+/// controller. It sits on the local network, so one second is generous;
+/// promote to config if a deployment ever needs a different value.
+const CONTROLLER_IO_TIMEOUT: Duration = Duration::from_secs(1);
+
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum TelescopeCommand {
     Stop,
@@ -20,7 +25,6 @@ pub enum TelescopeResponse {
 }
 
 pub struct TelescopeController {
-    // FIXME: Do we need to be able to mock at this level?
     stream: TcpStream,
 }
 
@@ -120,8 +124,7 @@ fn parse_direction_response(
 }
 
 fn create_connection(address: &str) -> Result<TcpStream, TelescopeError> {
-    // FIXME: How to handle static configuration like timeouts etc?
-    let timeout = Duration::from_secs(1);
+    let timeout = CONTROLLER_IO_TIMEOUT;
     let address = SocketAddr::from_str(address).map_err(|err| {
         TelescopeError::TelescopeIOError(format!(
             "invalid controller address '{address}' in config: {err}"
