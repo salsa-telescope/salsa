@@ -96,6 +96,8 @@
   <p class="text-danger text-sm mb-3 font-medium">
     {% if error == "username_taken" %}
     That username is already taken by another local user.
+    {% else if error == "input_too_long" %}
+    Input too long — username max 64, password max 512, comment max 500 characters.
     {% else %}
     An error occurred: {{ error }}
     {% endif %}

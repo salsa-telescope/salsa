@@ -34,6 +34,13 @@ pub fn routes(state: AppState) -> Router {
         .with_state(state)
 }
 
+/// Caps on admin-entered free text. Generous for real use; they exist so
+/// no request can stuff megabytes into the database or into argon2.
+const MAX_USERNAME_CHARS: usize = 64;
+const MAX_PASSWORD_BYTES: usize = 512;
+const MAX_COMMENT_CHARS: usize = 500;
+const MAX_ANNOUNCEMENT_CHARS: usize = 2000;
+
 fn require_admin(user: Option<User>) -> Result<User, StatusCode> {
     let user = user.ok_or(StatusCode::UNAUTHORIZED)?;
     if !user.is_admin {
@@ -243,9 +250,16 @@ async fn create_local_user_handler(
     Form(form): Form<CreateLocalUserForm>,
 ) -> Result<Response, StatusCode> {
     require_admin(user)?;
+    let username = form.username.trim().to_string();
+    if username.chars().count() > MAX_USERNAME_CHARS
+        || form.password.len() > MAX_PASSWORD_BYTES
+        || form.comment.trim().chars().count() > MAX_COMMENT_CHARS
+    {
+        return Ok(Redirect::to("/admin?error=input_too_long").into_response());
+    }
     match User::create_local(
         state.database_connection,
-        form.username.trim().to_string(),
+        username,
         form.password,
         form.comment.trim().to_string(),
     )
@@ -283,6 +297,9 @@ async fn set_local_password_handler(
     Form(form): Form<SetPasswordForm>,
 ) -> Result<Response, StatusCode> {
     require_admin(user)?;
+    if form.password.len() > MAX_PASSWORD_BYTES {
+        return Ok(Redirect::to("/admin?error=input_too_long").into_response());
+    }
     User::set_local_password(state.database_connection, id, form.password)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
@@ -301,6 +318,9 @@ async fn set_local_comment_handler(
     Form(form): Form<SetCommentForm>,
 ) -> Result<Response, StatusCode> {
     require_admin(user)?;
+    if form.comment.trim().chars().count() > MAX_COMMENT_CHARS {
+        return Ok(Redirect::to("/admin?error=input_too_long").into_response());
+    }
     User::set_local_comment(
         state.database_connection,
         id,
@@ -322,11 +342,16 @@ async fn save_announcement_handler(
     Form(form): Form<AnnouncementForm>,
 ) -> Result<Response, StatusCode> {
     let admin = require_admin(user)?;
-    let trimmed = form.message.trim();
+    let trimmed: String = form
+        .message
+        .trim()
+        .chars()
+        .take(MAX_ANNOUNCEMENT_CHARS)
+        .collect();
     let stored = if trimmed.is_empty() {
         None
     } else {
-        Some(trimmed)
+        Some(trimmed.as_str())
     };
     info!(
         "Admin {} ({}) updated support announcement (cleared: {})",

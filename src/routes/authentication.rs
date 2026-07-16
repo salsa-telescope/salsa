@@ -105,6 +105,14 @@ async fn local_login(
         return Ok(Redirect::to("/auth/login?error=rate_limited").into_response());
     }
 
+    // Cap input sizes before they reach argon2 — hashing megabyte-sized
+    // passwords is a cheap CPU-exhaustion vector. No legitimate credentials
+    // are anywhere near these bounds, so treat oversize as a failed login.
+    if form.username.len() > 64 || form.password.len() > 512 {
+        state.login_rate_limiter.record_failure(ip);
+        return Ok(Redirect::to("/auth/login?error=1").into_response());
+    }
+
     let user = User::fetch_local_with_password(
         state.database_connection.clone(),
         &form.username,

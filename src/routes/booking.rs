@@ -22,6 +22,10 @@ use chrono_tz::Tz;
 use serde::Deserialize;
 use std::net::SocketAddr;
 
+/// Upper bound on the free-text booking description, to keep a single
+/// request from stuffing megabytes into the database.
+const MAX_DESCRIPTION_CHARS: usize = 500;
+
 pub fn routes(state: AppState) -> Router {
     Router::new()
         .route("/", get(get_bookings).post(create_booking))
@@ -268,6 +272,13 @@ async fn create_booking(
 
     let error = if end_time <= now {
         Some("Cannot book a slot that has already ended.".to_string())
+    } else if description
+        .as_ref()
+        .is_some_and(|d| d.chars().count() > MAX_DESCRIPTION_CHARS)
+    {
+        Some(format!(
+            "Description is too long (max {MAX_DESCRIPTION_CHARS} characters)."
+        ))
     } else if !user.is_admin && maintenance.contains(&form.telescope) {
         Some(format!(
             "{} is currently under maintenance.",

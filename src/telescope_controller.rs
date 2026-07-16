@@ -119,10 +119,14 @@ fn parse_direction_response(
     }
 }
 
-fn create_connection(address: &str) -> Result<TcpStream, std::io::Error> {
+fn create_connection(address: &str) -> Result<TcpStream, TelescopeError> {
     // FIXME: How to handle static configuration like timeouts etc?
     let timeout = Duration::from_secs(1);
-    let address = SocketAddr::from_str(address).unwrap();
+    let address = SocketAddr::from_str(address).map_err(|err| {
+        TelescopeError::TelescopeIOError(format!(
+            "invalid controller address '{address}' in config: {err}"
+        ))
+    })?;
     let stream = TcpStream::connect_timeout(&address, timeout)?;
     stream.set_read_timeout(Some(timeout))?;
     stream.set_write_timeout(Some(timeout))?;
