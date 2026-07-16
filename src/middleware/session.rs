@@ -10,7 +10,7 @@ use axum::{
     middleware::Next,
     response::Response,
 };
-use tracing::trace;
+use tracing::{info, trace};
 
 /// The `__Host-` prefix makes browsers reject any cookie with this name that
 /// is not Secure, Path=/ and host-only. Without it, another service on a
@@ -35,8 +35,8 @@ pub fn clear_session_cookie() -> String {
 }
 
 // TODO: Stop leaking this to authentication.
-pub fn get_session_token(Cookies(cookies_map): &Cookies) -> Option<String> {
-    cookies_map.get(SESSION_COOKIE_NAME).cloned()
+pub fn get_session_tokens(cookies: &Cookies) -> &[String] {
+    cookies.get_all(SESSION_COOKIE_NAME)
 }
 
 pub async fn session_middleware(
@@ -46,21 +46,25 @@ pub async fn session_middleware(
     next: Next,
 ) -> Result<Response, StatusCode> {
     trace!("Authenticating user session");
-    let mut should_reset_cookie = false;
-    let user = if let Some(session_token) = get_session_token(&cookies) {
+    // The client may hold several cookies with the session cookie's name;
+    // accept whichever one matches an active session.
+    let session_tokens = get_session_tokens(&cookies);
+    let mut should_reset_cookie = !session_tokens.is_empty();
+    let mut user = None;
+    for session_token in session_tokens {
         if let Some(session) =
-            Session::fetch(state.database_connection.clone(), &session_token).await?
+            Session::fetch(state.database_connection.clone(), session_token).await?
         {
-            let mut user = session.user;
-            user.is_admin = state.admin_config.user_ids.contains(&user.id);
-            Some(user)
-        } else {
-            should_reset_cookie = true;
-            None
+            let mut session_user = session.user;
+            session_user.is_admin = state.admin_config.user_ids.contains(&session_user.id);
+            user = Some(session_user);
+            should_reset_cookie = false;
+            break;
         }
-    } else {
-        None
-    };
+    }
+    if should_reset_cookie {
+        info!("Session cookie matched no active session; clearing it");
+    }
 
     request.extensions_mut().insert(user);
 

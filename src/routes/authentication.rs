@@ -19,7 +19,7 @@ use serde::Deserialize;
 use serde_json::{Map, Value};
 use std::time::Duration;
 use tokio::time::sleep;
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 
 use crate::routes::index::render_main;
 use crate::{app::AppState, error::InternalError};
@@ -28,7 +28,7 @@ use crate::{
     models::session::{Session, complete_oauth2_login, start_oauth2_login},
 };
 use crate::{
-    middleware::session::{get_session_token, session_cookie},
+    middleware::session::{get_session_tokens, session_cookie},
     models::user::User,
 };
 
@@ -47,8 +47,8 @@ async fn logout(
     Extension(cookies): Extension<Cookies>,
 ) -> Result<impl IntoResponse, InternalError> {
     // TODO: We shouln't need to extract the session again here.
-    if let Some(session_token) = get_session_token(&cookies) {
-        let session = Session::fetch(state.database_connection.clone(), &session_token).await?;
+    for session_token in get_session_tokens(&cookies) {
+        let session = Session::fetch(state.database_connection.clone(), session_token).await?;
         if let Some(session) = session {
             session.delete(state.database_connection.clone()).await?;
         }
@@ -204,7 +204,7 @@ async fn authenticate_from_oauth2(
         match complete_oauth2_login(state.database_connection.clone(), &query.state).await {
             Ok(provider) => provider,
             Err(err) => {
-                debug!("Failed to validate CSRF token from oauth2 provider: {err:?}");
+                warn!("Failed to validate CSRF token from oauth2 provider: {err:?}");
                 return Ok(StatusCode::UNAUTHORIZED.into_response());
             }
         };
@@ -292,7 +292,7 @@ async fn authenticate_from_oauth2(
     {
         Some(user) => user,
         None => {
-            debug!("Create new user");
+            info!("Creating new user from {provider_name} login");
             let Some(Some(username)) = user_data
                 .get(&provider.display_name_field)
                 .map(|username| username.as_str())
@@ -312,6 +312,12 @@ async fn authenticate_from_oauth2(
             .await?
         }
     };
+
+    info!(
+        username = user.name.clone(),
+        provider = provider_name,
+        "successful OAuth2 login"
+    );
 
     let session = Session::create(state.database_connection.clone(), &user).await?;
     // Note: We reuse the same session cookie name here. So we don't need to

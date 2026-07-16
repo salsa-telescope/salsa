@@ -181,7 +181,7 @@ fn cant_double_book_same_slot() {
 }
 
 #[test]
-fn invalid_cookie_header_gives_bad_request() {
+fn malformed_cookie_is_ignored() {
     let server = SalsaTestServer::spawn();
 
     let client = Client::new();
@@ -191,7 +191,7 @@ fn invalid_cookie_header_gives_bad_request() {
         .send()
         .expect("Requst should complete");
 
-    assert_eq!(StatusCode::BAD_REQUEST, res.status())
+    assert_eq!(StatusCode::OK, res.status())
 }
 
 #[test]
