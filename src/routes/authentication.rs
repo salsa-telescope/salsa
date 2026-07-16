@@ -262,13 +262,13 @@ async fn authenticate_from_oauth2(
         None => {
             return Err(InternalError::new(format!(
                 "No id field in user object returned from {}",
-                &provider.user_uri
+                provider.user_uri
             )));
         }
         _ => {
             return Err(InternalError::new(format!(
                 "Id field in user object returned from {} had unexpected type",
-                &provider.user_uri
+                provider.user_uri
             )));
         }
     };
@@ -290,7 +290,7 @@ async fn authenticate_from_oauth2(
                 let keys: Vec<&String> = user_data.keys().collect();
                 return Err(InternalError::new(format!(
                     "No '{}' field in user object returned from {}; available keys: {keys:?}",
-                    &provider.display_name_field, &provider.user_uri,
+                    provider.display_name_field, provider.user_uri,
                 )));
             };
             User::create_from_external(
