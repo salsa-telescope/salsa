@@ -106,7 +106,7 @@ pub async fn purge_expired_sessions(
     Ok(())
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Session {
     pub token: String,
     pub user: User,

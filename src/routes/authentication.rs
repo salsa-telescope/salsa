@@ -21,16 +21,10 @@ use std::time::Duration;
 use tokio::time::sleep;
 use tracing::{debug, info, warn};
 
+use crate::models::session::{Session, complete_oauth2_login, start_oauth2_login};
 use crate::routes::index::render_main;
 use crate::{app::AppState, error::InternalError};
-use crate::{
-    middleware::cookies::Cookies,
-    models::session::{Session, complete_oauth2_login, start_oauth2_login},
-};
-use crate::{
-    middleware::session::{get_session_tokens, session_cookie},
-    models::user::User,
-};
+use crate::{middleware::session::session_cookie, models::user::User};
 
 pub fn routes(state: AppState) -> Router {
     Router::new()
@@ -44,14 +38,10 @@ pub fn routes(state: AppState) -> Router {
 
 async fn logout(
     State(state): State<AppState>,
-    Extension(cookies): Extension<Cookies>,
+    Extension(session): Extension<Option<Session>>,
 ) -> Result<impl IntoResponse, InternalError> {
-    // TODO: We shouln't need to extract the session again here.
-    for session_token in get_session_tokens(&cookies) {
-        let session = Session::fetch(state.database_connection.clone(), session_token).await?;
-        if let Some(session) = session {
-            session.delete(state.database_connection.clone()).await?;
-        }
+    if let Some(session) = session {
+        session.delete(state.database_connection.clone()).await?;
     }
     // Session cookie will be cleared on redirect by session middleware.
     Ok(Redirect::to("/"))

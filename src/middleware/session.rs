@@ -34,8 +34,7 @@ pub fn clear_session_cookie() -> String {
     format!("{SESSION_COOKIE_NAME}=deleted; SameSite=Lax; HttpOnly; Secure; Path=/; Max-Age=0")
 }
 
-// TODO: Stop leaking this to authentication.
-pub fn get_session_tokens(cookies: &Cookies) -> &[String] {
+fn get_session_tokens(cookies: &Cookies) -> &[String] {
     cookies.get_all(SESSION_COOKIE_NAME)
 }
 
@@ -50,14 +49,13 @@ pub async fn session_middleware(
     // accept whichever one matches an active session.
     let session_tokens = get_session_tokens(&cookies);
     let mut should_reset_cookie = !session_tokens.is_empty();
-    let mut user = None;
+    let mut session = None;
     for session_token in session_tokens {
-        if let Some(session) =
+        if let Some(mut found) =
             Session::fetch(state.database_connection.clone(), session_token).await?
         {
-            let mut session_user = session.user;
-            session_user.is_admin = state.admin_config.user_ids.contains(&session_user.id);
-            user = Some(session_user);
+            found.user.is_admin = state.admin_config.user_ids.contains(&found.user.id);
+            session = Some(found);
             should_reset_cookie = false;
             break;
         }
@@ -66,7 +64,9 @@ pub async fn session_middleware(
         info!("Session cookie matched no active session; clearing it");
     }
 
+    let user = session.as_ref().map(|session| session.user.clone());
     request.extensions_mut().insert(user);
+    request.extensions_mut().insert(session);
 
     let mut response = next.run(request).await;
 
