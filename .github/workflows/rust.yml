@@ -29,7 +29,12 @@ jobs:
         uses: actions/cache@v6
         with:
           path: target/release
-          key: ${{ runner.os }}-rust-build
+          # Include the dependency lockfile in the key so the cache is
+          # re-saved whenever dependencies change; a fixed key is only
+          # saved once and then goes stale forever.
+          key: ${{ runner.os }}-rust-build-${{ hashFiles('Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-rust-build-
       - name: Build
         run: cargo build --verbose --release
       - uses: actions/upload-artifact@v6
@@ -43,6 +48,8 @@ jobs:
         run: cargo test --verbose --release
       - name: Check format
         run: cargo fmt --check --verbose
+      - name: Clippy
+        run: cargo clippy --all-targets --release -- -D warnings
 
   deploy:
     needs: build
