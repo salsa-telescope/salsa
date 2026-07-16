@@ -9,7 +9,7 @@ use serde::Deserialize;
 use crate::models::user::User;
 
 #[derive(Template)]
-#[template(path = "index.html", escape = "none")]
+#[template(path = "index.html")]
 struct IndexTemplate {
     name: String,
     is_admin: bool,

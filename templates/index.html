@@ -79,16 +79,18 @@
                 </button>
                 <div class="nav-user-dropdown">
                     <a href="/account" class="nav-link" onclick="closeAllPanels()">Account</a>
-                    <a href="/auth/logout" class="nav-link">Log out</a>
+                    <form method="POST" action="/auth/logout" class="contents">
+                        <button type="submit" class="nav-link">Log out</button>
+                    </form>
                 </div>
                 {% endif %}
             </nav>
         </header>
         <div id="page">
-            {{ content }}
+            {{ content|safe }}
         </div>
         <footer>
-            Made by weirdos 🦆 ({% if build_url == "" %} {{version_description}} {% else %} <a href={{build_url}}>{{version_description}}</a> {% endif %})
+            Made by weirdos 🦆 ({% if build_url == "" %} {{version_description}} {% else %} <a href="{{ build_url }}">{{version_description}}</a> {% endif %})
         </footer>
         {% if detect_timezone %}
         <script>

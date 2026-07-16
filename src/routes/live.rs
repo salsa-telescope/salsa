@@ -115,7 +115,7 @@ pub fn routes(snapshot_url: String, app_state: AppState) -> Router {
 }
 
 #[derive(Template)]
-#[template(path = "live.html", escape = "none")]
+#[template(path = "live.html")]
 struct LiveTemplate {}
 
 async fn get_live_page(
@@ -154,7 +154,7 @@ async fn get_webcam_snapshot(State(state): State<WebcamState>) -> Response {
 }
 
 #[derive(Template)]
-#[template(path = "webcam_status.html", escape = "none")]
+#[template(path = "webcam_status.html")]
 struct WebcamStatusTemplate {
     available: bool,
     state_class: &'static str,
@@ -225,7 +225,7 @@ struct TelescopeStatusCard {
 }
 
 #[derive(Template)]
-#[template(path = "live_telescopes.html", escape = "none")]
+#[template(path = "live_telescopes.html")]
 struct LiveTelescopesTemplate {
     telescopes: Vec<TelescopeStatusCard>,
 }

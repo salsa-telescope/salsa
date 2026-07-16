@@ -38,7 +38,7 @@
     <div class="lg:w-1/3 space-y-3">
 
       <!-- Telescope status (polled every 1s) — includes h2 heading + status badge -->
-      <div id="telescope-status" hx-get="/telescope/{{ info.id }}/state" hx-trigger="every 1s">{{ state_html }}</div>
+      <div id="telescope-status" hx-get="/telescope/{{ info.id }}/state" hx-trigger="every 1s">{{ state_html|safe }}</div>
 
       <!-- Booking warning (shown at T-5min) -->
       <div id="booking-warning" class="hidden callout font-semibold text-warning"></div>

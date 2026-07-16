@@ -50,7 +50,7 @@ struct VisibilityResult {
 }
 
 #[derive(Template)]
-#[template(path = "visibility.html", escape = "none")]
+#[template(path = "visibility.html")]
 struct VisibilityTemplate {
     coord: String,
     x: String,

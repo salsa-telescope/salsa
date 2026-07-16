@@ -942,7 +942,7 @@ async fn get_observe(
 }
 
 #[derive(Template)]
-#[template(path = "observe_no_booking.html", escape = "none")]
+#[template(path = "observe_no_booking.html")]
 struct NoBookingTemplate {
     telescope_id: String,
 }
@@ -965,7 +965,7 @@ async fn get_observe_not_available(
 }
 
 #[derive(Template)]
-#[template(path = "observe_maintenance.html", escape = "none")]
+#[template(path = "observe_maintenance.html")]
 struct ObserveMaintenanceTemplate {
     telescope_id: String,
 }
@@ -1006,7 +1006,7 @@ const VALID_SPECTRAL_CHANNELS: &[usize] = &[64, 128, 256, 512, 1024, 2048, 4096,
 const MAX_INTEGRATION_TIME_SECS: f64 = 3600.0;
 
 #[derive(Template)]
-#[template(path = "observe.html", escape = "none")]
+#[template(path = "observe.html")]
 struct ObserveTemplate {
     info: TelescopeInfo,
     target_mode: String,

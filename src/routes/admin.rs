@@ -43,7 +43,7 @@ fn require_admin(user: Option<User>) -> Result<User, StatusCode> {
 }
 
 #[derive(Template)]
-#[template(path = "admin.html", escape = "none")]
+#[template(path = "admin.html")]
 struct AdminTemplate {
     telescopes: Vec<(String, bool, bool, bool, Option<bool>)>, // (name, in_maintenance, is_booked_now, controller_connected, receiver_connected)
     usage_from: NaiveDate,

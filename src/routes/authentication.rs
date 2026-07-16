@@ -31,7 +31,9 @@ pub fn routes(state: AppState) -> Router {
         .route("/authorized", get(authenticate_from_oauth2))
         .route("/login", get(login))
         .route("/local", post(local_login))
-        .route("/logout", get(logout))
+        // POST so a cross-site link can't log users out (SameSite=Lax
+        // still sends cookies on top-level GET navigations).
+        .route("/logout", post(logout))
         .route("/redirect/{provider_name}", get(redirect_to_auth_provider))
         .with_state(state)
 }

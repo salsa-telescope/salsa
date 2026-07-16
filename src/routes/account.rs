@@ -29,7 +29,7 @@ struct TzOption {
 }
 
 #[derive(Template)]
-#[template(path = "account.html", escape = "none")]
+#[template(path = "account.html")]
 struct AccountTemplate {
     user: User,
     /// All IANA timezones for the picker (alphabetical), with the user's

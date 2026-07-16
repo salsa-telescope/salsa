@@ -10,7 +10,7 @@ pub fn routes(state: AppState) -> Router {
 }
 
 #[derive(Template)]
-#[template(path = "weather.html", escape = "none")]
+#[template(path = "weather.html")]
 struct WeatherTemplate {
     age_str: String,
     weather_ts: i64,

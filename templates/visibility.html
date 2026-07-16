@@ -45,7 +45,7 @@
   {% endif %}
 
   {% if let Some(res) = result %}
-  <div class="overflow-x-auto">{{ res.svg }}</div>
+  <div class="overflow-x-auto">{{ res.svg|safe }}</div>
   <p class="text-xs text-gray-500">Hover or tap the chart to read off time and elevation.</p>
   {% endif %}
 
