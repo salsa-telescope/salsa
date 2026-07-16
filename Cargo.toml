@@ -35,7 +35,9 @@ tower-http = { version = "0.6.*", features = ["full"] }
 tracing = "0.1.44"
 tracing-journald = "0.3.2"
 tracing-subscriber = {version = "0.3.22", features = ["env-filter"]}
-uhd = { git = "https://github.com/samcrow/uhd-rust" }
+# Pinned: we need the time-source/PPS methods merged after the uhd-v0.3.0
+# tag, which no crates.io release contains yet. Bump deliberately.
+uhd = { git = "https://github.com/samcrow/uhd-rust", rev = "203de86ea2d74dedba5f8c40435c6dbca2f069d7" }
 
 [dev-dependencies]
 tempfile = "*"
