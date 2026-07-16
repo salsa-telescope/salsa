@@ -4,7 +4,7 @@ use crate::coords::{
     vlsrcorr_from_galactic,
 };
 use crate::geoip::lookup_country;
-use crate::middleware::session::SESSION_COOKIE_NAME;
+use crate::middleware::session::{clear_session_cookie, session_cookie};
 use crate::models::booking::{consecutive_booking_end, is_authorized_for_telescope};
 use crate::models::guest::{EndReason, GuestSession, StartError, touch_if_guest};
 use crate::models::maintenance::fetch_maintenance_set;
@@ -1150,10 +1150,7 @@ async fn start_guest_session_auto(
                     "Guest session {} started (auto-pick): user_id={} telescope={}",
                     gs.id, gs.user_id, gs.telescope_id
                 );
-                let cookie = format!(
-                    "{SESSION_COOKIE_NAME}={}; SameSite=Lax; HttpOnly; Secure; Path=/; Max-Age=2592000",
-                    session.token
-                );
+                let cookie = session_cookie(&session.token);
                 let mut headers = HeaderMap::new();
                 headers.insert(
                     SET_COOKIE,
@@ -1213,10 +1210,7 @@ async fn start_guest_session(
                 "Guest session {} started: user_id={} telescope={}",
                 gs.id, user.id, gs.telescope_id
             );
-            let cookie = format!(
-                "{SESSION_COOKIE_NAME}={}; SameSite=Lax; HttpOnly; Secure; Path=/; Max-Age=2592000",
-                session.token
-            );
+            let cookie = session_cookie(&session.token);
             let mut headers = HeaderMap::new();
             headers.insert(
                 SET_COOKIE,
@@ -1295,7 +1289,7 @@ async fn end_guest_session(
     let mut headers = HeaderMap::new();
     headers.insert(
         SET_COOKIE,
-        format!("{SESSION_COOKIE_NAME}=deleted; Path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT")
+        clear_session_cookie()
             .parse()
             .expect("Cookie should be parseable"),
     );

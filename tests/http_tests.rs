@@ -201,13 +201,13 @@ fn invalid_session_is_200_ok_and_resets_cookie() {
     let client = Client::new();
     let res = client
         .get(server.addr())
-        .header(COOKIE, "session=notavaildsession")
+        .header(COOKIE, "__Host-session=notavaildsession")
         .send()
         .expect("Request should complete");
 
     assert_eq!(StatusCode::OK, res.status());
     assert_eq!(
-        "session=deleted; expires=Thu, 01 Jan 1970 00:00:00 GMT",
+        "__Host-session=deleted; SameSite=Lax; HttpOnly; Secure; Path=/; Max-Age=0",
         res.headers()[SET_COOKIE]
     );
 }

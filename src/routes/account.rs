@@ -10,7 +10,7 @@ use serde::Deserialize;
 use tracing::{error, info};
 
 use crate::app::AppState;
-use crate::middleware::session::SESSION_COOKIE_NAME;
+use crate::middleware::session::clear_session_cookie;
 use crate::models::user::User;
 use crate::routes::index::render_main;
 
@@ -117,8 +117,7 @@ async fn delete_account(
             error!("Failed to delete account: {err:?}");
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
-    let clear_cookie =
-        format!("{SESSION_COOKIE_NAME}=deleted; expires=Thu, 01 Jan 1970 00:00:00 GMT");
+    let clear_cookie = clear_session_cookie();
     let mut response = Response::new(axum::body::Body::empty());
     response.headers_mut().insert(
         SET_COOKIE,

@@ -28,7 +28,7 @@ use crate::{
     models::session::{Session, complete_oauth2_login, start_oauth2_login},
 };
 use crate::{
-    middleware::session::{SESSION_COOKIE_NAME, get_session_token},
+    middleware::session::{get_session_token, session_cookie},
     models::user::User,
 };
 
@@ -144,10 +144,7 @@ async fn local_login(
     );
 
     let session = Session::create(state.database_connection.clone(), &user).await?;
-    let cookie = format!(
-        "{SESSION_COOKIE_NAME}={}; SameSite=Lax; HttpOnly; Secure; Path=/; Max-Age=2592000",
-        session.token
-    );
+    let cookie = session_cookie(&session.token);
     let mut headers = HeaderMap::new();
     headers.insert(
         SET_COOKIE,
@@ -317,12 +314,9 @@ async fn authenticate_from_oauth2(
     };
 
     let session = Session::create(state.database_connection.clone(), &user).await?;
-    let cookie = session.token;
     // Note: We reuse the same session cookie name here. So we don't need to
     // reset that cookie.
-    let cookie = format!(
-        "{SESSION_COOKIE_NAME}={cookie}; SameSite=Lax; HttpOnly; Secure; Path=/; Max-Age=2592000"
-    );
+    let cookie = session_cookie(&session.token);
 
     let mut headers = HeaderMap::new();
     headers.insert(
