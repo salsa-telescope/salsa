@@ -134,7 +134,9 @@ pub async fn create_app(config_dir: &Path, database_dir: &Path) -> (Router, AppS
         active_correlator: Arc::new(Mutex::new(None)),
     };
 
-    let mut app = Router::new()
+    let assets_path = "assets";
+    debug!("serving asserts from {}", assets_path);
+    let app = Router::new()
         .route("/", get(routes::index::get_index))
         .nest(
             "/account",
@@ -172,6 +174,9 @@ pub async fn create_app(config_dir: &Path, database_dir: &Path) -> (Router, AppS
             "/interferometry",
             routes::interferometry::routes(state.clone()),
         )
+        // Registered before the layers below so assets get the security
+        // headers too (a fallback added after layering would bypass them).
+        .fallback_service(ServeDir::new(assets_path))
         .layer(
             TraceLayer::new_for_http().make_span_with(|request: &Request<_>| {
                 let matched_path = request
@@ -192,12 +197,9 @@ pub async fn create_app(config_dir: &Path, database_dir: &Path) -> (Router, AppS
             session_middleware,
         ))
         .route_layer(middleware::from_fn(cookies_middleware))
-        .layer(middleware::from_fn(slow_request_middleware));
+        .layer(middleware::from_fn(slow_request_middleware))
+        .layer(middleware::from_fn(security_headers_middleware));
 
-    let assets_path = "assets";
-    debug!("serving asserts from {}", assets_path);
-    let assets_service = ServeDir::new(assets_path);
-    app = app.fallback_service(assets_service);
     (app, state)
 }
 
@@ -212,6 +214,43 @@ pub async fn teardown_app(app: AppState) {
     for telescope in app.telescopes.get_all().await {
         telescope.shutdown().await;
     }
+}
+
+/// Standard security response headers on every response. The CSP allows
+/// inline scripts/styles (templates use inline <script> blocks and
+/// on*-attributes) but blocks all external origins, so injected content
+/// can't load code or exfiltrate to other hosts. `frame-ancestors 'none'`
+/// prevents clickjacking; HSTS is ignored by browsers on plain-HTTP dev
+/// servers so it's safe to send unconditionally.
+async fn security_headers_middleware(req: Request<axum::body::Body>, next: Next) -> Response {
+    let mut response = next.run(req).await;
+    let headers = response.headers_mut();
+    headers.insert(
+        "content-security-policy",
+        axum::http::HeaderValue::from_static(
+            "default-src 'self'; script-src 'self' 'unsafe-inline'; \
+             style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; \
+             connect-src 'self' wss:; frame-ancestors 'none'; \
+             base-uri 'self'; form-action 'self'",
+        ),
+    );
+    headers.insert(
+        "strict-transport-security",
+        axum::http::HeaderValue::from_static("max-age=63072000"),
+    );
+    headers.insert(
+        "x-content-type-options",
+        axum::http::HeaderValue::from_static("nosniff"),
+    );
+    headers.insert(
+        "x-frame-options",
+        axum::http::HeaderValue::from_static("DENY"),
+    );
+    headers.insert(
+        "referrer-policy",
+        axum::http::HeaderValue::from_static("strict-origin-when-cross-origin"),
+    );
+    response
 }
 
 /// Logs at WARN whenever a request takes longer than this. Helps surface
