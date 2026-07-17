@@ -1,5 +1,6 @@
 use crate::app::AppState;
 use crate::geoip::lookup_country;
+use crate::i18n::Language;
 use crate::models::booking::Booking;
 use crate::models::maintenance::fetch_maintenance_set;
 use crate::models::support_announcement::fetch_support_announcement;
@@ -189,6 +190,7 @@ struct BookingsTemplate {
 }
 
 async fn get_bookings(
+    Extension(lang): Extension<Language>,
     Extension(user): Extension<Option<User>>,
     headers: HeaderMap,
     Query(query): Query<WeekQuery>,
@@ -218,7 +220,7 @@ async fn get_bookings(
     let content = if headers.get("hx-request").is_some() {
         content
     } else {
-        render_main(Some(user), content)
+        render_main(Some(user), lang, content)
     };
     Ok(Html(content).into_response())
 }
@@ -232,6 +234,7 @@ struct SlotBookingForm {
 }
 
 async fn create_booking(
+    Extension(lang): Extension<Language>,
     Extension(user): Extension<Option<User>>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     headers: HeaderMap,
@@ -321,7 +324,7 @@ async fn create_booking(
     let content = if headers.get("hx-request").is_some() {
         content
     } else {
-        render_main(Some(user), content)
+        render_main(Some(user), lang, content)
     };
     Ok(Html(content).into_response())
 }
@@ -333,6 +336,7 @@ struct DeleteQuery {
 }
 
 async fn delete_booking(
+    Extension(lang): Extension<Language>,
     Extension(user): Extension<Option<User>>,
     headers: HeaderMap,
     Path(booking_id): Path<i64>,
@@ -368,7 +372,7 @@ async fn delete_booking(
     let content = if headers.get("hx-request").is_some() {
         content
     } else {
-        render_main(Some(user), content)
+        render_main(Some(user), lang, content)
     };
     Ok(Html(content).into_response())
 }

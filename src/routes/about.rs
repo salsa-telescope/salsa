@@ -7,6 +7,7 @@ use axum::{
     routing::get,
 };
 
+use crate::i18n::Language;
 use crate::models::user::User;
 use crate::routes::index::render_main;
 
@@ -15,6 +16,7 @@ pub fn routes() -> Router {
 }
 
 async fn get_about(
+    Extension(lang): Extension<Language>,
     Extension(user): Extension<Option<User>>,
     headers: HeaderMap,
 ) -> impl IntoResponse {
@@ -23,7 +25,7 @@ async fn get_about(
     let content = if headers.get("hx-request").is_some() {
         content
     } else {
-        render_main(user, content)
+        render_main(user, lang, content)
     };
     Html(content)
 }

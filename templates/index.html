@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{ lang.code() }}">
     <head>
         <title>SALSA</title>
         <meta charset='UTF-8'/>
@@ -50,25 +50,33 @@
                 </button>
             </div>
             <nav id="main-nav">
-                <a href="/about" class="nav-link" onclick="closeAllPanels()">About</a>
+                <a href="/about" class="nav-link" onclick="closeAllPanels()">{{ lang.t("nav-about") }}</a>
                 {% if !is_guest %}
-                <a href="/bookings" class="nav-link" onclick="closeAllPanels()">Bookings</a>
+                <a href="/bookings" class="nav-link" onclick="closeAllPanels()">{{ lang.t("nav-bookings") }}</a>
                 {% endif %}
-                <a href="/observe" class="nav-link" onclick="closeAllPanels()">Observe</a>
+                <a href="/observe" class="nav-link" onclick="closeAllPanels()">{{ lang.t("nav-observe") }}</a>
                 {% if !is_guest %}
-                <a href="/observations" class="nav-link" onclick="closeAllPanels()">Observation archive</a>
+                <a href="/observations" class="nav-link" onclick="closeAllPanels()">{{ lang.t("nav-observations") }}</a>
                 {% endif %}
-                <a href="/support" class="nav-link" onclick="closeAllPanels()">Support</a>
-                <a href="/live" class="nav-link" onclick="closeAllPanels()">Live status</a>
+                <a href="/support" class="nav-link" onclick="closeAllPanels()">{{ lang.t("nav-support") }}</a>
+                <a href="/live" class="nav-link" onclick="closeAllPanels()">{{ lang.t("nav-live") }}</a>
                 {% if is_admin %}
-                <a href="/admin" class="nav-link" onclick="closeAllPanels()">Admin</a>
+                <a href="/admin" class="nav-link" onclick="closeAllPanels()">{{ lang.t("nav-admin") }}</a>
                 {% endif %}
                 <span class="nav-spacer"></span>
+                <form method="POST" action="/language" class="contents">
+                    {% for option in languages %}
+                    <button type="submit" name="language" value="{{ option.code }}"
+                        title="{{ option.native_name }}"
+                        class="nav-link{% if option.current %} font-bold{% endif %}"
+                        {% if option.current %}aria-current="true"{% endif %}>{{ option.label }}</button>
+                    {% endfor %}
+                </form>
                 {% if name == "" %}
-                <a href="/auth/login" class="nav-link">Login</a>
+                <a href="/auth/login" class="nav-link">{{ lang.t("nav-login") }}</a>
                 {% else if is_guest %}
                 <form method="POST" action="/observe/guest/end" class="contents">
-                    <button type="submit" class="nav-link">End session</button>
+                    <button type="submit" class="nav-link">{{ lang.t("nav-end-session") }}</button>
                 </form>
                 {% else %}
                 <button class="nav-user-toggle" onclick="toggleUser()">
@@ -78,9 +86,9 @@
                     {{ name }}
                 </button>
                 <div class="nav-user-dropdown">
-                    <a href="/account" class="nav-link" onclick="closeAllPanels()">Account</a>
+                    <a href="/account" class="nav-link" onclick="closeAllPanels()">{{ lang.t("nav-account") }}</a>
                     <form method="POST" action="/auth/logout" class="contents">
-                        <button type="submit" class="nav-link">Log out</button>
+                        <button type="submit" class="nav-link">{{ lang.t("nav-logout") }}</button>
                     </form>
                 </div>
                 {% endif %}

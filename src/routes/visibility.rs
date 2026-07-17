@@ -24,6 +24,7 @@ use crate::coords::{
     Direction, ONSALA_LOCATION, PRACTICAL_ELEVATION_LIMIT_DEG, horizontal_from_equatorial,
     horizontal_from_galactic, horizontal_from_sun,
 };
+use crate::i18n::Language;
 use crate::models::user::User;
 use crate::routes::index::render_main;
 
@@ -62,6 +63,7 @@ struct VisibilityTemplate {
 }
 
 async fn get_visibility(
+    Extension(lang): Extension<Language>,
     Extension(user): Extension<Option<User>>,
     Query(form): Query<VisibilityForm>,
     headers: HeaderMap,
@@ -115,7 +117,7 @@ async fn get_visibility(
     let content = if headers.get("hx-request").is_some() {
         content
     } else {
-        render_main(user, content)
+        render_main(user, lang, content)
     };
     Html(content)
 }

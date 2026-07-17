@@ -4,6 +4,7 @@ use crate::coords::{
     vlsrcorr_from_galactic,
 };
 use crate::geoip::lookup_country;
+use crate::i18n::Language;
 use crate::middleware::session::{clear_session_cookie, session_cookie};
 use crate::models::booking::{consecutive_booking_end, is_authorized_for_telescope};
 use crate::models::guest::{EndReason, GuestSession, StartError, touch_if_guest};
@@ -80,6 +81,7 @@ struct ObserveLandingTemplate {
 }
 
 async fn get_observe_landing(
+    Extension(lang): Extension<Language>,
     State(state): State<AppState>,
     Extension(user): Extension<Option<User>>,
 ) -> Response {
@@ -127,7 +129,7 @@ async fn get_observe_landing(
     }
     .render()
     .expect("Template should always succeed");
-    Html(render_main(Some(user), content)).into_response()
+    Html(render_main(Some(user), lang, content)).into_response()
 }
 
 #[derive(Deserialize)]
@@ -901,6 +903,7 @@ async fn stop_observe(
 }
 
 async fn get_observe(
+    Extension(lang): Extension<Language>,
     Extension(user): Extension<Option<User>>,
     State(state): State<AppState>,
     Path(telescope_id): Path<String>,
@@ -936,7 +939,7 @@ async fn get_observe(
     let content = if headers.get("hx-request").is_some() {
         content
     } else {
-        render_main(Some(user), content)
+        render_main(Some(user), lang, content)
     };
     Ok(Html(content).into_response())
 }
@@ -948,6 +951,7 @@ struct NoBookingTemplate {
 }
 
 async fn get_observe_not_available(
+    Extension(lang): Extension<Language>,
     Extension(user): Extension<Option<User>>,
     Path(telescope_id): Path<String>,
     headers: HeaderMap,
@@ -959,7 +963,7 @@ async fn get_observe_not_available(
     let content = if headers.get("hx-request").is_some() {
         content
     } else {
-        render_main(Some(user), content)
+        render_main(Some(user), lang, content)
     };
     Ok(Html(content))
 }
@@ -971,6 +975,7 @@ struct ObserveMaintenanceTemplate {
 }
 
 async fn get_observe_maintenance(
+    Extension(lang): Extension<Language>,
     Extension(user): Extension<Option<User>>,
     Path(telescope_id): Path<String>,
     headers: HeaderMap,
@@ -982,7 +987,7 @@ async fn get_observe_maintenance(
     let content = if headers.get("hx-request").is_some() {
         content
     } else {
-        render_main(Some(user), content)
+        render_main(Some(user), lang, content)
     };
     Ok(Html(content))
 }
@@ -1417,6 +1422,7 @@ mod tests {
             provider: "guest".to_string(),
             is_admin: false,
             timezone: None,
+            language: None,
         };
 
         let finished = tokio::time::timeout(

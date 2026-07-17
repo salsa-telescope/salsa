@@ -1,7 +1,7 @@
 <div class="section light">
   <div class="w-full flex-row justify-items-center">
     <div class="inline-flex flex-col gap-4">
-      <p class="text-gray-600">Always use the same login method to keep access to your bookings and observations.</p>
+      <p class="text-gray-600">{{ lang.t("login-same-method-hint") }}</p>
       <div class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-2 items-center w-fit">
         {% for (provider, description) in providers %}
         <a href="/auth/redirect/{{ provider }}" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold text-lg py-4 px-8 rounded inline-flex items-center cursor-pointer">
@@ -17,23 +17,23 @@
       <hr class="my-4 border-gray-200" />
 
       <details class="text-sm" {% if error || rate_limited %}open{% endif %}>
-        <summary class="cursor-pointer text-gray-500 select-none">Local login (exceptional cases only)</summary>
+        <summary class="cursor-pointer text-gray-500 select-none">{{ lang.t("login-local-summary") }}</summary>
         <div class="mt-3 space-y-2 max-w-xs">
-          <p class="text-gray-500 text-xs">Local accounts are reserved for demonstrations and special cases. Contact SALSA support to request access.</p>
+          <p class="text-gray-500 text-xs">{{ lang.t("login-local-help") }}</p>
           {% if error %}
-          <p class="text-danger text-sm font-medium">Invalid username or password.</p>
+          <p class="text-danger text-sm font-medium">{{ lang.t("login-invalid-credentials") }}</p>
           {% endif %}
           {% if rate_limited %}
-          <p class="text-danger text-sm font-medium">Too many failed attempts. Please try again later.</p>
+          <p class="text-danger text-sm font-medium">{{ lang.t("login-rate-limited") }}</p>
           {% endif %}
           <form method="post" action="/auth/local" class="flex flex-col gap-2">
-            <input type="text" name="username" placeholder="Username" required
+            <input type="text" name="username" placeholder="{{ lang.t("login-username") }}" required
               class="border rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-focus" />
-            <input type="password" name="password" placeholder="Password" required
+            <input type="password" name="password" placeholder="{{ lang.t("login-password") }}" required
               class="border rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-focus" />
             <button type="submit"
               class="bg-gray-700 hover:bg-gray-600 text-white font-medium py-2 px-4 rounded text-sm">
-              Log in
+              {{ lang.t("login-submit") }}
             </button>
           </form>
         </div>

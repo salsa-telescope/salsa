@@ -16,6 +16,7 @@ use tokio::sync::Mutex;
 use tracing::{debug, error, info};
 
 use crate::app::AppState;
+use crate::i18n::Language;
 use crate::models::booking::Booking;
 use crate::models::guest::GuestSession;
 use crate::models::maintenance::fetch_maintenance_set;
@@ -212,6 +213,7 @@ struct LiveTemplate {
 }
 
 async fn get_live_page(
+    Extension(lang): Extension<Language>,
     State(state): State<WebcamState>,
     Extension(user): Extension<Option<User>>,
     headers: HeaderMap,
@@ -234,7 +236,7 @@ async fn get_live_page(
     let content = if headers.get("hx-request").is_some() {
         content
     } else {
-        render_main(user, content)
+        render_main(user, lang, content)
     };
     Html(content)
 }

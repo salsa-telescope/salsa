@@ -6,7 +6,7 @@ use rusqlite::Connection;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-use crate::{error::InternalError, models::user::User};
+use crate::{error::InternalError, i18n::Language, models::user::User};
 
 /// How long a session cookie is valid for. Matches the cookie Max-Age set on
 /// login, and is enforced server-side so a leaked token can't be replayed
@@ -120,7 +120,7 @@ impl Session {
         let conn = connection.lock().await;
         let oldest_allowed = Utc::now().timestamp() - SESSION_LIFETIME_SECS;
         match conn.query_row(
-            "SELECT token, user.id, username, provider, timezone FROM session \
+            "SELECT token, user.id, username, provider, timezone, language FROM session \
              INNER JOIN user ON session.user_id = user.id \
              WHERE session.token = (?1) AND session.created_at > (?2)",
             (token, oldest_allowed),
@@ -136,10 +136,12 @@ impl Session {
                         .expect("Table 'user' has known layout"),
                     row.get::<usize, Option<String>>(4)
                         .expect("Table 'user' has known layout"),
+                    row.get::<usize, Option<String>>(5)
+                        .expect("Table 'user' has known layout"),
                 ))
             },
         ) {
-            Ok((token, user_id, username, provider, timezone)) => Ok(Some(Session {
+            Ok((token, user_id, username, provider, timezone, language)) => Ok(Some(Session {
                 token: token.to_string(),
                 user: User {
                     id: user_id,
@@ -149,6 +151,8 @@ impl Session {
                     // Stored names are validated on write; ignore anything
                     // unparseable (treated as UTC) rather than failing login.
                     timezone: timezone.and_then(|name| name.parse().ok()),
+                    // Same: validated on write, ignore junk.
+                    language: language.as_deref().and_then(Language::from_code),
                 },
             })),
             Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),

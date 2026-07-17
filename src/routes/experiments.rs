@@ -7,6 +7,7 @@ use axum::{
     routing::get,
 };
 
+use crate::i18n::Language;
 use crate::models::user::User;
 use crate::routes::index::render_main;
 
@@ -18,6 +19,7 @@ pub fn routes() -> Router {
 }
 
 async fn get_experiments_sun(
+    Extension(lang): Extension<Language>,
     Extension(user): Extension<Option<User>>,
     headers: HeaderMap,
 ) -> impl IntoResponse {
@@ -26,12 +28,13 @@ async fn get_experiments_sun(
     let content = if headers.get("hx-request").is_some() {
         content
     } else {
-        render_main(user, content)
+        render_main(user, lang, content)
     };
     Html(content)
 }
 
 async fn get_experiments_gnss(
+    Extension(lang): Extension<Language>,
     Extension(user): Extension<Option<User>>,
     headers: HeaderMap,
 ) -> impl IntoResponse {
@@ -40,12 +43,13 @@ async fn get_experiments_gnss(
     let content = if headers.get("hx-request").is_some() {
         content
     } else {
-        render_main(user, content)
+        render_main(user, lang, content)
     };
     Html(content)
 }
 
 async fn get_experiments_hi(
+    Extension(lang): Extension<Language>,
     Extension(user): Extension<Option<User>>,
     headers: HeaderMap,
 ) -> impl IntoResponse {
@@ -54,7 +58,7 @@ async fn get_experiments_hi(
     let content = if headers.get("hx-request").is_some() {
         content
     } else {
-        render_main(user, content)
+        render_main(user, lang, content)
     };
     Html(content)
 }

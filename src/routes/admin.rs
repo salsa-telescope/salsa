@@ -11,6 +11,7 @@ use serde::Deserialize;
 use tracing::info;
 
 use crate::app::AppState;
+use crate::i18n::Language;
 use crate::models::booking::Booking;
 use crate::models::guest::GuestSession;
 use crate::models::maintenance::{fetch_maintenance_set, set_maintenance};
@@ -73,6 +74,7 @@ struct AdminTemplate {
 }
 
 async fn get_admin(
+    Extension(lang): Extension<Language>,
     Extension(user): Extension<Option<User>>,
     State(state): State<AppState>,
     Query(query): Query<AdminQuery>,
@@ -225,7 +227,7 @@ async fn get_admin(
     let content = if headers.get("hx-request").is_some() {
         content
     } else {
-        render_main(Some(user), content)
+        render_main(Some(user), lang, content)
     };
     Ok(Html(content))
 }

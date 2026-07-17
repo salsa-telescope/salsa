@@ -6,6 +6,7 @@ pub mod booking;
 pub mod experiments;
 pub mod index;
 pub mod interferometry;
+pub mod language;
 pub mod live;
 pub mod observations;
 pub mod observe;

@@ -6,7 +6,18 @@ use axum::{
 };
 use serde::Deserialize;
 
+use crate::i18n::Language;
 use crate::models::user::User;
+
+/// One entry in the header language picker.
+struct LanguageOption {
+    code: &'static str,
+    /// Compact label shown in the header ("EN", "SV").
+    label: String,
+    /// The language's name in itself, as tooltip.
+    native_name: &'static str,
+    current: bool,
+}
 
 #[derive(Template)]
 #[template(path = "index.html")]
@@ -20,6 +31,8 @@ struct IndexTemplate {
     /// True for a logged-in, non-guest user who hasn't set a timezone yet,
     /// triggering a one-shot browser-timezone auto-detect in the layout.
     detect_timezone: bool,
+    lang: Language,
+    languages: Vec<LanguageOption>,
 }
 
 #[derive(Deserialize)]
@@ -38,6 +51,7 @@ pub struct IndexQuery {
 
 pub async fn get_index(
     Extension(user): Extension<Option<User>>,
+    Extension(lang): Extension<Language>,
     Query(query): Query<IndexQuery>,
 ) -> Response {
     // guest_error takes priority over guest_ended if both happen to be set.
@@ -53,7 +67,7 @@ pub async fn get_index(
     let content = WelcomeTemplate { banner, show_hero }
         .render()
         .expect("welcome");
-    Html(render_main(user, content)).into_response()
+    Html(render_main(user, lang, content)).into_response()
 }
 
 #[derive(Template)]
@@ -175,7 +189,7 @@ fn guest_ended_banner(reason: &str) -> Option<WelcomeBanner> {
 const GITHUB_SERVER_URL: Option<&'static str> = option_env!("GITHUB_SERVER_URL");
 const GITHUB_REPOSITORY: Option<&'static str> = option_env!("GITHUB_REPOSITORY");
 
-pub fn render_main(user: Option<User>, content: String) -> String {
+pub fn render_main(user: Option<User>, lang: Language, content: String) -> String {
     let build_url = match (GITHUB_SERVER_URL, GITHUB_REPOSITORY) {
         (Some(server_url), Some(repository)) => format!(
             "{}/{}/releases/tag/v{}",
@@ -203,6 +217,15 @@ pub fn render_main(user: Option<User>, content: String) -> String {
         Some(u) => u.name.clone(),
         None => String::new(),
     };
+    let languages = Language::ALL
+        .iter()
+        .map(|&language| LanguageOption {
+            code: language.code(),
+            label: language.code().to_ascii_uppercase(),
+            native_name: language.native_name(),
+            current: language == lang,
+        })
+        .collect();
     IndexTemplate {
         name,
         is_admin,
@@ -211,6 +234,8 @@ pub fn render_main(user: Option<User>, content: String) -> String {
         build_url,
         version_description,
         detect_timezone,
+        lang,
+        languages,
     }
     .render()
     .expect("Template should always succeed")

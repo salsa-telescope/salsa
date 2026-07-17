@@ -1,5 +1,6 @@
 use crate::app::AppState;
 use crate::fits::{SpectrumMeta, write_spectrum_fits};
+use crate::i18n::Language;
 use crate::models::interferometry::InterferometrySession;
 use crate::models::observation::Observation;
 use crate::models::user::User;
@@ -136,6 +137,7 @@ fn build_observations_template(
 }
 
 async fn get_observations(
+    Extension(lang): Extension<Language>,
     Extension(user): Extension<Option<User>>,
     headers: HeaderMap,
     Query(query): Query<PageQuery>,
@@ -214,7 +216,7 @@ async fn get_observations(
     let content = if headers.get("hx-request").is_some() {
         content
     } else {
-        render_main(Some(user), content)
+        render_main(Some(user), lang, content)
     };
     Ok(Html(content).into_response())
 }
