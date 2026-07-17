@@ -19,23 +19,23 @@
       hx-get="/observations?mode=single&user_id={{ viewed_user_id }}"
       hx-target="#page" hx-push-url="true"
       class="telescope-tab-btn {% if mode == "single" %}active{% endif %}">
-      Single-dish
+      {{ lang.t("obs-tab-single") }}
     </button>
     <button
       hx-get="/observations?mode=interferometry&user_id={{ viewed_user_id }}"
       hx-target="#page" hx-push-url="true"
       class="telescope-tab-btn {% if mode == "interferometry" %}active{% endif %}">
-      Interferometry
+      {{ lang.t("observe-landing-interferometry") }}
     </button>
   </div>
   {% endif %}
 
   {% if mode == "interferometry" %}
-  <h2 class="text-xl font-semibold mb-3">Interferometry sessions</h2>
+  <h2 class="text-xl font-semibold mb-3">{{ lang.t("obs-inter-sessions") }}</h2>
   {% if interferometry_sessions.is_empty() %}
-  <p class="text-gray-500 text-sm">No interferometry sessions yet.</p>
+  <p class="text-gray-500 text-sm">{{ lang.t("obs-inter-none") }}</p>
   {% else %}
-  <p class="text-xs text-gray-400 mb-2">{{ interferometry_sessions.len() }} session{% if interferometry_sessions.len() != 1 %}s{% endif %}</p>
+  <p class="text-xs text-gray-400 mb-2">{{ interferometry_sessions.len() }} {% if interferometry_sessions.len() != 1 %}{{ lang.t("obs-sessions-plural") }}{% else %}{{ lang.t("obs-session-singular") }}{% endif %}</p>
   <div class="space-y-1">
     {% for s in interferometry_sessions %}
     <div class="hover:bg-gray-100 p-2 rounded border border-transparent text-sm flex justify-between items-center">
@@ -45,29 +45,29 @@
         &mdash; {{ s.target_label }}
         &mdash; {{ s.center_freq_mhz|fmt("{:.1}") }} MHz
         {% if let Some(et) = s.end_time %}
-        &mdash; ended {{ et.in_tz(tz).format("%H:%M %Z") }}
+        &mdash; {{ lang.t("obs-ended") }} {{ et.in_tz(tz).format("%H:%M %Z") }}
         {% else %}
-        &mdash; <span class="text-warning">no end time</span>
+        &mdash; <span class="text-warning">{{ lang.t("obs-no-end-time") }}</span>
         {% endif %}
       </a>
       <button
         class="ml-2 text-gray-400 hover:text-danger-hover text-xs px-1 flex-shrink-0"
         hx-delete="/observations/interferometry/{{ s.id }}?user_id={{ viewed_user_id }}"
         hx-target="#page"
-        hx-confirm="Delete this interferometry session and all its visibility data?">✕</button>
+        hx-confirm="{{ lang.t("obs-inter-delete-confirm") }}">✕</button>
     </div>
     {% endfor %}
   </div>
   {% endif %}
   {% else %}
   {% if observations.is_empty() && current_page == 1 %}
-  <h2 class="text-xl font-semibold mb-3">My observations</h2>
-  <p>No observations yet.</p>
+  <h2 class="text-xl font-semibold mb-3">{{ lang.t("obs-my") }}</h2>
+  <p>{{ lang.t("obs-none") }}</p>
   {% else %}
   <div class="flex flex-col lg:flex-row gap-4">
     <div class="lg:w-1/3">
-      <h2 class="text-xl font-semibold mb-3">My observations</h2>
-      <p class="text-xs text-gray-400 mb-2">{{ total_count }} observations · click to view spectrum · ✕ to delete selected</p>
+      <h2 class="text-xl font-semibold mb-3">{{ lang.t("obs-my") }}</h2>
+      <p class="text-xs text-gray-400 mb-2">{{ total_count }} {{ lang.t("obs-list-hint") }}</p>
       <div class="space-y-1">
           {% for obs in observations %}
           <div
@@ -85,7 +85,7 @@
               class="ml-2 text-gray-400 hover:text-danger-hover text-xs px-1 flex-shrink-0 hidden"
               hx-delete="/observations/{{ obs.id }}?page={{ current_page }}&user_id={{ viewed_user_id }}"
               hx-target="#page"
-              hx-confirm="Delete this observation?"
+              hx-confirm="{{ lang.t("obs-delete-confirm") }}"
             >✕</button>
           </div>
           {% endfor %}
@@ -97,9 +97,9 @@
           class="px-3 py-1 bg-gray-200 rounded hover:bg-gray-300"
           hx-get="/observations?page={{ p }}&user_id={{ viewed_user_id }}"
           hx-target="#page"
-        >&larr; Prev</button>
+        >&larr; {{ lang.t("bookings-prev") }}</button>
         {% else %}
-        <button class="px-3 py-1 bg-gray-100 rounded text-gray-400 cursor-default" disabled>&larr; Prev</button>
+        <button class="px-3 py-1 bg-gray-100 rounded text-gray-400 cursor-default" disabled>&larr; {{ lang.t("bookings-prev") }}</button>
         {% endif %}
         <span class="text-gray-500">{{ current_page }} / {{ total_pages }}</span>
         {% if let Some(p) = next_page %}
@@ -107,16 +107,16 @@
           class="px-3 py-1 bg-gray-200 rounded hover:bg-gray-300"
           hx-get="/observations?page={{ p }}&user_id={{ viewed_user_id }}"
           hx-target="#page"
-        >Next &rarr;</button>
+        >{{ lang.t("bookings-next") }} &rarr;</button>
         {% else %}
-        <button class="px-3 py-1 bg-gray-100 rounded text-gray-400 cursor-default" disabled>Next &rarr;</button>
+        <button class="px-3 py-1 bg-gray-100 rounded text-gray-400 cursor-default" disabled>{{ lang.t("bookings-next") }} &rarr;</button>
         {% endif %}
       </div>
       {% endif %}
     </div>
     <div class="lg:w-2/3 flex flex-col lg:flex-row gap-4 items-start">
       <div id="observation-chart" style="display: none;" class="w-full max-w-[640px] lg:shrink-0">
-        <h2 class="text-xl font-semibold mb-3 text-center">Spectrum</h2>
+        <h2 class="text-xl font-semibold mb-3 text-center">{{ lang.t("obs-spectrum") }}</h2>
         <div id="observation-chart-buttons" class="flex gap-2 justify-center mt-1">
           <button id="observation-axis-toggle" style="display: none;"
             class="px-2 py-1 bg-gray-200 text-sm rounded hover:bg-gray-300">
@@ -131,52 +131,52 @@
         <div id="observation-downloads" class="hidden flex gap-2 justify-center mt-3">
           <button id="download-png"
             class="btn bg-gray-200 hover:bg-gray-300 text-gray-700">
-            Save PNG
+            {{ lang.t("obs-save-png") }}
           </button>
           <a id="download-csv"
             class="btn bg-gray-200 hover:bg-gray-300 text-gray-700"
             download>
-            Save CSV
+            {{ lang.t("obs-save-csv") }}
           </a>
           <a id="download-fits"
             class="btn bg-gray-200 hover:bg-gray-300 text-gray-700"
             download>
-            Save FITS
+            {{ lang.t("obs-save-fits") }}
           </a>
         </div>
-        <p class="text-xs text-gray-400 text-center mt-1">PNG and CSV export the corrected spectrum · FITS always exports raw data</p>
+        <p class="text-xs text-gray-400 text-center mt-1">{{ lang.t("obs-export-note") }}</p>
       </div>
       <div id="analysis-panel" style="display: none;" class="min-w-48 text-sm space-y-3">
         <div class="flex items-center justify-between">
-          <span class="text-xl font-semibold">Analysis</span>
-          <button onclick="resetAnalysis()" class="text-xs px-2 py-1 bg-gray-200 rounded hover:bg-gray-300">Reset all</button>
+          <span class="text-xl font-semibold">{{ lang.t("obs-analysis") }}</span>
+          <button onclick="resetAnalysis()" class="text-xs px-2 py-1 bg-gray-200 rounded hover:bg-gray-300">{{ lang.t("obs-reset-all") }}</button>
         </div>
-        <p class="text-xs text-gray-400 max-w-48">Analysis is session-only and not saved — take notes of any important findings.</p>
+        <p class="text-xs text-gray-400 max-w-48">{{ lang.t("obs-analysis-note") }}</p>
         <details open class="border rounded p-2">
-          <summary class="cursor-pointer font-medium text-gray-600 text-xs uppercase tracking-wide select-none">Baseline</summary>
+          <summary class="cursor-pointer font-medium text-gray-600 text-xs uppercase tracking-wide select-none">{{ lang.t("obs-baseline") }}</summary>
           <div class="mt-2 space-y-2">
             <div class="flex gap-2 items-center">
               <button id="btn-pick-baseline" onclick="togglePickMode('baseline')" class="text-xs px-2 py-1 bg-gray-200 rounded hover:bg-gray-300">Pick ranges</button>
               <span id="baseline-count" class="text-xs text-gray-400">0 ranges</span>
             </div>
             <div class="flex gap-2 items-center">
-              <label class="text-xs text-gray-500">Order:</label>
+              <label class="text-xs text-gray-500">{{ lang.t("obs-order") }}</label>
               <select id="baseline-order" class="text-xs border rounded px-1 py-0.5">
-                <option value="1">1 (linear)</option>
-                <option value="2">2 (quadratic)</option>
+                <option value="1">{{ lang.t("obs-order-linear") }}</option>
+                <option value="2">{{ lang.t("obs-order-quadratic") }}</option>
               </select>
             </div>
             <div class="flex gap-2 flex-wrap">
               <button id="btn-fit-baseline" onclick="fitBaseline()" disabled
-                class="text-xs px-2 py-1 bg-brand-bg text-link rounded hover:bg-brand-bg disabled:opacity-40 disabled:cursor-not-allowed">Fit</button>
+                class="text-xs px-2 py-1 bg-brand-bg text-link rounded hover:bg-brand-bg disabled:opacity-40 disabled:cursor-not-allowed">{{ lang.t("obs-fit") }}</button>
               <button id="btn-subtract-baseline" onclick="subtractBaseline()" disabled
-                class="text-xs px-2 py-1 bg-brand-bg text-link rounded hover:bg-brand-bg disabled:opacity-40 disabled:cursor-not-allowed">Subtract</button>
-              <button onclick="clearBaseline()" class="text-xs px-2 py-1 bg-gray-100 rounded hover:bg-gray-200">Clear</button>
+                class="text-xs px-2 py-1 bg-brand-bg text-link rounded hover:bg-brand-bg disabled:opacity-40 disabled:cursor-not-allowed">{{ lang.t("obs-subtract") }}</button>
+              <button onclick="clearBaseline()" class="text-xs px-2 py-1 bg-gray-100 rounded hover:bg-gray-200">{{ lang.t("obs-clear") }}</button>
             </div>
           </div>
         </details>
         <details open class="border rounded p-2">
-          <summary class="cursor-pointer font-medium text-gray-600 text-xs uppercase tracking-wide select-none">Gaussian fit</summary>
+          <summary class="cursor-pointer font-medium text-gray-600 text-xs uppercase tracking-wide select-none">{{ lang.t("obs-gaussian") }}</summary>
           <div class="mt-2 space-y-2">
             <div class="flex gap-2 items-center">
               <button id="btn-pick-gaussian" onclick="togglePickMode('gaussian')" class="text-xs px-2 py-1 bg-gray-200 rounded hover:bg-gray-300">Pick peaks</button>
@@ -184,8 +184,8 @@
             </div>
             <div class="flex gap-2">
               <button id="btn-fit-gaussian" onclick="fitGaussians()" disabled
-                class="text-xs px-2 py-1 bg-brand-bg text-link rounded hover:bg-brand-bg disabled:opacity-40 disabled:cursor-not-allowed">Fit</button>
-              <button onclick="clearGaussians()" class="text-xs px-2 py-1 bg-gray-100 rounded hover:bg-gray-200">Clear</button>
+                class="text-xs px-2 py-1 bg-brand-bg text-link rounded hover:bg-brand-bg disabled:opacity-40 disabled:cursor-not-allowed">{{ lang.t("obs-fit") }}</button>
+              <button onclick="clearGaussians()" class="text-xs px-2 py-1 bg-gray-100 rounded hover:bg-gray-200">{{ lang.t("obs-clear") }}</button>
             </div>
             <div id="gaussian-results" class="text-xs text-gray-600 space-y-1 font-mono"></div>
           </div>

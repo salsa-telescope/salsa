@@ -3,26 +3,26 @@
   data-obs-secs="{% if let Some(obs) = info.latest_observation %}{{ obs.observation_time.as_secs() }}{% else %}0{% endif %}"
   class="hidden"></span>
 
-<h2 class="text-xl font-semibold mb-3">Telescope &mdash; {{ info.id }} &mdash;
+{# data-status carries the machine-readable status for the observe-page JS;
+   the visible text is translated. #}
+<h2 class="text-xl font-semibold mb-3">{{ lang.t("state-telescope") }} &mdash; {{ info.id }} &mdash;
   {% if status == "Idle" %}
-  <span class="text-info">Idle</span>
+  <span class="text-info" data-status="Idle">{{ lang.t("state-idle") }}</span>
   {% else if status == "Slewing" %}
-  <span class="text-warning">Slewing</span>
+  <span class="text-warning" data-status="Slewing">{{ lang.t("state-slewing") }}</span>
   {% else if status == "Tracking" %}
-  <span class="text-success">Tracking</span>
+  <span class="text-success" data-status="Tracking">{{ lang.t("state-tracking") }}</span>
   {% else %}
-  <span>{{ status }}</span>
+  <span data-status="{{ status }}">{{ status }}</span>
   {% endif %}
   <span id="booking-countdown-inline" class="font-normal text-gray-400 text-base"></span>
 </h2>
 
 {% if !error.is_empty() %}
-<p class="text-danger text-sm mb-2">{{ error }}</p>
+<p class="text-danger text-sm mb-2" data-error-kind="{{ error_kind }}">{{ error }}</p>
 {% endif %}
 
 {% if let Some(el) = low_elevation_deg %}
-<p class="text-warning text-sm mb-2">Low elevation: the telescope is pointed
-only {{ el|fmt("{:.1}") }}&deg; above the horizon &mdash; noise from the
-ground and surrounding buildings may degrade the spectrum.</p>
+<p class="text-warning text-sm mb-2">{{ lang.t("state-low-elevation-1") }}
+{{ el|fmt("{:.1}") }}&deg; {{ lang.t("state-low-elevation-2") }}</p>
 {% endif %}
-

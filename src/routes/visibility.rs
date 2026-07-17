@@ -27,6 +27,7 @@ use crate::coords::{
 use crate::i18n::Language;
 use crate::models::user::User;
 use crate::routes::index::render_main;
+use i18n_embed_fl::fl;
 
 const VISIBILITY_THRESHOLD_DEG: f64 = PRACTICAL_ELEVATION_LIMIT_DEG;
 // Sample every 10 minutes across the day. A normal day gives 145 points
@@ -53,6 +54,7 @@ struct VisibilityResult {
 #[derive(Template)]
 #[template(path = "visibility.html")]
 struct VisibilityTemplate {
+    lang: Language,
     coord: String,
     x: String,
     y: String,
@@ -95,14 +97,15 @@ async fn get_visibility(
         NaiveDate::parse_from_str(&date_str, "%Y-%m-%d"),
         coord.as_str(),
     ) {
-        (Err(_), _) => error = Some("Invalid date — use YYYY-MM-DD.".to_string()),
+        (Err(_), _) => error = Some(fl!(lang.loader(), "vis-error-date")),
         (Ok(date), c @ ("galactic" | "equatorial" | "sun")) => {
-            result = Some(compute_visibility(c, x_val, y_val, date, tz));
+            result = Some(compute_visibility(c, x_val, y_val, date, tz, lang));
         }
-        (Ok(_), _) => error = Some("Invalid coordinate system.".to_string()),
+        (Ok(_), _) => error = Some(fl!(lang.loader(), "vis-error-coord")),
     }
 
     let template = VisibilityTemplate {
+        lang,
         coord,
         x: format!("{x_val}"),
         y: format!("{y_val}"),
@@ -159,6 +162,7 @@ fn compute_visibility(
     y_deg: f64,
     date: NaiveDate,
     tz: Tz,
+    lang: Language,
 ) -> VisibilityResult {
     let location = ONSALA_LOCATION;
     let x_rad = x_deg.to_radians();
@@ -221,36 +225,60 @@ fn compute_visibility(
     }
 
     let target_label = match coord {
-        "galactic" => format!("Galactic {x_deg}°, {y_deg}°"),
-        "equatorial" => format!("Equatorial {x_deg}°, {y_deg}°"),
-        "sun" => "Sun".to_string(),
+        "galactic" => {
+            let x = format!("{x_deg}");
+            let y = format!("{y_deg}");
+            fl!(lang.loader(), "vis-target-galactic", x = x, y = y)
+        }
+        "equatorial" => {
+            let x = format!("{x_deg}");
+            let y = format!("{y_deg}");
+            fl!(lang.loader(), "vis-target-equatorial", x = x, y = y)
+        }
+        "sun" => fl!(lang.loader(), "observe-coord-sun"),
         _ => coord.to_string(),
     };
-    let title_line1 = format!("{target_label} on {date} ({tz})", tz = tz.name());
+    let title_line1 = fl!(
+        lang.loader(),
+        "vis-title",
+        target = target_label,
+        date = format!("{date}"),
+        tz = tz.name()
+    );
+    let threshold = format!("{VISIBILITY_THRESHOLD_DEG:.0}");
+    let max = format!("{max_el:.1}");
+    let peak = fmt_local(max_at);
     let title_line2 = if windows.is_empty() {
-        format!(
-            "Not above {threshold:.0}° at any time. Peak {max:.1}° at {peak}.",
-            threshold = VISIBILITY_THRESHOLD_DEG,
-            max = max_el,
-            peak = fmt_local(max_at),
+        fl!(
+            lang.loader(),
+            "vis-not-above",
+            threshold = threshold,
+            max = max,
+            peak = peak
         )
     } else {
         let windows_str = windows
             .iter()
-            .map(|(s, e)| format!("{} to {}", fmt_local(*s), fmt_local(*e)))
+            .map(|(s, e)| {
+                let from = fmt_local(*s);
+                let to = fmt_local(*e);
+                fl!(lang.loader(), "vis-window-range", from = from, to = to)
+            })
             .collect::<Vec<_>>()
-            .join(", and ");
-        format!(
-            "Above {threshold:.0}° from {windows_str}. Max {max:.1}° at {peak}.",
-            threshold = VISIBILITY_THRESHOLD_DEG,
-            max = max_el,
-            peak = fmt_local(max_at),
+            .join(&fl!(lang.loader(), "vis-window-join"));
+        fl!(
+            lang.loader(),
+            "vis-above",
+            threshold = threshold,
+            windows = windows_str,
+            max = max,
+            peak = peak
         )
     };
     let axis_label = if tz == chrono_tz::UTC {
-        "UTC time".to_string()
+        fl!(lang.loader(), "vis-axis-utc")
     } else {
-        format!("Local time ({})", tz.name())
+        fl!(lang.loader(), "vis-axis-local", tz = tz.name())
     };
 
     VisibilityResult {

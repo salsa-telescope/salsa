@@ -19,6 +19,7 @@ use crate::models::user::User;
 use crate::routes::index::render_main;
 use crate::routes::telescope::telescope_state;
 use crate::tle_cache::TleCacheHandle;
+use i18n_embed_fl::fl;
 
 use askama::Template;
 use axum::body::Body;
@@ -76,6 +77,7 @@ async fn maybe_guest_session_for(state: &AppState, user: &User) -> Option<GuestS
 #[derive(Template)]
 #[template(path = "observe_landing.html")]
 struct ObserveLandingTemplate {
+    lang: Language,
     active_bookings: Vec<String>,
     interferometry_available: bool,
 }
@@ -124,6 +126,7 @@ async fn get_observe_landing(
         false
     };
     let content = ObserveLandingTemplate {
+        lang,
         active_bookings,
         interferometry_available,
     }
@@ -339,6 +342,7 @@ fn error_response(message: String) -> Response {
 }
 
 async fn set_target(
+    Extension(lang): Extension<Language>,
     State(state): State<AppState>,
     Path(telescope_id): Path<String>,
     Extension(user): Extension<Option<User>>,
@@ -387,7 +391,10 @@ async fn set_target(
         TelescopeTarget::Sun
     } else if target.coordinate_system == "gnss" {
         let Some(norad_id) = target.x.as_deref().and_then(|s| s.parse::<u64>().ok()) else {
-            return Ok(error_response("Please select a satellite.".to_string()));
+            return Ok(error_response(fl!(
+                lang.loader(),
+                "observe-error-select-satellite"
+            )));
         };
         TelescopeTarget::Satellite { norad_id }
     } else {
@@ -397,9 +404,10 @@ async fn set_target(
             .and_then(|s| s.parse::<f64>().ok())
             .map(f64::to_radians)
         else {
-            return Ok(error_response(
-                "Please enter valid coordinates.".to_string(),
-            ));
+            return Ok(error_response(fl!(
+                lang.loader(),
+                "observe-error-invalid-coords"
+            )));
         };
         let Some(y_rad) = target
             .y
@@ -407,9 +415,10 @@ async fn set_target(
             .and_then(|s| s.parse::<f64>().ok())
             .map(f64::to_radians)
         else {
-            return Ok(error_response(
-                "Please enter valid coordinates.".to_string(),
-            ));
+            return Ok(error_response(fl!(
+                lang.loader(),
+                "observe-error-invalid-coords"
+            )));
         };
         match target.coordinate_system.as_str() {
             "galactic" => TelescopeTarget::Galactic {
@@ -436,8 +445,11 @@ async fn set_target(
         .await
     {
         Err(TelescopeError::TargetOutOfElevationRange { min_deg, max_deg }) => {
-            return Ok(error_response(format!(
-                "Target is out of elevation range ({min_deg:.0}–{max_deg:.0}°)."
+            return Ok(error_response(fl!(
+                lang.loader(),
+                "observe-error-elevation-range",
+                min = format!("{min_deg:.0}"),
+                max = format!("{max_deg:.0}")
             )));
         }
         Err(err) => {
@@ -734,6 +746,7 @@ struct ObserveForm {
 }
 
 async fn start_observe(
+    Extension(lang): Extension<Language>,
     Extension(user): Extension<Option<User>>,
     State(state): State<AppState>,
     Path(telescope_id): Path<String>,
@@ -757,15 +770,16 @@ async fn start_observe(
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
     if info.status != TelescopeStatus::Tracking {
-        return Ok(error_response(
-            "Telescope is not tracking. Please wait until it has reached the target.".to_string(),
-        ));
+        return Ok(error_response(fl!(
+            lang.loader(),
+            "observe-error-not-tracking"
+        )));
     }
     if info.receiver_connected == Some(false) {
-        return Ok(error_response(
-            "Receiver is not reachable. Check the receiver address and network connection."
-                .to_string(),
-        ));
+        return Ok(error_response(fl!(
+            lang.loader(),
+            "observe-error-receiver-unreachable"
+        )));
     }
 
     let (freq_min, freq_max) = if user.is_admin {
@@ -774,18 +788,27 @@ async fn start_observe(
         (FREQ_MIN_USER_MHZ, FREQ_MAX_USER_MHZ)
     };
     if form.center_freq_mhz < freq_min as f64 || form.center_freq_mhz > freq_max as f64 {
-        return Ok(error_response(format!(
-            "Center frequency must be between {freq_min} and {freq_max} MHz."
+        return Ok(error_response(fl!(
+            lang.loader(),
+            "observe-error-center-freq",
+            min = freq_min,
+            max = freq_max
         )));
     }
     if form.ref_freq_mhz < freq_min as f64 || form.ref_freq_mhz > freq_max as f64 {
-        return Ok(error_response(format!(
-            "Reference frequency must be between {freq_min} and {freq_max} MHz."
+        return Ok(error_response(fl!(
+            lang.loader(),
+            "observe-error-ref-freq",
+            min = freq_min,
+            max = freq_max
         )));
     }
     if form.gain_db < GAIN_MIN_DB || form.gain_db > GAIN_MAX_DB {
-        return Ok(error_response(format!(
-            "Gain must be between {GAIN_MIN_DB} and {GAIN_MAX_DB} dB."
+        return Ok(error_response(fl!(
+            lang.loader(),
+            "observe-error-gain",
+            min = GAIN_MIN_DB,
+            max = GAIN_MAX_DB
         )));
     }
     if !VALID_BANDWIDTH_MHZ.contains(&form.bandwidth_mhz) {
@@ -851,6 +874,7 @@ async fn start_observe(
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
         .contains(&telescope_id);
     let content = observe(
+        lang,
         telescope.as_ref(),
         in_maintenance,
         user.is_admin,
@@ -862,6 +886,7 @@ async fn start_observe(
 }
 
 async fn stop_observe(
+    Extension(lang): Extension<Language>,
     Extension(user): Extension<Option<User>>,
     State(state): State<AppState>,
     Path(telescope_id): Path<String>,
@@ -892,6 +917,7 @@ async fn stop_observe(
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
         .contains(&telescope_id);
     let content = observe(
+        lang,
         telescope.as_ref(),
         in_maintenance,
         user.is_admin,
@@ -929,6 +955,7 @@ async fn get_observe(
         .ok_or(StatusCode::NOT_FOUND)?;
     let guest_session = maybe_guest_session_for(&state, &user).await;
     let content = observe(
+        lang,
         telescope.as_ref(),
         in_maintenance,
         user.is_admin,
@@ -947,6 +974,7 @@ async fn get_observe(
 #[derive(Template)]
 #[template(path = "observe_no_booking.html")]
 struct NoBookingTemplate {
+    lang: Language,
     telescope_id: String,
 }
 
@@ -957,7 +985,7 @@ async fn get_observe_not_available(
     headers: HeaderMap,
 ) -> Result<impl IntoResponse, StatusCode> {
     let user = user.ok_or(StatusCode::UNAUTHORIZED)?;
-    let content = NoBookingTemplate { telescope_id }
+    let content = NoBookingTemplate { lang, telescope_id }
         .render()
         .expect("Template rendering should always succeed");
     let content = if headers.get("hx-request").is_some() {
@@ -971,6 +999,7 @@ async fn get_observe_not_available(
 #[derive(Template)]
 #[template(path = "observe_maintenance.html")]
 struct ObserveMaintenanceTemplate {
+    lang: Language,
     telescope_id: String,
 }
 
@@ -981,7 +1010,7 @@ async fn get_observe_maintenance(
     headers: HeaderMap,
 ) -> Result<impl IntoResponse, StatusCode> {
     let user = user.ok_or(StatusCode::UNAUTHORIZED)?;
-    let content = ObserveMaintenanceTemplate { telescope_id }
+    let content = ObserveMaintenanceTemplate { lang, telescope_id }
         .render()
         .expect("Template rendering should always succeed");
     let content = if headers.get("hx-request").is_some() {
@@ -1013,6 +1042,7 @@ const MAX_INTEGRATION_TIME_SECS: f64 = 3600.0;
 #[derive(Template)]
 #[template(path = "observe.html")]
 struct ObserveTemplate {
+    lang: Language,
     info: TelescopeInfo,
     target_mode: String,
     commanded_x: String,
@@ -1037,6 +1067,7 @@ fn fmt_deg(deg: f64) -> String {
 }
 
 async fn observe(
+    lang: Language,
     telescope: &dyn Telescope,
     in_maintenance: bool,
     is_admin: bool,
@@ -1083,7 +1114,7 @@ async fn observe(
         // having to know what coordinates to enter.
         None => ("140".to_string(), "0".to_string()),
     };
-    let state_html = telescope_state(&info.id, telescope).await;
+    let state_html = telescope_state(&info.id, telescope, lang).await;
     let (freq_min_mhz, freq_max_mhz) = if is_admin {
         (FREQ_MIN_ADMIN_MHZ, FREQ_MAX_ADMIN_MHZ)
     } else {
@@ -1094,6 +1125,7 @@ async fn observe(
         .zip(weather_cache.get())
         .is_some_and(|(limit, w)| w.wind_avg_ms > limit);
     Ok(ObserveTemplate {
+        lang,
         info,
         target_mode,
         commanded_x,

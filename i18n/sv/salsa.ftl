@@ -137,6 +137,210 @@ fmt-week-short = %d %b
 fmt-week-full = %d %b %Y
 fmt-day-col = %a %d
 
+## Observe page
+
+observe-maintenance-mode = Det här teleskopet är i underhållsläge just nu.
+observe-wind-warning = Varning för hård vind: vindhastigheten är över säkerhetsgränsen. Parkera teleskopet och återkom när stormen är över. Du kan fortfarande observera, men gör det på egen risk.
+observe-guest-session = Gästsession
+observe-guest-ends-in = avslutas om
+observe-guest-tail = eller tidigare om en registrerad användare bokar det här teleskopet. Data sparas inte.
+observe-target = Mål
+observe-coord-galactic = Galaktiska
+observe-coord-equatorial = Ekvatoriella (J2000)
+observe-coord-horizontal = Horisontella
+observe-coord-sun = Solen
+observe-coord-gnss = GNSS
+observe-coord-stow = Parkera
+observe-lbl-long = Long. [grader]
+observe-lbl-lat = Lat. [grader]
+observe-lbl-ra = RA [grader]
+observe-lbl-dec = Dekl. [grader]
+observe-lbl-az = Az. [grader]
+observe-lbl-el = El. [grader]
+observe-satellite = Satellit
+observe-loading = Laddar...
+observe-track = Följ
+observe-stop = Stoppa
+observe-adv-tracking = Avancerade följningsinställningar
+observe-az-offset = Az.-offset [grader]
+observe-el-offset = El.-offset [grader]
+observe-min-elevation = Lägsta elevation:
+observe-recommended = rekommenderat
+observe-begin = Starta
+observe-end = Avsluta
+observe-adv-receiver = Avancerade mottagarinställningar
+observe-integration-time = Integrationstid
+observe-interactive-end = Interaktivt slut
+observe-fixed = Fast:
+observe-seconds = sekunder
+observe-mode = Läge
+observe-freq-switched = Frekvensväxlad
+observe-raw = Rå
+observe-center-freq = Centerfrekvens [MHz]
+observe-ref-freq = Referensfrekvens [MHz]
+observe-freq-range = Frekvensområde
+observe-bandwidth = Bandbredd
+observe-spectral-channels = Spektralkanaler
+observe-rfi-filter = RFI-filter (glidande MAD-σ)
+observe-enabled = Aktiverat
+observe-disabled = Avaktiverat
+observe-live-spectrum = Spektrum i realtid
+observe-live-webcam = Webbkamera i realtid
+observe-webcam-alt = Webbkamerabild i realtid av SALSA-teleskopet
+observe-webcam-note = Uppdateras varje sekund. Ingen belysning — teleskopen syns inte efter mörkrets inbrott men kan fortfarande styras.
+
+## Observe page — strings emitted inside JS string literals. Keep them
+## free of quotes and apostrophes.
+
+observe-js-time-left = Tid kvar:
+observe-js-booking-ending = Bokningen slutar snart – parkera teleskopet eller förläng bokningen.
+observe-js-khz-channel = kHz/kanal
+observe-js-hz-channel = Hz/kanal
+observe-js-integrating = Integrerar:
+observe-js-integration-time = Integrationstid:
+observe-js-avg-power = Medeleffekt:
+observe-js-stopped-1 = Integrationen stoppades: teleskopet lämnade målet. Data som samlats in hittills har sparats i ditt
+observe-js-archive = observationsarkiv
+observe-js-shortly = inom kort
+observe-js-unless = om du inte fortsätter använda kontrollerna nedan
+observe-js-max-session = (maximal sessionslängd uppnådd)
+
+## Observe errors (routes/observe.rs)
+
+observe-error-select-satellite = Välj en satellit.
+observe-error-invalid-coords = Ange giltiga koordinater.
+observe-error-elevation-range = Målet är utanför elevationsområdet ({ $min }–{ $max }°).
+observe-error-not-tracking = Teleskopet följer inte målet. Vänta tills det har nått målet.
+observe-error-receiver-unreachable = Mottagaren kan inte nås. Kontrollera mottagarens adress och nätverksanslutning.
+observe-error-center-freq = Centerfrekvensen måste vara mellan { $min } och { $max } MHz.
+observe-error-ref-freq = Referensfrekvensen måste vara mellan { $min } och { $max } MHz.
+observe-error-gain = Förstärkningen måste vara mellan { $min } och { $max } dB.
+
+## Telescope status fragment
+
+state-telescope = Teleskop
+state-idle = Vilande
+state-slewing = Rör sig
+state-tracking = Följer
+state-offline = Offline
+state-offline-error = Kan inte ansluta till teleskopets styrenhet.
+state-low-elevation-1 = Låg elevation: teleskopet pekar bara
+state-low-elevation-2 = över horisonten — brus från marken och omgivande byggnader kan försämra spektrumet.
+state-error-elevation-range = målet är utanför elevationsområdet ({ $min }–{ $max }°)
+state-error-io = IO-fel i kommunikationen med teleskopet
+state-error-not-connected = teleskopet är inte anslutet
+state-error-receiver = mottagaren misslyckades: { $msg }
+
+## Observe landing / no-booking / maintenance pages
+
+observe-landing-none = Inga aktiva bokningar just nu.
+observe-landing-go-1 = Gå till sidan
+observe-landing-bookings = Bokningar
+observe-landing-go-2 = för att boka tid på ett teleskop och återkom hit när din tid är aktiv.
+observe-landing-active = Du har aktiva bokningar. Välj ett alternativ nedan:
+observe-landing-with = Observera med
+observe-landing-point = Rikta teleskopet, välj ett mål och spela in ett spektrum.
+observe-landing-interferometry = Interferometri
+observe-landing-inter-desc = Använd två teleskop samtidigt för att mäta visibilitet — amplitud och fas — som funktion av baslinje och frekvens.
+observe-nobooking-text = Teleskopstyrning är inte tillgänglig utan en giltig bokning.
+observe-nobooking-link = Gå till bokningar
+observe-maint-heading-1 = Tyvärr är teleskopet
+observe-maint-heading-2 = i underhållsläge just nu.
+observe-maint-text-1 = Det är inte tillgängligt för observationer. Se
+observe-maint-bookings = bokningar
+observe-maint-text-2 = för att se om ett annat teleskop är ledigt. Behöver du hjälp, kontakta
+observe-maint-support = supporten
+
+## Observations archive page. The spectrum-chart controls (Pick ranges,
+## Show frequency, Log scale, the chart hint) are rewritten at runtime by
+## assets/observation_chart.js and stay English until that is translated.
+
+obs-tab-single = Enkelteleskop
+obs-inter-sessions = Interferometrisessioner
+obs-inter-none = Inga interferometrisessioner ännu.
+obs-session-singular = session
+obs-sessions-plural = sessioner
+obs-ended = avslutad
+obs-no-end-time = ingen sluttid
+obs-inter-delete-confirm = Radera den här interferometrisessionen och all dess visibilitetsdata?
+obs-my = Mina observationer
+obs-none = Inga observationer ännu.
+obs-list-hint = observationer · klicka för att visa spektrum · ✕ för att radera vald
+obs-delete-confirm = Radera den här observationen?
+obs-spectrum = Spektrum
+obs-save-png = Spara PNG
+obs-save-csv = Spara CSV
+obs-save-fits = Spara FITS
+obs-export-note = PNG och CSV exporterar det korrigerade spektrumet · FITS exporterar alltid rådata
+obs-analysis = Analys
+obs-reset-all = Återställ allt
+obs-analysis-note = Analysen gäller bara den här sessionen och sparas inte — anteckna viktiga resultat.
+obs-baseline = Baslinje
+obs-order = Ordning:
+obs-order-linear = 1 (linjär)
+obs-order-quadratic = 2 (kvadratisk)
+obs-fit = Anpassa
+obs-subtract = Subtrahera
+obs-clear = Rensa
+obs-gaussian = Gaussanpassning
+
+## Live status page and fragments
+
+live-webcam-note = Webbkameran uppdateras varannan sekund; tidsstämpeln är svensk sommartid (CEST = UTC+2). Ingen belysning, så teleskopen syns inte efter mörkrets inbrott men kan fortfarande styras.
+live-webcam-alt = Webbkamerabild i realtid av SALSA-teleskopen (Torre, Vale, Brage)
+live-telescope-status = Teleskopstatus
+live-guest = Gäst
+live-position-unavailable = Position saknas
+live-controller = Styrenhet
+live-receiver = Mottagare
+webcam-disabled = Webbkamera avstängd
+webcam-offline = Webbkameran är offline — senaste bilden { $age }
+webcam-updated = Uppdaterad { $age }
+webcam-unavailable = Webbkameran är inte tillgänglig — ingen bild från kameran. Kontakta supporten om problemet kvarstår.
+age-secs = { $n } s sedan
+age-mins = { $n } min sedan
+
+## Weather fragment. The -js- variants are filled in by page JS with %n%.
+
+weather-heading = Väder i Onsala
+weather-temp = Temp
+weather-pressure = Tryck
+weather-humidity = Fukt
+weather-wind = Vind
+weather-10min-avg = (10 min medel)
+weather-gust = Byvind
+weather-lull = lägst
+weather-gust-suffix = m/s (3 s max/min under 10 min)
+weather-js-age-secs = %n% s sedan
+weather-js-age-mins = %n% min sedan
+
+## Target visibility page
+
+vis-back = Support och dokumentation
+vis-heading = Målsynlighet
+vis-intro-1 = Se när ett givet mål är över horisonten vid SALSA (Onsala) ett valt datum och därmed går att observera. Diagrammet visar elevationen under dygnet, med tider i
+vis-intro-2 = rekommenderad undre elevationsgräns som sätts av marken och omgivande byggnader.
+vis-coord-system = Koordinatsystem
+vis-coord-equatorial = Ekvatoriellt
+vis-date = Datum
+vis-compute = Beräkna
+vis-hover-hint = Håll muspekaren över eller tryck på diagrammet för att läsa av tid och elevation.
+vis-lbl-glon = Galaktisk longitud (°)
+vis-lbl-glat = Galaktisk latitud (°)
+vis-lbl-ra = Rektascension (°)
+vis-lbl-dec = Deklination (°)
+vis-error-date = Ogiltigt datum — använd ÅÅÅÅ-MM-DD.
+vis-error-coord = Ogiltigt koordinatsystem.
+vis-target-galactic = Galaktiskt { $x }°, { $y }°
+vis-target-equatorial = Ekvatoriellt { $x }°, { $y }°
+vis-title = { $target } den { $date } ({ $tz })
+vis-not-above = Aldrig över { $threshold }° under dygnet. Högst { $max }° kl. { $peak }.
+vis-above = Över { $threshold }° { $windows }. Högst { $max }° kl. { $peak }.
+vis-window-range = { $from } till { $to }
+vis-window-join = { " " }och{ " " }
+vis-axis-utc = UTC-tid
+vis-axis-local = Lokal tid ({ $tz })
+
 ## Login page
 
 login-same-method-hint = Använd alltid samma inloggningsmetod för att behålla åtkomsten till dina bokningar och observationer.

@@ -66,7 +66,7 @@ async fn get_support(
         .ok()
         .flatten();
     let content = match announcement {
-        Some(message) => format!("{}{}", render_announcement_banner(&message), body),
+        Some(message) => format!("{}{}", render_announcement_banner(&message, lang), body),
         None => body,
     };
     let content = if headers.get("hx-request").is_some() {
@@ -77,8 +77,8 @@ async fn get_support(
     Html(content)
 }
 
-fn render_announcement_banner(message: &str) -> String {
-    KnownIssueBanner { message }
+fn render_announcement_banner(message: &str, lang: Language) -> String {
+    KnownIssueBanner { lang, message }
         .render()
         .expect("known_issue_banner")
 }
@@ -86,5 +86,6 @@ fn render_announcement_banner(message: &str) -> String {
 #[derive(Template)]
 #[template(path = "known_issue_banner.html")]
 struct KnownIssueBanner<'a> {
+    lang: Language,
     message: &'a str,
 }

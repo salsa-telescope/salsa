@@ -137,6 +137,210 @@ fmt-week-short = %b %d
 fmt-week-full = %b %d, %Y
 fmt-day-col = %a %d
 
+## Observe page
+
+observe-maintenance-mode = This telescope is currently in maintenance mode.
+observe-wind-warning = Strong wind warning: wind speed is above the safe limit. Please stow the telescope and return when the storm has ended. You may still observe, but do so at your own risk.
+observe-guest-session = Guest session
+observe-guest-ends-in = ends in
+observe-guest-tail = or sooner if a registered user books this telescope. Data is not saved.
+observe-target = Target
+observe-coord-galactic = Galactic
+observe-coord-equatorial = Equatorial (J2000)
+observe-coord-horizontal = Horizontal
+observe-coord-sun = Sun
+observe-coord-gnss = GNSS
+observe-coord-stow = Stow
+observe-lbl-long = Long. [deg]
+observe-lbl-lat = Lat. [deg]
+observe-lbl-ra = R.A. [deg]
+observe-lbl-dec = Dec. [deg]
+observe-lbl-az = Az. [deg]
+observe-lbl-el = El. [deg]
+observe-satellite = Satellite
+observe-loading = Loading...
+observe-track = Track
+observe-stop = Stop
+observe-adv-tracking = Advanced tracking settings
+observe-az-offset = Az. offset [deg]
+observe-el-offset = El. offset [deg]
+observe-min-elevation = Minimum elevation:
+observe-recommended = recommended
+observe-begin = Begin
+observe-end = End
+observe-adv-receiver = Advanced receiver settings
+observe-integration-time = Integration time
+observe-interactive-end = Interactive end
+observe-fixed = Fixed:
+observe-seconds = seconds
+observe-mode = Mode
+observe-freq-switched = Freq. switched
+observe-raw = Raw
+observe-center-freq = Center freq. [MHz]
+observe-ref-freq = Ref. freq. [MHz]
+observe-freq-range = Frequency range
+observe-bandwidth = Bandwidth
+observe-spectral-channels = Spectral channels
+observe-rfi-filter = RFI filter (sliding MAD-σ)
+observe-enabled = Enabled
+observe-disabled = Disabled
+observe-live-spectrum = Live spectrum
+observe-live-webcam = Live Webcam
+observe-webcam-alt = Live webcam feed of the SALSA telescope
+observe-webcam-note = Updated every second. No lights — telescopes are not visible after dark but can still be controlled.
+
+## Observe page — strings emitted inside JS string literals. Keep them
+## free of quotes and apostrophes.
+
+observe-js-time-left = Time left:
+observe-js-booking-ending = Booking ending soon, please stow telescope or extend booking.
+observe-js-khz-channel = kHz/channel
+observe-js-hz-channel = Hz/channel
+observe-js-integrating = Integrating:
+observe-js-integration-time = Integration time:
+observe-js-avg-power = Avg. power:
+observe-js-stopped-1 = Integration stopped: the telescope moved off the target. The data collected so far has been saved to your
+observe-js-archive = observation archive
+observe-js-shortly = shortly
+observe-js-unless = unless you keep using the controls below
+observe-js-max-session = (maximum session length reached)
+
+## Observe errors (routes/observe.rs)
+
+observe-error-select-satellite = Please select a satellite.
+observe-error-invalid-coords = Please enter valid coordinates.
+observe-error-elevation-range = Target is out of elevation range ({ $min }–{ $max }°).
+observe-error-not-tracking = Telescope is not tracking. Please wait until it has reached the target.
+observe-error-receiver-unreachable = Receiver is not reachable. Check the receiver address and network connection.
+observe-error-center-freq = Center frequency must be between { $min } and { $max } MHz.
+observe-error-ref-freq = Reference frequency must be between { $min } and { $max } MHz.
+observe-error-gain = Gain must be between { $min } and { $max } dB.
+
+## Telescope status fragment
+
+state-telescope = Telescope
+state-idle = Idle
+state-slewing = Slewing
+state-tracking = Tracking
+state-offline = Offline
+state-offline-error = Cannot connect to telescope controller.
+state-low-elevation-1 = Low elevation: the telescope is pointed only
+state-low-elevation-2 = above the horizon — noise from the ground and surrounding buildings may degrade the spectrum.
+state-error-elevation-range = target is out of elevation range ({ $min }–{ $max }°)
+state-error-io = io error in communication with telescope
+state-error-not-connected = telescope is not connected
+state-error-receiver = receiver failed: { $msg }
+
+## Observe landing / no-booking / maintenance pages
+
+observe-landing-none = No active bookings right now.
+observe-landing-go-1 = Go to the
+observe-landing-bookings = Bookings
+observe-landing-go-2 = page to book time on a telescope, then return here when your slot is active.
+observe-landing-active = You have active bookings. Select an option below:
+observe-landing-with = Observe with
+observe-landing-point = Point the telescope, set a target, and record a spectrum.
+observe-landing-interferometry = Interferometry
+observe-landing-inter-desc = Use two telescopes simultaneously to measure visibility — amplitude and phase — as a function of baseline and frequency.
+observe-nobooking-text = Telescope control is not available without a valid booking.
+observe-nobooking-link = Go to bookings
+observe-maint-heading-1 = Apologies, but telescope
+observe-maint-heading-2 = is currently in maintenance mode.
+observe-maint-text-1 = It is not available for observing. Check
+observe-maint-bookings = bookings
+observe-maint-text-2 = to see if another telescope is free. For assistance, please contact
+observe-maint-support = support
+
+## Observations archive page. The spectrum-chart controls (Pick ranges,
+## Show frequency, Log scale, the chart hint) are rewritten at runtime by
+## assets/observation_chart.js and stay English until that is translated.
+
+obs-tab-single = Single-dish
+obs-inter-sessions = Interferometry sessions
+obs-inter-none = No interferometry sessions yet.
+obs-session-singular = session
+obs-sessions-plural = sessions
+obs-ended = ended
+obs-no-end-time = no end time
+obs-inter-delete-confirm = Delete this interferometry session and all its visibility data?
+obs-my = My observations
+obs-none = No observations yet.
+obs-list-hint = observations · click to view spectrum · ✕ to delete selected
+obs-delete-confirm = Delete this observation?
+obs-spectrum = Spectrum
+obs-save-png = Save PNG
+obs-save-csv = Save CSV
+obs-save-fits = Save FITS
+obs-export-note = PNG and CSV export the corrected spectrum · FITS always exports raw data
+obs-analysis = Analysis
+obs-reset-all = Reset all
+obs-analysis-note = Analysis is session-only and not saved — take notes of any important findings.
+obs-baseline = Baseline
+obs-order = Order:
+obs-order-linear = 1 (linear)
+obs-order-quadratic = 2 (quadratic)
+obs-fit = Fit
+obs-subtract = Subtract
+obs-clear = Clear
+obs-gaussian = Gaussian fit
+
+## Live status page and fragments
+
+live-webcam-note = Webcam updated every 2 seconds, timestamp is Swedish summer time (CEST = UTC+2). No lights, so telescopes are not visible after dark, but can still be controlled.
+live-webcam-alt = Live webcam feed of the SALSA telescopes (Torre, Vale, Brage)
+live-telescope-status = Telescope status
+live-guest = Guest
+live-position-unavailable = Position unavailable
+live-controller = Controller
+live-receiver = Receiver
+webcam-disabled = Webcam disabled
+webcam-offline = Webcam offline — last image { $age }
+webcam-updated = Updated { $age }
+webcam-unavailable = Webcam unavailable — no image from camera. Please contact support if this problem persists.
+age-secs = { $n }s ago
+age-mins = { $n }min ago
+
+## Weather fragment. The -js- variants are filled in by page JS with %n%.
+
+weather-heading = Weather at Onsala
+weather-temp = Temp
+weather-pressure = Press.
+weather-humidity = Humid.
+weather-wind = Wind
+weather-10min-avg = (10min avg)
+weather-gust = Gust
+weather-lull = lull
+weather-gust-suffix = m/s (3s max/min over 10min)
+weather-js-age-secs = %n%s ago
+weather-js-age-mins = %n%min ago
+
+## Target visibility page
+
+vis-back = Support & documentation
+vis-heading = Target visibility
+vis-intro-1 = For a given target and date, see when it is above the horizon at the SALSA site (Onsala, Sweden) and therefore observable. The chart shows elevation across the chosen day, with times in
+vis-intro-2 = recommended lower elevation limit set by the ground and surrounding buildings.
+vis-coord-system = Coordinate system
+vis-coord-equatorial = Equatorial
+vis-date = Date
+vis-compute = Compute
+vis-hover-hint = Hover or tap the chart to read off time and elevation.
+vis-lbl-glon = Galactic longitude (°)
+vis-lbl-glat = Galactic latitude (°)
+vis-lbl-ra = Right ascension (°)
+vis-lbl-dec = Declination (°)
+vis-error-date = Invalid date — use YYYY-MM-DD.
+vis-error-coord = Invalid coordinate system.
+vis-target-galactic = Galactic { $x }°, { $y }°
+vis-target-equatorial = Equatorial { $x }°, { $y }°
+vis-title = { $target } on { $date } ({ $tz })
+vis-not-above = Not above { $threshold }° at any time. Peak { $max }° at { $peak }.
+vis-above = Above { $threshold }° from { $windows }. Max { $max }° at { $peak }.
+vis-window-range = { $from } to { $to }
+vis-window-join = , and{" "}
+vis-axis-utc = UTC time
+vis-axis-local = Local time ({ $tz })
+
 ## Login page
 
 login-same-method-hint = Always use the same login method to keep access to your bookings and observations.

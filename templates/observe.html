@@ -3,12 +3,12 @@
   <div id="errors" class="mb-1"></div>
   {% if in_maintenance %}
   <div class="callout font-semibold text-warning">
-    This telescope is currently in maintenance mode.
+    {{ lang.t("observe-maintenance-mode") }}
   </div>
   {% endif %}
   {% if wind_warning %}
   <div class="callout bg-danger-bg border-danger-border font-semibold text-danger">
-    Strong wind warning: wind speed is above the safe limit. Please stow the telescope and return when the storm has ended. You may still observe, but do so at your own risk.
+    {{ lang.t("observe-wind-warning") }}
   </div>
   {% endif %}
   {% if let Some(started_at) = guest_started_at %}
@@ -20,13 +20,13 @@
        data-idle-secs="{{ guest_idle_secs }}"
        data-ceiling-secs="{{ guest_ceiling_secs }}">
     <div class="flex-1 min-w-0 leading-snug">
-      <span class="font-semibold">Guest session</span> —
-      ends in <span id="guest-countdown-time" class="font-semibold text-warning">…</span>
+      <span class="font-semibold">{{ lang.t("observe-guest-session") }}</span> —
+      {{ lang.t("observe-guest-ends-in") }} <span id="guest-countdown-time" class="font-semibold text-warning">…</span>
       <span id="guest-countdown-note" class="text-gray-600"></span>,
-      or sooner if a registered user books this telescope. Data is not saved.
+      {{ lang.t("observe-guest-tail") }}
     </div>
     <form method="POST" action="/observe/guest/end" class="flex-shrink-0">
-      <button class="btn bg-danger hover:bg-danger-hover text-sm" type="submit">End session</button>
+      <button class="btn bg-danger hover:bg-danger-hover text-sm" type="submit">{{ lang.t("nav-end-session") }}</button>
     </form>
   </div>
     {% endif %}
@@ -48,21 +48,21 @@
         <form class="space-y-2">
           <div class="flex gap-2 items-end">
             <div class="w-28 flex-shrink-0">
-              <label class="block text-sm text-gray-600">Target</label>
+              <label class="block text-sm text-gray-600">{{ lang.t("observe-target") }}</label>
               <select name="coordinate_system" class="border rounded px-2 py-1 bg-white w-full text-sm">
-                <option value="galactic" {% if target_mode=="galactic" %}selected="selected"{% endif %}>Galactic</option>
-                <option value="equatorial" {% if target_mode=="equatorial" %}selected="selected"{% endif %}>Equatorial (J2000)</option>
-                <option value="horizontal" {% if target_mode=="horizontal" %}selected="selected"{% endif %}>Horizontal</option>
-                <option value="sun" {% if target_mode=="sun" %}selected="selected"{% endif %}>Sun</option>
-                <option value="gnss" {% if target_mode=="gnss" %}selected="selected"{% endif %}>GNSS</option>
-                {% if info.stow_position.is_some() %}<option value="stow">Stow</option>{% endif %}
+                <option value="galactic" {% if target_mode=="galactic" %}selected="selected"{% endif %}>{{ lang.t("observe-coord-galactic") }}</option>
+                <option value="equatorial" {% if target_mode=="equatorial" %}selected="selected"{% endif %}>{{ lang.t("observe-coord-equatorial") }}</option>
+                <option value="horizontal" {% if target_mode=="horizontal" %}selected="selected"{% endif %}>{{ lang.t("observe-coord-horizontal") }}</option>
+                <option value="sun" {% if target_mode=="sun" %}selected="selected"{% endif %}>{{ lang.t("observe-coord-sun") }}</option>
+                <option value="gnss" {% if target_mode=="gnss" %}selected="selected"{% endif %}>{{ lang.t("observe-coord-gnss") }}</option>
+                {% if info.stow_position.is_some() %}<option value="stow">{{ lang.t("observe-coord-stow") }}</option>{% endif %}
               </select>
             </div>
             <div id="coord-x" class="flex-1">
               <label for="x" class="block text-sm text-gray-600">
-                {% if target_mode == "galactic" %}Long. [deg]
-                {% else if target_mode == "equatorial" %}R.A. [deg]
-                {% else %}Az. [deg]
+                {% if target_mode == "galactic" %}{{ lang.t("observe-lbl-long") }}
+                {% else if target_mode == "equatorial" %}{{ lang.t("observe-lbl-ra") }}
+                {% else %}{{ lang.t("observe-lbl-az") }}
                 {% endif %}
               </label>
               <input type="text" id="x" name="x" value="{{ commanded_x }}"
@@ -70,18 +70,18 @@
             </div>
             <div id="coord-y" class="flex-1">
               <label for="y" class="block text-sm text-gray-600">
-                {% if target_mode == "galactic" %}Lat. [deg]
-                {% else if target_mode == "equatorial" %}Dec. [deg]
-                {% else %}El. [deg]
+                {% if target_mode == "galactic" %}{{ lang.t("observe-lbl-lat") }}
+                {% else if target_mode == "equatorial" %}{{ lang.t("observe-lbl-dec") }}
+                {% else %}{{ lang.t("observe-lbl-el") }}
                 {% endif %}
               </label>
               <input type="text" id="y" name="y" value="{{ commanded_y }}"
                 class="border rounded px-2 py-1 bg-white w-full text-sm" />
             </div>
             <div id="satellite-picker" class="flex-1 hidden">
-              <label class="block text-sm text-gray-600">Satellite</label>
+              <label class="block text-sm text-gray-600">{{ lang.t("observe-satellite") }}</label>
               <select id="satellite-select" class="border rounded px-2 py-1 bg-white w-full text-sm">
-                <option value="">Loading...</option>
+                <option value="">{{ lang.t("observe-loading") }}</option>
               </select>
             </div>
             <button id="track-btn"
@@ -90,28 +90,28 @@
               hx-include="[name='coordinate_system'],[name='x'],[name='y'],[name='az_offset_deg'],[name='el_offset_deg']"
               class="btn flex-shrink-0"
             >
-              Track
+              {{ lang.t("observe-track") }}
             </button>
             <button id="stop-btn"
               hx-post="/observe/{{ info.id }}/stop-telescope"
               hx-swap="none"
               class="btn bg-danger hover:bg-danger-hover flex-shrink-0 hidden"
             >
-              Stop
+              {{ lang.t("observe-stop") }}
             </button>
           </div>
 
           <!-- Advanced tracking settings -->
           <details class="text-sm text-gray-700">
-            <summary class="cursor-pointer text-gray-500 select-none">Advanced tracking settings</summary>
+            <summary class="cursor-pointer text-gray-500 select-none">{{ lang.t("observe-adv-tracking") }}</summary>
             <div class="mt-2 flex gap-2">
               <div class="flex-1">
-                <label class="block text-sm text-gray-600">Az. offset [deg]</label>
+                <label class="block text-sm text-gray-600">{{ lang.t("observe-az-offset") }}</label>
                 <input type="number" name="az_offset_deg" value="0" step="0.1" lang="en"
                   class="border rounded px-2 py-1 bg-white w-full text-sm" />
               </div>
               <div class="flex-1">
-                <label class="block text-sm text-gray-600">El. offset [deg]</label>
+                <label class="block text-sm text-gray-600">{{ lang.t("observe-el-offset") }}</label>
                 <input type="number" name="el_offset_deg" value="0" step="0.1" lang="en"
                   class="border rounded px-2 py-1 bg-white w-full text-sm" />
               </div>
@@ -129,12 +129,12 @@
         hx-include="[name='coordinate_system'],[name='x'],[name='y'],[name='az_offset_deg'],[name='el_offset_deg']">
       </div>
       <p class="text-xs text-gray-400">
-        Minimum elevation: {{ info.min_elevation_rad.to_degrees() as u32 }}&deg;, recommended &gt; 15&deg;
+        {{ lang.t("observe-min-elevation") }} {{ info.min_elevation_rad.to_degrees() as u32 }}&deg;, {{ lang.t("observe-recommended") }} &gt; 15&deg;
       </p>
 
       <!-- Measurement controls -->
       <div>
-        <h3 class="text-sm font-semibold text-gray-700 mb-2">Observe</h3>
+        <h3 class="text-sm font-semibold text-gray-700 mb-2">{{ lang.t("nav-observe") }}</h3>
         <div class="flex gap-2 items-center">
           <button
             id="observe-btn"
@@ -144,7 +144,7 @@
             hx-on::before-request="document.getElementById('errors').innerHTML=''"
             class="btn"
           >
-            Begin
+            {{ lang.t("observe-begin") }}
           </button>
           <button
             id="stop-obs-btn"
@@ -153,7 +153,7 @@
             hx-disabled-elt="this"
             class="btn bg-danger hover:bg-danger-hover hidden"
           >
-            End
+            {{ lang.t("observe-end") }}
           </button>
           <span id="obs-timer" class="text-sm text-gray-500 hidden">
             <span id="obs-elapsed">0</span>s
@@ -162,51 +162,51 @@
 
         <!-- Advanced settings -->
         <details class="mt-3 text-sm text-gray-700">
-          <summary class="cursor-pointer text-gray-500 select-none">Advanced receiver settings</summary>
+          <summary class="cursor-pointer text-gray-500 select-none">{{ lang.t("observe-adv-receiver") }}</summary>
           <div class="mt-2 space-y-2">
             <div>
-              <label class="block text-sm text-gray-600 mb-1">Integration time</label>
+              <label class="block text-sm text-gray-600 mb-1">{{ lang.t("observe-integration-time") }}</label>
               <div class="flex flex-wrap gap-x-4 gap-y-1 items-center">
                 <label class="flex items-center gap-1 cursor-pointer">
                   <input type="radio" name="integration_mode" value="interactive" checked
                     onchange="updateIntegrationTimeVisibility()" />
-                  Interactive end
+                  {{ lang.t("observe-interactive-end") }}
                 </label>
                 <label class="flex items-center gap-1 cursor-pointer">
                   <input type="radio" name="integration_mode" value="fixed"
                     onchange="updateIntegrationTimeVisibility()" />
-                  Fixed:
+                  {{ lang.t("observe-fixed") }}
                   <input type="number" id="integration-time-secs" name="integration_time_secs"
                     value="60" min="1" max="3600" step="1" disabled
                     class="border rounded px-2 py-1 bg-white text-sm w-20 disabled:opacity-50" />
-                  seconds
+                  {{ lang.t("observe-seconds") }}
                 </label>
               </div>
             </div>
             <div>
-              <label class="block text-sm text-gray-600 mb-1">Mode</label>
+              <label class="block text-sm text-gray-600 mb-1">{{ lang.t("observe-mode") }}</label>
               <div class="flex gap-4">
                 <label class="flex items-center gap-1 cursor-pointer">
                   <input type="radio" id="obs-mode-freqswitched" name="mode" value="FreqSwitched" checked
                     onchange="updateRefFreqVisibility()" />
-                  Freq. switched
+                  {{ lang.t("observe-freq-switched") }}
                 </label>
                 <label class="flex items-center gap-1 cursor-pointer">
                   <input type="radio" id="obs-mode-raw" name="mode" value="Raw"
                     onchange="updateRefFreqVisibility()" />
-                  Raw
+                  {{ lang.t("observe-raw") }}
                 </label>
               </div>
             </div>
             <div class="flex gap-2">
               <div class="flex-1">
-                <label class="block text-sm text-gray-600">Center freq. [MHz]</label>
+                <label class="block text-sm text-gray-600">{{ lang.t("observe-center-freq") }}</label>
                 <input type="number" name="center_freq_mhz" value="1420.4" step="0.1" lang="en"
                   min="{{ freq_min_mhz }}" max="{{ freq_max_mhz }}"
                   class="border rounded px-2 py-1 bg-white w-full text-sm" />
               </div>
               <div id="ref-freq-field" class="flex-1">
-                <label class="block text-sm text-gray-600">Ref. freq. [MHz]</label>
+                <label class="block text-sm text-gray-600">{{ lang.t("observe-ref-freq") }}</label>
                 <input type="number" name="ref_freq_mhz" value="{{ info.default_ref_freq_mhz }}" step="0.1" lang="en"
                   min="{{ freq_min_mhz }}" max="{{ freq_max_mhz }}"
                   class="border rounded px-2 py-1 bg-white w-full text-sm" />
@@ -214,11 +214,11 @@
             </div>
             <p class="text-xs text-gray-400 mt-1">
               {% if is_admin %}Admin: full receiver range {{ freq_min_mhz }}–{{ freq_max_mhz }} MHz (DBSRX2).
-              {% else %}Frequency range {{ freq_min_mhz }}–{{ freq_max_mhz }} MHz (LNA).{% endif %}
+              {% else %}{{ lang.t("observe-freq-range") }} {{ freq_min_mhz }}–{{ freq_max_mhz }} MHz (LNA).{% endif %}
             </p>
             <div class="flex gap-2">
               <div class="flex-1">
-                <label class="block text-sm text-gray-600">Bandwidth</label>
+                <label class="block text-sm text-gray-600">{{ lang.t("observe-bandwidth") }}</label>
                 <select name="bandwidth_mhz" class="border rounded px-2 py-1 bg-white text-sm w-full"
                   onchange="updateSpectralResolution()">
                   <option value="1.0">1.0 MHz</option>
@@ -239,7 +239,7 @@
               {% endif %}
             </div>
             <div>
-              <label class="block text-sm text-gray-600">Spectral channels</label>
+              <label class="block text-sm text-gray-600">{{ lang.t("observe-spectral-channels") }}</label>
               <select name="spectral_channels" class="border rounded px-2 py-1 bg-white text-sm w-full"
                 onchange="updateSpectralResolution()">
                 <option value="64">64</option>
@@ -254,15 +254,15 @@
                 <p id="spectral-resolution" class="text-xs text-gray-400 mt-1"></p>
             </div>
             <div>
-              <label class="block text-sm text-gray-600 mb-1">RFI filter (sliding MAD-σ)</label>
+              <label class="block text-sm text-gray-600 mb-1">{{ lang.t("observe-rfi-filter") }}</label>
               <div class="flex gap-4">
                 <label class="flex items-center gap-1 cursor-pointer">
                   <input type="radio" name="rfi_filter" value="true" checked />
-                  Enabled
+                  {{ lang.t("observe-enabled") }}
                 </label>
                 <label class="flex items-center gap-1 cursor-pointer">
                   <input type="radio" name="rfi_filter" value="false" />
-                  Disabled
+                  {{ lang.t("observe-disabled") }}
                 </label>
               </div>
             </div>
@@ -275,7 +275,7 @@
     <!-- Right column: live spectrum chart + optional webcam -->
     <div class="lg:w-2/3 flex flex-col xl:flex-row gap-4 items-start">
       <div class="flex-1 min-w-0">
-        <h2 class="text-xl font-semibold mb-3">Live spectrum</h2>
+        <h2 class="text-xl font-semibold mb-3">{{ lang.t("observe-live-spectrum") }}</h2>
         <div id="chart" class="-mt-4">
           <script src="/observe_chart.js"></script>
           <div class="flex gap-2 justify-center mt-1">
@@ -295,11 +295,11 @@
 
       {% if let Some(crop) = info.webcam_crop %}
       <div class="w-full max-w-72 xl:flex-shrink-0">
-        <h2 class="text-xl font-semibold mb-3">Live Webcam</h2>
+        <h2 class="text-xl font-semibold mb-3">{{ lang.t("observe-live-webcam") }}</h2>
         <!-- The server crops this telescope out of the camera frame; the
              aspect-ratio keeps the box stable while no image is available. -->
         <div id="wcam-box" style="width:100%;overflow:hidden;position:relative;border-radius:4px;background:#000;aspect-ratio:{{ (crop[2] * 32.0)|fmt("{:.3}") }} / {{ (crop[3] * 9.0)|fmt("{:.3}") }};">
-          <img id="wcam-a" src="/live/crop/{{ info.id }}" class="w-full h-full object-cover" alt="Live webcam feed of the SALSA telescope">
+          <img id="wcam-a" src="/live/crop/{{ info.id }}" class="w-full h-full object-cover" alt="{{ lang.t("observe-webcam-alt") }}">
           <div hx-get="/live/webcam-status" hx-trigger="load, every 2s" hx-swap="innerHTML"></div>
         </div>
         <script>
@@ -312,7 +312,7 @@
           }, 1000);
         })();
         </script>
-        <p class="text-gray-500 text-xs mt-2">Updated every second. No lights — telescopes are not visible after dark but can still be controlled.</p>
+        <p class="text-gray-500 text-xs mt-2">{{ lang.t("observe-webcam-note") }}</p>
         <div class="mt-2 pt-2 border-t border-gray-100" hx-get="/weather" hx-trigger="load, every 5m"></div>
       </div>
       {% endif %}
@@ -322,6 +322,28 @@
 </div>
 
 <script>
+  // Strings for this page's JS, translated server-side. Values are kept
+  // free of quotes/apostrophes so HTML-escaping cannot corrupt the JS.
+  const OBSERVE_I18N = {
+    timeLeft: "{{ lang.t("observe-js-time-left") }}",
+    bookingEnding: "{{ lang.t("observe-js-booking-ending") }}",
+    khzChannel: "{{ lang.t("observe-js-khz-channel") }}",
+    hzChannel: "{{ lang.t("observe-js-hz-channel") }}",
+    integrating: "{{ lang.t("observe-js-integrating") }}",
+    integrationTime: "{{ lang.t("observe-js-integration-time") }}",
+    avgPower: "{{ lang.t("observe-js-avg-power") }}",
+    stopped: "{{ lang.t("observe-js-stopped-1") }}",
+    archive: "{{ lang.t("observe-js-archive") }}",
+    shortly: "{{ lang.t("observe-js-shortly") }}",
+    unless: "{{ lang.t("observe-js-unless") }}",
+    maxSession: "{{ lang.t("observe-js-max-session") }}",
+    lblLong: "{{ lang.t("observe-lbl-long") }}",
+    lblLat: "{{ lang.t("observe-lbl-lat") }}",
+    lblRa: "{{ lang.t("observe-lbl-ra") }}",
+    lblDec: "{{ lang.t("observe-lbl-dec") }}",
+    lblAz: "{{ lang.t("observe-lbl-az") }}",
+    lblEl: "{{ lang.t("observe-lbl-el") }}"
+  };
   let bookingEndTime = null;
   let warningSent = false;
   let bookingEnded = false;
@@ -361,13 +383,13 @@
           } else {
               inlineEl.className = 'font-normal text-gray-400 text-base';
           }
-          inlineEl.textContent = ' \u2014 Time left: ' + mm + ':' + ss;
+          inlineEl.textContent = ' \u2014 ' + OBSERVE_I18N.timeLeft + ' ' + mm + ':' + ss;
       }
 
       if (remaining <= 300 && !warningSent) {
           warningSent = true;
           if (warningEl) {
-              warningEl.textContent = 'Booking ending soon, please stow telescope or extend booking.';
+              warningEl.textContent = OBSERVE_I18N.bookingEnding;
               warningEl.classList.remove('hidden');
           }
       }
@@ -378,8 +400,8 @@
       const channels = parseInt(document.querySelector("select[name='spectral_channels']").value, 10);
       const resKhz = (bwMhz * 1000) / channels;
       const txt = resKhz >= 1
-          ? resKhz.toFixed(resKhz < 10 ? 2 : 1) + ' kHz/channel'
-          : (resKhz * 1000).toFixed(1) + ' Hz/channel';
+          ? resKhz.toFixed(resKhz < 10 ? 2 : 1) + ' ' + OBSERVE_I18N.khzChannel
+          : (resKhz * 1000).toFixed(1) + ' ' + OBSERVE_I18N.hzChannel;
       document.getElementById('spectral-resolution').textContent = txt;
   }
 
@@ -431,20 +453,20 @@
       updateRefFreqVisibility();
       switch (e.target.value) {
       case "galactic":
-          x_label.textContent = "Long. [deg]"
-          y_label.textContent = "Lat. [deg]"
+          x_label.textContent = OBSERVE_I18N.lblLong
+          y_label.textContent = OBSERVE_I18N.lblLat
           inputX.value = '';
           inputY.value = '';
           break;
       case "equatorial":
-          x_label.textContent = "R.A. [deg]"
-          y_label.textContent = "Dec. [deg]"
+          x_label.textContent = OBSERVE_I18N.lblRa
+          y_label.textContent = OBSERVE_I18N.lblDec
           inputX.value = '';
           inputY.value = '';
           break;
       case "horizontal":
-          x_label.textContent = "Az. [deg]"
-          y_label.textContent = "El. [deg]"
+          x_label.textContent = OBSERVE_I18N.lblAz
+          y_label.textContent = OBSERVE_I18N.lblEl
           inputX.value = '';
           inputY.value = '';
           break;
@@ -458,8 +480,8 @@
           fetchSatellites();
           break;
       case "stow":
-          x_label.textContent = "Az. [deg]"
-          y_label.textContent = "El. [deg]"
+          x_label.textContent = OBSERVE_I18N.lblAz
+          y_label.textContent = OBSERVE_I18N.lblEl
           inputX.value = '';
           inputY.value = '';
           break;
@@ -541,7 +563,7 @@
       const elapsedEl = document.getElementById('obs-elapsed');
 
       const powerStr = (window.observePowerLevel !== undefined)
-          ? '  |  Avg. power: ' + window.observePowerLevel.toFixed(2)
+          ? '  |  ' + OBSERVE_I18N.avgPower + ' ' + window.observePowerLevel.toFixed(2)
           : '';
       // Fixed-duration mode: render "X / N s" so the user can see progress.
       // Read the form values directly — they're disabled during integration,
@@ -564,12 +586,12 @@
           wasObserving = true;
           timerEl.classList.remove('hidden');
           elapsedEl.textContent = elapsedStr;
-          if (window.setChartTitle) window.setChartTitle('Integrating: ' + elapsedStr + 's' + powerStr);
+          if (window.setChartTitle) window.setChartTitle(OBSERVE_I18N.integrating + ' ' + elapsedStr + 's' + powerStr);
       } else {
           wasObserving = false;
           timerEl.classList.add('hidden');
           elapsedEl.textContent = '0';
-          if (window.setChartTitle) window.setChartTitle(serverSecs > 0 ? 'Integration time: ' + serverSecs + 's' + powerStr : '');
+          if (window.setChartTitle) window.setChartTitle(serverSecs > 0 ? OBSERVE_I18N.integrationTime + ' ' + serverSecs + 's' + powerStr : '');
           if (stoppedNow) maybeNotifyOffTargetStop();
       }
   }
@@ -581,15 +603,22 @@
   // status DOM: Slewing means a slew off target, while Idle with an
   // elevation-range error means the target sank below the horizon.
   function maybeNotifyOffTargetStop() {
-      const status = document.querySelector('#telescope-status h2 span')?.textContent.trim() || '';
+      const status = currentTelescopeStatus();
       const errEl = document.querySelector('#telescope-status p.text-danger');
-      const elevationLost = status === 'Idle' && errEl && /elevation/i.test(errEl.textContent);
+      const elevationLost = status === 'Idle' && errEl && errEl.dataset.errorKind === 'elevation';
       if (status === 'Slewing' || elevationLost) {
           document.getElementById('errors').innerHTML =
               '<div class="rounded-md border border-info-border bg-info-bg px-3 py-2 text-sm text-info">' +
-              'Integration stopped: the telescope moved off the target. The data collected so far ' +
-              'has been saved to your <a href="/observations">observation archive</a>.</div>';
+              OBSERVE_I18N.stopped +
+              ' <a href="/observations">' + OBSERVE_I18N.archive + '</a>.</div>';
       }
+  }
+
+  // The status badge text is translated; the machine-readable value rides
+  // in a data attribute on the badge span.
+  function currentTelescopeStatus() {
+      const badge = document.querySelector('#telescope-status h2 span[data-status]');
+      return badge ? badge.dataset.status : 'Idle';
   }
 
   function setObservingState(observing) {
@@ -640,8 +669,7 @@
   }
 
   function updateTrackStopButtons() {
-      const statusSpan = document.querySelector('#telescope-status h2 span');
-      const status = statusSpan ? statusSpan.textContent.trim() : 'Idle';
+      const status = currentTelescopeStatus();
       const isTracking = status === 'Tracking';
       const isIdle = status === 'Idle';
       setTrackingState(!isIdle);
@@ -719,16 +747,16 @@
               if (!observedEndReason) {
                   observedEndReason = idleLeft <= 0 ? 'idle' : 'ceiling';
               }
-              timeEl.textContent = 'shortly';
+              timeEl.textContent = OBSERVE_I18N.shortly;
               noteEl.textContent = '';
               return;
           }
           if (idleLeft <= hardLeft) {
               timeEl.textContent = fmt(idleLeft);
-              noteEl.textContent = 'unless you keep using the controls below';
+              noteEl.textContent = OBSERVE_I18N.unless;
           } else {
               timeEl.textContent = fmt(hardLeft);
-              noteEl.textContent = '(maximum session length reached)';
+              noteEl.textContent = OBSERVE_I18N.maxSession;
           }
       }
       tick();
