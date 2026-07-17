@@ -11,6 +11,7 @@ use axum::{
     response::{Html, IntoResponse, Response},
     routing::get,
 };
+use base64::{Engine, prelude::BASE64_STANDARD};
 use tokio::sync::Mutex;
 use tracing::{debug, error, info};
 
@@ -206,15 +207,30 @@ fn jpeg_response(bytes: Bytes) -> Response {
 
 #[derive(Template)]
 #[template(path = "live.html")]
-struct LiveTemplate {}
+struct LiveTemplate {
+    initial_snapshot_src: String,
+}
 
 async fn get_live_page(
+    State(state): State<WebcamState>,
     Extension(user): Extension<Option<User>>,
     headers: HeaderMap,
 ) -> impl IntoResponse {
-    let content = LiveTemplate {}
-        .render()
-        .expect("Template rendering should always succeed");
+    // Inline the cached panorama as a data URI so the first image arrives
+    // with the page instead of popping in after a second round trip.
+    let cached = state.cache.lock().await.clone();
+    let initial_snapshot_src = match cached {
+        Some(frames) => format!(
+            "data:image/jpeg;base64,{}",
+            BASE64_STANDARD.encode(&frames.panorama)
+        ),
+        None => "/live/snapshot".to_string(),
+    };
+    let content = LiveTemplate {
+        initial_snapshot_src,
+    }
+    .render()
+    .expect("Template rendering should always succeed");
     let content = if headers.get("hx-request").is_some() {
         content
     } else {
