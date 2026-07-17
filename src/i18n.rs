@@ -96,6 +96,10 @@ fn load(code: &str) -> FluentLanguageLoader {
     loader
         .load_languages(&Localizations, &[id])
         .expect("Embedded catalog for a supported language should load");
+    // Fluent wraps interpolated arguments in invisible Unicode bidi
+    // isolation marks by default. All supported languages are left-to-
+    // right, and the marks leak into copied text and SVG output.
+    loader.set_use_isolating(false);
     loader
 }
 
