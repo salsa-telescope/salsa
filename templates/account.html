@@ -1,20 +1,20 @@
 <div class="section light" id="account-card">
-  <h2 class="text-xl font-semibold mb-4">Account</h2>
+  <h2 class="text-xl font-semibold mb-4">{{ lang.t("account-heading") }}</h2>
   <dl class="text-sm space-y-2 grid grid-cols-[max-content_auto] gap-x-4 gap-y-1">
-    <dt class="text-gray-500">Username</dt>
+    <dt class="text-gray-500">{{ lang.t("account-username") }}</dt>
     <dd>{{ user.name }}</dd>
-    <dt class="text-gray-500">Provider</dt>
+    <dt class="text-gray-500">{{ lang.t("account-provider") }}</dt>
     <dd>{{ user.provider }}</dd>
-    <dt class="text-gray-500">SALSA user ID</dt>
+    <dt class="text-gray-500">{{ lang.t("account-user-id") }}</dt>
     <dd>{{ user.id }}</dd>
-    <dt class="text-gray-500">Account type</dt>
-    <dd>{% if user.is_admin %}Admin{% else %}User{% endif %}</dd>
+    <dt class="text-gray-500">{{ lang.t("account-type") }}</dt>
+    <dd>{% if user.is_admin %}{{ lang.t("account-type-admin") }}{% else %}{{ lang.t("account-type-user") }}{% endif %}</dd>
   </dl>
 
   <div class="mt-6 pt-4 border-t border-gray-200">
-    <label for="timezone-select" class="block text-sm font-medium text-gray-700 mb-1">Timezone</label>
+    <label for="timezone-select" class="block text-sm font-medium text-gray-700 mb-1">{{ lang.t("account-timezone-label") }}</label>
     <p class="text-sm text-gray-500 mb-2">
-      Dates and times across SALSA — including the bookings calendar — are shown in this timezone.
+      {{ lang.t("account-timezone-help") }}
     </p>
     <div class="flex items-center gap-3 flex-wrap">
       <select id="timezone-select" name="timezone"
@@ -28,7 +28,7 @@
         {% endfor %}
       </select>
       {% if saved %}
-      <span class="text-sm text-success">Saved ✓ — applies as you navigate.</span>
+      <span class="text-sm text-success">{{ lang.t("account-saved") }}</span>
       {% endif %}
     </div>
   </div>
@@ -50,17 +50,16 @@
   </div>
 
   <p class="text-sm text-gray-600 mt-6 pt-4 border-t border-gray-200">
-    Enjoying SALSA? We'd love to hear about it — what you observed,
-    what surprised you, what you used the data for. Drop us a line at
+    {{ lang.t("account-feedback-intro") }}
     <a href="mailto:salsa.onsala@gmail.com">salsa.onsala@gmail.com</a>.
-    Stories like that help us prioritise the time we put into the system.
+    {{ lang.t("account-feedback-outro") }}
   </p>
   <div class="mt-6 pt-4 border-t border-gray-200">
     <button
       hx-post="/account/delete"
-      hx-confirm="Are you sure? This will anonymise your account and cancel any upcoming bookings. Past bookings and observations will be retained. If you want to remove your observations, please delete them on the Observations page first."
+      hx-confirm="{{ lang.t("account-delete-confirm") }}"
       class="btn bg-danger hover:bg-danger-hover">
-      Delete account
+      {{ lang.t("account-delete") }}
     </button>
   </div>
 </div>

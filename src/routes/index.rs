@@ -64,19 +64,25 @@ pub async fn get_index(
     // — the banner's own CTAs do the job of the "Observe now"/"Book a
     // telescope" buttons. Start-failure banners sit above the hero.
     let show_hero = banner.as_ref().is_none_or(|b| b.heading.is_none());
-    let content = WelcomeTemplate { banner, show_hero }
-        .render()
-        .expect("welcome");
+    let content = WelcomeTemplate {
+        lang,
+        banner,
+        show_hero,
+    }
+    .render()
+    .expect("welcome");
     Html(render_main(user, lang, content)).into_response()
 }
 
 #[derive(Template)]
 #[template(path = "welcome.html")]
 struct WelcomeTemplate {
+    lang: Language,
     banner: Option<WelcomeBanner>,
     show_hero: bool,
 }
 
+/// Banner texts are Fluent message keys, translated at render time.
 struct WelcomeBanner {
     kind: &'static str,
     /// Some => "card" layout (heading + body + CTAs) that replaces the
@@ -95,38 +101,14 @@ struct WelcomeBanner {
 /// show the normal welcome page.
 fn guest_error_banner(code: &str) -> Option<WelcomeBanner> {
     let (kind, message): (&'static str, &'static str) = match code {
-        "all_busy" => (
-            "warning",
-            "All telescopes are currently in use. Please try again in a few minutes, \
-             or create a free account to reserve a time slot.",
-        ),
-        "all_maintenance" => (
-            "warning",
-            "All telescopes are currently in maintenance. Please try again later.",
-        ),
-        "busy" => (
-            "warning",
-            "That telescope is currently booked. Please try again later, \
-             or create a free account to reserve a time slot.",
-        ),
-        "maintenance" => (
-            "warning",
-            "That telescope is currently in maintenance. Please try again later.",
-        ),
-        "guest_active" => (
-            "warning",
-            "Another guest is currently using that telescope. Please try again in a moment.",
-        ),
-        "rate_limited" => (
-            "warning",
-            "Too many guest sessions started from your address. Please wait a few minutes, \
-             or create a free account to reserve a time slot.",
-        ),
-        "not_found" => ("danger", "Telescope not found."),
-        "internal" => (
-            "danger",
-            "Something went wrong starting the guest session. Please try again.",
-        ),
+        "all_busy" => ("warning", "guest-error-all-busy"),
+        "all_maintenance" => ("warning", "guest-error-all-maintenance"),
+        "busy" => ("warning", "guest-error-busy"),
+        "maintenance" => ("warning", "guest-error-maintenance"),
+        "guest_active" => ("warning", "guest-error-guest-active"),
+        "rate_limited" => ("warning", "guest-error-rate-limited"),
+        "not_found" => ("danger", "guest-error-not-found"),
+        "internal" => ("danger", "guest-error-internal"),
         _ => return None,
     };
     Some(WelcomeBanner {
@@ -154,27 +136,27 @@ fn guest_ended_banner(reason: &str) -> Option<WelcomeBanner> {
     ) = match reason {
         "user" => (
             "info",
-            "Session ended",
-            "Thanks for trying SALSA.",
-            Some("Observe again"),
+            "guest-ended-user-heading",
+            "guest-ended-user-message",
+            Some("welcome-observe-again"),
         ),
         "idle" => (
             "warning",
-            "Session timed out",
-            "Your guest session ended due to inactivity.",
-            Some("Observe again"),
+            "guest-ended-idle-heading",
+            "guest-ended-idle-message",
+            Some("welcome-observe-again"),
         ),
         "ceiling" => (
             "info",
-            "30-minute limit reached",
-            "Your guest session reached the maximum length for unregistered visitors.",
+            "guest-ended-ceiling-heading",
+            "guest-ended-ceiling-message",
             None,
         ),
         "preempted" => (
             "warning",
-            "Telescope reserved by another user",
-            "Your guest session ended because a registered user booked this telescope.",
-            Some("Try another telescope"),
+            "guest-ended-preempted-heading",
+            "guest-ended-preempted-message",
+            Some("welcome-try-another"),
         ),
         _ => return None,
     };

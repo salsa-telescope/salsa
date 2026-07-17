@@ -63,6 +63,16 @@ impl Language {
             .find_map(|code| Language::from_code(code.trim()))
     }
 
+    /// Matching chrono locale, for localized weekday/month names via
+    /// `format_localized`. Pair it with a `fmt-*` catalog message as the
+    /// format string so date *order* can differ per language too.
+    pub fn chrono_locale(self) -> chrono::Locale {
+        match self {
+            Language::English => chrono::Locale::en_US,
+            Language::Swedish => chrono::Locale::sv_SE,
+        }
+    }
+
     pub fn loader(self) -> &'static FluentLanguageLoader {
         match self {
             Language::English => &EN_LOADER,
