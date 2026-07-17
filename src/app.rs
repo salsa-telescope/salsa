@@ -116,7 +116,11 @@ pub async fn create_app(config_dir: &Path, database_dir: &Path) -> (Router, AppS
     );
     let webcam_snapshot_url = match secrets.webcam.as_ref() {
         Some(creds) => format!(
-            "{}/cgi-bin/api.cgi?cmd=Snap&channel=0&rs=salsa&user={}&password={}&width=1280&height=720",
+            // snapType=main gives the full-resolution frame; the crops served to
+            // the observe page need the pixels. (Explicit width/height params are
+            // silently ignored by the camera unless they exactly match a stream
+            // profile, so we don't use them.)
+            "{}/cgi-bin/api.cgi?cmd=Snap&channel=0&rs=salsa&user={}&password={}&snapType=main",
             creds.url, creds.username, creds.password
         ),
         None => String::new(),

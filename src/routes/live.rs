@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
 use std::time::Instant;
 
@@ -5,7 +6,7 @@ use askama::Template;
 use axum::body::Bytes;
 use axum::{
     Extension, Router,
-    extract::State,
+    extract::{Path, State},
     http::{HeaderMap, StatusCode, header},
     response::{Html, IntoResponse, Response},
     routing::get,
@@ -26,16 +27,23 @@ const WEBCAM_VERY_STALE_SECS: u64 = 300;
 /// Age past which we visibly mark the image as stale (but still show it).
 const WEBCAM_STALE_SECS: u64 = 30;
 
-#[derive(Clone)]
-struct CachedSnapshot {
-    bytes: Bytes,
+/// Width of the downsampled panorama served to clients. The camera frame is
+/// 4K, but the page never shows it larger than roughly this.
+const PANORAMA_WIDTH: u32 = 1280;
+
+struct CachedFrames {
+    /// Top 32:9 strip of the camera frame, downsampled to PANORAMA_WIDTH.
+    panorama: Bytes,
+    /// Per-telescope close-ups cut from the full-resolution frame,
+    /// keyed by telescope id.
+    crops: HashMap<String, Bytes>,
     fetched_at: Instant,
 }
 
 #[derive(Clone)]
 struct WebcamState {
     snapshot_url: String,
-    cache: Arc<Mutex<Option<CachedSnapshot>>>,
+    cache: Arc<Mutex<Option<Arc<CachedFrames>>>>,
     app_state: AppState,
 }
 
@@ -62,8 +70,13 @@ pub fn routes(snapshot_url: String, app_state: AppState) -> Router {
     if !state.snapshot_url.is_empty() {
         let cache_clone = state.cache.clone();
         let url_clone = state.snapshot_url.clone();
+        let app_state_clone = state.app_state.clone();
         tokio::spawn(async move {
-            let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(2));
+            // The camera needs ~1 s to encode a 4K snapshot, so this loop
+            // effectively runs at about 1 Hz. The interval is only a floor
+            // that keeps us from hammering the camera if it responds faster.
+            let mut interval = tokio::time::interval(tokio::time::Duration::from_millis(500));
+            interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
             // Track consecutive failures so we log loudly on transitions
             // (working->broken, broken->working) but stay quiet during a long outage.
             let mut consecutive_failures: u64 = 0;
@@ -77,18 +90,32 @@ pub fn routes(snapshot_url: String, app_state: AppState) -> Router {
                         .map_err(|e| format!("body read error: {e}")),
                     Err(e) => Err(format!("request error: {e}")),
                 };
-                match result {
+                let result = match result {
                     Ok(bytes) => {
+                        let mut crop_defs = Vec::new();
+                        for telescope in app_state_clone.telescopes.get_all().await {
+                            if let Ok(info) = telescope.get_info().await
+                                && let Some(crop) = info.webcam_crop
+                            {
+                                crop_defs.push((info.id, crop));
+                            }
+                        }
+                        tokio::task::spawn_blocking(move || process_frame(&bytes, &crop_defs))
+                            .await
+                            .map_err(|e| format!("frame processing task failed: {e}"))
+                            .and_then(|r| r)
+                    }
+                    Err(msg) => Err(msg),
+                };
+                match result {
+                    Ok(frames) => {
                         if consecutive_failures > 0 {
                             info!(
                                 "Webcam snapshot fetch recovered after {consecutive_failures} failed attempts"
                             );
                         }
                         consecutive_failures = 0;
-                        *cache_clone.lock().await = Some(CachedSnapshot {
-                            bytes,
-                            fetched_at: Instant::now(),
-                        });
+                        *cache_clone.lock().await = Some(Arc::new(frames));
                     }
                     Err(msg) => {
                         if consecutive_failures == 0 {
@@ -109,9 +136,72 @@ pub fn routes(snapshot_url: String, app_state: AppState) -> Router {
     Router::new()
         .route("/", get(get_live_page))
         .route("/snapshot", get(get_webcam_snapshot))
+        .route("/crop/{telescope}", get(get_webcam_crop))
         .route("/webcam-status", get(get_webcam_status))
         .route("/telescopes", get(get_telescopes_status))
         .with_state(state)
+}
+
+/// Decode a camera frame and derive the images served to clients: the
+/// downsampled panorama and one full-resolution close-up per telescope.
+fn process_frame(jpeg: &[u8], crop_defs: &[(String, [f64; 4])]) -> Result<CachedFrames, String> {
+    let full = image::load_from_memory_with_format(jpeg, image::ImageFormat::Jpeg)
+        .map_err(|e| format!("image decode error: {e}"))?
+        .into_rgb8();
+    let (width, height) = full.dimensions();
+
+    // The pages show a 32:9 strip from the top of the (16:9) camera frame.
+    let strip_height = (width * 9 / 32).min(height);
+    let panorama_height = (PANORAMA_WIDTH * strip_height / width).max(1);
+    let strip = image::imageops::crop_imm(&full, 0, 0, width, strip_height).to_image();
+    let panorama = image::imageops::resize(
+        &strip,
+        PANORAMA_WIDTH,
+        panorama_height,
+        image::imageops::FilterType::Triangle,
+    );
+
+    // Crop fractions are relative to the 32:9 viewport: x and w scale with
+    // the image width, y and h with the viewport height (width * 9/32).
+    let view_height = f64::from(width) * 9.0 / 32.0;
+    let mut crops = HashMap::new();
+    for (id, c) in crop_defs {
+        let x = (c[0] * f64::from(width)) as u32;
+        let y = (c[1] * view_height) as u32;
+        let w = (c[2] * f64::from(width)) as u32;
+        let h = (c[3] * view_height) as u32;
+        if x >= width || y >= height || w == 0 || h == 0 {
+            continue;
+        }
+        let region =
+            image::imageops::crop_imm(&full, x, y, w.min(width - x), h.min(height - y)).to_image();
+        crops.insert(id.clone(), encode_jpeg(&region, 80)?);
+    }
+
+    Ok(CachedFrames {
+        panorama: encode_jpeg(&panorama, 75)?,
+        crops,
+        fetched_at: Instant::now(),
+    })
+}
+
+fn encode_jpeg(img: &image::RgbImage, quality: u8) -> Result<Bytes, String> {
+    let mut buf = Vec::new();
+    image::codecs::jpeg::JpegEncoder::new_with_quality(&mut buf, quality)
+        .encode_image(img)
+        .map_err(|e| format!("image encode error: {e}"))?;
+    Ok(Bytes::from(buf))
+}
+
+fn jpeg_response(bytes: Bytes) -> Response {
+    (
+        [
+            (header::CONTENT_TYPE, "image/jpeg"),
+            (header::CACHE_CONTROL, "no-store"),
+        ],
+        bytes,
+    )
+        .into_response()
 }
 
 #[derive(Template)]
@@ -134,21 +224,22 @@ async fn get_live_page(
 }
 
 async fn get_webcam_snapshot(State(state): State<WebcamState>) -> Response {
-    if state.snapshot_url.is_empty() {
-        return StatusCode::NOT_FOUND.into_response();
-    }
-    let cached: Option<CachedSnapshot> = state.cache.lock().await.clone();
+    let cached = state.cache.lock().await.clone();
     match cached {
-        Some(c) => (
-            [
-                (header::CONTENT_TYPE, "image/jpeg"),
-                (header::CACHE_CONTROL, "no-store"),
-            ],
-            c.bytes,
-        )
-            .into_response(),
+        Some(frames) => jpeg_response(frames.panorama.clone()),
         // 404 (rather than 503) so tower-http's failure classifier doesn't log
         // every poll while the upstream camera is down.
+        None => StatusCode::NOT_FOUND.into_response(),
+    }
+}
+
+async fn get_webcam_crop(
+    State(state): State<WebcamState>,
+    Path(telescope): Path<String>,
+) -> Response {
+    let cached = state.cache.lock().await.clone();
+    match cached.as_ref().and_then(|f| f.crops.get(&telescope)) {
+        Some(bytes) => jpeg_response(bytes.clone()),
         None => StatusCode::NOT_FOUND.into_response(),
     }
 }
