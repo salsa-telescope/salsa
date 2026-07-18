@@ -1,3 +1,9 @@
+// Translated label lookup; the layout injects window.CHART_I18N and the
+// English literal is the fallback so the chart also works standalone.
+function chartT(key, fallback) {
+  return (window.CHART_I18N && window.CHART_I18N[key]) || fallback;
+}
+
 // --- Module-level analysis state ---
 let analysisState = null;
 let chartRefs = null;
@@ -169,12 +175,12 @@ function updateAnalysisUI() {
   if (btnBaseline) {
     btnBaseline.classList.toggle("bg-orange-200", mode === "baseline");
     btnBaseline.classList.toggle("bg-gray-200", mode !== "baseline");
-    btnBaseline.textContent = mode === "baseline" ? "Done picking" : "Pick ranges";
+    btnBaseline.textContent = mode === "baseline" ? chartT("donePicking", "Done picking") : chartT("pickRanges", "Pick ranges");
   }
   if (btnGaussian) {
     btnGaussian.classList.toggle("bg-orange-200", mode === "gaussian");
     btnGaussian.classList.toggle("bg-gray-200", mode !== "gaussian");
-    btnGaussian.textContent = mode === "gaussian" ? "Done picking" : "Pick peaks";
+    btnGaussian.textContent = mode === "gaussian" ? chartT("donePicking", "Done picking") : chartT("pickPeaks", "Pick peaks");
   }
   if (btnFit) {
     btnFit.disabled = analysisState.baselineRanges.length === 0 || mode === "baseline";
@@ -192,23 +198,24 @@ function updateAnalysisUI() {
     hint.textContent =
       mode === "baseline"
         ? pending
-          ? "Click to set the end of this range"
-          : "Click to start a baseline range · click Done when finished"
+          ? chartT("hintRangeEnd", "Click to set the end of this range")
+          : chartT("hintBaseline", "Click to start a baseline range · click Done when finished")
         : mode === "gaussian"
-        ? "Click on peak centers to add Gaussian seeds · click Done when finished"
-        : "Hover to show coordinates · draw a box to zoom · double-click to reset";
+        ? chartT("hintGaussian", "Click on peak centers to add Gaussian seeds · click Done when finished")
+        : chartT("hintDefault", "Hover to show coordinates · draw a box to zoom · double-click to reset");
   }
 
   const baselineCount = document.getElementById("baseline-count");
   if (baselineCount) {
     const n = analysisState.baselineRanges.length;
-    const pending = analysisState.pendingRangeStart !== null ? " (picking…)" : "";
-    baselineCount.textContent = `${n} range${n !== 1 ? "s" : ""}${pending}`;
+    const pending = analysisState.pendingRangeStart !== null ? " " + chartT("picking", "(picking…)") : "";
+    const rangeWord = n !== 1 ? chartT("rangePlural", "ranges") : chartT("rangeSingular", "range");
+    baselineCount.textContent = `${n} ${rangeWord}${pending}`;
   }
 
   const gaussianCount = document.getElementById("gaussian-count");
   if (gaussianCount)
-    gaussianCount.textContent = `${analysisState.gaussianSeeds.length} seed${analysisState.gaussianSeeds.length !== 1 ? "s" : ""}`;
+    gaussianCount.textContent = `${analysisState.gaussianSeeds.length} ${analysisState.gaussianSeeds.length !== 1 ? chartT("seedPlural", "seeds") : chartT("seedSingular", "seed")}`;
 
   // Enable/disable brush based on pick mode
   if (chartRefs) {
@@ -237,12 +244,12 @@ function fitBaseline() {
   });
 
   if (xs.length < degree + 1) {
-    alert("Not enough data points in selected ranges for this polynomial order.");
+    alert(chartT("errNotEnoughPoints", "Not enough data points in selected ranges for this polynomial order."));
     return;
   }
   const coeffs = polyFit(xs, ys, degree);
   if (!coeffs) {
-    alert("Baseline fit failed (singular matrix).");
+    alert(chartT("errBaselineFailed", "Baseline fit failed (singular matrix)."));
     return;
   }
   // Stage the fit as a preview — actual subtraction happens on Subtract.
@@ -286,7 +293,7 @@ function clearBaseline() {
 
 function fitGaussians() {
   if (!analysisState || analysisState.gaussianSeeds.length === 0) {
-    alert("Pick at least one peak seed first.");
+    alert(chartT("errPickSeed", "Pick at least one peak seed first."));
     return;
   }
   const { freqsHz, correctedAmps } = analysisState;
@@ -306,7 +313,7 @@ function fitGaussians() {
     updateOverlays();
     renderGaussianResults(fits);
   } catch (e) {
-    alert("Gaussian fit failed: " + e.message);
+    alert(chartT("errGaussianFailed", "Gaussian fit failed:") + " " + e.message);
   }
 }
 
@@ -603,7 +610,7 @@ function loadObservation(id) {
 
       const startTime = new Date(data.start_time).toUTCString();
       const intTime = Math.round(data.integration_time_secs);
-      const coordLabel = data.coordinate_system === "sun" ? "Sun az/el" : data.coordinate_system;
+      const coordLabel = data.coordinate_system === "sun" ? chartT("sunAzel", "Sun az/el") : data.coordinate_system;
       const coordStr = `(${data.target_x.toFixed(1)}°, ${data.target_y.toFixed(1)}°)`;
       const offsetParts = [];
       const azOff = data.az_offset_deg;
@@ -714,7 +721,7 @@ function loadObservation(id) {
         .attr("y", height - 8)
         .attr("text-anchor", "middle")
         .attr("font-size", "15px")
-        .text(showVlsr ? "VLSR (km/s)" : "Frequency (MHz)");
+        .text(showVlsr ? chartT("vlsr", "VLSR (km/s)") : chartT("frequency", "Frequency (MHz)"));
 
       // y-axis
       const yAxisG = svg
@@ -732,7 +739,7 @@ function loadObservation(id) {
         .attr("text-anchor", "middle")
         .attr("font-size", "15px")
         .attr("fill", "black")
-        .text("Amplitude");
+        .text(chartT("amplitude", "Amplitude"));
 
       // Line
       const lineFn = d3
@@ -914,17 +921,17 @@ function loadObservation(id) {
       if (axisBtn) {
         if (vlsrCorrection !== null && vlsrCorrection !== undefined) {
           axisBtn.style.display = "";
-          axisBtn.textContent = showVlsr ? "Show frequency" : "Show VLSR";
+          axisBtn.textContent = showVlsr ? chartT("showFrequency", "Show frequency") : chartT("showVlsr", "Show VLSR");
           axisBtn.onclick = function () {
             showVlsr = !showVlsr;
-            axisBtn.textContent = showVlsr ? "Show frequency" : "Show VLSR";
+            axisBtn.textContent = showVlsr ? chartT("showFrequency", "Show frequency") : chartT("showVlsr", "Show VLSR");
             const newData = getDisplayData();
             const newXExtent = d3.extent(newData, (d) => d.x);
             const newYExtent = d3.extent(newData, (d) => d.y);
             const newPad = (newYExtent[1] - newYExtent[0]) * 0.05;
             fullXDomain = newXExtent.slice();
             fullYDomain = [newYExtent[0] - newPad, newYExtent[1] + newPad];
-            xLabel.text(showVlsr ? "VLSR (km/s)" : "Frequency (MHz)");
+            xLabel.text(showVlsr ? chartT("vlsr", "VLSR (km/s)") : chartT("frequency", "Frequency (MHz)"));
             redraw(newData, fullXDomain, fullYDomain);
             updateCsvLink();
           };
@@ -936,10 +943,10 @@ function loadObservation(id) {
       // y-scale toggle button
       const yscaleBtn = document.getElementById("observation-yscale-toggle");
       if (yscaleBtn) {
-        yscaleBtn.textContent = showLog ? "Linear scale" : "Log scale";
+        yscaleBtn.textContent = showLog ? chartT("linearScale", "Linear scale") : chartT("logScale", "Log scale");
         yscaleBtn.onclick = function () {
           showLog = !showLog;
-          yscaleBtn.textContent = showLog ? "Linear scale" : "Log scale";
+          yscaleBtn.textContent = showLog ? chartT("linearScale", "Linear scale") : chartT("logScale", "Log scale");
           rescaleAndRedraw();
         };
       }

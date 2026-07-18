@@ -341,6 +341,35 @@ vis-window-join = , and{" "}
 vis-axis-utc = UTC time
 vis-axis-local = Local time ({ $tz })
 
+## Shared chart scripts (assets/observation_chart.js, observe_chart.js).
+## Injected as window.CHART_I18N by the layout; the JS falls back to
+## English if a key is missing. Keep values free of quotes.
+
+chart-frequency = Frequency (MHz)
+chart-vlsr = VLSR (km/s)
+chart-amplitude = Amplitude
+chart-linear-scale = Linear scale
+chart-log-scale = Log scale
+chart-show-frequency = Show frequency
+chart-show-vlsr = Show VLSR
+chart-done-picking = Done picking
+chart-pick-ranges = Pick ranges
+chart-pick-peaks = Pick peaks
+chart-hint-range-end = Click to set the end of this range
+chart-hint-baseline = Click to start a baseline range · click Done when finished
+chart-hint-gaussian = Click on peak centers to add Gaussian seeds · click Done when finished
+chart-hint-default = Hover to show coordinates · draw a box to zoom · double-click to reset
+chart-error-not-enough-points = Not enough data points in selected ranges for this polynomial order.
+chart-error-baseline-failed = Baseline fit failed (singular matrix).
+chart-error-pick-seed = Pick at least one peak seed first.
+chart-error-gaussian-failed = Gaussian fit failed:
+chart-range-singular = range
+chart-range-plural = ranges
+chart-seed-singular = seed
+chart-seed-plural = seeds
+chart-picking = (picking…)
+chart-sun-azel = Sun az/el
+
 ## Login page
 
 login-same-method-hint = Always use the same login method to keep access to your bookings and observations.

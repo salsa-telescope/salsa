@@ -341,6 +341,35 @@ vis-window-join = { " " }och{ " " }
 vis-axis-utc = UTC-tid
 vis-axis-local = Lokal tid ({ $tz })
 
+## Shared chart scripts (assets/observation_chart.js, observe_chart.js).
+## Injected as window.CHART_I18N by the layout; the JS falls back to
+## English if a key is missing. Keep values free of quotes.
+
+chart-frequency = Frekvens (MHz)
+chart-vlsr = VLSR (km/s)
+chart-amplitude = Amplitud
+chart-linear-scale = Linjär skala
+chart-log-scale = Logaritmisk skala
+chart-show-frequency = Visa frekvens
+chart-show-vlsr = Visa VLSR
+chart-done-picking = Klar
+chart-pick-ranges = Välj områden
+chart-pick-peaks = Välj toppar
+chart-hint-range-end = Klicka för att sätta slutet på området
+chart-hint-baseline = Klicka för att börja ett baslinjeområde · klicka på Klar när du är färdig
+chart-hint-gaussian = Klicka på topparnas mitt för att lägga till startgissningar · klicka på Klar när du är färdig
+chart-hint-default = Håll pekaren över för koordinater · rita en ruta för att zooma · dubbelklicka för att återställa
+chart-error-not-enough-points = För få datapunkter i de valda områdena för den här polynomordningen.
+chart-error-baseline-failed = Baslinjeanpassningen misslyckades (singulär matris).
+chart-error-pick-seed = Välj minst en topp som startgissning först.
+chart-error-gaussian-failed = Gaussanpassningen misslyckades:
+chart-range-singular = område
+chart-range-plural = områden
+chart-seed-singular = startgissning
+chart-seed-plural = startgissningar
+chart-picking = (väljer…)
+chart-sun-azel = Solen az/el
+
 ## Login page
 
 login-same-method-hint = Använd alltid samma inloggningsmetod för att behålla åtkomsten till dina bokningar och observationer.

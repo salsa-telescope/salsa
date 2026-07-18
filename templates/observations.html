@@ -120,14 +120,14 @@
         <div id="observation-chart-buttons" class="flex gap-2 justify-center mt-1">
           <button id="observation-axis-toggle" style="display: none;"
             class="px-2 py-1 bg-gray-200 text-sm rounded hover:bg-gray-300">
-            Show frequency
+            {{ lang.t("chart-show-frequency") }}
           </button>
           <button id="observation-yscale-toggle"
             class="px-2 py-1 bg-gray-200 text-sm rounded hover:bg-gray-300">
-            Log scale
+            {{ lang.t("chart-log-scale") }}
           </button>
         </div>
-        <p id="chart-hint" class="text-xs text-gray-400 text-center mt-2">Hover to show coordinates · draw a box to zoom · double-click to reset</p>
+        <p id="chart-hint" class="text-xs text-gray-400 text-center mt-2">{{ lang.t("chart-hint-default") }}</p>
         <div id="observation-downloads" class="hidden flex gap-2 justify-center mt-3">
           <button id="download-png"
             class="btn bg-gray-200 hover:bg-gray-300 text-gray-700">
@@ -156,8 +156,8 @@
           <summary class="cursor-pointer font-medium text-gray-600 text-xs uppercase tracking-wide select-none">{{ lang.t("obs-baseline") }}</summary>
           <div class="mt-2 space-y-2">
             <div class="flex gap-2 items-center">
-              <button id="btn-pick-baseline" onclick="togglePickMode('baseline')" class="text-xs px-2 py-1 bg-gray-200 rounded hover:bg-gray-300">Pick ranges</button>
-              <span id="baseline-count" class="text-xs text-gray-400">0 ranges</span>
+              <button id="btn-pick-baseline" onclick="togglePickMode('baseline')" class="text-xs px-2 py-1 bg-gray-200 rounded hover:bg-gray-300">{{ lang.t("chart-pick-ranges") }}</button>
+              <span id="baseline-count" class="text-xs text-gray-400">0 {{ lang.t("chart-range-plural") }}</span>
             </div>
             <div class="flex gap-2 items-center">
               <label class="text-xs text-gray-500">{{ lang.t("obs-order") }}</label>
@@ -179,8 +179,8 @@
           <summary class="cursor-pointer font-medium text-gray-600 text-xs uppercase tracking-wide select-none">{{ lang.t("obs-gaussian") }}</summary>
           <div class="mt-2 space-y-2">
             <div class="flex gap-2 items-center">
-              <button id="btn-pick-gaussian" onclick="togglePickMode('gaussian')" class="text-xs px-2 py-1 bg-gray-200 rounded hover:bg-gray-300">Pick peaks</button>
-              <span id="gaussian-count" class="text-xs text-gray-400">0 seeds</span>
+              <button id="btn-pick-gaussian" onclick="togglePickMode('gaussian')" class="text-xs px-2 py-1 bg-gray-200 rounded hover:bg-gray-300">{{ lang.t("chart-pick-peaks") }}</button>
+              <span id="gaussian-count" class="text-xs text-gray-400">0 {{ lang.t("chart-seed-plural") }}</span>
             </div>
             <div class="flex gap-2">
               <button id="btn-fit-gaussian" onclick="fitGaussians()" disabled
