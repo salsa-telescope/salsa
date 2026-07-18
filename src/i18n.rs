@@ -42,6 +42,16 @@ impl Language {
         }
     }
 
+    /// Header switch-link text, written in the target language so the
+    /// reader who needs it can read it ("På svenska" on English pages).
+    /// A property of the target language, hence not a catalog string.
+    pub fn switch_label(self) -> &'static str {
+        match self {
+            Language::English => "In English",
+            Language::Swedish => "På svenska",
+        }
+    }
+
     /// Parse a bare code ("sv") or a code with region ("sv-SE").
     pub fn from_code(code: &str) -> Option<Language> {
         let primary = code.split(['-', '_']).next().unwrap_or(code);

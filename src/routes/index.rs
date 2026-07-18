@@ -9,14 +9,12 @@ use serde::Deserialize;
 use crate::i18n::Language;
 use crate::models::user::User;
 
-/// One entry in the header language picker.
+/// One entry in the header language switch: a language other than the
+/// current one, offered as a link labeled in that language.
 struct LanguageOption {
     code: &'static str,
-    /// Compact label shown in the header ("EN", "SV").
-    label: String,
-    /// The language's name in itself, as tooltip.
-    native_name: &'static str,
-    current: bool,
+    /// Link text in the target language ("På svenska", "In English").
+    label: &'static str,
 }
 
 #[derive(Template)]
@@ -201,11 +199,10 @@ pub fn render_main(user: Option<User>, lang: Language, content: String) -> Strin
     };
     let languages = Language::ALL
         .iter()
+        .filter(|&&language| language != lang)
         .map(|&language| LanguageOption {
             code: language.code(),
-            label: language.code().to_ascii_uppercase(),
-            native_name: language.native_name(),
-            current: language == lang,
+            label: language.switch_label(),
         })
         .collect();
     IndexTemplate {

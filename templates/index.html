@@ -96,12 +96,13 @@
                 <a href="/admin" class="nav-link" onclick="closeAllPanels()">{{ lang.t("nav-admin") }}</a>
                 {% endif %}
                 <span class="nav-spacer"></span>
+                {# One link per non-current language, labeled in that
+                   language so the reader who needs it can read it. #}
                 <form method="POST" action="/language" class="contents">
                     {% for option in languages %}
                     <button type="submit" name="language" value="{{ option.code }}"
-                        title="{{ option.native_name }}"
-                        class="nav-link{% if option.current %} font-bold{% endif %}"
-                        {% if option.current %}aria-current="true"{% endif %}>{{ option.label }}</button>
+                        lang="{{ option.code }}"
+                        class="nav-link">{{ option.label }}</button>
                     {% endfor %}
                 </form>
                 {% if name == "" %}
