@@ -511,8 +511,15 @@ fn measure_single(
     let nstack: usize = (nsamp as usize) / fft_pts;
     let navg: usize = fft_pts / avg_pts;
 
-    // The N210 only has one input channel 0.
-    usrp.set_rx_frequency(&TuneRequest::with_frequency(cfreq), 0)
+    // The N210 only has one input channel 0. Tune with an LO offset of one
+    // bandwidth: the DBSRX2 is direct-conversion, so tuning the LO exactly
+    // to cfreq puts its leakage/DC artifact in the centre of the band
+    // (visible as a narrow dip once the DC-offset correction notches it
+    // out). With the offset, the RF LO parks at cfreq + srate and the DDC
+    // shifts back, leaving the artifact half a bandwidth outside the kept
+    // passband. See issue #311; requires the widened analog filter set at
+    // receiver setup.
+    usrp.set_rx_frequency(&TuneRequest::with_frequency_lo(cfreq, srate), 0)
         .map_err(|e| TelescopeError::ReceiverFailed(format!("set_rx_frequency: {e}")))?;
 
     let mut receiver = usrp
@@ -704,6 +711,13 @@ fn measure(
         .map_err(|e| TelescopeError::ReceiverFailed(format!("set_rx_dc_offset_enabled: {e}")))?;
     usrp.set_rx_sample_rate(srate, 0)
         .map_err(|e| TelescopeError::ReceiverFailed(format!("set_rx_sample_rate: {e}")))?;
+    // LO-offset tuning (see measure_single) places the wanted band a full
+    // bandwidth away from the analog baseband centre, so the DBSRX2 filter
+    // must pass offset + bw/2 = 1.5 bandwidths on that side: 3x double-
+    // sided, clamped to the DBSRX2 minimum of 8 MHz (max needed is 75 MHz
+    // at the 25 MHz top bandwidth, within the filter's 80 MHz range).
+    usrp.set_rx_bandwidth((3.0 * srate).max(8e6), 0)
+        .map_err(|e| TelescopeError::ReceiverFailed(format!("set_rx_bandwidth: {e}")))?;
 
     let tsys = tsys_k;
     info!("Tsys = {:.1} K (from config)", tsys);
@@ -813,8 +827,18 @@ fn measure_iq(
         .map_err(|e| TelescopeError::ReceiverFailed(format!("set_rx_dc_offset_enabled: {e}")))?;
     usrp.set_rx_sample_rate(config.bandwidth_hz, 0)
         .map_err(|e| TelescopeError::ReceiverFailed(format!("set_rx_sample_rate: {e}")))?;
-    usrp.set_rx_frequency(&TuneRequest::with_frequency(config.center_freq_hz), 0)
-        .map_err(|e| TelescopeError::ReceiverFailed(format!("set_rx_frequency: {e}")))?;
+    // Same LO-offset tuning and matching analog filter width as the
+    // single-dish path (see measure_single): keeps the direct-conversion
+    // DC artifact out of the correlated band. Both telescopes in a session
+    // get the identical offset, so the inter-device phase relation is
+    // unchanged.
+    usrp.set_rx_bandwidth((3.0 * config.bandwidth_hz).max(8e6), 0)
+        .map_err(|e| TelescopeError::ReceiverFailed(format!("set_rx_bandwidth: {e}")))?;
+    usrp.set_rx_frequency(
+        &TuneRequest::with_frequency_lo(config.center_freq_hz, config.bandwidth_hz),
+        0,
+    )
+    .map_err(|e| TelescopeError::ReceiverFailed(format!("set_rx_frequency: {e}")))?;
 
     // Open a single continuous stream once and pull IQ_BLOCK_SIZE samples at a time.
     // Re-tuning / reopening the stream per block would invalidate cross-correlation
