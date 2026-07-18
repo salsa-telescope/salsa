@@ -1,0 +1,202 @@
+<div class="section light space-y-6">
+  <h2 class="text-3xl font-semibold">Tekniska specifikationer</h2>
+
+  <div class="flex flex-col sm:flex-row gap-8 items-start">
+
+    <div class="flex-1 space-y-6 text-gray-700">
+
+      <p>Den här sidan innehåller detaljerade tekniska specifikationer för
+SALSA-teleskopen i Onsala. Det finns tre teleskop: Torre, Vale och Brage (i ordning
+från vänster till höger som de visas i webbkameran). I princip har de
+identisk hårdvara, även om det finns skillnader i kabellängder och
+anslutningar. Diagrammen till höger visar signalvägen från himlen till ett
+spektrum (vänster kolumn, uppifrån och ner) och styrvägen från webbservern
+till rotorn (höger kolumn, nerifrån och upp). Teleskopen står vid
+Onsala rymdobservatorium, 57°24'N, 11°55'Ö, cirka 5 m över havet.
+</p>
+
+      <div class="space-y-1">
+        <h3 class="text-lg font-semibold text-gray-800">Nyckelspecifikationer</h3>
+        <ul class="list-disc list-inside space-y-1">
+          <li>Parabolens diameter: 2,3 m (huvudlob ~6° vid 21 cm)</li>
+          <li>Frekvensområde: 1350–1600 MHz (upp till 25 MHz momentan bandbredd)</li>
+          <li>Hastighetsupplösning (HI): ~1 km/s vid standardinställningen 2,5 MHz bandbredd / 512 kanaler, ner till ~26 m/s vid 1 MHz / 8192 kanaler</li>
+          <li>Systemtemperatur: T<sub>sys</sub> ≈ 300 K</li>
+          <li>Rotationshastighet: 1,5° / sekund</li>
+        </ul>
+      </div>
+
+      <div class="space-y-2">
+        <h3 class="text-lg font-semibold text-gray-800">Kalibrering av systemtemperaturen</h3>
+        <p>SALSA kan observera i två lägen: ett rått totaleffektläge och ett
+frekvensväxlat läge där ett referensspektrum vid en förskjuten frekvens
+subtraheras. I frekvensväxlat läge är utsignalen den normerade differensen
+(sig − ref) / ref, som skalas till antenntemperatur via
+T<sub>a</sub> = T<sub>sys</sub> · (sig − ref) / ref. Skalfaktorn
+T<sub>sys</sub> bestämdes genom att jämföra ett SALSA-spektrum mot ett starkt HI-område
+med samma område ur
+<a href="https://www.astro.uni-bonn.de/hisurvey/AllSky_profiles/">Bonns AllSky HI-kartläggning</a>
+(GASS/LAB), faltad till SALSA:s 6°-lob. Eftersom Bonn-kartläggningen har en kalibrerad
+ljusstyrketemperaturskala ger matchningen av de två (med hänsyn till huvudlobens verkningsgrad)
+T<sub>sys</sub> ≈ 300 K.</p>
+        <p>Detta är en approximativ enpunktskalibrering och den absoluta skalan
+bör användas med försiktighet. Den antar ett fast T<sub>sys</sub>, medan det
+verkliga värdet varierar med elevation, omgivningstemperatur och tid, och den beror på
+den dåligt kända huvudlobsverkningsgraden hos den lilla hålförsedda parabolen och på
+strålning som läcker in i sidoloberna från galaktiskt HI över hela himlen. Ett ytterligare förbehåll är
+själva faltningen: Bonn-servern anger att den begärda effektiva
+halvvärdesbredden bör vara under 1°, så att begära SALSA:s 6°-lob går utanför kartläggningens
+avsedda område — den resulterande profilen kan missa flöde eller vila på en opålitlig
+rumslig avbildning, vilket ger ytterligare osäkerhet i jämförelsen.</p>
+      </div>
+
+      <div class="space-y-2">
+        <h3 class="text-lg font-semibold text-gray-800">Hastighetsreferenssystem (VLSR)</h3>
+        <p>Hastigheter mätta från 21 cm-linjen är först relativa
+teleskopet, som rör sig med jorden och solen. För galaktiska mål omvandlar SALSA
+dem till Local Standard of Rest-systemet (LSR) så att de är direkt jämförbara
+med publicerad HI-data (se laborationssidan för begreppet). Korrektionen
+är summan av två termer: solens rörelse på 20 km/s mot standardapexet nära
+Vega (RA 18ʰ, dekl. +30°), projicerad på målriktningen, och jordens
+banrörelse runt solen, approximerad som en cirkulär hastighet på 30 km/s. Ingen
+korrektion görs för icke-galaktiska mål (solen, satelliter).</p>
+        <p>SALSA använder den klassiska "Standard Solar Motion" för att definiera LSR — samma
+konvention som äldre HI-kartläggningar som LAB — så hastigheterna är direkt
+jämförbara med de kartorna. Modellen är noggrann till långt inom standardupplösningen
+på ~1 km/s.</p>
+      </div>
+
+      <div class="space-y-2">
+        <h3 class="text-lg font-semibold text-gray-800">Parabol, horn och optik</h3>
+	<p>Parabolen är 2,3 m i diameter. Ytan har hål på cirka 5 mm
+i diameter som släpper igenom luft för att minska vindmotståndet. Hålen begränsar
+visserligen frekvensområdet (för korta vågor passerar igenom i stället för att reflekteras) till mindre
+än cirka 6 GHz, men det är inget problem för de längre vågor som SALSA
+observerar. Hornet sitter på ett fokalavstånd optimerat för 21 cm-vätelinjen.
+Att observera långt från 1420 MHz försämrar känsligheten mer än vad
+hålen gör. Frekvensområdet begränsas dock också av filter, se
+nedan.</p>
+      </div>
+
+      <div class="space-y-2">
+        <h3 class="text-lg font-semibold text-gray-800">Signalväg och sampler</h3>
+        <p>De inkommande elektromagnetiska vågorna reflekteras i parabolen och summeras koherent (i fas för våglängden 21 cm) vid matarhornet. Inuti hornet sitter en liten (5 cm) metallprob som är själva antennen, känslig för en enda linjär polarisation. Proben har en N-kontakt på hornets utsida, och en kort (30 cm) CNT-400-kabel ansluter den till en liten låda monterad på hornet. Lådan innehåller en lågbrusförstärkare (LNA) med en Bias-T som matar LNA:n med 12 V likspänning genom koaxialkabeln. LNA:n är specialbyggd av Tommy Henderson vid AGO i USA.</p>
+        <p>Efter LNA:n går signalen ner längs teleskopet genom cirka 10 m RG-400-kabel till en kopplingsbox. Här matar en andra Bias-T in 12 V-försörjningen på kabeln till LNA:n ovanför. Efter kopplingsboxen fortsätter signalen via cirka 30 m CNT-400-koax in i byggnaden där samplern finns. Samplern är en <a href="https://files.ettus.com/manual/page_usrp2.html">USRP N210</a> utrustad med ett <a href="https://kb.ettus.com/DBSRX2">DBSRX2</a>-dotterkort, som digitaliserar vågformen och skickar sampel via 1 Gbps Ethernet till styrdatorn. DBSRX2-kortet täcker 0,8–2,3 GHz, men på grund av starka störningar över 1,8 GHz har LNA:erna extra filter som begränsar det användbara området till 1350–1600 MHz. USRP:n stöder upp till 25 MHz momentan bandbredd; för vanliga HI-observationer räcker standardvärdet 2,5 MHz. Både bandbredd och kanalupplösning kan väljas av användaren. DBSRX2 har ett mjukvarustyrt förstärkningsområde på 0–88 dB (73 dB RF-förstärkning plus 15 dB basbandsförstärkning); AD-omvandlaren mättas vid ungefär −10 till 0 dBm vid SMA-ingången beroende på förstärkningsinställning, så den totala effekten i bandet bör hållas runt −20 till −30 dBm för ren linjär drift.</p>
+      </div>
+
+      <div class="space-y-2">
+        <h3 class="text-lg font-semibold text-gray-800">SALSA:s webbserver</h3>
+        <p>Teleskopstyrningen och bokningssystemet är en webbapplikation skriven i
+        <a href="https://www.rust-lang.org">Rust</a> som körs på en
+        server i Onsala. Webbramverket är
+        <a href="https://github.com/tokio-rs/axum">Axum</a> på den asynkrona
+        körtidsmiljön <a href="https://tokio.rs">Tokio</a>, med
+        <a href="https://htmx.org">HTMX</a> för dynamiska siduppdateringar
+        och <a href="https://tailwindcss.com">Tailwind CSS</a> för
+        formgivning. Observationer och bokningar lagras i en
+        <a href="https://www.sqlite.org">SQLite</a>-databas,
+        och autentisering sker via konfigurerbara OAuth2-tjänster eller lokala konton.
+        Servern kommunicerar med varje teleskops USRP-sampler via
+        <a href="https://files.ettus.com/manual/index.html">UHD-drivrutinen</a>
+        för att ta emot spektra, och med MD01-rotorstyrenheten för att rikta och följa mål.
+        Webbserverns källkod är öppet tillgänglig på
+        <a href="https://github.com/salsa-telescope/salsa">GitHub</a>.</p>
+      </div>
+
+      <div class="space-y-2">
+        <h3 class="text-lg font-semibold text-gray-800">Rotor och styrenhet</h3>
+        <p>Rotorn och styrenheten tillverkas av <a href="http://spid.net.pl">SPID Elektronik</a>. Rotormodellen är <a href="/Manual-BIG-RAS-HR-EN.pdf">BIG RAS/HR</a> med 0,1 graders upplösning och 1,5 graders rotationshastighet per sekund. Rotorn drivs av en <a href="/SPID_MD-0x_MANUAL_ENG.pdf">MD01</a>-styrenhet som också läser av rotorns aktuella position. MD01 tar emot azimut-/elevationskommandon via ROT2PROG-protokollet över en TCP-anslutning. Alla koordinatomvandlingar (galaktiska, ekvatoriella, horisontella) hanteras av SALSA:s webbserver innan rotorn kommenderas.</p>
+      </div>
+
+    </div>
+
+    <div class="text-sm text-gray-700 w-fit ml-auto">
+
+      <!-- Column headers -->
+      <div class="grid grid-cols-2 gap-x-8 mb-1">
+        <p class="text-center font-semibold text-gray-500">Signalväg ↓</p>
+        <p class="text-center font-semibold text-gray-500">Styrväg ↑</p>
+      </div>
+
+      <!-- Main grid: top rows, webserver, bottom rows -->
+      <div class="grid grid-cols-2 gap-x-8">
+
+        <!-- Top-left: signal path from HI cloud to USRP, bottom-aligned to touch webserver -->
+        <div class="flex flex-col items-center self-end">
+          <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-sky-50 text-center">HI-moln / radiokälla</div>
+          <div class="text-gray-500 text-[1.4em] leading-tight">↓</div>
+          <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-white text-center">Parabol<br><span class="text-[0.85em] text-gray-500">2,3 m diameter</span></div>
+          <div class="text-gray-500 text-[1.4em] leading-tight">↓</div>
+          <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-white text-center">Horn med prob</div>
+          <div class="text-gray-500 text-[1.4em] leading-tight">↓</div>
+          <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-white text-center">Koaxialkabel CNT-400 (30 cm)</div>
+          <div class="text-gray-500 text-[1.4em] leading-tight">↓</div>
+          <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-white text-center">LNA<br><span class="text-[0.85em] text-gray-500">filter 1350–1600 MHz, 12 V via Bias-T</span></div>
+          <div class="text-gray-500 text-[1.4em] leading-tight">↓</div>
+          <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-white text-center">Koaxialkabel RG-400 (10 m)</div>
+          <div class="text-gray-500 text-[1.4em] leading-tight">↓</div>
+          <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-white text-center">Kopplingsbox<br><span class="text-[0.85em] text-gray-500">12 V-matning till LNA</span></div>
+          <div class="text-gray-500 text-[1.4em] leading-tight">↓</div>
+          <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-white text-center">Koaxialkabel CNT-400 (30 m)</div>
+          <div class="text-gray-500 text-[1.4em] leading-tight">↓</div>
+          <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-white text-center">USRP N210<br><span class="text-[0.85em] text-gray-500">mjukvarudefinierad radio, med DBSRX2</span></div>
+          <div class="text-gray-500 text-[1.4em] leading-tight">↓</div>
+        </div>
+
+        <!-- Top-right: control path from rotor down to MD01, bottom-aligned to touch webserver -->
+        <div class="flex flex-col items-center self-end">
+          <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-white text-center">Rotor BIG RAS/HR<br><span class="text-[0.85em] text-gray-500">→ rör parabolen</span></div>
+          <div class="text-gray-500 text-[1.4em] leading-tight">↑</div>
+          <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-white text-center">Kablar (5 m)<br><span class="text-[0.85em] text-gray-500">motorström &amp; sensoravläsningar</span></div>
+          <div class="text-gray-500 text-[1.4em] leading-tight">↑</div>
+          <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-white text-center">Kopplingsbox</div>
+          <div class="text-gray-500 text-[1.4em] leading-tight">↑</div>
+          <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-white text-center">Flerledarkabel (30 m)</div>
+          <div class="text-gray-500 text-[1.4em] leading-tight">↑</div>
+          <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-white text-center">MD01-rotorstyrenhet</div>
+          <div class="text-gray-500 text-[1.4em] leading-tight">↑</div>
+        </div>
+
+        <!-- Webserver: one box per column -->
+        <div class="flex flex-col items-center">
+          <div class="border-2 border-link rounded-lg px-12 py-2.5 bg-brand-bg text-center font-semibold text-link">SALSA:s webbserver</div>
+        </div>
+        <div class="flex flex-col items-center">
+          <div class="border-2 border-link rounded-lg px-12 py-2.5 bg-brand-bg text-center font-semibold text-link">SALSA:s webbserver</div>
+        </div>
+
+        <!-- Bottom-left: FFT and Spectrum -->
+        <div class="flex flex-col items-center self-start">
+          <div class="text-gray-500 text-[1.4em] leading-tight">↓</div>
+          <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-white text-center">FFT<br><span class="text-[0.85em] text-gray-500">8192 punkter</span></div>
+          <div class="text-gray-500 text-[1.4em] leading-tight">↓</div>
+          <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-white text-center">Bandbredd &amp; upplösning<br><span class="text-[0.85em] text-gray-500">väljs av användaren</span></div>
+          <div class="text-gray-500 text-[1.4em] leading-tight">↓</div>
+          <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-emerald-50 text-center">Spektrum</div>
+        </div>
+
+        <!-- Bottom-right: Selected coordinates -->
+        <div class="flex flex-col items-center self-start">
+          <div class="text-gray-500 text-[1.4em] leading-tight">↑</div>
+          <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-sky-50 text-center">Valda koordinater</div>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+
+  <div class="space-y-2 text-gray-700">
+    <h3 class="text-lg font-semibold text-gray-800">Vidare läsning</h3>
+    <ul class="list-disc list-inside space-y-1">
+      <li><a href="https://files.ettus.com/manual/page_usrp2.html">USRP N210-manual</a> — mjukvarudefinierad radiosampler (på engelska)</li>
+      <li><a href="https://kb.ettus.com/DBSRX2">DBSRX2-dotterkort</a> — mottagarkort för USRP N210 (på engelska)</li>
+      <li><a href="/Manual-BIG-RAS-HR-EN.pdf">BIG RAS/HR-rotormanual</a> — parabolrotor (på engelska)</li>
+      <li><a href="/SPID_MD-0x_MANUAL_ENG.pdf">MD01-styrenhetsmanual</a> — rotorstyrenhet och ROT2PROG-gränssnitt (på engelska)</li>
+      <li><a href="/technical/rot2prog">ROT2PROG-protokollreferens</a> — TCP-kommandoprotokollet som det implementeras av SALSA:s backend (på engelska)</li>
+      <li><a href="/technical/lna">LNA-mätningar</a> — karakterisering av lågbrusförstärkaren (på engelska)</li>
+      <li><a href="https://github.com/salsa-telescope/salsa">SALSA-webbserverns källkod</a> på GitHub</li>
+    </ul>
+  </div>
+
+</div>
