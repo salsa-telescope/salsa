@@ -496,14 +496,30 @@ fn measure_switched(
     Ok(())
 }
 
-/// LO offset for direct-conversion tuning (see measure_single): half the
-/// bandwidth to clear the kept passband, plus a guard of 10% of the
-/// bandwidth (at least 0.5 MHz) so the band's inner edge also clears the
-/// LO phase-noise skirt and the near-DC 1/f noise region. Kept as small
-/// as that allows: v1.2.0 used a full bandwidth, which pushed the outer
-/// band edge onto the analog filter slope and tilted the passband.
+/// Widest bandwidth that still gets LO-offset tuning. Sun spectra
+/// (2026-07-18) showed the MAX2112's intrinsic baseband response is flat
+/// to ~7 MHz from centre but droops ~1.4 dB by 15 MHz and ~4 dB by
+/// 23 MHz, so at 10 and 25 MHz no offset keeps the band flat — those
+/// revert to plain centre tuning, whose narrow DC dip is far less
+/// harmful there than a multi-dB tilt. (The 10 MHz dome seen in the
+/// same tests is unrelated CIC droop: decimation 10 engages only one
+/// compensating halfband. Present with or without the offset.)
+const LO_OFFSET_MAX_BW_HZ: f64 = 5e6;
+
+/// LO offset for direct-conversion tuning (see measure_single): exactly
+/// one bandwidth, i.e. one output sample rate. The DDC's decimation
+/// chain has a deep null there, so the LO leakage/DC artifact is
+/// annihilated rather than merely attenuated — a fractional offset
+/// (tried in v1.2.1) parks the artifact in the decimation filters'
+/// transition band, and its alias folds back into the passband as a
+/// narrow spike at (bandwidth − offset) from centre. Zero — plain
+/// centre tuning — above [`LO_OFFSET_MAX_BW_HZ`].
 fn lo_offset_hz(bandwidth_hz: f64) -> f64 {
-    0.5 * bandwidth_hz + (0.1 * bandwidth_hz).max(0.5e6)
+    if bandwidth_hz <= LO_OFFSET_MAX_BW_HZ {
+        bandwidth_hz
+    } else {
+        0.0
+    }
 }
 
 /// DBSRX2 analog filter setting: wide open at its 80 MHz maximum. The
