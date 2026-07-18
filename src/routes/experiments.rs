@@ -1,5 +1,3 @@
-use std::fs::read_to_string;
-
 use axum::{
     Extension, Router,
     http::HeaderMap,
@@ -23,8 +21,11 @@ async fn get_experiments_sun(
     Extension(user): Extension<Option<User>>,
     headers: HeaderMap,
 ) -> impl IntoResponse {
-    let content = read_to_string("assets/experiments-sun.html")
-        .unwrap_or_else(|_| "<p>Sun experiment page not available.</p>".to_string());
+    let content = crate::routes::read_content_page(
+        "experiments-sun",
+        lang,
+        "<p>Sun experiment page not available.</p>",
+    );
     let content = if headers.get("hx-request").is_some() {
         content
     } else {
@@ -38,8 +39,11 @@ async fn get_experiments_gnss(
     Extension(user): Extension<Option<User>>,
     headers: HeaderMap,
 ) -> impl IntoResponse {
-    let content = read_to_string("assets/experiments-gnss.html")
-        .unwrap_or_else(|_| "<p>GNSS experiment page not available.</p>".to_string());
+    let content = crate::routes::read_content_page(
+        "experiments-gnss",
+        lang,
+        "<p>GNSS experiment page not available.</p>",
+    );
     let content = if headers.get("hx-request").is_some() {
         content
     } else {
@@ -53,8 +57,11 @@ async fn get_experiments_hi(
     Extension(user): Extension<Option<User>>,
     headers: HeaderMap,
 ) -> impl IntoResponse {
-    let content = read_to_string("assets/experiments-hi.html")
-        .unwrap_or_else(|_| "<p>HI experiment page not available.</p>".to_string());
+    let content = crate::routes::read_content_page(
+        "experiments-hi",
+        lang,
+        "<p>HI experiment page not available.</p>",
+    );
     let content = if headers.get("hx-request").is_some() {
         content
     } else {
