@@ -496,6 +496,23 @@ fn measure_switched(
     Ok(())
 }
 
+/// LO offset for direct-conversion tuning (see measure_single): half the
+/// bandwidth to clear the kept passband, plus a guard of 10% of the
+/// bandwidth (at least 0.5 MHz) so the band's inner edge also clears the
+/// LO phase-noise skirt and the near-DC 1/f noise region. Kept as small
+/// as that allows: v1.2.0 used a full bandwidth, which pushed the outer
+/// band edge onto the analog filter slope and tilted the passband.
+fn lo_offset_hz(bandwidth_hz: f64) -> f64 {
+    0.5 * bandwidth_hz + (0.1 * bandwidth_hz).max(0.5e6)
+}
+
+/// DBSRX2 analog filter setting: wide open at its 80 MHz maximum. The
+/// filter's anti-aliasing role is preserved (40 MHz single-sided corner
+/// vs the N210 ADC's 50 MHz Nyquist), and the LO-offset band then sits
+/// on the flat part of the response at every selectable bandwidth (the
+/// worst case, 25 MHz, ends 27.5 MHz out — 12.5 MHz inside the corner).
+const DBSRX2_BANDWIDTH_HZ: f64 = 80e6;
+
 #[allow(clippy::too_many_arguments)]
 fn measure_single(
     usrp: &mut Usrp,
@@ -511,16 +528,18 @@ fn measure_single(
     let nstack: usize = (nsamp as usize) / fft_pts;
     let navg: usize = fft_pts / avg_pts;
 
-    // The N210 only has one input channel 0. Tune with an LO offset of one
-    // bandwidth: the DBSRX2 is direct-conversion, so tuning the LO exactly
-    // to cfreq puts its leakage/DC artifact in the centre of the band
-    // (visible as a narrow dip once the DC-offset correction notches it
-    // out). With the offset, the RF LO parks at cfreq + srate and the DDC
-    // shifts back, leaving the artifact half a bandwidth outside the kept
-    // passband. See issue #311; requires the widened analog filter set at
-    // receiver setup.
-    usrp.set_rx_frequency(&TuneRequest::with_frequency_lo(cfreq, srate), 0)
-        .map_err(|e| TelescopeError::ReceiverFailed(format!("set_rx_frequency: {e}")))?;
+    // The N210 only has one input channel 0. Tune with an LO offset: the
+    // DBSRX2 is direct-conversion, so tuning the LO exactly to cfreq puts
+    // its leakage/DC artifact in the centre of the band (visible as a
+    // narrow dip once the DC-offset correction notches it out). With the
+    // offset, the RF LO parks outside the kept passband and the DDC
+    // shifts back. See issue #311; requires the wide-open analog filter
+    // set at receiver setup.
+    usrp.set_rx_frequency(
+        &TuneRequest::with_frequency_lo(cfreq, lo_offset_hz(srate)),
+        0,
+    )
+    .map_err(|e| TelescopeError::ReceiverFailed(format!("set_rx_frequency: {e}")))?;
 
     let mut receiver = usrp
         .get_rx_stream(&uhd::StreamArgs::<Complex<i16>>::new("sc16"))
@@ -711,12 +730,10 @@ fn measure(
         .map_err(|e| TelescopeError::ReceiverFailed(format!("set_rx_dc_offset_enabled: {e}")))?;
     usrp.set_rx_sample_rate(srate, 0)
         .map_err(|e| TelescopeError::ReceiverFailed(format!("set_rx_sample_rate: {e}")))?;
-    // LO-offset tuning (see measure_single) places the wanted band a full
-    // bandwidth away from the analog baseband centre, so the DBSRX2 filter
-    // must pass offset + bw/2 = 1.5 bandwidths on that side: 3x double-
-    // sided, clamped to the DBSRX2 minimum of 8 MHz (max needed is 75 MHz
-    // at the 25 MHz top bandwidth, within the filter's 80 MHz range).
-    usrp.set_rx_bandwidth((3.0 * srate).max(8e6), 0)
+    // LO-offset tuning (see measure_single) moves the wanted band away
+    // from the analog baseband centre; open the DBSRX2 filter fully so
+    // the band sits on the flat part of its response.
+    usrp.set_rx_bandwidth(DBSRX2_BANDWIDTH_HZ, 0)
         .map_err(|e| TelescopeError::ReceiverFailed(format!("set_rx_bandwidth: {e}")))?;
 
     let tsys = tsys_k;
@@ -827,15 +844,15 @@ fn measure_iq(
         .map_err(|e| TelescopeError::ReceiverFailed(format!("set_rx_dc_offset_enabled: {e}")))?;
     usrp.set_rx_sample_rate(config.bandwidth_hz, 0)
         .map_err(|e| TelescopeError::ReceiverFailed(format!("set_rx_sample_rate: {e}")))?;
-    // Same LO-offset tuning and matching analog filter width as the
+    // Same LO-offset tuning and wide-open analog filter as the
     // single-dish path (see measure_single): keeps the direct-conversion
     // DC artifact out of the correlated band. Both telescopes in a session
     // get the identical offset, so the inter-device phase relation is
     // unchanged.
-    usrp.set_rx_bandwidth((3.0 * config.bandwidth_hz).max(8e6), 0)
+    usrp.set_rx_bandwidth(DBSRX2_BANDWIDTH_HZ, 0)
         .map_err(|e| TelescopeError::ReceiverFailed(format!("set_rx_bandwidth: {e}")))?;
     usrp.set_rx_frequency(
-        &TuneRequest::with_frequency_lo(config.center_freq_hz, config.bandwidth_hz),
+        &TuneRequest::with_frequency_lo(config.center_freq_hz, lo_offset_hz(config.bandwidth_hz)),
         0,
     )
     .map_err(|e| TelescopeError::ReceiverFailed(format!("set_rx_frequency: {e}")))?;
