@@ -1,0 +1,324 @@
+<div class="section light space-y-8">
+
+  <div class="space-y-2">
+    <p class="text-sm text-gray-500">
+      <a href="/support">← Support och dokumentation</a>
+    </p>
+    <h2 class="text-3xl font-semibold">Signalspektra från GNSS-satelliter</h2>
+    <p class="text-sm text-gray-500">
+      Baserad på tidigare arbete av Grzegorz Klopotek, Onsala rymdobservatorium
+    </p>
+  </div>
+
+  <!-- Abstract -->
+  <div class="space-y-4 text-gray-700">
+    <figure class="w-full sm:float-right sm:w-[28%] sm:ml-8 sm:mb-4">
+      <img src="/experiments-gnss/GALILEO_SAT.jpg" alt="En Galileo-navigationssatellit i omloppsbana" class="rounded-lg w-full">
+      <figcaption class="text-sm text-gray-500 mt-1">En Galileo-navigationssatellit i omloppsbana. Källa: European Space Agency.</figcaption>
+    </figure>
+    <p>Varje gång du navigerar med mobilen förlitar den sig på signaler som sänds från satelliter tiotusentals kilometer ovanför.
+    Dessa satelliter — delar av system som GPS, Galileo, GLONASS och BeiDou — sänder kontinuerligt radiosignaler i L-bandet,
+    runt 1,2–1,6 GHz. Med SALSA kan du ta emot och inspektera signalerna direkt, se hur deras radiospektra ser ut
+    och jämföra hur olika satelliter och konstellationer ter sig.</p>
+    <p>Det här är en kort, praktisk laboration. Några sekunders data per satellit räcker, och ingen komplicerad
+    analys behövs — huvudresultatet är visuellt: spektrumen ser olika ut, och skillnaden
+    speglar verkliga ingenjörsval i varje system.</p>
+    <p class="text-sm text-gray-500">Obs: den här guiden fokuserar på den vetenskapliga bakgrunden och vad man ska titta efter i spektrumen.
+    Instruktioner för hur teleskopet används finns i
+    <a href="/support/manual">användarmanualen</a>.</p>
+
+    <nav class="bg-gray-50 border border-gray-200 rounded-lg p-5 text-sm w-fit">
+      <p class="font-semibold text-gray-800 mb-3">Innehåll</p>
+      <ol class="space-y-1 list-none">
+        <li><a href="#ch1" class="underline text-gray-700 hover:text-gray-900">1. Globala satellitnavigeringssystem</a>
+          <ol class="ml-4 mt-1 space-y-1 list-none text-gray-600">
+            <li><a href="#s1-1" class="underline hover:text-gray-900">1.1 De fyra konstellationerna</a></li>
+            <li><a href="#s1-2" class="underline hover:text-gray-900">1.2 GNSS-signaler och frekvensband</a></li>
+            <li><a href="#s1-3" class="underline hover:text-gray-900">1.3 CDMA kontra FDMA: två sätt att dela på bandet</a></li>
+            <li><a href="#s1-4" class="underline hover:text-gray-900">1.4 Signalmodulation och spektralform</a></li>
+          </ol>
+        </li>
+        <li><a href="#ch2" class="underline text-gray-700 hover:text-gray-900">2. Observera GNSS-signaler med SALSA</a>
+          <ol class="ml-4 mt-1 space-y-1 list-none text-gray-600">
+            <li><a href="#s2-1" class="underline hover:text-gray-900">2.1 Välj och följ en satellit</a></li>
+            <li><a href="#s2-2" class="underline hover:text-gray-900">2.2 Mottagarinställningar</a></li>
+            <li><a href="#s2-3" class="underline hover:text-gray-900">2.3 Ta ett spektrum</a></li>
+          </ol>
+        </li>
+        <li><a href="#ch3" class="underline text-gray-700 hover:text-gray-900">3. Jämför satellitsignaler</a>
+          <ol class="ml-4 mt-1 space-y-1 list-none text-gray-600">
+            <li><a href="#s3-1" class="underline hover:text-gray-900">3.1 GPS och Galileo vid 1575 MHz</a></li>
+            <li><a href="#s3-2" class="underline hover:text-gray-900">3.2 GLONASS: varje satellit på sin egen frekvens</a></li>
+            <li><a href="#s3-3" class="underline hover:text-gray-900">3.3 Hur elevationen påverkar signalstyrkan</a></li>
+          </ol>
+        </li>
+        <li><a href="#questions" class="underline text-gray-700 hover:text-gray-900">Frågor</a></li>
+      </ol>
+    </nav>
+    <div style="clear: both;"></div>
+  </div>
+
+  <!-- Chapter 1 -->
+  <details open class="space-y-6 text-gray-700">
+    <summary class="cursor-pointer"><h3 id="ch1" class="text-2xl font-semibold text-gray-800 inline">1. Globala satellitnavigeringssystem</h3></summary>
+
+    <h4 id="s1-1" class="text-xl font-semibold text-gray-800 mt-4">1.1 De fyra konstellationerna</h4>
+
+    <p>Ett globalt satellitnavigeringssystem (GNSS) är ett nätverk av satelliter som kontinuerligt sänder radiosignaler
+    som låter mottagare på marken bestämma sin position med meternoggrannhet. Idag finns fyra fullt
+    operativa globala system:</p>
+
+    <div class="overflow-x-auto">
+      <table class="text-sm w-full border-collapse">
+        <thead>
+          <tr class="border-b border-gray-300 text-left text-gray-800">
+            <th class="pr-4 py-2">System</th>
+            <th class="pr-4 py-2">Drivs av</th>
+            <th class="pr-4 py-2">Banhöjd</th>
+            <th class="pr-4 py-2">Satelliter</th>
+            <th class="py-2">Viktiga frekvenser (MHz)</th>
+          </tr>
+        </thead>
+        <tbody class="text-gray-700">
+          <tr class="border-b border-gray-100">
+            <td class="pr-4 py-2 font-medium">GPS</td>
+            <td class="pr-4 py-2">USA</td>
+            <td class="pr-4 py-2">~20 200 km</td>
+            <td class="pr-4 py-2">~31</td>
+            <td class="py-2">1575,42 (L1), 1227,60 (L2), 1176,45 (L5)</td>
+          </tr>
+          <tr class="border-b border-gray-100">
+            <td class="pr-4 py-2 font-medium">Galileo</td>
+            <td class="pr-4 py-2">EU / ESA</td>
+            <td class="pr-4 py-2">~23 200 km</td>
+            <td class="pr-4 py-2">~24</td>
+            <td class="py-2">1575,42 (E1), 1176,45 (E5a), 1207,14 (E5b), 1278,75 (E6)</td>
+          </tr>
+          <tr class="border-b border-gray-100">
+            <td class="pr-4 py-2 font-medium">GLONASS</td>
+            <td class="pr-4 py-2">Ryssland</td>
+            <td class="pr-4 py-2">~19 100 km</td>
+            <td class="pr-4 py-2">~24</td>
+            <td class="py-2">1598–1606 (G1), 1243–1249 (G2)</td>
+          </tr>
+          <tr>
+            <td class="pr-4 py-2 font-medium">BeiDou</td>
+            <td class="pr-4 py-2">Kina</td>
+            <td class="pr-4 py-2">~21 500 km</td>
+            <td class="pr-4 py-2">~35</td>
+            <td class="py-2">1561,10 (B1), 1207,14 (B2), 1268,52 (B3)</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>Varje satellit går i en bana hög nog att flera satelliter är synliga samtidigt från varje punkt på jorden.
+    En mottagare behöver minst fyra satelliter i sikte för att lösa ut sin tredimensionella position och klockavvikelse.</p>
+
+    <h4 id="s1-2" class="text-xl font-semibold text-gray-800 mt-6">1.2 GNSS-signaler och frekvensband</h4>
+
+    <p>Alla GNSS-satelliter sänder i <strong>L-bandet</strong>, ungefär 1–2 GHz. Den här delen av radiospektrumet valdes
+    för att L-bandssignaler passerar genom atmosfären med minimal absorption, även i regn eller molntäcke
+    — till skillnad från millimetervågsfrekvenser som dämpas kraftigt av vattenånga. Signalerna får en liten
+    fördröjning i jonosfären (det övre atmosfärslagret med fria elektroner), men effekten är välmodellerad
+    och kan korrigeras med tvåfrekvensmottagare.</p>
+
+    <p>Det mest använda bandet är <strong>L1/E1 vid 1575,42 MHz</strong>, som delas av GPS och Galileo.
+    GLONASS använder ett närliggande men annat frekvensområde för sitt G1-band (~1598–1606 MHz), och BeiDous B1-signal
+    ligger på 1561,10 MHz. Det betyder att SALSA, inställd på en enda centerfrekvens, ser signaler
+    från olika konstellationer i olika delar av spektrumet.</p>
+
+    <figure class="my-4 max-w-lg">
+      <img src="/experiments-gnss/GNSSPseudorange.png" alt="Diagram över GNSS-pseudoavståndsmätningens princip" class="rounded-lg w-full">
+      <figcaption class="text-sm text-gray-500 mt-1">Fig. 1.1 — GNSS-positioneringens princip: en mottagare mäter signalernas gångtid från flera satelliter för att bestämma sin position. Källa: Grzegorz Klopotek.</figcaption>
+    </figure>
+
+    <h4 id="s1-3" class="text-xl font-semibold text-gray-800 mt-6">1.3 CDMA kontra FDMA: två sätt att dela på bandet</h4>
+
+    <p>En central utmaning i GNSS-design är att särskilja signaler från dussintals satelliter som alla sänder i samma
+    frekvensband samtidigt. Två olika ingenjörslösningar används:</p>
+
+    <p><strong>Code-Division Multiple Access (CDMA)</strong> — används av GPS, Galileo och BeiDou. Alla satelliter i en
+    konstellation sänder på <em>samma frekvens</em>, men var och en använder en unik pseudoslumpmässig bruskod (PRN).
+    Eftersom koderna är nästan ortogonala kan en mottagare separera dem med korrelation. Ur ett radioteleskops
+    perspektiv överlappar alla GPS-satelliter vid L1 spektralt — du kan inte skilja enskilda satelliter åt via frekvensen.</p>
+
+    <p><strong>Frequency-Division Multiple Access (FDMA)</strong> — används av äldre GLONASS. Varje GLONASS-satellit
+    sänder på en <em>något annorlunda frekvens</em> inom G1-bandet, i steg om 562,5 kHz. Enskilda
+    GLONASS-satelliter går alltså i princip att separera via frekvensen med en smalbandig mottagare, även om SALSA:s 25 MHz
+    bandbredd täcker många samtidigt. Nyare GLONASS-satelliter får dessutom CDMA-förmåga.</p>
+
+    <h4 id="s1-4" class="text-xl font-semibold text-gray-800 mt-6">1.4 Signalmodulation och spektralform</h4>
+
+    <p>GNSS-signaler är inte enkla sinusvågor — de moduleras med digitala koder och navigationsdata, vilket sprider
+    energin över ett frekvensområde och ger varje signal en karakteristisk spektralform:</p>
+
+    <figure class="w-full sm:float-right sm:w-[38%] sm:ml-8 sm:mb-4">
+      <img src="/experiments-gnss/ModulatedSignal.png" alt="Diagram över BPSK-signalmodulation" class="rounded-lg w-full">
+      <figcaption class="text-sm text-gray-500 mt-1">Fig. 1.2 — BPSK-modulation: signalens fas skiftar 180° när den sända biten ändras. Källa: Grzegorz Klopotek.</figcaption>
+    </figure>
+
+    <p><strong>GPS L1 C/A (BPSK-modulation)</strong>: Den civila GPS L1-signalen använder Binary Phase Shift Keying med
+    1,023 MHz chipfrekvens. Det ger ett <em>sinc²</em>-spektrum: en central lob cirka 2 MHz bred med mindre sidolober
+    på båda sidor. Med SALSA:s 25 MHz bandbredd ser du den centrala loben och de första sidoloberna tydligt.</p>
+
+    <p><strong>Galileo E1 (BOC-modulation)</strong>: Galileos E1-signal använder Binary Offset Carrier-modulation — BOC(1,1) —
+    som flyttar signalenergin bort från centerfrekvensen och skapar ett karakteristiskt <em>tvåpuckligt</em> (delad topp)
+    spektrum. Trots att GPS L1 och Galileo E1 delar samma centerfrekvens 1575,42 MHz ser de märkbart
+    olika ut i spektrumet.</p>
+
+    <p><strong>GLONASS G1</strong>: GLONASS-satelliter använder BPSK med 0,511 MHz chipfrekvens, och deras individuella
+    centerfrekvenser är utspridda över G1-bandet. Varje satellit bidrar med en smalare signaltopp vid sin egen frekvens.</p>
+
+    <p>Att detektera skillnaden mellan GPS:s och Galileos spektralformer — båda centrerade på 1575,42 MHz — är en av de mest
+    intressanta sakerna du kan göra med SALSA:s GNSS-läge.</p>
+
+    <div style="clear: both;"></div>
+
+  </details>
+
+  <!-- Chapter 2 -->
+  <details open class="space-y-6 text-gray-700">
+    <summary class="cursor-pointer"><h3 id="ch2" class="text-2xl font-semibold text-gray-800 inline">2. Observera GNSS-signaler med SALSA</h3></summary>
+
+    <h4 id="s2-1" class="text-xl font-semibold text-gray-800 mt-4">2.1 Välj och följ en satellit</h4>
+
+    <ol class="list-decimal list-inside space-y-2 ml-2">
+      <li>Öppna observationssidan för ditt bokade teleskop.</li>
+      <li>Välj <strong>GNSS</strong> i menyn <strong>Mål</strong>. Koordinatfälten ersätts
+      av en satellitväljare som visar alla satelliter som just nu är över horisonten, grupperade per konstellation
+      (GPS, Galileo, GLONASS, BeiDou) med aktuell azimut och elevation.</li>
+      <li>Välj en satellit i listan. Försök välja en med elevation gott och väl över horisonten — högre satelliter
+      ger starkare och renare signaler eftersom signalen färdas genom mindre atmosfär och mindre markstörningar.
+      En elevation över 20° är en bra utgångspunkt.</li>
+      <li>Klicka på <strong>Följ</strong>. Teleskopet rör sig till satelliten och följer den när den rör sig över himlen.
+      Vänta tills teleskopet nått målpositionen innan du mäter.</li>
+    </ol>
+
+    <p class="text-sm text-gray-500">Satellitlistan uppdateras automatiskt. Vill du byta till en annan satellit:
+    klicka på Stoppa, välj en ny satellit och klicka på Följ igen.</p>
+
+    <h4 id="s2-2" class="text-xl font-semibold text-gray-800 mt-6">2.2 Mottagarinställningar</h4>
+
+    <p>När du väljer en satellit konfigurerar SALSA automatiskt mottagaren till lämpliga inställningar:</p>
+    <ul class="list-disc list-inside space-y-1 ml-2">
+      <li><strong>Centerfrekvens</strong>: sätts till den primära frekvensen för satellitens konstellation
+      (t.ex. 1575,42 MHz för GPS och Galileo, ~1602 MHz för GLONASS G1, 1561,10 MHz för BeiDou B1).</li>
+      <li><strong>Bandbredd</strong>: sätts till 25 MHz — brett nog att fånga hela spektralformen hos en GNSS-signal
+      inklusive dess sidolober.</li>
+      <li><strong>Läge</strong>: sätts till <em>rått</em> (totaleffekt), i stället för det frekvensväxlade läge som används för
+      HI-observationer. GNSS-signaler är inga spektrallinjer som vi behöver subtrahera en referens från — vi vill se den råa
+      mottagna effekten som funktion av frekvens.</li>
+    </ul>
+
+    <p>Du kan kontrollera och justera inställningarna under <em>avancerade mottagarinställningar</em> vid behov, men
+    standardvärdena fungerar bra för en första observation.</p>
+
+    <h4 id="s2-3" class="text-xl font-semibold text-gray-800 mt-6">2.3 Ta ett spektrum</h4>
+
+    <p>När teleskopet följer satelliten, klicka på <strong>Starta</strong> för att börja integrera. GNSS-signaler är starka —
+    <strong>1–2 sekunders integration räcker</strong>. Du behöver inga långa observationer som för svaga
+    astronomiska källor.</p>
+
+    <p>Det resulterande spektrumet visas i diagrammet. Den horisontella axeln visar frekvens (eller hastighet, som du kan
+    växla till); den vertikala axeln visar okalibrerad antenntemperatur i kelvin. Värdena är relativa, inte absoluta —
+    du kan jämföra spektra från olika satelliter med varandra, men inte direkt med en kalibrerad flödestäthet.</p>
+
+    <figure class="my-4 max-w-xl">
+      <img src="/gps_example.png" alt="Exempel på GPS L1-signalspektrum inspelat med SALSA" class="rounded-lg w-full">
+      <figcaption class="text-sm text-gray-500 mt-1">Fig. 2.1 — Exempelspektrum av en GPS L1-signal inspelat med SALSA. Den breda centrala loben och sidoloberna hos den BPSK-modulerade signalen syns tydligt.</figcaption>
+    </figure>
+
+    <p>Prova att observera flera satelliter, en i taget, och notera hur deras spektra skiljer sig åt.</p>
+
+  </details>
+
+  <!-- Chapter 3 -->
+  <details open class="space-y-6 text-gray-700">
+    <summary class="cursor-pointer"><h3 id="ch3" class="text-2xl font-semibold text-gray-800 inline">3. Jämför satellitsignaler</h3></summary>
+
+    <h4 id="s3-1" class="text-xl font-semibold text-gray-800 mt-4">3.1 GPS och Galileo vid 1575 MHz</h4>
+
+    <p>Observera en GPS-satellit och en Galileo-satellit, båda inställda på 1575,42 MHz. Titta noga på spektrumets
+    form:</p>
+
+    <ul class="list-disc list-inside space-y-1 ml-2">
+      <li>En <strong>GPS</strong>-satellit bör visa en bred central topp som breddas mjukt från centrum —
+      BPSK-modulationens sinc²-form.</li>
+      <li>En <strong>Galileo</strong>-satellit bör visa en tydligt annorlunda profil, med energin fördelad mer
+      mot bandets sidor — BOC(1,1)-modulationens tvåpuckliga form.</li>
+    </ul>
+
+    <p>Detta är den mest slående jämförelsen som SALSA erbjuder. Båda signalerna är centrerade på exakt samma frekvens,
+    men de är konstruerade att se olika ut så att mottagare kan skilja dem åt. BOC-designen valdes också
+    medvetet för att göra Galileo kompatibelt med GPS (de delar samma band) och samtidigt minimera störningar mellan dem.</p>
+
+    <p>Observera att eftersom GPS använder CDMA syns alla GPS-satelliter på samma frekvens — om flera GPS-satelliter är
+    över horisonten adderas deras signaler i SALSA:s lob. Detsamma gäller Galileo. Det är därför byte
+    mellan enskilda namngivna GPS- eller Galileo-satelliter kanske inte ändrar spektrumet särskilt mycket: signalen är summan av
+    alla synliga satelliter i den konstellationen.</p>
+
+    <h4 id="s3-2" class="text-xl font-semibold text-gray-800 mt-6">3.2 GLONASS: varje satellit på sin egen frekvens</h4>
+
+    <p>Observera nu en GLONASS-satellit. Centerfrekvensen sätts automatiskt till just den satellitens individuella
+    G1-frekvens, som ligger nära 1602 MHz men varierar något (varje GLONASS-satellit använder ett eget
+    kanalnummer, i steg om 562,5 kHz). Med SALSA:s 25 MHz bandbredd ser du en skiva av G1-bandet.</p>
+
+    <p>GLONASS-signalen framträder som en smalare topp, placerad vid satellitens egen kanalfrekvens i stället
+    för vid ett fast värde för hela konstellationen. Eftersom varje satellit ligger på en något annorlunda frekvens (FDMA)
+    kan GLONASS-spektrumet inom ett 25 MHz-fönster innehålla bidrag från flera satelliter på urskiljbara
+    positioner — även om de kan överlappa vid SALSA:s spektralupplösning.</p>
+
+    <p>Jämför GLONASS-spektrumets totala bredd och form med GPS-spektrumet. GLONASS-signalen använder
+    0,511 MHz chipfrekvens (jämfört med 1,023 MHz för GPS L1 C/A), så dess centrala lob är smalare.</p>
+
+    <h4 id="s3-3" class="text-xl font-semibold text-gray-800 mt-6">3.3 Hur elevationen påverkar signalstyrkan</h4>
+
+    <p>Styrkan hos en mottagen GNSS-signal beror på satellitens elevation över horisonten. Det finns två
+    huvudorsaker:</p>
+
+    <p><strong>Frirumsdämpning</strong>: En satellit nära horisonten är längre bort än en rakt ovanför
+    (signalvägen genom rymden är längre), så signalen anländer svagare. Vägen till en satellit på 10°
+    elevation är ungefär 2–3 gånger längre än till en satellit på 90°, vilket minskar den mottagna effekten med upp till 10 dB.</p>
+
+    <p><strong>Atmosfärs- och markeffekter</strong>: En lågt stående satellits signal passerar genom en mycket
+    tjockare skiva av atmosfären, vilket ökar absorption och spridning. Nära horisonten kan teleskopet också
+    ta emot extra brus från markstrålning som kommer in i sidoloberna.</p>
+
+    <p>För att se effekten: hitta samma satellitkonstellation vid två olika elevationer (eller jämför två satelliter
+    av samma typ vid olika elevationer) och jämför spektrumens toppamplituder. Du bör se en tydlig
+    skillnad i signalstyrka. För en rättvis jämförelse, se till att alla andra inställningar (integrationstid, bandbredd,
+    förstärkning) är identiska.</p>
+
+  </details>
+
+  <!-- Questions -->
+  <details open class="space-y-4 text-gray-700">
+    <summary class="cursor-pointer"><h3 id="questions" class="text-2xl font-semibold text-gray-800 inline">Frågor</h3></summary>
+
+    <ol class="list-decimal list-inside space-y-3 ml-2 mt-4">
+      <li>Observera en GPS-satellit och en Galileo-satellit. Kan du se någon skillnad i spektralform? Beskriv vad
+      du observerar och förklara varför de två signalerna ser olika ut.</li>
+
+      <li>GPS-satelliter går i banor på cirka 20 200 km höjd med en period på ungefär 11 timmar 58 minuter.
+      Uppskatta en GPS-satellits banhastighet med hjälp av banperioden och jordens radie (6371 km).
+      (Tips: banans omkrets är 2π × (R<sub>jorden</sub> + banhöjden).)</li>
+
+      <li>Observera två satelliter av samma typ (t.ex. två olika GPS-satelliter) vid olika elevationer.
+      Hur ändras signalstyrkan med elevationen? Är sambandet vad du skulle förvänta dig av enkel
+      geometri?</li>
+
+      <li>Frirumsdämpningen vid frekvensen <em>f</em> och avståndet <em>R</em> är
+      L<sub>FS</sub> = (4πRf/c)². Beräkna dämpningen i dB för en GPS L1-signal (1575,42 MHz) vid ett satellitavstånd
+      på 25 000 km. Hur skulle det jämföra sig med en signal på 10 GHz vid samma avstånd?</li>
+
+      <li>Titta på GLONASS-spektrumet. Kan du avgöra av spektrumets utseende att GLONASS använder en annan
+      åtkomstmetod än GPS? Vad skulle du förvänta dig att se om du följde två olika GLONASS-satelliter
+      med liknande inställningar?</li>
+
+      <li>Kan du komma på några källor till radiostörningar i 1575 MHz-bandet som skulle kunna påverka
+      SALSA-observationerna? Hur skulle det synas i spektrumet?</li>
+    </ol>
+  </details>
+
+</div>
