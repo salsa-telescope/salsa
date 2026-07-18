@@ -1,0 +1,322 @@
+<div class="section light space-y-8">
+
+  <div class="space-y-2">
+    <p class="text-sm text-gray-500">
+      <a href="/support">← Support och dokumentation</a>
+    </p>
+    <h2 class="text-3xl font-semibold">Mät SALSA-antennens lob</h2>
+    <p class="text-sm text-gray-500">
+      Baserad på tidigare arbete av Eskil Varenius, Onsala rymdobservatorium
+    </p>
+  </div>
+
+  <!-- Abstract -->
+  <div class="space-y-4 text-gray-700">
+    <figure class="w-full sm:float-right sm:w-[28%] sm:ml-8 sm:mb-4">
+      <img src="/experiments-sun/sidelobes.svg" alt="Diagram över antennens huvudlob och sidolober" class="rounded-lg w-full bg-white p-2">
+      <figcaption class="text-sm text-gray-500 mt-1">Ett radioteleskops lob har en central huvudlob och mindre sidolober vid större vinklar. Källa: Wikimedia Commons.</figcaption>
+    </figure>
+    <p>Varje radioteleskop har en karakteristisk <em>lob</em> — en beskrivning av hur känsligt det är i olika
+    riktningar på himlen. Att känna till lobens form är avgörande för att tolka varje mätning som görs med teleskopet.
+    I den här laborationen använder du solen som stark radiokälla för att kartlägga SALSA:s lob direkt, genom att mäta hur
+    den mottagna effekten ändras när teleskopet riktas allt längre bort från solen.</p>
+    <p>Solen är en idealisk kalibreringskälla för ändamålet: den är mycket starkare än bakgrundshimlen vid radiovåglängder,
+    den är liten nog i förhållande till SALSA:s lob för att fungera som punktkälla, och teleskopet kan följa den
+    automatiskt. En serie korta mätningar vid olika vinkelavstånd är allt som behövs för att kartlägga
+    lobprofilen.</p>
+    <p class="text-sm text-gray-500">Obs: den här guiden fokuserar på teorin och den vetenskapliga tolkningen. Instruktioner
+    för hur teleskopet används finns i
+    <a href="/support/manual">användarmanualen</a>.</p>
+
+    <nav class="bg-gray-50 border border-gray-200 rounded-lg p-5 text-sm w-fit">
+      <p class="font-semibold text-gray-800 mb-3">Innehåll</p>
+      <ol class="space-y-1 list-none">
+        <li><a href="#ch1" class="underline text-gray-700 hover:text-gray-900">1. Radioteleskopets lob</a>
+          <ol class="ml-4 mt-1 space-y-1 list-none text-gray-600">
+            <li><a href="#s1-1" class="underline hover:text-gray-900">1.1 Vinkelupplösning</a></li>
+            <li><a href="#s1-2" class="underline hover:text-gray-900">1.2 Loben hos en cirkulär apertur</a></li>
+            <li><a href="#s1-3" class="underline hover:text-gray-900">1.3 Varför använda solen?</a></li>
+          </ol>
+        </li>
+        <li><a href="#ch2" class="underline text-gray-700 hover:text-gray-900">2. Observera med SALSA</a>
+          <ol class="ml-4 mt-1 space-y-1 list-none text-gray-600">
+            <li><a href="#s2-1" class="underline hover:text-gray-900">2.1 När ska man observera?</a></li>
+            <li><a href="#s2-2" class="underline hover:text-gray-900">2.2 Följ solen och offsetpositioner</a></li>
+            <li><a href="#s2-3" class="underline hover:text-gray-900">2.3 Mottagarinställningar</a></li>
+            <li><a href="#s2-4" class="underline hover:text-gray-900">2.4 Mät och anteckna effekten</a></li>
+          </ol>
+        </li>
+        <li><a href="#ch3" class="underline text-gray-700 hover:text-gray-900">3. Analysera loben</a>
+          <ol class="ml-4 mt-1 space-y-1 list-none text-gray-600">
+            <li><a href="#s3-1" class="underline hover:text-gray-900">3.1 Plotta lobmönstret</a></li>
+            <li><a href="#s3-2" class="underline hover:text-gray-900">3.2 Mät lobbredden</a></li>
+            <li><a href="#s3-3" class="underline hover:text-gray-900">3.3 Jämför med teorin</a></li>
+          </ol>
+        </li>
+        <li><a href="#questions" class="underline text-gray-700 hover:text-gray-900">Frågor</a></li>
+      </ol>
+    </nav>
+    <div style="clear: both;"></div>
+  </div>
+
+  <!-- Chapter 1 -->
+  <details open class="space-y-6 text-gray-700">
+    <summary class="cursor-pointer"><h3 id="ch1" class="text-2xl font-semibold text-gray-800 inline">1. Radioteleskopets lob</h3></summary>
+
+    <h4 id="s1-1" class="text-xl font-semibold text-gray-800 mt-4">1.1 Vinkelupplösning</h4>
+
+    <p>Varje optiskt instrument — ett kameraobjektiv, en kikare eller ett teleskop — kan bara särskilja två närliggande
+    objekt på himlen om de är mer än en viss minsta vinkel isär. Denna minsta vinkel är instrumentets
+    <strong>vinkelupplösning</strong>, och den bestäms ytterst av ljusets vågnatur genom ett fenomen
+    som kallas diffraktion.</p>
+
+    <p>När vågor passerar genom en cirkulär öppning med diameter <em>D</em> sprids de ut genom diffraktion. Ju mindre
+    öppningen är i förhållande till våglängden λ, desto mer sprids vågorna och desto sämre blir vinkelupplösningen.
+    Rayleighkriteriet ger den minsta upplösbara vinkeln som:</p>
+
+    <p class="font-mono text-center my-4">θ ≈ 1,22 λ / D</p>
+
+    <p>där θ är i radianer, λ är observationsvåglängden och D är aperturens diameter. Ett större teleskop
+    eller en kortare våglängd ger bättre (mindre) vinkelupplösning.</p>
+
+    <p>Radioteleskop observerar vid mycket längre våglängder än optiska teleskop — centimeter eller meter i stället för
+    hundratals nanometer. Det betyder att ett radioteleskop måste vara enormt mycket större för att nå samma
+    vinkelupplösning. SALSA:s parabol är 2,3 m i diameter och observerar nära 1420 MHz (λ ≈ 21 cm). Med formeln:</p>
+
+    <p class="font-mono text-center my-4">θ ≈ 1,22 × 0,21 m / 2,3 m ≈ 0,11 rad ≈ 6°</p>
+
+    <p>SALSA kan alltså bara särskilja strukturer som ligger cirka 5–6° isär på himlen. Det är ganska grovt med optiska
+    mått — fullmånen är bara 0,5° tvärs över — men det räcker för att kartlägga den storskaliga strukturen i
+    Vintergatans väteemission, som i HI-laborationen.</p>
+
+    <h4 id="s1-2" class="text-xl font-semibold text-gray-800 mt-6">1.2 Loben hos en cirkulär apertur</h4>
+
+    <p><strong>Antennloben</strong> (även kallad lobmönster eller antenndiagram) är en fullständig beskrivning av
+    teleskopets känslighet som funktion av riktning. Den är inte en skarp gräns vid upplösningsgränsen
+    — i stället har den en mjuk huvudlob med maximum i pekriktningen som avtar åt båda sidor,
+    och en serie mindre <strong>sidolober</strong> vid större vinklar.</p>
+
+    <p>För en jämnt belyst cirkulär apertur är lobmönstret en <strong>Airyfunktion</strong> — samma
+    mönster som i optiken när ljus passerar genom ett cirkulärt hål. I det centrala området liknar loben
+    en gausskurva, och halvvärdesbredden (FWHM) är:</p>
+
+    <p class="font-mono text-center my-4">FWHM ≈ 1,02 λ / D</p>
+
+    <p>Observera att det närbesläktade <strong>Rayleighkriteriet</strong> (θ ≈ 1,22 λ/D) ger vinkeln till Airymönstrets
+    <em>första nollställe</em>, som traditionellt används som upplösningsgräns för att särskilja två punktkällor.
+    FWHM är cirka 16 % mindre — ett mer direkt mått på själva lobbredden.</p>
+
+    <p>För SALSA vid 1408 MHz (λ = 21,3 cm) ger detta FWHM ≈ 1,02 × 0,213 / 2,3 ≈ 0,094 rad ≈ 5,4°.</p>
+
+    <p>Utanför huvudloben har Airymönstret sidolober vid ungefär 1,7 %, 0,4 % och 0,2 % av toppens känslighet.
+    Även om de är små i relativa termer kan sidolober fånga upp strålning från riktningar långt från dit teleskopet
+    nominellt pekar, vilket är viktigt att ha i åtanke när observationer tolkas.</p>
+
+    <h4 id="s1-3" class="text-xl font-semibold text-gray-800 mt-6">1.3 Varför använda solen?</h4>
+
+    <p>För att mäta loben behöver vi en kompakt, stark radiokälla — helst en punktkälla mycket mindre än loben,
+    så att den uppmätta responsen följer lobens form direkt i stället för att suddas ut av källans egen utsträckning.</p>
+
+    <p>Solen är ett utmärkt val för SALSA av flera skäl:</p>
+    <ul class="list-disc list-inside space-y-1 ml-2">
+      <li><strong>Stark</strong>: Solen är den överlägset starkaste radiokällan på himlen som SALSA når —
+      en kort integration på bara några sekunder ger en tydlig detektion, vilket gör det praktiskt att mäta många
+      offsetpositioner utan ett långt observationspass.</li>
+      <li><strong>Liten nog</strong>: Solens vinkeldiameter är cirka 0,5°, vilket är mycket mindre än SALSA:s
+      lob på ~5°. Den är inte en perfekt punktkälla, men liten nog att den knappt breddar det uppmätta lobmönstret.</li>
+      <li><strong>Lätt att följa</strong>: Solen rör sig förutsägbart över himlen och SALSA kan följa den automatiskt
+      — inga koordinater behöver anges manuellt.</li>
+    </ul>
+
+    <p>Den största begränsningen är att solen bara kan observeras på dagtid, och laborationen kräver att solen
+    står ordentligt över horisonten.</p>
+
+  </details>
+
+  <!-- Chapter 2 -->
+  <details open class="space-y-6 text-gray-700">
+    <summary class="cursor-pointer"><h3 id="ch2" class="text-2xl font-semibold text-gray-800 inline">2. Observera med SALSA</h3></summary>
+
+    <h4 id="s2-1" class="text-xl font-semibold text-gray-800 mt-4">2.1 När ska man observera?</h4>
+
+    <p>Laborationen kräver att solen är över horisonten i Onsala — observationerna måste alltså göras
+    på dagtid. För starkast och renast signal, observera när solen står så högt som möjligt på himlen.
+    Solen når sin högsta elevation runt kl. 11:00 UT (mitt på dagen svensk tid). Tidigare eller senare tider fungerar
+    också bra, särskilt under de långa svenska sommardagarna. Undvik att observera när solen står under cirka 15°
+    elevation, eftersom signalen blir svagare och strålning från marken börjar kontaminera sidoloberna.</p>
+
+    <p class="text-sm text-gray-500">Du kan kontrollera solens aktuella elevation med en planetarieapp eller webbplats
+    innan du bokar din observationstid.</p>
+
+    <h4 id="s2-2" class="text-xl font-semibold text-gray-800 mt-6">2.2 Följ solen och offsetpositioner</h4>
+
+    <p>Välj <strong>Solen</strong> i målmenyn på observationssidan. SALSA beräknar automatiskt
+    solens position på himlen och följer den — inga koordinater behöver anges. Klicka på <strong>Följ</strong> och
+    vänta tills teleskopet nått solens position.</p>
+
+    <p>För att kartlägga loben behöver du mäta inte bara på solen själv, utan också på en serie offsetpositioner
+    i olika riktningar från solen. Använd <em>avancerade följningsinställningar</em> för att ange azimut- och
+    elevationsoffset i grader. Anger du till exempel en azimutoffset på +3° pekar teleskopet mot en
+    position 3° från solen i azimut.</p>
+
+    <p>En typisk skanningsstrategi är att hålla elevationsoffseten på 0° och stega azimutoffseten från −10° till +10°
+    i steg om 0,5° eller 1°, med en mätning vid varje position. Det ger ett endimensionellt snitt genom
+    loben. Du kan också skanna i elevation, eller göra ett tvådimensionellt rutnät för att kartlägga hela lobens form.</p>
+
+    <p>Varje gång du vill ändra offset: klicka på Stoppa, ange de nya offsetvärdena och klicka på Följ igen.
+    Vänta tills teleskopet stabiliserats innan du startar mätningen.</p>
+
+    <p><strong>Azimut- kontra elevationsoffset:</strong> Elevationsoffset motsvarar direkt vinkelavståndet på
+    himlen — en elevationsoffset på +2° flyttar riktningen 2° uppåt. Azimutoffset beter sig annorlunda: eftersom linjer med
+    konstant azimut konvergerar mot zenit (precis som longitudlinjer konvergerar vid polerna) är det faktiska
+    vinkelavståndet på himlen <em>mindre</em> än det angivna värdet:</p>
+    <p class="ml-6 my-2">θ = cos(el) × Δaz</p>
+    <p>Om solen till exempel står på elevation 45° flyttar en azimutoffset på +4° riktningen bara
+    cos(45°) × 4° ≈ 2,8° från solen på himlen. För att få ett avstånd på 3° på himlen anger du i stället
+    3° / cos(45°) ≈ 4,2°. Vid de elevationer som är typiska för laborationen (ungefär 20°–50°) ligger faktorn cos(el)
+    mellan cirka 0,64 och 0,94 — märkbart när du jämför din uppmätta lobbredd med det förväntade värdet.</p>
+
+    <h4 id="s2-3" class="text-xl font-semibold text-gray-800 mt-6">2.3 Mottagarinställningar</h4>
+
+    <p>När du väljer solen som mål växlar SALSA automatiskt till <em>rått</em> läge, som mäter den totala
+    mottagna effekten direkt — precis vad som behövs i den här laborationen. Standardcenterfrekvensen är
+    <strong>1408 MHz</strong> med en bandbredd på <strong>2,5 MHz</strong>. Solen är mycket stark vid radiovåglängder,
+    så den smala bandbredden ger en helt tydlig detektion — klicka bara på <strong>Starta</strong>,
+    1 sekunds integration räcker.</p>
+
+    <p>Behåll frekvensen 1408 MHz i stället för att ställa in vätelinjen på 1420,405 MHz. Vid 1420 MHz skulle
+    mottagaren också fånga upp 21 cm-strålning från neutralt vätgas i Vintergatan längs siktlinjen,
+    vilket skulle lägga en varierande bakgrund till dina mätningar och göra det svårare att isolera solens bidrag.
+    Vid 1408 MHz ligger du säkert fri från HI-linjen och mäter i princip bara kontinuumstrålning från solen.</p>
+
+    <h4 id="s2-4" class="text-xl font-semibold text-gray-800 mt-6">2.4 Mät och anteckna effekten</h4>
+
+    <p>För varje offsetposition: klicka på <strong>Starta</strong>, vänta några sekunder och klicka på <strong>Avsluta</strong>.
+    Den viktiga storheten att anteckna är <strong>medeleffekten</strong>, som visas i diagrammets undertitel som "Medeleffekt: …".
+    Det är den genomsnittliga antenntemperaturen över den observerade bandbredden, och det är den
+    du plottar mot offsetvinkeln för att få lobmönstret.</p>
+
+    <p>För en tabell över dina mätningar medan du håller på, till exempel:</p>
+
+    <div class="overflow-x-auto">
+      <table class="text-sm border-collapse mt-2">
+        <thead>
+          <tr class="border-b border-gray-300 text-left text-gray-800">
+            <th class="pr-8 py-2">Az.-offset [°]</th>
+            <th class="pr-8 py-2">El.-offset [°]</th>
+            <th class="py-2">Medeleffekt</th>
+          </tr>
+        </thead>
+        <tbody class="text-gray-600">
+          <tr class="border-b border-gray-100"><td class="pr-8 py-1">−10</td><td class="pr-8 py-1">0</td><td class="py-1">…</td></tr>
+          <tr class="border-b border-gray-100"><td class="pr-8 py-1">−9</td><td class="pr-8 py-1">0</td><td class="py-1">…</td></tr>
+          <tr class="border-b border-gray-100"><td class="pr-8 py-1">…</td><td class="pr-8 py-1">…</td><td class="py-1">…</td></tr>
+          <tr class="border-b border-gray-100"><td class="pr-8 py-1">0</td><td class="pr-8 py-1">0</td><td class="py-1">…</td></tr>
+          <tr class="border-b border-gray-100"><td class="pr-8 py-1">…</td><td class="pr-8 py-1">…</td><td class="py-1">…</td></tr>
+          <tr><td class="pr-8 py-1">+10</td><td class="pr-8 py-1">0</td><td class="py-1">…</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p class="mt-3">En komplett azimutskanning från −10° till +10° i steg om 1° tar cirka 25 minuter inklusive
+    teleskopets rörelsetid. Planera din bokade tid därefter.</p>
+
+    <figure>
+      <img src="/sunex.png" alt="Ett spektrum av solen med azimutoffset +1 grad" class="rounded-lg w-[30rem]">
+      <figcaption class="text-sm text-gray-500 mt-1">Fig. 2.1 — Ett spektrum av solen med azimutoffset +1 grad. Medeleffektvärdet och offseten bör antecknas.</figcaption>
+    </figure>
+
+  </details>
+
+  <!-- Chapter 3 -->
+  <details open class="space-y-6 text-gray-700">
+    <summary class="cursor-pointer"><h3 id="ch3" class="text-2xl font-semibold text-gray-800 inline">3. Analysera loben</h3></summary>
+
+    <h4 id="s3-1" class="text-xl font-semibold text-gray-800 mt-4">3.1 Plotta lobmönstret</h4>
+
+    <p>När du har en tabell med medeleffektvärden vid varje offset, plotta dem: lägg azimutoffseten (i grader)
+    på den horisontella axeln och medeleffekten (i K) på den vertikala. Du kan använda vilket kalkyl- eller
+    plottverktyg som helst — LibreOffice Calc, Python med matplotlib eller liknande.</p>
+
+    <p>Resultatet bör visa en tydlig central topp vid offset 0° (teleskopet riktat rakt mot solen) med
+    effekten avtagande åt båda hållen. Om din skanning sträcker sig långt nog bör du också se sidoloberna — mindre
+    gupp vid ungefär ±8–10° från centrum. Fig. 3.1 visar en uppmätt lob från SALSA-teleskopet.</p>
+
+    <figure class="my-4 max-w-xl">
+      <img src="/experiments-sun/beam_pattern.png" alt="Uppmätt lobmönster för SALSA-teleskopet Vale" class="rounded-lg w-full">
+      <figcaption class="text-sm text-gray-500 mt-1">Fig. 3.1 — Den uppmätta loben hos SALSA-teleskopet Vale vid 1410 MHz, erhållen genom att skanna solen i azimut. En gaussanpassning ger FWHM = 5,4°. Airymönstrets sidolober syns tydligt på båda sidor om huvudloben. Källa: Eskil Varenius / Onsala rymdobservatorium.</figcaption>
+    </figure>
+
+    <h4 id="s3-2" class="text-xl font-semibold text-gray-800 mt-6">3.2 Mät lobbredden</h4>
+
+    <p>Det viktigaste talet att få ut ur lobmönstret är huvudlobens <strong>halvvärdesbredd
+    (FWHM)</strong> — lobens vinkelbredd mätt vid halva toppens effekt.</p>
+
+    <p>Dina mätningar innehåller en baslinje skild från noll — bakgrundseffekten från himlen som tas emot även när teleskopet
+    inte pekar mot solen. Subtrahera den baslinjenivån från alla dina effektvärden innan du uppskattar FWHM.
+    En bra uppskattning av baslinjen är medeleffekten vid dina största offset (t.ex. ±10°), där
+    solens bidrag är försumbart. Efter subtraktionen representerar toppen vid offset 0° enbart solens bidrag.</p>
+
+    <p>Så här hittar du FWHM ur din baslinjesubtraherade data:</p>
+    <ol class="list-decimal list-inside space-y-1 ml-2">
+      <li>Hitta toppens effektvärde (vid offset 0°).</li>
+      <li>Beräkna halva det värdet.</li>
+      <li>Hitta de två offsetvinklar där den uppmätta effekten korsar halveffektnivån (en på vardera sidan om toppen).</li>
+      <li>FWHM är skillnaden mellan de två vinklarna.</li>
+    </ol>
+
+    <p class="mt-2">För en noggrannare uppskattning, anpassa en gausskurva till huvudloben. En gausskurva har formen:</p>
+    <p class="font-mono text-center my-4">P(θ) = P₀ × exp(−4 ln 2 × θ² / FWHM²)</p>
+    <p>där P₀ är toppens effekt och θ är avvikelsen från toppen. Många kalkyl- och plottverktyg har
+    kurvanpassningsfunktioner, eller så kan du anpassa på ögonmått.</p>
+
+    <h4 id="s3-3" class="text-xl font-semibold text-gray-800 mt-6">3.3 Jämför med teorin</h4>
+
+    <p>Jämför din uppmätta FWHM med den teoretiska förutsägelsen. Vid 1408 MHz (λ = 21,3 cm) för en 2,3 m parabol:</p>
+
+    <p class="font-mono text-center my-4">FWHM<sub>teori</sub> ≈ 1,02 × λ / D = 1,02 × 0,213 / 2,3 ≈ 0,094 rad ≈ 5,4°</p>
+
+    <p>Ditt uppmätta värde kan avvika något från detta av några skäl:</p>
+    <ul class="list-disc list-inside space-y-1 ml-2">
+      <li>Parabolens belysning är inte perfekt jämn — matarhornet belyser parabolen med en avtoning mot
+      kanterna, vilket gör den effektiva loben något bredare.</li>
+      <li>Solen är inte en perfekt punktkälla (den är ~0,5° i diameter), vilket breddar den uppmätta loben
+      en aning.</li>
+      <li>Ytojämnheter och ofullständig uppriktning av parabolens paneler påverkar också lobens form.</li>
+    </ul>
+
+    <p>Trots dessa effekter ligger SALSA:s uppmätta lobbredd vanligen mycket nära det teoretiska värdet, som
+    i Fig. 3.1 (uppmätt FWHM = 5,4°, i överensstämmelse med teorin).</p>
+
+    <p>Om du mätte sidolober, jämför deras positioner och höjder med det teoretiska Airymönstret. Airyfunktionens
+    första sidolob toppar vid ungefär 1,63 × (λ/D) från centrum, med cirka 1,7 % av huvudlobens
+    effekt — eller cirka −17,6 dB under toppen.</p>
+
+  </details>
+
+  <!-- Questions -->
+  <details open class="space-y-4 text-gray-700">
+    <summary class="cursor-pointer"><h3 id="questions" class="text-2xl font-semibold text-gray-800 inline">Frågor</h3></summary>
+
+    <ol class="list-decimal list-inside space-y-3 ml-2 mt-4">
+      <li>Vad är den teoretiska halvvärdesbredden för SALSA:s lob vid 1420 MHz (vätelinjens frekvens)? Hur
+      förhåller den sig till FWHM vid 1408 MHz?</li>
+
+      <li>Solens vinkeldiameter är cirka 0,5°. Hur betydelsefullt är det jämfört med SALSA:s lobbredd?
+      På vilket sätt påverkar solens ändliga storlek det uppmätta lobmönstret?</li>
+
+      <li>Vilken FWHM för SALSA:s huvudlob ger dina mätningar? Stämmer den med den teoretiska
+      förutsägelsen? Om inte, föreslå orsaker till skillnaden.</li>
+
+      <li>Skulle du kunna mäta SALSA:s lob med månen i stället för solen? Vilka för- och nackdelar
+      skulle det ha? (Tips: fundera på månens radioljusstyrka och dess vinkeldiameter.)</li>
+
+      <li>Varför är det viktigt att observera när solen står högt på himlen i stället för nära horisonten?
+      Hur kan en lågt stående sol påverka både signalstyrkan och lobformen du mäter?</li>
+
+      <li>Ett radioteleskops FWHM skalar som λ/D. Om du ville nå samma vinkelupplösning som
+      SALSA vid 1408 MHz, men observera vid våglängden 6 cm (5 GHz), hur stor skulle parabolen behöva vara?</li>
+    </ol>
+  </details>
+
+</div>
