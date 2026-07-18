@@ -21,6 +21,7 @@ use std::time::Duration;
 use tokio::time::sleep;
 use tracing::{debug, info, warn};
 
+use crate::i18n::Language;
 use crate::models::session::{Session, complete_oauth2_login, start_oauth2_login};
 use crate::routes::index::render_main;
 use crate::{app::AppState, error::InternalError};
@@ -60,6 +61,7 @@ async fn logout(
 #[derive(Template)]
 #[template(path = "login.html")]
 struct SelectAuthProvider {
+    lang: Language,
     providers: Vec<(String, Option<String>)>,
     error: bool,
     rate_limited: bool,
@@ -72,6 +74,7 @@ struct LoginQuery {
 
 // 1. User is prompted to select oauth2 provider.
 async fn login(
+    Extension(lang): Extension<Language>,
     State(state): State<AppState>,
     Query(query): Query<LoginQuery>,
 ) -> Result<impl IntoResponse, InternalError> {
@@ -79,13 +82,14 @@ async fn login(
     let rate_limited = query.error.as_deref() == Some("rate_limited");
     let error = !rate_limited && query.error.is_some();
     let content = SelectAuthProvider {
+        lang,
         providers,
         error,
         rate_limited,
     }
     .render()
     .expect("Template rendering should always succeed");
-    Ok(Html(render_main(None, content)))
+    Ok(Html(render_main(None, lang, content)))
 }
 
 #[derive(Deserialize)]

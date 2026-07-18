@@ -18,6 +18,7 @@ use crate::database::create_sqlite_database_on_disk;
 use crate::guest_rate_limiter::GuestStartLimiterHandle;
 use crate::login_rate_limiter::LoginRateLimiterHandle;
 use crate::middleware::cookies::cookies_middleware;
+use crate::middleware::language::language_middleware;
 use crate::middleware::session::session_middleware;
 use crate::models::session::{purge_expired_pending_oauth2, purge_expired_sessions};
 use crate::models::telescope::{TelescopeCollectionHandle, create_telescope_collection};
@@ -162,6 +163,7 @@ pub async fn create_app(config_dir: &Path, database_dir: &Path) -> (Router, AppS
                 crate::middleware::no_guests::reject_guests,
             )),
         )
+        .nest("/language", routes::language::routes(state.clone()))
         .nest("/telescope", routes::telescope::routes(state.clone()))
         .nest(
             "/observations",
@@ -196,6 +198,9 @@ pub async fn create_app(config_dir: &Path, database_dir: &Path) -> (Router, AppS
                 )
             }),
         )
+        // Layers run outermost-last: cookies → session → language, so the
+        // language resolution sees both the parsed cookies and the user.
+        .route_layer(middleware::from_fn(language_middleware))
         .route_layer(middleware::from_fn_with_state(
             state.clone(),
             session_middleware,

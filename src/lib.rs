@@ -8,6 +8,7 @@ pub mod fits;
 pub mod geoip;
 pub mod guest_monitor;
 pub mod guest_rate_limiter;
+pub mod i18n;
 pub mod logging;
 pub mod login_rate_limiter;
 pub mod middleware;

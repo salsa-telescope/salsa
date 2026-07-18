@@ -12,10 +12,12 @@ use axum::{
     routing::get,
 };
 use base64::{Engine, prelude::BASE64_STANDARD};
+use i18n_embed_fl::fl;
 use tokio::sync::Mutex;
 use tracing::{debug, error, info};
 
 use crate::app::AppState;
+use crate::i18n::Language;
 use crate::models::booking::Booking;
 use crate::models::guest::GuestSession;
 use crate::models::maintenance::fetch_maintenance_set;
@@ -208,10 +210,12 @@ fn jpeg_response(bytes: Bytes) -> Response {
 #[derive(Template)]
 #[template(path = "live.html")]
 struct LiveTemplate {
+    lang: Language,
     initial_snapshot_src: String,
 }
 
 async fn get_live_page(
+    Extension(lang): Extension<Language>,
     State(state): State<WebcamState>,
     Extension(user): Extension<Option<User>>,
     headers: HeaderMap,
@@ -227,6 +231,7 @@ async fn get_live_page(
         None => "/live/snapshot".to_string(),
     };
     let content = LiveTemplate {
+        lang,
         initial_snapshot_src,
     }
     .render()
@@ -234,7 +239,7 @@ async fn get_live_page(
     let content = if headers.get("hx-request").is_some() {
         content
     } else {
-        render_main(user, content)
+        render_main(user, lang, content)
     };
     Html(content)
 }
@@ -268,12 +273,15 @@ struct WebcamStatusTemplate {
     message: String,
 }
 
-async fn get_webcam_status(State(state): State<WebcamState>) -> Html<String> {
+async fn get_webcam_status(
+    Extension(lang): Extension<Language>,
+    State(state): State<WebcamState>,
+) -> Html<String> {
     let template = if state.snapshot_url.is_empty() {
         WebcamStatusTemplate {
             available: false,
             state_class: "very-stale",
-            message: "Webcam disabled".to_string(),
+            message: fl!(lang.loader(), "webcam-disabled"),
         }
     } else {
         let cached = state.cache.lock().await.clone();
@@ -281,9 +289,12 @@ async fn get_webcam_status(State(state): State<WebcamState>) -> Html<String> {
             Some(c) => {
                 let age_secs = c.fetched_at.elapsed().as_secs();
                 let age_str = if age_secs < 120 {
-                    format!("{age_secs}s ago")
+                    fl!(lang.loader(), "age-secs", n = age_secs)
                 } else {
-                    format!("{}min ago", age_secs / 60)
+                    {
+                        let mins = age_secs / 60;
+                        fl!(lang.loader(), "age-mins", n = mins)
+                    }
                 };
                 let state_class = if age_secs >= WEBCAM_VERY_STALE_SECS {
                     "very-stale"
@@ -293,9 +304,9 @@ async fn get_webcam_status(State(state): State<WebcamState>) -> Html<String> {
                     "fresh"
                 };
                 let message = if age_secs >= WEBCAM_VERY_STALE_SECS {
-                    format!("Webcam offline — last image {age_str}")
+                    fl!(lang.loader(), "webcam-offline", age = age_str)
                 } else {
-                    format!("Updated {age_str}")
+                    fl!(lang.loader(), "webcam-updated", age = age_str)
                 };
                 WebcamStatusTemplate {
                     available: true,
@@ -306,9 +317,7 @@ async fn get_webcam_status(State(state): State<WebcamState>) -> Html<String> {
             None => WebcamStatusTemplate {
                 available: false,
                 state_class: "very-stale",
-                message: "Webcam unavailable — no image from camera. \
-                    Please contact support if this problem persists."
-                    .to_string(),
+                message: fl!(lang.loader(), "webcam-unavailable"),
             },
         }
     };
@@ -334,10 +343,14 @@ struct TelescopeStatusCard {
 #[derive(Template)]
 #[template(path = "live_telescopes.html")]
 struct LiveTelescopesTemplate {
+    lang: Language,
     telescopes: Vec<TelescopeStatusCard>,
 }
 
-async fn get_telescopes_status(State(state): State<WebcamState>) -> Html<String> {
+async fn get_telescopes_status(
+    Extension(lang): Extension<Language>,
+    State(state): State<WebcamState>,
+) -> Html<String> {
     let mut names = state.app_state.telescopes.get_names().await;
     let preferred_order = ["torre", "vale", "brage"];
     names.sort_by_key(|n| {
@@ -417,7 +430,7 @@ async fn get_telescopes_status(State(state): State<WebcamState>) -> Html<String>
         });
     }
     Html(
-        LiveTelescopesTemplate { telescopes }
+        LiveTelescopesTemplate { lang, telescopes }
             .render()
             .expect("Template rendering should always succeed"),
     )

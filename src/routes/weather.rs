@@ -1,5 +1,9 @@
 use crate::app::AppState;
 use askama::Template;
+use i18n_embed_fl::fl;
+
+use crate::i18n::Language;
+use axum::Extension;
 use axum::Router;
 use axum::extract::State;
 use axum::response::Html;
@@ -12,6 +16,7 @@ pub fn routes(state: AppState) -> Router {
 #[derive(Template)]
 #[template(path = "weather.html")]
 struct WeatherTemplate {
+    lang: Language,
     age_str: String,
     weather_ts: i64,
     temp_c: String,
@@ -24,7 +29,10 @@ struct WeatherTemplate {
     wind_lull_ms: String,
 }
 
-async fn get_weather(State(state): State<AppState>) -> Html<String> {
+async fn get_weather(
+    Extension(lang): Extension<Language>,
+    State(state): State<AppState>,
+) -> Html<String> {
     let Some(w) = state.weather_cache.get() else {
         return Html(
             r#"<p class="text-xs text-gray-400 mt-2">Weather data unavailable.</p>"#.to_string(),
@@ -33,12 +41,16 @@ async fn get_weather(State(state): State<AppState>) -> Html<String> {
 
     let age_secs = w.age_secs();
     let age_str = if age_secs < 120 {
-        format!("{age_secs}s ago")
+        fl!(lang.loader(), "age-secs", n = age_secs)
     } else {
-        format!("{}min ago", age_secs / 60)
+        {
+            let mins = age_secs / 60;
+            fl!(lang.loader(), "age-mins", n = mins)
+        }
     };
 
     let html = WeatherTemplate {
+        lang,
         age_str,
         weather_ts: w.timestamp,
         temp_c: format!("{:.1}", w.temp_c),

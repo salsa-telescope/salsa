@@ -618,18 +618,29 @@ footer {
     background: var(--color-slot-free-hover);
 }
 
-/* Mine — blue */
+/* Mine — blue; distinguishable from green/red under all common color
+   vision deficiencies, with an inset border as a redundant cue. */
 .calendar-slot-mine {
     background: var(--color-slot-mine);
+    box-shadow: inset 0 0 0 2px var(--color-slot-mine-hover);
     cursor: pointer;
 }
 .calendar-slot-mine:hover {
     background: var(--color-slot-mine-hover);
 }
 
-/* Other user — red */
+/* Other user — red, with diagonal stripes so the state does not rely
+   on hue alone (the free-green/booked-red pair is indistinguishable
+   under red–green color blindness; WCAG 1.4.1). The legend swatches
+   share these classes, so the patterns document themselves there. */
 .calendar-slot-other {
-    background: var(--color-slot-other);
+    background: repeating-linear-gradient(
+        45deg,
+        var(--color-slot-other),
+        var(--color-slot-other) 4px,
+        rgba(255, 255, 255, 0.65) 4px,
+        rgba(255, 255, 255, 0.65) 6px
+    );
 }
 
 /* Disabled — at booking limit */
@@ -643,9 +654,24 @@ footer {
     background: var(--color-neutral-100);
 }
 
-/* Maintenance — yellow */
+/* Maintenance — yellow, cross-hatched to stay distinct from the
+   striped booked slots without relying on hue. */
 .calendar-slot-maintenance {
-    background: var(--color-slot-maint);
+    background:
+        repeating-linear-gradient(
+            45deg,
+            transparent,
+            transparent 5px,
+            rgba(255, 255, 255, 0.7) 5px,
+            rgba(255, 255, 255, 0.7) 7px
+        ),
+        repeating-linear-gradient(
+            -45deg,
+            var(--color-slot-maint),
+            var(--color-slot-maint) 5px,
+            rgba(255, 255, 255, 0.35) 5px,
+            rgba(255, 255, 255, 0.35) 7px
+        );
     cursor: not-allowed;
 }
 

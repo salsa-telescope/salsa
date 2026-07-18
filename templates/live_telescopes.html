@@ -5,43 +5,43 @@
       <span class="font-semibold text-gray-700">{{ tel.name }}</span>
       <div class="flex gap-1">
         {% if tel.calendar_status == "Booked" %}
-        <span class="text-xs font-semibold text-info bg-info-bg px-2 py-0.5 rounded">Booked</span>
+        <span class="text-xs font-semibold text-info bg-info-bg px-2 py-0.5 rounded">{{ lang.t("bookings-legend-booked") }}</span>
         {% else if tel.calendar_status == "Guest" %}
-        <span class="text-xs font-semibold text-brand bg-brand-bg px-2 py-0.5 rounded">Guest</span>
+        <span class="text-xs font-semibold text-brand bg-brand-bg px-2 py-0.5 rounded">{{ lang.t("live-guest") }}</span>
         {% else %}
-        <span class="text-xs font-semibold text-success bg-success-bg px-2 py-0.5 rounded">Free</span>
+        <span class="text-xs font-semibold text-success bg-success-bg px-2 py-0.5 rounded">{{ lang.t("bookings-legend-free") }}</span>
         {% endif %}
         {% if tel.in_maintenance %}
-        <span class="text-xs font-semibold text-warning bg-warning-bg px-2 py-0.5 rounded">Maintenance</span>
+        <span class="text-xs font-semibold text-warning bg-warning-bg px-2 py-0.5 rounded">{{ lang.t("bookings-legend-maintenance") }}</span>
         {% endif %}
         {% if tel.status == "Tracking" %}
-        <span class="text-xs font-semibold text-success bg-green-100 px-2 py-0.5 rounded">Tracking</span>
+        <span class="text-xs font-semibold text-success bg-green-100 px-2 py-0.5 rounded">{{ lang.t("state-tracking") }}</span>
         {% else if tel.status == "Slewing" %}
-        <span class="text-xs font-semibold text-warning bg-warning-bg px-2 py-0.5 rounded">Slewing</span>
+        <span class="text-xs font-semibold text-warning bg-warning-bg px-2 py-0.5 rounded">{{ lang.t("state-slewing") }}</span>
         {% else if tel.status == "Offline" %}
-        <span class="text-xs font-semibold text-danger bg-red-100 px-2 py-0.5 rounded">Offline</span>
+        <span class="text-xs font-semibold text-danger bg-red-100 px-2 py-0.5 rounded">{{ lang.t("state-offline") }}</span>
         {% else %}
-        <span class="text-xs font-semibold text-info bg-blue-100 px-2 py-0.5 rounded">Idle</span>
+        <span class="text-xs font-semibold text-info bg-blue-100 px-2 py-0.5 rounded">{{ lang.t("state-idle") }}</span>
         {% endif %}
       </div>
     </div>
     <p class="text-xs text-gray-500 mb-1">
-      {% if let Some((az, el)) = tel.position %}Az {{ az }} &middot; El {{ el }}{% else %}<span class="text-gray-400">Position unavailable</span>{% endif %}
+      {% if let Some((az, el)) = tel.position %}Az {{ az }} &middot; El {{ el }}{% else %}<span class="text-gray-400">{{ lang.t("live-position-unavailable") }}</span>{% endif %}
       {% if let Some(target) = tel.target %}&middot; {{ target }}{% endif %}
     </p>
     <div class="flex gap-2 text-xs">
       {% if let Some(connected) = tel.controller_connected %}
         {% if connected %}
-        <span class="text-success">&#10003; Controller</span>
+        <span class="text-success">&#10003; {{ lang.t("live-controller") }}</span>
         {% else %}
-        <span class="text-danger">&#10007; Controller</span>
+        <span class="text-danger">&#10007; {{ lang.t("live-controller") }}</span>
         {% endif %}
       {% endif %}
       {% if let Some(reachable) = tel.receiver_connected %}
         {% if reachable %}
-        <span class="text-success">&#10003; Receiver</span>
+        <span class="text-success">&#10003; {{ lang.t("live-receiver") }}</span>
         {% else %}
-        <span class="text-danger">&#10007; Receiver</span>
+        <span class="text-danger">&#10007; {{ lang.t("live-receiver") }}</span>
         {% endif %}
       {% endif %}
     </div>

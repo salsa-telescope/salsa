@@ -1,0 +1,302 @@
+<div class="section light space-y-8">
+
+  <div class="space-y-2">
+    <p class="text-sm text-gray-500">
+      <a href="/support">← Support och dokumentation</a>
+    </p>
+    <h2 class="text-3xl font-semibold">Användarmanual</h2>
+    <p class="text-sm text-gray-500">Hur du bokar och använder SALSA-teleskopen.</p>
+  </div>
+
+  <!-- ToC -->
+  <nav class="bg-gray-50 border border-gray-200 rounded-lg p-5 text-sm">
+    <p class="font-semibold text-gray-800 mb-3">Innehåll</p>
+    <ol class="space-y-1 list-none">
+      <li><a href="#account" class="underline text-gray-700 hover:text-gray-900">1. Skapa ett konto</a></li>
+      <li><a href="#booking" class="underline text-gray-700 hover:text-gray-900">2. Boka ett teleskop</a></li>
+      <li><a href="#observe" class="underline text-gray-700 hover:text-gray-900">3. Göra en observation</a>
+        <ol class="ml-4 mt-1 space-y-1 list-none text-gray-600">
+          <li><a href="#pointing" class="underline hover:text-gray-900">3.1 Rikta teleskopet</a></li>
+          <li><a href="#receiver" class="underline hover:text-gray-900">3.2 Mottagarinställningar</a></li>
+          <li><a href="#integrating" class="underline hover:text-gray-900">3.3 Integrera</a></li>
+        </ol>
+      </li>
+      <li><a href="#archive" class="underline text-gray-700 hover:text-gray-900">4. Observationsarkivet</a>
+        <ol class="ml-4 mt-1 space-y-1 list-none text-gray-600">
+          <li><a href="#export" class="underline hover:text-gray-900">4.1 Exportera data</a></li>
+          <li><a href="#analysis" class="underline hover:text-gray-900">4.2 Spektralanalysverktyg</a></li>
+        </ol>
+      </li>
+      <li><a href="#troubleshooting" class="underline text-gray-700 hover:text-gray-900">5. Felsökning</a></li>
+    </ol>
+  </nav>
+
+  <!-- 1. Account -->
+  <details open class="space-y-4 text-gray-700">
+    <summary class="cursor-pointer"><h3 id="account" class="text-2xl font-semibold text-gray-800 inline">1. Skapa ett konto</h3></summary>
+
+    <p>För att göra en riktig bokning och spara dina observationer behöver du logga in. Klicka på
+    <strong>Logga in</strong> i navigationsfältet högst upp och följ instruktionerna för att
+    autentisera dig. SALSA stöder flera inloggningstjänster — välj den du
+    redan har ett konto hos. När du är inloggad visas ditt namn i navigationsfältet.
+    Klickar du på det visas kontoinställningar och en utloggningslänk.</p>
+
+    <p><strong>Tidszon.</strong> Datum och tider på hela webbplatsen visas i din
+    lokala tidszon. Vid din första inloggning identifieras webbläsarens tidszon och sparas
+    automatiskt — en liten banner bekräftar vilken zon som valdes. Du kan när som helst ändra
+    den på kontoinställningssidan genom att välja en annan tidszon. Om ingen
+    zon är vald visas tiderna i UTC.</p>
+
+    <p><strong>Vill du bara prova?</strong> Knappen <strong>Observera nu</strong> på
+    välkomstsidan startar en gästsession på första lediga teleskop utan
+    inloggning. Gästsessioner är korta (upp till 30 minuter, och de släpps
+    automatiskt efter cirka 3 minuters inaktivitet) så att de inte låser teleskopen
+    för registrerade användare; en riktig bokning på samma teleskop avslutar också
+    din gästsession omedelbart. Gästobservationer <strong>sparas inte</strong>
+    — spektrumet visas i diagrammet i realtid medan du observerar, men inget
+    skrivs till observationsarkivet. Skapa ett konto om du vill ha längre
+    sessioner, schemalagda bokningar eller nedladdningsbar data.</p>
+  </details>
+
+  <!-- 2. Booking -->
+  <details open class="space-y-4 text-gray-700">
+    <summary class="cursor-pointer"><h3 id="booking" class="text-2xl font-semibold text-gray-800 inline">2. Boka ett teleskop</h3></summary>
+
+    <p>Gå till <strong>Bokningar</strong> i navigationsfältet. Du ser en veckokalender
+    med tider för ett valt teleskop.</p>
+
+    <p>Tidernas färger visar tillgängligheten:</p>
+    <ul class="list-disc list-inside space-y-1">
+      <li><strong>Grön</strong> — ledig, klicka för att boka</li>
+      <li><strong>Blå</strong> (med kant) — din befintliga bokning, klicka för att avboka</li>
+      <li><strong>Röd</strong> (randig) — bokad av en annan användare</li>
+      <li><strong>Blek</strong> — passerad tid</li>
+      <li><strong>Gul</strong> (rutmönstrad) — teleskopet är på underhåll, inte tillgängligt</li>
+    </ul>
+    <p>Varje status har också en egen textur — ränder, rutmönster eller en
+    kant — så att kalendern går att läsa utan att förlita sig på färgerna.</p>
+
+    <p>Klicka på en grön tid för att boka den. Bokningar är en timme långa. Du kan ha upp till
+    ett begränsat antal kommande bokningar åt gången. För att avboka, klicka på din blå tid
+    och bekräfta avbokningen.</p>
+
+    <p>Kalendern och klockan med aktuell tid visas i din lokala tidszon (se
+    <a href="#account">Skapa ett konto</a> för hur den ställs in). Observera att varje
+    bokningsbar tid alltid är en hel UTC-timme oavsett din tidszon, så om din
+    zon är förskjuten en halv- eller kvartstimme visar tidsetiketterna tider som
+    :30 eller :45.</p>
+
+    <p>Alla mål går inte att observera vid alla tider på dygnet — SALSA-teleskopen
+    kan bara peka ovanför horisonten i Onsala. För att kontrollera när ett mål
+    är uppe innan du bokar, använd
+    <a href="/visibility">synlighetsplaneraren</a>: ange galaktiska eller ekvatoriella
+    koordinater eller solen samt ett datum, så visas elevationskurvan för den
+    dagen och du kan välja en bokningstid när målet faktiskt är uppe.</p>
+
+    <p>Dina bokningar visas högst upp på bokningssidan, under <em>Kommande bokningar</em>. Varje bokning har en <strong>Observera</strong>-knapp — den är nedtonad tills din tid börjar och blir sedan aktiv. Klicka på den för att komma till teleskopets styrgränssnitt.</p>
+  </details>
+
+  <!-- 3. Observing -->
+  <details open class="space-y-4 text-gray-700">
+    <summary class="cursor-pointer"><h3 id="observe" class="text-2xl font-semibold text-gray-800 inline">3. Göra en observation</h3></summary>
+
+    <p>Observationssidan är bara tillgänglig under din bokade tid. Den visar
+    teleskopets aktuella status, riktningskontroller, mottagarinställningar och ett
+    spektrum i realtid.</p>
+
+    <p>En nedräkningstimer högst upp på sidan visar hur mycket tid som återstår av din bokning.
+    Du får en varning fem minuter innan din tid tar slut.</p>
+
+    <p>Om vindhastigheten vid observatoriet överskrider säkerhetsgränsen visas en
+    <strong>varning för hård vind</strong> högst upp på sidan. Du uppmanas att parkera teleskopet
+    och återkomma när förhållandena förbättrats. Du kan fortfarande observera, men gör det på egen risk.</p>
+
+    <div class="space-y-3">
+      <h4 id="pointing" class="text-lg font-semibold text-gray-800">3.1 Rikta teleskopet</h4>
+
+      <p>Välj ett koordinatsystem i rullgardinsmenyn, ange målets koordinater
+och klicka på <strong>Följ</strong>. Teleskopet rör sig då till målpositionen.
+Beräknade och aktuella azimut- och elevationsvinklar visas under
+koordinatfälten. När du valt en målposition uppdateras raden
+<em>Beräknad</em> med de horisontella (az/el) koordinater som krävs
+för att nå den önskade positionen. Om elevationen är för låg kan du inte
+följa målet. En negativ elevationsvinkel betyder att målet är under
+horisonten. Vissa mål är bara synliga under delar av dygnet. De beräknade
+koordinaterna uppdateras en gång per sekund, eftersom jorden rör sig
+genom rymden.</p>
+
+      <p>Tillgängliga koordinatsystem:</p>
+      <ul class="list-disc list-inside space-y-1 text-sm">
+        <li><strong>Galaktiska</strong> — galaktisk longitud (l) och latitud (b) i grader.
+        Rekommenderas för HI-observationer av Vintergatan.</li>
+        <li><strong>Ekvatoriella (J2000)</strong> — rektascension och deklination i grader, i J2000-systemet (ICRS).</li>
+        <li><strong>Horisontella</strong> — azimut och elevation i grader.</li>
+        <li><strong>Solen</strong> — följer solen automatiskt. SALSA-mjukvaran beräknar automatiskt solens aktuella position.</li>
+        <li><strong>GNSS-satellit</strong> — välj en synlig satellit i menyn. SALSA-mjukvaran uppdaterar satellitbanorna automatiskt en gång per dygn.</li>
+        <li><strong>Parkera</strong> — parkerar teleskopet i dess viloläge.</li>
+      </ul>
+
+      <p>I <em>avancerade inställningar</em> kan du också lägga på små <strong>azimut- och elevationsoffset</strong> (i grader)
+      för att finjustera riktningen, till exempel när du mäter lobmönstret. Dessa adderas i beräkningen efter att dina koordinater har omvandlats till en horisontell position.</p>
+
+      <p>Teleskopet rör sig inte under sin lägsta tillåtna elevation. Om målet är
+      för lågt visas ett felmeddelande.</p>
+    </div>
+
+    <div class="space-y-3">
+      <h4 id="receiver" class="text-lg font-semibold text-gray-800">3.2 Mottagarinställningar</h4>
+
+      <p>Mottagarinställningarna styr frekvens, bandbredd och signalbehandling.
+Standardvärdena är optimerade för observationer av 21 cm-vätelinjen och är en
+bra utgångspunkt för de flesta laborationer. Om du väljer solen eller en
+GNSS-satellit som mål uppdateras mottagarinställningarna automatiskt till
+lämpliga standardvärden. Efter att målet valts kan du ändra inställningarna
+om du vill.</p>
+
+      <ul class="list-disc list-inside space-y-2 text-sm">
+        <li><strong>Integrationstid</strong> — välj hur integrationen avslutas.
+        <em>Interaktivt slut</em> (standard) låter dig klicka på <strong>Starta</strong> och
+        <strong>Avsluta</strong> manuellt. <em>Fast</em> stoppar automatiskt efter ett angivet antal
+        sekunder; användbart när du vill lämna teleskopet medan det
+        registrerar, eller när du vill ha en exakt längd för jämförbara observationer.</li>
+        <li><strong>Centerfrekvens</strong> — frekvensen som mottagaren ställs in på,
+        i MHz. Vätelinjens vilofrekvens är 1420,4 MHz.</li>
+        <li><strong>Bandbredd</strong> — det totala frekvensområde som registreras: 1,0; 2,5; 5,0;
+        10,0 eller 25,0 MHz. Bredare bandbredd täcker ett större hastighetsområde; smalare ger
+        bättre upplösning för ett givet antal kanaler.</li>
+        <li><strong>Kanaler</strong> — antal spektralkanaler: 64 till 8192. Fler kanaler
+        ger finare frekvensupplösning. Den resulterande upplösningen i MHz visas
+        automatiskt.</li>
+        <li><strong>Observationsläge</strong> — <em>frekvensväxlat</em> läge växlar
+        mellan målfrekvensen och en referensfrekvens för att subtrahera bakgrund och
+        stående vågor; spektrumet kalibreras mot systemtemperaturen och
+        y-axeln anges i <strong>antenntemperatur (K)</strong>. Använd detta läge för HI-linjen.
+        <em>Rått</em> läge registrerar utan växling, så ingen kalibrering görs; y-axeln
+        är den mottagna effekten som en <strong>andel av digitaliserarens fulla skala</strong>
+        (dimensionslös), och bara relativa skillnader mellan observationer är meningsfulla.</li>
+        <li><strong>RFI-filter</strong> — ett glidande robust statistiskt filter
+        som tar bort smala störspikar (radiofrekvent interferens) ur varje cykels
+        spektrum. Platsen har viss lokal RFI (tydligast på <em>vale</em>),
+        så filtret är <strong>aktiverat som standard</strong> och bör normalt
+        lämnas på. Det bygger en baslinje som följer bandpassformen och eventuell bred
+        verklig signal (som HI-linjen), flaggar sedan kanaler som avviker mer än
+        några MAD-σ över baslinjen och ersätter dem med baslinjens värde
+        — smala spikar försvinner, bred emission bevaras. Stäng bara av om du
+        specifikt vill inspektera rå, ofiltrerad data.</li>
+      </ul>
+    </div>
+
+    <div class="space-y-3">
+      <h4 id="integrating" class="text-lg font-semibold text-gray-800">3.3 Integrera</h4>
+
+      <p>När teleskopet är på målet och mottagaren är konfigurerad, klicka på
+<strong>Starta</strong> för att börja integrera. Spektrumet uppdateras
+kontinuerligt medan data samlas in. Den förflutna integrationstiden och
+medeleffekten visas under spektrumet. Ju längre du integrerar, desto svagare
+blir bruset eftersom de slumpmässiga fluktuationerna tar ut varandra. För
+HI-observationer räcker oftast cirka 30 sekunder för rimliga resultat, men
+du kan prova olika värden för att se vad som ger bra resultat för just ditt
+mål.</p>
+
+      <p>Hur integrationen avslutas beror på inställningen
+      <strong>Integrationstid</strong> bland de avancerade mottagarinställningarna.
+      I läget <em>Interaktivt slut</em> (standard) klickar du på <strong>Avsluta</strong> när
+      du är nöjd med spektrumet. I läget <em>Fast</em> stoppar integrationen
+      automatiskt efter den inställda tiden; timern visar
+      <em>förfluten / total</em> tid i sekunder medan den pågår. I båda fallen
+      sparas observationen i ditt
+      <a href="/observations">observationsarkiv</a> när den stoppas.</p>
+
+      <p>Två saker kan avsluta en integration i förtid oavsett den inställningen: att
+      antennen tappar målet (till exempel när ett mål lågt över horisonten
+      tvingar fram en stor rotation för att linda ut kabeln), eller att din bokade tid tar slut. I båda
+      fallen sparas den data som samlats in fram till dess i ditt
+      <a href="/observations">observationsarkiv</a> — en avbruten integration
+      är bara kortare, inte förlorad. Efter en rotation kan du starta en ny integration
+      när teleskopet är tillbaka på målet.</p>
+
+      <p>För observationer i galaktiska koordinater kan du växla den horisontella axeln
+      mellan <strong>frekvens (MHz)</strong> och <strong>hastighet (km/s)</strong>
+      med knappen under diagrammet. Hastighetsaxeln anges i
+      <strong>Local Standard of Rest</strong>-systemet — SALSA gör LSR-korrektionen
+      automatiskt med 21 cm-vätelinjens vilofrekvens, så
+      värdena är direkt jämförbara med publicerad HI-data. Se
+      <a href="/experiments/hi#s1-5">HI-laborationen §1.5</a> för detaljerna.</p>
+    </div>
+  </details>
+
+  <!-- 4. Archive -->
+  <details open class="space-y-4 text-gray-700">
+    <summary class="cursor-pointer"><h3 id="archive" class="text-2xl font-semibold text-gray-800 inline">4. Observationsarkivet</h3></summary>
+
+    <p>Gå till <strong>Observationsarkiv</strong> i navigationsfältet för att se alla dina
+    sparade observationer. Varje post visar starttid, teleskop, koordinatsystem,
+    målposition och integrationstid. Klicka på en observation för att ladda dess spektrum.</p>
+
+    <p>Du kan zooma in på en del av spektrumet genom att rita en ruta med musen.
+    Dubbelklicka för att återställa zoomen.</p>
+
+    <div class="space-y-3">
+      <h4 id="export" class="text-lg font-semibold text-gray-800">4.1 Exportera data</h4>
+      <p>Tre exportformat finns:</p>
+      <ul class="list-disc list-inside space-y-1 text-sm">
+        <li><strong>PNG</strong> — en bild av det korrigerade spektrumet som det visas.</li>
+        <li><strong>CSV</strong> — kolumner med frekvens och amplitud för användning i ett
+        kalkylark eller analysverktyg som LibreOffice Calc eller Matlab.</li>
+        <li><strong>FITS</strong> — det råa okorrigerade spektrumet i det astronomiska
+        standardformatet FITS, lämpligt för verktyg som Astropy.</li>
+      </ul>
+    </div>
+
+    <div class="space-y-3">
+      <h4 id="analysis" class="text-lg font-semibold text-gray-800">4.2 Spektralanalysverktyg</h4>
+
+      <p>Arkivsidan har inbyggda verktyg för grundläggande spektralanalys. Observera att
+      analysresultat inte sparas — anteckna eller exportera innan du lämnar sidan.</p>
+
+      <h5 class="font-semibold text-gray-800">Baslinjekorrektion</h5>
+      <p>Välj ett eller flera frekvensområden som bara innehåller brus (ingen signal),
+      välj polynomordning (linjär eller kvadratisk) och klicka på <em>Anpassa</em>.
+      En streckad orange kurva visar det anpassade polynomet. Ser den rätt ut,
+      klicka på <em>Subtrahera</em> för att tillämpa den; spektrumet plattas ut och den streckade
+      kurvan försvinner. Om inte, justera de valda områdena eller ordningen och anpassa
+      igen. <em>Rensa</em> tar bort de valda områdena och den väntande anpassningen samt ångrar
+      en tidigare tillämpad subtraktion — det ursprungliga spektrumet återställs.</p>
+
+      <figure class="my-2 max-w-xl">
+        <img src="/baseline_example.png" alt="Baslinjeområden valda på ett spektrum före anpassning" class="rounded-lg w-full">
+        <figcaption class="text-sm text-gray-500 mt-1">Baslinjeområden valda på vardera sidan om signaltoppen, redo att anpassas och subtraheras.</figcaption>
+      </figure>
+
+      <h5 class="font-semibold text-gray-800">Gaussanpassning</h5>
+      <p>Efter baslinjekorrektionen, klicka på en topp i spektrumet för att välja den och
+      klicka sedan på <em>Anpassa</em>. Den anpassade toppens parametrar (centerfrekvens, amplitud,
+      bredd) visas.</p>
+
+      <p>Att få anpassningen att konvergera mot rätt toppar kan vara knepigt. För bästa resultat,
+      klicka så nära varje topps mitt som möjligt — både horisontellt och
+      vertikalt — när du väljer toppar. Se exemplet nedan.</p>
+
+      <figure class="my-2 max-w-xl">
+        <img src="/gauss_example.png" alt="Tre gausskomponenter anpassade till ett spektrum" class="rounded-lg w-full">
+        <figcaption class="text-sm text-gray-500 mt-1">Resultatet efter anpassning av tre gausskomponenter till ett spektrum. Anpassade parametrar som centralhastighet för varje topp visas nere till höger som G1, G2, G3.</figcaption>
+      </figure>
+    </div>
+  </details>
+
+  <!-- 5. Troubleshooting -->
+  <details open class="space-y-4 text-gray-700">
+    <summary class="cursor-pointer"><h3 id="troubleshooting" class="text-2xl font-semibold text-gray-800 inline">5. Felsökning</h3></summary>
+
+    <div class="space-y-2">
+      <h4 class="text-lg font-semibold text-gray-800">Sidlayouten är trasig — allt staplas vertikalt</h4>
+      <p>SALSA:s gränssnitt använder moderna CSS-funktioner som äldre webbläsare inte
+      stöder. Du behöver minst <strong>Firefox 128</strong>,
+      <strong>Chrome 111</strong> eller <strong>Safari 16.4</strong> (eller
+      senare). I äldre webbläsare hamnar delar av sidan som ska ligga
+      sida vid sida staplade ovanpå varandra i stället — uppdatera webbläsaren
+      och ladda om sidan.</p>
+    </div>
+  </details>
+
+</div>

@@ -1,5 +1,3 @@
-use std::fs::read_to_string;
-
 use axum::{
     Extension, Router,
     http::HeaderMap,
@@ -7,6 +5,7 @@ use axum::{
     routing::get,
 };
 
+use crate::i18n::Language;
 use crate::models::user::User;
 use crate::routes::index::render_main;
 
@@ -18,43 +17,52 @@ pub fn routes() -> Router {
 }
 
 async fn get_rot2prog(
+    Extension(lang): Extension<Language>,
     Extension(user): Extension<Option<User>>,
     headers: HeaderMap,
 ) -> impl IntoResponse {
-    let content = read_to_string("assets/rot2prog.html")
-        .unwrap_or_else(|_| "<p>ROT2PROG documentation not available.</p>".to_string());
+    let content = crate::routes::read_content_page(
+        "rot2prog",
+        lang,
+        "<p>ROT2PROG documentation not available.</p>",
+    );
     let content = if headers.get("hx-request").is_some() {
         content
     } else {
-        render_main(user, content)
+        render_main(user, lang, content)
     };
     Html(content)
 }
 
 async fn get_lna(
+    Extension(lang): Extension<Language>,
     Extension(user): Extension<Option<User>>,
     headers: HeaderMap,
 ) -> impl IntoResponse {
-    let content = read_to_string("assets/lna.html")
-        .unwrap_or_else(|_| "<p>LNA documentation not available.</p>".to_string());
+    let content =
+        crate::routes::read_content_page("lna", lang, "<p>LNA documentation not available.</p>");
     let content = if headers.get("hx-request").is_some() {
         content
     } else {
-        render_main(user, content)
+        render_main(user, lang, content)
     };
     Html(content)
 }
 
 async fn get_technical(
+    Extension(lang): Extension<Language>,
     Extension(user): Extension<Option<User>>,
     headers: HeaderMap,
 ) -> impl IntoResponse {
-    let content = read_to_string("assets/technical.html")
-        .unwrap_or_else(|_| "<p>Technical information not available.</p>".to_string());
+    let content = crate::routes::read_content_page(
+        "technical",
+        lang,
+        "<p>Technical information not available.</p>",
+    );
     let content = if headers.get("hx-request").is_some() {
         content
     } else {
-        render_main(user, content)
+        render_main(user, lang, content)
     };
     Html(content)
 }

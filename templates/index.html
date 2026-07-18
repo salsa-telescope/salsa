@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{ lang.code() }}">
     <head>
         <title>SALSA</title>
         <meta charset='UTF-8'/>
@@ -15,6 +15,38 @@
         <link rel="alternate icon" href="/favicon.ico" />
         <link rel="stylesheet" href="/style.css" />
         <link rel="stylesheet" href="/fonts/google-fonts.css" />
+        <script>
+            // Strings for the shared chart scripts (observation_chart.js,
+            // observe_chart.js), translated server-side. The scripts fall
+            // back to English when this table is absent. Values are kept
+            // free of quotes so HTML-escaping cannot corrupt the literals.
+            window.CHART_I18N = {
+                frequency: "{{ lang.t("chart-frequency") }}",
+                vlsr: "{{ lang.t("chart-vlsr") }}",
+                amplitude: "{{ lang.t("chart-amplitude") }}",
+                linearScale: "{{ lang.t("chart-linear-scale") }}",
+                logScale: "{{ lang.t("chart-log-scale") }}",
+                showFrequency: "{{ lang.t("chart-show-frequency") }}",
+                showVlsr: "{{ lang.t("chart-show-vlsr") }}",
+                donePicking: "{{ lang.t("chart-done-picking") }}",
+                pickRanges: "{{ lang.t("chart-pick-ranges") }}",
+                pickPeaks: "{{ lang.t("chart-pick-peaks") }}",
+                hintRangeEnd: "{{ lang.t("chart-hint-range-end") }}",
+                hintBaseline: "{{ lang.t("chart-hint-baseline") }}",
+                hintGaussian: "{{ lang.t("chart-hint-gaussian") }}",
+                hintDefault: "{{ lang.t("chart-hint-default") }}",
+                errNotEnoughPoints: "{{ lang.t("chart-error-not-enough-points") }}",
+                errBaselineFailed: "{{ lang.t("chart-error-baseline-failed") }}",
+                errPickSeed: "{{ lang.t("chart-error-pick-seed") }}",
+                errGaussianFailed: "{{ lang.t("chart-error-gaussian-failed") }}",
+                rangeSingular: "{{ lang.t("chart-range-singular") }}",
+                rangePlural: "{{ lang.t("chart-range-plural") }}",
+                seedSingular: "{{ lang.t("chart-seed-singular") }}",
+                seedPlural: "{{ lang.t("chart-seed-plural") }}",
+                picking: "{{ lang.t("chart-picking") }}",
+                sunAzel: "{{ lang.t("chart-sun-azel") }}"
+            };
+        </script>
         <!-- htmx — upgrade: https://unpkg.com/htmx.org@<version>/dist/htmx.min.js -->
         <script defer src="/vendor/htmx-2.0.10.min.js"></script>
         <!-- d3 — upgrade: https://cdn.jsdelivr.net/npm/d3@<version>/dist/d3.min.js -->
@@ -50,25 +82,34 @@
                 </button>
             </div>
             <nav id="main-nav">
-                <a href="/about" class="nav-link" onclick="closeAllPanels()">About</a>
+                <a href="/about" class="nav-link" onclick="closeAllPanels()">{{ lang.t("nav-about") }}</a>
                 {% if !is_guest %}
-                <a href="/bookings" class="nav-link" onclick="closeAllPanels()">Bookings</a>
+                <a href="/bookings" class="nav-link" onclick="closeAllPanels()">{{ lang.t("nav-bookings") }}</a>
                 {% endif %}
-                <a href="/observe" class="nav-link" onclick="closeAllPanels()">Observe</a>
+                <a href="/observe" class="nav-link" onclick="closeAllPanels()">{{ lang.t("nav-observe") }}</a>
                 {% if !is_guest %}
-                <a href="/observations" class="nav-link" onclick="closeAllPanels()">Observation archive</a>
+                <a href="/observations" class="nav-link" onclick="closeAllPanels()">{{ lang.t("nav-observations") }}</a>
                 {% endif %}
-                <a href="/support" class="nav-link" onclick="closeAllPanels()">Support</a>
-                <a href="/live" class="nav-link" onclick="closeAllPanels()">Live status</a>
+                <a href="/support" class="nav-link" onclick="closeAllPanels()">{{ lang.t("nav-support") }}</a>
+                <a href="/live" class="nav-link" onclick="closeAllPanels()">{{ lang.t("nav-live") }}</a>
                 {% if is_admin %}
-                <a href="/admin" class="nav-link" onclick="closeAllPanels()">Admin</a>
+                <a href="/admin" class="nav-link" onclick="closeAllPanels()">{{ lang.t("nav-admin") }}</a>
                 {% endif %}
                 <span class="nav-spacer"></span>
+                {# One link per non-current language, labeled in that
+                   language so the reader who needs it can read it. #}
+                <form method="POST" action="/language" class="contents">
+                    {% for option in languages %}
+                    <button type="submit" name="language" value="{{ option.code }}"
+                        lang="{{ option.code }}"
+                        class="nav-link">{{ option.label }}</button>
+                    {% endfor %}
+                </form>
                 {% if name == "" %}
-                <a href="/auth/login" class="nav-link">Login</a>
+                <a href="/auth/login" class="nav-link">{{ lang.t("nav-login") }}</a>
                 {% else if is_guest %}
                 <form method="POST" action="/observe/guest/end" class="contents">
-                    <button type="submit" class="nav-link">End session</button>
+                    <button type="submit" class="nav-link">{{ lang.t("nav-end-session") }}</button>
                 </form>
                 {% else %}
                 <button class="nav-user-toggle" onclick="toggleUser()">
@@ -78,9 +119,9 @@
                     {{ name }}
                 </button>
                 <div class="nav-user-dropdown">
-                    <a href="/account" class="nav-link" onclick="closeAllPanels()">Account</a>
+                    <a href="/account" class="nav-link" onclick="closeAllPanels()">{{ lang.t("nav-account") }}</a>
                     <form method="POST" action="/auth/logout" class="contents">
-                        <button type="submit" class="nav-link">Log out</button>
+                        <button type="submit" class="nav-link">{{ lang.t("nav-logout") }}</button>
                     </form>
                 </div>
                 {% endif %}

@@ -1,6 +1,7 @@
 use crate::app::AppState;
 use crate::coords::Location;
 use crate::correlator::CorrelatorHandle;
+use crate::i18n::Language;
 use crate::models::booking::{booking_is_active, consecutive_booking_end};
 use crate::models::interferometry::{InterferometrySession, InterferometryVisibility};
 use crate::models::telescope_types::{ReceiverConfiguration, TelescopeStatus, TelescopeTarget};
@@ -87,6 +88,7 @@ struct ListTemplate {
 }
 
 async fn get_list(
+    Extension(lang): Extension<Language>,
     State(state): State<AppState>,
     Extension(user): Extension<Option<User>>,
 ) -> Response {
@@ -140,7 +142,7 @@ async fn get_list(
     .render()
     .expect("template ok");
 
-    Html(render_main(Some(user), content)).into_response()
+    Html(render_main(Some(user), lang, content)).into_response()
 }
 
 // ---------------------------------------------------------------------------
@@ -738,6 +740,7 @@ struct SessionQuery {
 }
 
 async fn get_session(
+    Extension(lang): Extension<Language>,
     State(state): State<AppState>,
     Extension(user): Extension<Option<User>>,
     Path(session_id): Path<i64>,
@@ -809,7 +812,7 @@ async fn get_session(
     .render()
     .expect("template ok");
 
-    Html(render_main(Some(user), content)).into_response()
+    Html(render_main(Some(user), lang, content)).into_response()
 }
 
 // ---------------------------------------------------------------------------

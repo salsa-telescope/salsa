@@ -1,5 +1,6 @@
 use crate::app::AppState;
 use crate::geoip::lookup_country;
+use crate::i18n::Language;
 use crate::models::booking::Booking;
 use crate::models::maintenance::fetch_maintenance_set;
 use crate::models::support_announcement::fetch_support_announcement;
@@ -19,6 +20,7 @@ use axum::{
 };
 use chrono::{DateTime, Datelike, Duration, LocalResult, NaiveDate, Offset, TimeZone, Utc};
 use chrono_tz::Tz;
+use i18n_embed_fl::fl;
 use serde::Deserialize;
 use std::net::SocketAddr;
 
@@ -158,6 +160,7 @@ struct WeekQuery {
 #[derive(Template)]
 #[template(path = "bookings.html")]
 struct BookingsTemplate {
+    lang: Language,
     my_bookings: Vec<Booking>,
     telescope_names: Vec<String>,
     maintenance_telescopes: Vec<bool>,
@@ -189,6 +192,7 @@ struct BookingsTemplate {
 }
 
 async fn get_bookings(
+    Extension(lang): Extension<Language>,
     Extension(user): Extension<Option<User>>,
     headers: HeaderMap,
     Query(query): Query<WeekQuery>,
@@ -213,12 +217,13 @@ async fn get_bookings(
             .week
             .unwrap_or(now.with_timezone(&user.tz()).date_naive()),
     );
-    let content = build_bookings_page(&state, &user, viewed_user_id, now, week_start, None).await?;
+    let content =
+        build_bookings_page(&state, &user, viewed_user_id, now, week_start, None, lang).await?;
 
     let content = if headers.get("hx-request").is_some() {
         content
     } else {
-        render_main(Some(user), content)
+        render_main(Some(user), lang, content)
     };
     Ok(Html(content).into_response())
 }
@@ -232,6 +237,7 @@ struct SlotBookingForm {
 }
 
 async fn create_booking(
+    Extension(lang): Extension<Language>,
     Extension(user): Extension<Option<User>>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     headers: HeaderMap,
@@ -271,23 +277,27 @@ async fn create_booking(
         .count();
 
     let error = if end_time <= now {
-        Some("Cannot book a slot that has already ended.".to_string())
+        Some(fl!(lang.loader(), "booking-error-slot-ended"))
     } else if description
         .as_ref()
         .is_some_and(|d| d.chars().count() > MAX_DESCRIPTION_CHARS)
     {
-        Some(format!(
-            "Description is too long (max {MAX_DESCRIPTION_CHARS} characters)."
+        Some(fl!(
+            lang.loader(),
+            "booking-error-description-too-long",
+            max = MAX_DESCRIPTION_CHARS
         ))
     } else if !user.is_admin && maintenance.contains(&form.telescope) {
-        Some(format!(
-            "{} is currently under maintenance.",
-            form.telescope
+        Some(fl!(
+            lang.loader(),
+            "booking-error-maintenance",
+            telescope = form.telescope.as_str()
         ))
     } else if !user.is_admin && upcoming_count as u32 >= max_upcoming {
-        Some(format!(
-            "You have reached the maximum of {} upcoming bookings.",
-            max_upcoming,
+        Some(fl!(
+            lang.loader(),
+            "booking-error-limit",
+            max = max_upcoming
         ))
     } else {
         let inserted = Booking::create(
@@ -304,10 +314,11 @@ async fn create_booking(
             None
         } else {
             let local = start_time.with_timezone(&user.tz());
-            Some(format!(
-                "Slot at {} on {} is already booked.",
-                local.format("%H:%M %Z"),
-                local.format("%Y-%m-%d"),
+            Some(fl!(
+                lang.loader(),
+                "booking-error-already-booked",
+                time = local.format("%H:%M %Z").to_string(),
+                date = local.format("%Y-%m-%d").to_string()
             ))
         }
     };
@@ -316,12 +327,12 @@ async fn create_booking(
         form.week
             .unwrap_or(now.with_timezone(&user.tz()).date_naive()),
     );
-    let content = build_bookings_page(&state, &user, user.id, now, week_start, error).await?;
+    let content = build_bookings_page(&state, &user, user.id, now, week_start, error, lang).await?;
 
     let content = if headers.get("hx-request").is_some() {
         content
     } else {
-        render_main(Some(user), content)
+        render_main(Some(user), lang, content)
     };
     Ok(Html(content).into_response())
 }
@@ -333,6 +344,7 @@ struct DeleteQuery {
 }
 
 async fn delete_booking(
+    Extension(lang): Extension<Language>,
     Extension(user): Extension<Option<User>>,
     headers: HeaderMap,
     Path(booking_id): Path<i64>,
@@ -363,12 +375,13 @@ async fn delete_booking(
     } else {
         user.id
     };
-    let content = build_bookings_page(&state, &user, viewed_user_id, now, week_start, None).await?;
+    let content =
+        build_bookings_page(&state, &user, viewed_user_id, now, week_start, None, lang).await?;
 
     let content = if headers.get("hx-request").is_some() {
         content
     } else {
-        render_main(Some(user), content)
+        render_main(Some(user), lang, content)
     };
     Ok(Html(content).into_response())
 }
@@ -430,6 +443,7 @@ async fn build_bookings_page(
     now: DateTime<Utc>,
     week_start: NaiveDate,
     error: Option<String>,
+    lang: Language,
 ) -> Result<String, StatusCode> {
     let tz = user.tz();
     // Minute component of the current UTC offset (0, 30 or 45). The whole
@@ -506,6 +520,7 @@ async fn build_bookings_page(
         && upcoming_count as u32 >= max_upcoming_bookings;
 
     let content = BookingsTemplate {
+        lang,
         my_bookings,
         telescope_names,
         maintenance_telescopes,

@@ -1,5 +1,6 @@
 use crate::app::AppState;
 use crate::fits::{SpectrumMeta, write_spectrum_fits};
+use crate::i18n::Language;
 use crate::models::interferometry::InterferometrySession;
 use crate::models::observation::Observation;
 use crate::models::user::User;
@@ -53,6 +54,7 @@ struct InterfSessionRow {
 #[derive(Template)]
 #[template(path = "observations.html")]
 struct ObservationsTemplate {
+    lang: Language,
     mode: String,
     is_admin: bool,
     viewed_user_id: i64,
@@ -95,6 +97,7 @@ fn make_interf_rows(
 
 #[allow(clippy::too_many_arguments)]
 fn build_observations_template(
+    lang: Language,
     mode: String,
     observations: Vec<Observation>,
     total_count: i64,
@@ -119,6 +122,7 @@ fn build_observations_template(
         None
     };
     ObservationsTemplate {
+        lang,
         mode,
         observations,
         current_page,
@@ -136,6 +140,7 @@ fn build_observations_template(
 }
 
 async fn get_observations(
+    Extension(lang): Extension<Language>,
     Extension(user): Extension<Option<User>>,
     headers: HeaderMap,
     Query(query): Query<PageQuery>,
@@ -198,6 +203,7 @@ async fn get_observations(
         (obs, total_count, current_page, vec![])
     };
     let content = build_observations_template(
+        lang,
         mode,
         observations,
         total_count,
@@ -214,12 +220,13 @@ async fn get_observations(
     let content = if headers.get("hx-request").is_some() {
         content
     } else {
-        render_main(Some(user), content)
+        render_main(Some(user), lang, content)
     };
     Ok(Html(content).into_response())
 }
 
 async fn delete_observation(
+    Extension(lang): Extension<Language>,
     Extension(user): Extension<Option<User>>,
     Path(observation_id): Path<i64>,
     Query(query): Query<PageQuery>,
@@ -250,6 +257,7 @@ async fn delete_observation(
             .await
             .unwrap_or(0);
     let content = build_observations_template(
+        lang,
         "single".to_string(),
         observations,
         total_count,
@@ -267,6 +275,7 @@ async fn delete_observation(
 }
 
 async fn delete_interferometry_session(
+    Extension(lang): Extension<Language>,
     Extension(user): Extension<Option<User>>,
     Path(session_id): Path<i64>,
     Query(query): Query<PageQuery>,
@@ -319,6 +328,7 @@ async fn delete_interferometry_session(
         (obs, total_count, vec![])
     };
     let content = build_observations_template(
+        lang,
         mode,
         observations,
         total_count,

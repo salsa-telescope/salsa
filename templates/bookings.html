@@ -1,7 +1,7 @@
 {% if let Some(message) = announcement %}
 <div class="section light pb-0">
   <div class="callout bg-warning-bg border-warning-border text-brand-dark">
-    <div class="font-semibold mb-1">Known issue</div>
+    <div class="font-semibold mb-1">{{ lang.t("bookings-known-issue") }}</div>
     <p class="whitespace-pre-line">{{ message }}</p>
   </div>
 </div>
@@ -26,9 +26,9 @@
   {% endif %}
   {% if !my_bookings.is_empty() %}
   <div class="flex items-center gap-3 mb-3">
-    <h2 class="text-xl font-semibold">Upcoming bookings</h2>
-    <a href="/bookings/export.ics" title="Export to calendar (.ics)" class="text-link hover:text-link-hover">
-      <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18" aria-label="Export to calendar (.ics)">
+    <h2 class="text-xl font-semibold">{{ lang.t("bookings-upcoming") }}</h2>
+    <a href="/bookings/export.ics" title="{{ lang.t("bookings-export-ics") }}" class="text-link hover:text-link-hover">
+      <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18" aria-label="{{ lang.t("bookings-export-ics") }}">
         <path d="M19 3h-1V1h-2v2H8V1H6v2H5C3.9 3 3 3.9 3 5v16c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 18H5V8h14v13zM7 10h5v5H7z"/>
       </svg>
     </a>
@@ -45,18 +45,18 @@
       </div>
       <div class="my-booking-actions">
         {% if booking.active_at(now) %}
-        <a href="observe/{{ booking.telescope_name }}" class="my-booking-btn my-booking-observe">Observe</a>
+        <a href="observe/{{ booking.telescope_name }}" class="my-booking-btn my-booking-observe">{{ lang.t("bookings-observe") }}</a>
         {% else %}
-        <span class="my-booking-btn my-booking-observe my-booking-observe-pending" title="Observe opens at {{ booking.start_time.in_tz(tz).format("%Y-%m-%d %H:%M %Z") }}">Observe</span>
+        <span class="my-booking-btn my-booking-observe my-booking-observe-pending" title="{{ lang.t("bookings-observe-opens") }} {{ booking.start_time.in_tz(tz).format("%Y-%m-%d %H:%M %Z") }}">{{ lang.t("bookings-observe") }}</span>
         {% endif %}
         <button
           hx-delete="bookings/{{ booking.id }}?week={{ week_start }}{% if is_admin %}&user_id={{ viewed_user_id }}{% endif %}"
           hx-target="#page"
-          hx-confirm="{% if is_admin %}Delete booking by {{ booking.user_name }}?{% else %}Delete this booking?{% endif %}"
+          hx-confirm="{% if is_admin %}Delete booking by {{ booking.user_name }}?{% else %}{{ lang.t("bookings-delete-confirm") }}{% endif %}"
           data-timestamp="{{ booking.start_time.timestamp() }}"
           data-telescope="{{ booking.telescope_name }}"
           class="my-booking-btn my-booking-delete"
-        >Delete</button>
+        >{{ lang.t("bookings-delete") }}</button>
       </div>
     </div>
     {% endfor %}
@@ -64,36 +64,36 @@
   {% endif %}
 
   <div class="calendar-nav">
-    <span class="calendar-nav-title">Book telescope &mdash; weekly view</span>
-    <button hx-get="/bookings?week={{ prev_week }}{% if is_admin %}&user_id={{ viewed_user_id }}{% endif %}" hx-target="#page" class="calendar-nav-btn">&larr; Prev</button>
-    <button hx-get="/bookings{% if is_admin %}?user_id={{ viewed_user_id }}{% endif %}" hx-target="#page" class="calendar-nav-btn calendar-today-btn">Today</button>
-    <span class="calendar-nav-label">{{ week_start.format("%b %d") }} &ndash; {{ week_end.format("%b %d, %Y") }}</span>
-    <button hx-get="/bookings?week={{ next_week }}{% if is_admin %}&user_id={{ viewed_user_id }}{% endif %}" hx-target="#page" class="calendar-nav-btn">Next &rarr;</button>
+    <span class="calendar-nav-title">{{ lang.t("bookings-weekly-title") }}</span>
+    <button hx-get="/bookings?week={{ prev_week }}{% if is_admin %}&user_id={{ viewed_user_id }}{% endif %}" hx-target="#page" class="calendar-nav-btn">&larr; {{ lang.t("bookings-prev") }}</button>
+    <button hx-get="/bookings{% if is_admin %}?user_id={{ viewed_user_id }}{% endif %}" hx-target="#page" class="calendar-nav-btn calendar-today-btn">{{ lang.t("bookings-today") }}</button>
+    <span class="calendar-nav-label">{{ week_start.format_localized(lang.t("fmt-week-short").as_str(), lang.chrono_locale()) }} &ndash; {{ week_end.format_localized(lang.t("fmt-week-full").as_str(), lang.chrono_locale()) }}</span>
+    <button hx-get="/bookings?week={{ next_week }}{% if is_admin %}&user_id={{ viewed_user_id }}{% endif %}" hx-target="#page" class="calendar-nav-btn">{{ lang.t("bookings-next") }} &rarr;</button>
   </div>
 
   <div class="calendar-info">
     <div class="calendar-info-row">
-      <span>{{ upcoming_count }} of {{ max_upcoming_bookings }} booking slots used</span>
+      <span>{{ upcoming_count }} / {{ max_upcoming_bookings }} {{ lang.t("bookings-slots-used") }}</span>
       <span>&middot;</span>
-      <span>Current time: <span id="utc-clock" class="utc-clock"></span></span>
+      <span>{{ lang.t("bookings-current-time") }} <span id="utc-clock" class="utc-clock"></span></span>
     </div>
     <div class="calendar-legend">
-      <span class="legend-item"><span class="legend-swatch calendar-slot-free"></span> Free</span>
-      <span class="legend-item"><span class="legend-swatch calendar-slot-mine"></span> My booking</span>
-      <span class="legend-item"><span class="legend-swatch calendar-slot-other"></span> Booked{% if is_admin %} (hover to see user){% endif %}</span>
-      <span class="legend-item"><span class="legend-swatch calendar-slot-past"></span> Past</span>
-      <span class="legend-item"><span class="legend-swatch calendar-slot-maintenance"></span> Maintenance</span>
+      <span class="legend-item"><span class="legend-swatch calendar-slot-free"></span> {{ lang.t("bookings-legend-free") }}</span>
+      <span class="legend-item"><span class="legend-swatch calendar-slot-mine"></span> {{ lang.t("bookings-legend-mine") }}</span>
+      <span class="legend-item"><span class="legend-swatch calendar-slot-other"></span> {{ lang.t("bookings-legend-booked") }}{% if is_admin %} (hover to see user){% endif %}</span>
+      <span class="legend-item"><span class="legend-swatch calendar-slot-past"></span> {{ lang.t("bookings-legend-past") }}</span>
+      <span class="legend-item"><span class="legend-swatch calendar-slot-maintenance"></span> {{ lang.t("bookings-legend-maintenance") }}</span>
     </div>
-    <p class="calendar-help">All times are shown in your timezone ({{ tz_name }}, {{ tz_abbr }}) &mdash; change it on your <a href="/account">profile</a>. Click a green slot to book it. Click a blue slot to cancel.</p>
+    <p class="calendar-help">{{ lang.t("bookings-help-times") }} ({{ tz_name }}, {{ tz_abbr }}) &mdash; {{ lang.t("bookings-help-change") }} <a href="/account">{{ lang.t("bookings-help-profile") }}</a>. {{ lang.t("bookings-help-click") }}</p>
   </div>
 
   <div class="telescope-tabs">
-  <span class="text-sm text-gray-600">Select telescope:</span>
+  <span class="text-sm text-gray-600">{{ lang.t("bookings-select-telescope") }}</span>
   {% for tel_idx in 0..telescope_names.len() %}
   <button class="telescope-tab-btn" onclick="selectTelescope({{ tel_idx }})">
     {{ telescope_names[tel_idx] }}
     {% if maintenance_telescopes[tel_idx] %}
-    <span class="text-xs font-semibold text-warning bg-warning-bg px-2 py-0.5 rounded ml-2">Maintenance</span>
+    <span class="text-xs font-semibold text-warning bg-warning-bg px-2 py-0.5 rounded ml-2">{{ lang.t("bookings-legend-maintenance") }}</span>
     {% endif %}
   </button>
   {% endfor %}
@@ -133,7 +133,7 @@
         <tr>
           <th class="calendar-hour-label">{{ tz_abbr }}</th>
           {% for day in days %}
-          <th class="calendar-header-cell">{{ day.format("%a %d") }}</th>
+          <th class="calendar-header-cell">{{ day.format_localized(lang.t("fmt-day-col").as_str(), lang.chrono_locale()) }}</th>
           {% endfor %}
         </tr>
       </thead>
@@ -151,16 +151,16 @@
               hx-target="#page"
               hx-confirm="book"
               hx-vals='{"start_timestamp": {{ slot.start_time.timestamp() }}, "telescope": "{{ slot.telescope_name }}", "week": "{{ week_start }}"}'
-              title="Book {{ slot.telescope_name }} at {{ slot.start_time.in_tz(tz).format("%Y-%m-%d %H:%M %Z") }} (maintenance mode)"
+              title="{{ lang.t("bookings-slot-book") }} {{ slot.telescope_name }}: {{ slot.start_time.in_tz(tz).format("%Y-%m-%d %H:%M %Z") }} (maintenance mode)"
               style="cursor: pointer;">
           </td>
           {% else if maintenance_telescopes[tel_idx] %}
           <td class="calendar-slot calendar-slot-maintenance{% if slot.is_current_hour %} calendar-slot-current{% endif %}"
-              title="{{ slot.telescope_name }} is under maintenance">
+              title="{{ slot.telescope_name }} {{ lang.t("bookings-under-maintenance") }}">
           </td>
           {% else if at_limit %}
           <td class="calendar-slot calendar-slot-disabled{% if slot.is_current_hour %} calendar-slot-current{% endif %}"
-              title="Booking limit reached">
+              title="{{ lang.t("bookings-limit-reached") }}">
           </td>
           {% else %}
           <td class="calendar-slot calendar-slot-free{% if slot.is_current_hour %} calendar-slot-current{% endif %}"
@@ -168,7 +168,7 @@
               hx-target="#page"
               hx-confirm="book"
               hx-vals='{"start_timestamp": {{ slot.start_time.timestamp() }}, "telescope": "{{ slot.telescope_name }}", "week": "{{ week_start }}"}'
-              title="Book {{ slot.telescope_name }} at {{ slot.start_time.in_tz(tz).format("%Y-%m-%d %H:%M %Z") }}">
+              title="{{ lang.t("bookings-slot-book") }} {{ slot.telescope_name }}: {{ slot.start_time.in_tz(tz).format("%Y-%m-%d %H:%M %Z") }}">
           </td>
           {% endif %}
           {% when SlotStatus::Mine %}
@@ -178,7 +178,7 @@
               hx-confirm="Cancel this booking?"
               data-timestamp="{{ slot.start_time.timestamp() }}"
               data-telescope="{{ slot.telescope_name }}"
-              title="My booking — click to cancel">
+              title="{{ lang.t("bookings-mine-title") }}">
           </td>
           {% when SlotStatus::MineActive %}
           <td class="calendar-slot calendar-slot-mine{% if slot.is_current_hour %} calendar-slot-current{% endif %}"
@@ -187,7 +187,7 @@
               hx-confirm="Cancel this booking?"
               data-timestamp="{{ slot.start_time.timestamp() }}"
               data-telescope="{{ slot.telescope_name }}"
-              title="My booking (active now) — click to cancel">
+              title="{{ lang.t("bookings-mine-active-title") }}">
           </td>
           {% when SlotStatus::OtherUser %}
           {% if is_admin %}
@@ -203,14 +203,14 @@
           </td>
           {% else %}
           <td class="calendar-slot calendar-slot-other"
-              title="Booked by another user">
+              title="{{ lang.t("bookings-booked-other") }}">
           </td>
           {% endif %}
           {% when SlotStatus::Past %}
           <td class="calendar-slot calendar-slot-past">
           </td>
           {% when SlotStatus::Unavailable %}
-          <td class="calendar-slot calendar-slot-past" title="This hour does not exist in your timezone (daylight-saving change)">
+          <td class="calendar-slot calendar-slot-past" title="{{ lang.t("bookings-dst-gap") }}">
           </td>
           {% endmatch %}
           {% endfor %}
@@ -235,20 +235,20 @@
       <h3 id="confirm-dialog-title" class="text-lg font-semibold mb-2"></h3>
       <p id="confirm-dialog-msg" class="text-gray-600 mb-3"></p>
       <div id="confirm-dialog-range" class="hidden mb-4">
-        <label class="text-sm text-gray-600">Until:
+        <label class="text-sm text-gray-600">{{ lang.t("bookings-until") }}
           <select id="confirm-dialog-until" class="ml-1 border rounded px-2 py-1 bg-white text-sm"></select>
           <span class="text-gray-500 text-xs ml-1">{{ tz_abbr }}</span>
         </label>
       </div>
       <div id="confirm-dialog-description-wrap" class="hidden mb-4">
-        <label class="text-sm text-gray-600 block mb-1" for="confirm-dialog-description">Description <span class="text-gray-400">(optional)</span></label>
+        <label class="text-sm text-gray-600 block mb-1" for="confirm-dialog-description">{{ lang.t("bookings-description") }} <span class="text-gray-400">{{ lang.t("bookings-optional") }}</span></label>
         <textarea id="confirm-dialog-description" rows="2" maxlength="500"
           class="w-full border rounded px-2 py-1 text-sm resize-none"
-          placeholder="What are you observing?"></textarea>
+          placeholder="{{ lang.t("bookings-desc-placeholder") }}"></textarea>
       </div>
       <div class="flex gap-2 justify-end">
         <button id="confirm-dialog-dismiss"
-                class="px-3 py-1 rounded border border-gray-300 text-sm text-gray-700 hover:bg-gray-50">Close</button>
+                class="px-3 py-1 rounded border border-gray-300 text-sm text-gray-700 hover:bg-gray-50">{{ lang.t("bookings-close") }}</button>
         <button id="confirm-dialog-ok"
                 data-cls-book="btn"
                 data-cls-danger="btn bg-danger hover:bg-danger-hover"
@@ -261,6 +261,29 @@
   </style>
   <script>
   (function() {
+    // Dialog strings, translated server-side. Values are kept free of
+    // quotes/apostrophes so HTML-escaping cannot corrupt the JS literals.
+    var I18N = {
+      book: "{{ lang.t("bookings-js-book") }}",
+      cancel: "{{ lang.t("bookings-js-cancel") }}",
+      slot: "{{ lang.t("bookings-js-slot") }}",
+      slots: "{{ lang.t("bookings-js-slots") }}",
+      confirmTitle: "{{ lang.t("bookings-js-confirm-title") }}",
+      cancelTitle: "{{ lang.t("bookings-js-cancel-title") }}",
+      bookFrom: "{{ lang.t("bookings-js-book-from") }}",
+      bookAt: "{{ lang.t("bookings-js-book-at") }}",
+      cancelFrom: "{{ lang.t("bookings-js-cancel-from") }}",
+      cancelAt: "{{ lang.t("bookings-js-cancel-at") }}",
+      bookedBy: "{{ lang.t("bookings-js-booked-by") }}",
+      cancelBooking: "{{ lang.t("bookings-js-cancel-booking") }}"
+    };
+    // Fill %tel%/%time% placeholders; values may contain markup.
+    function fill(template, tel, time) {
+      return template.replace('%tel%', tel).replace('%time%', time);
+    }
+    function strong(text) {
+      return '<strong class="text-gray-900">' + text + '</strong>';
+    }
     var dialog = document.getElementById('confirm-dialog');
     var sel = document.getElementById('confirm-dialog-until');
     var pendingConfirm = null;
@@ -298,7 +321,7 @@
     function updateOkLabel() {
       var n = sel.selectedIndex + 1;
       var ok = document.getElementById('confirm-dialog-ok');
-      ok.textContent = (dialogMode === 'book' ? 'Book ' : 'Cancel ') + n + (n === 1 ? ' slot' : ' slots');
+      ok.textContent = (dialogMode === 'book' ? I18N.book : I18N.cancel) + ' ' + n + ' ' + (n === 1 ? I18N.slot : I18N.slots);
     }
 
     sel.addEventListener('change', updateOkLabel);
@@ -330,23 +353,23 @@
         ok.className = ok.dataset.clsBook;
         descWrap.classList.remove('hidden');
         if (slotData.length > 1) {
-          document.getElementById('confirm-dialog-title').textContent = 'Confirm booking';
+          document.getElementById('confirm-dialog-title').textContent = I18N.confirmTitle;
           document.getElementById('confirm-dialog-msg').innerHTML =
-            'Book <strong class="text-gray-900">' + (vals.telescope||'') + '</strong>' +
-            ' from <strong class="text-gray-900">' + tsToLocalTime(vals.start_timestamp) + '</strong> ' + SALSA_TZ_ABBR;
+            fill(I18N.bookFrom, strong(vals.telescope||''),
+                 strong(tsToLocalTime(vals.start_timestamp)) + ' ' + SALSA_TZ_ABBR);
           slotData.forEach(function(s) {
             var o = document.createElement('option');
             o.textContent = tsEndTime(s.vals.start_timestamp);
             sel.appendChild(o);
           });
           rangeDiv.classList.remove('hidden');
-          ok.textContent = 'Book 1 slot';
+          ok.textContent = I18N.book + ' 1 ' + I18N.slot;
         } else {
-          document.getElementById('confirm-dialog-title').textContent = 'Confirm booking';
+          document.getElementById('confirm-dialog-title').textContent = I18N.confirmTitle;
           document.getElementById('confirm-dialog-msg').innerHTML =
-            'Book <strong class="text-gray-900">' + (vals.telescope||'') + '</strong>' +
-            ' at <strong class="text-gray-900">' + tsToLocalDateTime(vals.start_timestamp) + '</strong> ' + SALSA_TZ_ABBR + '?';
-          ok.textContent = 'Book 1 slot';
+            fill(I18N.bookAt, strong(vals.telescope||''),
+                 strong(tsToLocalDateTime(vals.start_timestamp)) + ' ' + SALSA_TZ_ABBR);
+          ok.textContent = I18N.book + ' 1 ' + I18N.slot;
         }
 
       } else {
@@ -361,12 +384,12 @@
           slotData.push({ deleteUrl: c.getAttribute('hx-delete'), ts: c.dataset.timestamp });
         });
         ok.className = ok.dataset.clsDanger;
-        var bookedBySuffix = bookedBy ? ' (booked by ' + bookedBy + ')' : '';
+        var bookedBySuffix = bookedBy ? ' (' + I18N.bookedBy + ' ' + bookedBy + ')' : '';
         if (adj.length > 0) {
-          document.getElementById('confirm-dialog-title').textContent = 'Cancel booking';
+          document.getElementById('confirm-dialog-title').textContent = I18N.cancelTitle;
           document.getElementById('confirm-dialog-msg').innerHTML =
-            'Cancel <strong class="text-gray-900">' + tel + '</strong>' +
-            ' from <strong class="text-gray-900">' + tsToLocalTime(ts) + '</strong> ' + SALSA_TZ_ABBR + bookedBySuffix;
+            fill(I18N.cancelFrom, strong(tel),
+                 strong(tsToLocalTime(ts)) + ' ' + SALSA_TZ_ABBR) + bookedBySuffix;
           slotData.forEach(function(s) {
             var o = document.createElement('option');
             o.textContent = tsEndTime(s.ts);
@@ -376,11 +399,11 @@
           rangeDiv.classList.remove('hidden');
           updateOkLabel();
         } else {
-          document.getElementById('confirm-dialog-title').textContent = 'Cancel booking';
+          document.getElementById('confirm-dialog-title').textContent = I18N.cancelTitle;
           document.getElementById('confirm-dialog-msg').innerHTML =
-            'Cancel <strong class="text-gray-900">' + tel + '</strong>' +
-            ' at <strong class="text-gray-900">' + tsToLocalDateTime(ts) + '</strong> ' + SALSA_TZ_ABBR + '?' + bookedBySuffix;
-          ok.textContent = 'Cancel booking';
+            fill(I18N.cancelAt, strong(tel),
+                 strong(tsToLocalDateTime(ts)) + ' ' + SALSA_TZ_ABBR) + bookedBySuffix;
+          ok.textContent = I18N.cancelBooking;
         }
       }
       dialog.showModal();

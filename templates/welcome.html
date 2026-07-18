@@ -5,41 +5,41 @@
                on the dark hero so it reads as the page's primary content. #}
             {% if banner.kind == "warning" %}
             <div class="max-w-md mx-auto bg-warning-bg border-l-4 border-warning-border rounded-lg px-3 py-3 text-center text-neutral-900">
-                <div class="text-xl mb-3"><strong class="text-warning">{{ heading }}:</strong> {{ banner.message }}</div>
+                <div class="text-xl mb-3"><strong class="text-warning">{{ lang.t(heading) }}:</strong> {{ lang.t(banner.message) }}</div>
             {% else %}
             <div class="max-w-md mx-auto bg-info-bg border-l-4 border-info-border rounded-lg px-3 py-3 text-center text-neutral-900">
-                <div class="text-xl mb-3"><strong class="text-info">{{ heading }}:</strong> {{ banner.message }}</div>
+                <div class="text-xl mb-3"><strong class="text-info">{{ lang.t(heading) }}:</strong> {{ lang.t(banner.message) }}</div>
             {% endif %}
                 <div class="flex justify-center gap-3">
                     {% if let Some(obs_label) = banner.observe_again_label %}
                     <form method="POST" action="/observe/guest/start" class="contents">
-                        <button type="submit" class="btn px-4 py-1.5 text-base font-semibold">{{ obs_label }}</button>
+                        <button type="submit" class="btn px-4 py-1.5 text-base font-semibold">{{ lang.t(obs_label) }}</button>
                     </form>
-                    <a href="/auth/login" class="inline-block px-4 py-1.5 text-base font-semibold rounded-md border border-brand text-brand hover:bg-brand hover:text-white no-underline cursor-pointer">Create an account</a>
+                    <a href="/auth/login" class="inline-block px-4 py-1.5 text-base font-semibold rounded-md border border-brand text-brand hover:bg-brand hover:text-white no-underline cursor-pointer">{{ lang.t("welcome-create-account") }}</a>
                     {% else %}
-                    <a href="/auth/login" class="btn px-4 py-1.5 text-base font-semibold">Create an account</a>
+                    <a href="/auth/login" class="btn px-4 py-1.5 text-base font-semibold">{{ lang.t("welcome-create-account") }}</a>
                     {% endif %}
                 </div>
             </div>
         {% else %}
             {# Start-failure callout: sits above the hero, hero still shown below. #}
             {% if banner.kind == "danger" %}
-            <div class="callout bg-danger-bg border-danger-border font-semibold text-danger max-w-2xl mx-auto text-left mb-10">{{ banner.message|safe }}</div>
+            <div class="callout bg-danger-bg border-danger-border font-semibold text-danger max-w-2xl mx-auto text-left mb-10">{{ lang.t(banner.message) }}</div>
             {% else if banner.kind == "warning" %}
-            <div class="callout bg-warning-bg border-warning-border font-semibold text-warning max-w-2xl mx-auto text-left mb-10">{{ banner.message|safe }}</div>
+            <div class="callout bg-warning-bg border-warning-border font-semibold text-warning max-w-2xl mx-auto text-left mb-10">{{ lang.t(banner.message) }}</div>
             {% else %}
-            <div class="callout bg-info-bg border-info-border text-info max-w-2xl mx-auto text-left mb-10">{{ banner.message|safe }}</div>
+            <div class="callout bg-info-bg border-info-border text-info max-w-2xl mx-auto text-left mb-10">{{ lang.t(banner.message) }}</div>
             {% endif %}
         {% endif %}
     {% endif %}
     {% if show_hero %}
-    <h1>Radio astronomy in your browser</h1>
-    <div><p>Learn radio astronomy with real radio telescopes available for free for anyone to use.</p></div>
+    <h1>{{ lang.t("welcome-hero-title") }}</h1>
+    <div><p>{{ lang.t("welcome-hero-text") }}</p></div>
     <div class="flex flex-wrap gap-4 justify-center">
         <form method="POST" action="/observe/guest/start" class="contents">
-            <button type="submit" class="btn px-8 py-3.5 text-base font-semibold">Observe now</button>
+            <button type="submit" class="btn px-8 py-3.5 text-base font-semibold">{{ lang.t("welcome-observe-now") }}</button>
         </form>
-        <a href="/bookings" class="btn px-8 py-3.5 text-base font-semibold">Book a telescope</a>
+        <a href="/bookings" class="btn px-8 py-3.5 text-base font-semibold">{{ lang.t("welcome-book-telescope") }}</a>
     </div>
     {% endif %}
 </div>
@@ -47,12 +47,12 @@
 <div class="section light">
     <div class="flex flex-col sm:flex-row gap-5 sm:gap-10 max-w-[900px] mx-auto items-center">
         <figure class="flex-1">
-            <img class="aspect-4/3 flex items-center justify-center rounded-lg" src="/telescope1.png" alt="One of the two SALSA dish antennas at Onsala Space Observatory.">
+            <img class="aspect-4/3 flex items-center justify-center rounded-lg" src="/telescope1.png" alt="{{ lang.t("welcome-telescope-photo-alt") }}">
         </figure>
         <div class="flex-1">
-            <h2 class="text-2xl font-semibold text-gray-800 mb-7">The SALSA telescopes</h2>
-            <p class="text-lg/relaxed">The SALSA telescopes are available for anyone who wants to try out radio astronomy. They are about 2m in diameter and are part of the Onsala Space Observatory in Sweden.</p>
-            <a href="/about" class="inline-block mt-4 font-medium">Read more &rarr;</a>
+            <h2 class="text-2xl font-semibold text-gray-800 mb-7">{{ lang.t("welcome-telescopes-heading") }}</h2>
+            <p class="text-lg/relaxed">{{ lang.t("welcome-telescopes-text") }}</p>
+            <a href="/about" class="inline-block mt-4 font-medium">{{ lang.t("welcome-read-more") }} &rarr;</a>
         </div>
     </div>
 </div>
@@ -60,12 +60,12 @@
 <div class="section light">
     <div class="flex flex-col sm:flex-row gap-5 sm:gap-10 max-w-[900px] mx-auto items-center">
         <figure class="flex-1 sm:order-2">
-            <img class="aspect-4/3 flex items-center justify-center rounded-lg" src="/experiments.png" alt="Plot of the 21 cm hydrogen line spectrum produced by a SALSA observation.">
+            <img class="aspect-4/3 flex items-center justify-center rounded-lg" src="/experiments.png" alt="{{ lang.t("welcome-spectrum-plot-alt") }}">
         </figure>
         <div class="flex-1 sm:order-1">
-            <h2 class="text-2xl font-semibold text-gray-800 mb-7">Guided experiments</h2>
-            <p class="text-lg/relaxed">Follow guided lab experiments to map the spiral structure of the Milky Way using the 21 cm hydrogen line, track GNSS satellites, or measure the telescope beam pattern using the Sun.</p>
-            <a href="/support" class="inline-block mt-4 font-medium">Read more &rarr;</a>
+            <h2 class="text-2xl font-semibold text-gray-800 mb-7">{{ lang.t("welcome-experiments-heading") }}</h2>
+            <p class="text-lg/relaxed">{{ lang.t("welcome-experiments-text") }}</p>
+            <a href="/support" class="inline-block mt-4 font-medium">{{ lang.t("welcome-read-more") }} &rarr;</a>
         </div>
     </div>
 </div>

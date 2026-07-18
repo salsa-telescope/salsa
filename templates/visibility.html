@@ -2,26 +2,23 @@
 
   <div class="space-y-2">
     <p class="text-sm text-gray-500">
-      <a href="/support">← Support &amp; documentation</a>
+      <a href="/support">← {{ lang.t("vis-back") }}</a>
     </p>
-    <h2 class="text-3xl font-semibold">Target visibility</h2>
+    <h2 class="text-3xl font-semibold">{{ lang.t("vis-heading") }}</h2>
     <p class="text-sm text-gray-500">
-      For a given target and date, see when it is above the horizon at the
-      SALSA site (Onsala, Sweden) and therefore observable. The chart shows
-      elevation across the chosen day, with times in {{ tz_name }}. The
-      <strong>15°</strong> line is a recommended lower limit set by the ground
-      and surrounding buildings.
+      {{ lang.t("vis-intro-1") }} {{ tz_name }}.
+      <strong>15°</strong> — {{ lang.t("vis-intro-2") }}
     </p>
   </div>
 
   <form method="get" action="/visibility" class="space-y-3 text-sm bg-gray-50 border border-gray-200 rounded-lg p-4">
     <div class="flex flex-wrap gap-3 items-end">
       <div>
-        <label class="block text-gray-600 mb-1">Coordinate system</label>
+        <label class="block text-gray-600 mb-1">{{ lang.t("vis-coord-system") }}</label>
         <select id="coord-select" name="coord" onchange="updateXYVisibility()" class="border rounded px-2 py-1 bg-white">
-          <option value="galactic" {% if coord == "galactic" %}selected{% endif %}>Galactic</option>
-          <option value="equatorial" {% if coord == "equatorial" %}selected{% endif %}>Equatorial</option>
-          <option value="sun" {% if coord == "sun" %}selected{% endif %}>Sun</option>
+          <option value="galactic" {% if coord == "galactic" %}selected{% endif %}>{{ lang.t("observe-coord-galactic") }}</option>
+          <option value="equatorial" {% if coord == "equatorial" %}selected{% endif %}>{{ lang.t("vis-coord-equatorial") }}</option>
+          <option value="sun" {% if coord == "sun" %}selected{% endif %}>{{ lang.t("observe-coord-sun") }}</option>
         </select>
       </div>
       <div id="x-field">
@@ -33,10 +30,10 @@
         <input type="number" name="y" value="{{ y }}" step="0.01" class="border rounded px-2 py-1 bg-white w-32" />
       </div>
       <div>
-        <label class="block text-gray-600 mb-1">Date ({{ tz_name }})</label>
+        <label class="block text-gray-600 mb-1">{{ lang.t("vis-date") }} ({{ tz_name }})</label>
         <input type="date" name="date" value="{{ date }}" class="border rounded px-2 py-1 bg-white" />
       </div>
-      <button type="submit" class="btn">Compute</button>
+      <button type="submit" class="btn">{{ lang.t("vis-compute") }}</button>
     </div>
   </form>
 
@@ -46,7 +43,7 @@
 
   {% if let Some(res) = result %}
   <div class="overflow-x-auto">{{ res.svg|safe }}</div>
-  <p class="text-xs text-gray-500">Hover or tap the chart to read off time and elevation.</p>
+  <p class="text-xs text-gray-500">{{ lang.t("vis-hover-hint") }}</p>
   {% endif %}
 
   <script>
@@ -60,11 +57,11 @@
         xField.style.display = isSun ? 'none' : '';
         yField.style.display = isSun ? 'none' : '';
         if (coord === 'galactic') {
-            xLabel.textContent = 'Galactic longitude (°)';
-            yLabel.textContent = 'Galactic latitude (°)';
+            xLabel.textContent = "{{ lang.t("vis-lbl-glon") }}";
+            yLabel.textContent = "{{ lang.t("vis-lbl-glat") }}";
         } else if (coord === 'equatorial') {
-            xLabel.textContent = 'Right ascension (°)';
-            yLabel.textContent = 'Declination (°)';
+            xLabel.textContent = "{{ lang.t("vis-lbl-ra") }}";
+            yLabel.textContent = "{{ lang.t("vis-lbl-dec") }}";
         }
     }
     updateXYVisibility();

@@ -7,6 +7,12 @@ function get_telescope_from_location() {
   throw Error("Failed to find a telescope from the URL path");
 }
 
+// Translated label lookup; the layout injects window.CHART_I18N and the
+// English literal is the fallback so the chart also works standalone.
+function ct(key, fallback) {
+  return (window.CHART_I18N && window.CHART_I18N[key]) || fallback;
+}
+
 (function () {
   const C = 299792458; // m/s
   const F_REST = 1420.405751e6; // Hz
@@ -60,7 +66,7 @@ function get_telescope_from_location() {
     .attr("y", height - 10)
     .attr("text-anchor", "middle")
     .attr("font-size", "13px")
-    .text("Frequency (MHz)");
+    .text(ct("frequency", "Frequency (MHz)"));
   // chart title (integration time)
   const chartTitle = svg
     .append("text")
@@ -85,7 +91,7 @@ function get_telescope_from_location() {
     .attr("text-anchor", "middle")
     .attr("font-size", "15px")
     .attr("fill", "black")
-    .text("Amplitude");
+    .text(ct("amplitude", "Amplitude"));
   svg
     .append("path")
     .attr("class", "line")
@@ -162,7 +168,7 @@ function get_telescope_from_location() {
     const xRange = d3.extent(data, (d) => d.x);
     x.domain(xRange);
     xAxis.call(d3.axisBottom(x));
-    xLabel.text(showVlsr ? "VLSR (km/s)" : "Frequency (MHz)");
+    xLabel.text(showVlsr ? ct("vlsr", "VLSR (km/s)") : ct("frequency", "Frequency (MHz)"));
 
     // Update power level: average of center 50% of spectrum
     const n = latestData.length;
@@ -180,14 +186,14 @@ function get_telescope_from_location() {
   window.toggleObserveYScale = function () {
     showLog = !showLog;
     const btn = document.getElementById("observe-yscale-toggle");
-    if (btn) btn.textContent = showLog ? "Linear scale" : "Log scale";
+    if (btn) btn.textContent = showLog ? ct("linearScale", "Linear scale") : ct("logScale", "Log scale");
     updateChart();
   };
 
   window.setObserveLogScale = function (log) {
     showLog = log;
     const btn = document.getElementById("observe-yscale-toggle");
-    if (btn) btn.textContent = showLog ? "Linear scale" : "Log scale";
+    if (btn) btn.textContent = showLog ? ct("linearScale", "Linear scale") : ct("logScale", "Log scale");
     updateChart();
   };
 
@@ -195,7 +201,7 @@ function get_telescope_from_location() {
     if (vlsrCorrection === null) return;
     showVlsr = !showVlsr;
     const btn = document.getElementById("observe-axis-toggle");
-    if (btn) btn.textContent = showVlsr ? "Show frequency" : "Show VLSR";
+    if (btn) btn.textContent = showVlsr ? ct("showFrequency", "Show frequency") : ct("showVlsr", "Show VLSR");
     updateChart();
   };
 
@@ -216,7 +222,7 @@ function get_telescope_from_location() {
           showVlsr = true;
           if (btn) {
             btn.style.display = "";
-            btn.textContent = "Show frequency";
+            btn.textContent = ct("showFrequency", "Show frequency");
           }
         } else {
           showVlsr = false;

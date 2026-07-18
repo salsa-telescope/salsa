@@ -1,0 +1,646 @@
+<div class="section light space-y-8">
+
+  <div class="space-y-2">
+    <p class="text-sm text-gray-500">
+      <a href="/support">← Support och dokumentation</a>
+    </p>
+    <h2 class="text-3xl font-semibold">Kartlägg Vintergatan</h2>
+    <p class="text-sm text-gray-500">
+      Skriven av Cathy Horellou, Daniel Johansson &amp; Eskil Varenius
+    </p>
+  </div>
+
+  <!-- Abstract -->
+  <div class="space-y-4 text-gray-700">
+    <figure class="w-full sm:float-right sm:w-[30%] sm:ml-8 sm:mb-4">
+      <img src="/experiments-hi/milkyway_cover.jpg" alt="Konstnärlig gestaltning av Vintergatans spiralstruktur" class="rounded-lg w-full">
+      <figcaption class="text-sm text-gray-500 mt-1">Konstnärlig gestaltning av Vintergatans spiralstruktur med två stora stjärnarmar och en central stav. Källa: NASA/JPL-Caltech/ESO/R. Hurt.</figcaption>
+    </figure>
+<p>I det här dokumentet går vi först igenom några av Vintergatans egenskaper, med början i
+    det galaktiska koordinatsystemet och geometrin hos en roterande skiva. Sedan
+    beskriver vi hur data från SALSA kan användas för att förstå hur snabbt gasen roterar på olika
+    avstånd från det galaktiska centrumet, dvs. hur man tar fram en <em>rotationskurva</em>. Slutligen
+    använder vi ytterligare mätningar, och vår kunskap om kinematiken, för att göra en karta över
+    spiralarmarna.</p>
+    <p class="text-sm text-gray-500">Obs: det här dokumentet fokuserar på den vetenskapliga
+    tolkningen. Instruktioner för hur SALSA-teleskopet används finns på sidan
+    <a href="/support">Support och dokumentation</a>.</p>
+    <nav class="bg-gray-50 border border-gray-200 rounded-lg p-5 text-sm w-fit">
+      <p class="font-semibold text-gray-800 mb-3">Innehåll</p>
+      <ol class="space-y-1 list-none">
+        <li><a href="#ch1" class="underline text-gray-700 hover:text-gray-900">1. Välkommen till Vintergatan</a>
+          <ol class="ml-4 mt-1 space-y-1 list-none text-gray-600">
+            <li><a href="#s1-1" class="underline hover:text-gray-900">1.1 Vår plats i Vintergatan</a></li>
+            <li><a href="#s1-2" class="underline hover:text-gray-900">1.2 Galaktiska koordinater: longitud och latitud</a></li>
+            <li><a href="#s1-3" class="underline hover:text-gray-900">1.3 Radiostrålning från atomärt väte</a></li>
+            <li><a href="#s1-4" class="underline hover:text-gray-900">1.4 Dopplereffekten</a></li>
+            <li><a href="#s1-5" class="underline hover:text-gray-900">1.5 Local Standard of Rest</a></li>
+          </ol>
+        </li>
+        <li><a href="#ch2" class="underline text-gray-700 hover:text-gray-900">2. Vintergatans struktur och kinematik</a>
+          <ol class="ml-4 mt-1 space-y-1 list-none text-gray-600">
+            <li><a href="#s2-1" class="underline hover:text-gray-900">2.1 Vintergatans rotationskurva</a></li>
+            <li><a href="#s2-2" class="underline hover:text-gray-900">2.2 Kartlägg Vintergatan</a></li>
+          </ol>
+        </li>
+        <li><a href="#appendices" class="underline text-gray-700 hover:text-gray-900">Appendix</a>
+          <ol class="ml-4 mt-1 space-y-1 list-none text-gray-600">
+            <li><a href="#app-a" class="underline hover:text-gray-900">A. Rotationskurvor</a></li>
+            <li><a href="#app-b" class="underline hover:text-gray-900">B. 21 cm-linjeobservationernas tidiga historia</a></li>
+            <li><a href="#app-c" class="underline hover:text-gray-900">C. Jämförelsedata för HI</a></li>
+          </ol>
+        </li>
+        <li><a href="#bibliography" class="underline text-gray-700 hover:text-gray-900">Litteratur</a></li>
+      </ol>
+    </nav>
+    <div style="clear: both;"></div>
+  </div>
+
+  <!-- Chapter 1 -->
+  <details open class="space-y-6 text-gray-700">
+    <summary class="cursor-pointer"><h3 id="ch1" class="text-2xl font-semibold text-gray-800 inline">1. Välkommen till Vintergatan</h3></summary>
+
+    <p>När vi tittar upp en klar, mörk natt kan ögat urskilja ett lysande band
+    som sträcker sig över himlen. Betrakta det med en kikare eller ett litet teleskop och du
+    upptäcker, som Galileo år 1609, att det består av en myriad stjärnor. Detta
+    är <strong>Vintergatan</strong>: vår egen galax, som den ter sig från jorden. Den
+    innehåller omkring hundra miljarder stjärnor, och vår sol är bara en av dem. Det
+    finns många andra galaxer i universum. Vi kallar också Vintergatan kort och gott
+    <strong>Galaxen</strong>.</p>
+
+    <p>Det tog astronomerna lång tid att lista ut hur Galaxen egentligen ser ut.
+    Man skulle vilja kunna kliva ombord på ett rymdskepp och se Galaxen utifrån.
+    Tyvärr är resor i och runt Galaxen (och kommer alltid att vara) uteslutna
+    på grund av de enorma avstånden. Vi är dömda att observera Galaxen från
+    solens närhet.</p>
+
+    <p>Observationer av Galaxen, liksom av andra galaxer, med både optiska teleskop och
+    radioteleskop, har hjälpt till att avslöja vår galax struktur. Idag anser sig astronomerna
+    ha god kunskap om hur stjärnorna och gasmolnen är fördelade. Vår
+    galax tycks vara en tunn skiva av stjärnor och gas, fördelade i ett spiralmönster.</p>
+
+    <p>Men ett nytt mysterium har uppstått: den så kallade <strong>mörka materian</strong>.
+    Större delen av vår galax massa tycks bestå av mörk materia, en gåtfull
+    komponent som hittills undgått alla försök till identifiering. Dess existens har
+    bara kunnat härledas indirekt. Föreställ dig ett danspar i ett mörkt rum. Mannen
+    är mörk, klädd i svarta kläder, och kvinnan bär en självlysande klänning. Du
+    kan inte se mannen. Men ur danserskans rörelse kan du sluta dig till hans
+    närvaro: någon måste hålla i henne, annars skulle hon i den farten
+    helt enkelt flyga iväg! På samma sätt roterar stjärnorna och gasen i vår galax <em>för
+    fort</em> jämfört med den massa som observeras. Det måste därför finnas <em>mer
+    materia</em>, osynlig för våra ögon och för de känsligaste instrumenten, men som
+    genom gravitationskraften håller samman stjärnorna i vår galax och hindrar
+    dem från att flyga iväg. Nyckelargumentet för den mörka materians existens
+    kommer från de uppmätta hastigheterna i vår galax yttre delar. Radiomätningar
+    av det slag som beskrivs i det här dokumentet har spelat en viktig roll
+    i att avslöja den mörka materians närvaro i Vintergatan. Men vad mörk materia
+    egentligen är förblir en öppen fråga.</p>
+
+    <div class="space-y-3">
+      <h4 id="s1-1" class="text-lg font-semibold text-gray-800">1.1 Vår plats i Vintergatan</h4>
+      <p>Vår stjärna, solen, ligger i Galaxens yttre del, på ett avstånd
+      av cirka 8,5 kpc<sup>1</sup> (ungefär 25 000 ljusår<sup>2</sup>) från
+      det galaktiska centrumet. De flesta stjärnorna och gasen ligger i en tunn skiva och roterar
+      runt det galaktiska centrumet. Solen har en cirkulär hastighet på cirka 220 km/s och
+      fullbordar ett helt varv runt Galaxens centrum på ungefär 240 miljoner
+      år.</p>
+      <p class="text-sm text-gray-500">
+        <sup>1</sup> 1 kpc = 1 kiloparsec = 10<sup>3</sup> pc; 1 parallaxsekund
+        (parsec, pc) = 3,086·10<sup>16</sup> m. En parsec är avståndet till
+        ett objekt med parallaxen 1″ (1 bågsekund): sett från det avståndet
+        upptar medelavståndet mellan jorden och solen (en astronomisk enhet)
+        vinkeln 1″.<br>
+        <sup>2</sup> 1 ljusår = 9,4605·10<sup>15</sup> m.
+      </p>
+    </div>
+
+    <div class="space-y-3">
+      <h4 id="s1-2" class="text-lg font-semibold text-gray-800">1.2 Galaktiska koordinater: longitud och latitud</h4>
+      <p>För att beskriva positionen hos en stjärna eller ett gasmoln i Galaxen är det
+      praktiskt att använda det så kallade <strong>galaktiska koordinatsystemet</strong>,
+      (l, b), där l är den galaktiska longituden och b den galaktiska latituden. Det
+      galaktiska koordinatsystemet är centrerat på solen. b = 0 motsvarar det
+      galaktiska planet. Riktningen b = 90° kallas Galaktiska nordpolen.
+      Longituden l mäts <em>moturs</em> från riktningen från
+      solen mot det galaktiska centrumet. Det galaktiska centrumet har alltså koordinaterna
+      (l = 0, b = 0). Det finns faktiskt något mycket speciellt i det galaktiska
+      centrumet: en mycket stor masskoncentration i form av ett svart hål
+      som innehåller ungefär tre miljoner gånger solens massa. Runt det
+      finns en lysande källa av radiovågor och röntgenstrålning som kallas Sagittarius A*.</p>
+
+      <figure class="my-3" style="max-width: 480px;">
+        <img src="/experiments-hi/galdisc.png" alt="Det galaktiska koordinatsystemet" class="rounded border border-gray-200 w-full">
+        <figcaption class="text-sm text-gray-500 mt-1"><strong>Fig. 1.1.</strong> Illustration av det galaktiska koordinatsystemet, med longitud (l) och latitud (b). <strong>C</strong> markerar det galaktiska centrumets läge, <strong>S</strong> solens läge.</figcaption>
+      </figure>
+
+      <p>Galaxen har delats in i fyra kvadranter, betecknade med romerska siffror:</p>
+      <table class="text-sm border-collapse w-full max-w-sm">
+        <thead>
+          <tr class="bg-gray-100">
+            <th class="border border-gray-300 px-3 py-1 text-left">Kvadrant</th>
+            <th class="border border-gray-300 px-3 py-1 text-left">Intervall</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td class="border border-gray-300 px-3 py-1">I</td><td class="border border-gray-300 px-3 py-1">0° &lt; l &lt; 90°</td></tr>
+          <tr><td class="border border-gray-300 px-3 py-1">II</td><td class="border border-gray-300 px-3 py-1">90° &lt; l &lt; 180°</td></tr>
+          <tr><td class="border border-gray-300 px-3 py-1">III</td><td class="border border-gray-300 px-3 py-1">180° &lt; l &lt; 270°</td></tr>
+          <tr><td class="border border-gray-300 px-3 py-1">IV</td><td class="border border-gray-300 px-3 py-1">270° &lt; l &lt; 360°</td></tr>
+        </tbody>
+      </table>
+      <figure class="my-3" style="max-width: 480px;">
+        <img src="/experiments-hi/mwsketch.png" alt="Skiss över Galaxens spiralstruktur" class="rounded border border-gray-200 w-full">
+        <figcaption class="text-sm text-gray-500 mt-1"><strong>Fig. 1.2.</strong> Skiss över Galaxens spiralstruktur. <strong>C</strong> markerar det galaktiska centrumets läge. De ungefärliga lägena för de stora spiralarmarna och de fyra kvadranterna visas.</figcaption>
+      </figure>
+      <p>I kvadrant I och IV observerar vi huvudsakligen vår galax inre delar.
+      Kvadrant II och III innehåller material på galaktocentriska radier som
+      alltid är <em>större</em> än solradien (radien på solens bana
+      runt det galaktiska centrumet).</p>
+    </div>
+
+    <div class="space-y-3">
+      <h4 id="s1-3" class="text-lg font-semibold text-gray-800">1.3 Radiostrålning från atomärt väte</h4>
+      <p>Det mesta av gasen i Galaxen är atomärt väte (H). H är den enklaste
+      atomen: den har bara en proton och en elektron. Atomärt väte sänder ut en radiolinje
+      vid våglängden λ = 21 cm (dvs. frekvensen f = c/λ = 1420 MHz, där
+      c ≅ 300 000 km/s är ljushastigheten). Det är den signalen vi vill detektera.</p>
+      <div class="callout bg-gray-50 border-focus font-mono">
+        λ = 21 cm &nbsp;⟹&nbsp; f = c/λ = 1420 MHz &nbsp;&nbsp;&nbsp; (1.1)
+      </div>
+      <figure class="my-4" style="max-width: 480px;">
+        <img src="/experiments-hi/hyperfine.png" alt="Väteatomens 21 cm-övergång" class="rounded border border-gray-200 w-full">
+        <figcaption class="text-sm text-gray-500 mt-1"><strong>Fig. 1.3.</strong> Illustration av väteatomens 21 cm-övergång, orsakad av energiförändringen när elektronens spinn ändras från parallellt med protonens spinn till antiparallellt.</figcaption>
+      </figure>
+      <p>21 cm-vätesignalen sänds ut när elektronens spinn slår om från
+      att vara parallellt till antiparallellt med protonens spinn, vilket för atomen
+      till ett lägre energitillstånd. Spinn är en kvantmekanisk egenskap hos
+      partiklar som enklast kan illustreras som att partikeln roterar kring sin
+      egen axel. För väteatomen kan man räkna ut att den totala energin är lägre
+      när spinnen är antiparallella, och eftersom naturen alltid strävar mot ett
+      så lågt energitillstånd som möjligt går väteatomer med parallella spinn så
+      småningom över i det lägre tillståndet. Även om detta sker spontant bara ungefär en gång
+      vart tionde miljon år för en given väteatom, gör den enorma mängden
+      väte i Vintergatan att 21 cm-linjen går att detektera. Linjen
+      förutsades av den holländske astronomen H.C. van de Hulst 1945, som bestämde
+      dess frekvens teoretiskt. Linjen observerades för första gången 1951
+      av tre grupper, i USA, Nederländerna och Australien (se
+      appendix B).</p>
+    </div>
+
+    <div class="space-y-3">
+      <h4 id="s1-4" class="text-lg font-semibold text-gray-800">1.4 Dopplereffekten</h4>
+      <p>Genom att observera radiostrålning från väte kan vi lära oss om hur
+      vätgasmolnen i vår galax rör sig. Det är nämligen möjligt att koppla signalens
+      observerade <em>frekvens</em> till <em>den utsändande gasens hastighet</em>,
+      tack vare den så kallade <em>dopplereffekten</em>.</p>
+      <p>Effekten, uppkallad efter den österrikiske fysikern Christian Johann Doppler
+      (1803–1853), finns också i vår vardag; om du till exempel står
+      stilla på gatan och en ambulans <em>närmar sig</em> verkar det
+      som om tonhöjden i ambulansens siren <em>stiger</em>. På samma sätt
+      <em>sjunker</em> sirenens tonhöjd när ambulansen <em>avlägsnar sig</em>.
+      Eftersom ljudvågor färdas genom ett medium (luften) pressas vågorna
+      ihop av rörelsen framåt när ambulansen närmar sig. Kortare
+      våglängder betyder högre frekvens, och därför stiger sirenens tonhöjd.
+      Denna effekt, att vågornas frekvens ändras på grund av rörelse, är
+      dopplereffekten.</p>
+      <p>Vi kan använda dopplereffekten för att koppla frekvensen vi observerar till
+      det utsändande vätgasmolnets hastighet, men för det behöver vi en formel.
+      Vi väljer att utelämna den ganska långa härledningen och anger bara det viktiga
+      sambandet mellan det observerade frekvensskiftet och hastigheten:</p>
+      <div class="callout bg-gray-50 border-focus font-mono">
+        Δf / f₀ = −v / c &nbsp;&nbsp;&nbsp; (1.2)
+      </div>
+      <p>där:</p>
+      <ul class="list-none space-y-1 text-sm font-mono pl-4">
+        <li>Δf = f − f₀ &nbsp; är frekvensskiftet,</li>
+        <li>f &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; är den observerade frekvensen,</li>
+        <li>f₀ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; är vilofrekvensen för linjen vi observerar,</li>
+        <li>v &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; är hastigheten: &gt; 0 om objektet avlägsnar sig, &lt; 0 om det närmar sig.</li>
+      </ul>
+      <p>För att observera vätestrålning från gasmoln i Galaxen ställer vi in
+      radioteleskopets mottagare på att registrera frekvenser nära vätelinjens
+      vilofrekvens, dvs. den frekvens vi skulle mäta om ingen relativ rörelse fanns.
+      Moln med olika hastigheter framträder då vid olika
+      frekvenser. Frekvensen skiftas upp eller ner när signalen når
+      oss, beroende på om gasmolnet vi observerar närmar sig eller
+      avlägsnar sig från oss.</p>
+    </div>
+
+    <div class="space-y-3">
+      <h4 id="s1-5" class="text-lg font-semibold text-gray-800">1.5 Local Standard of Rest</h4>
+      <p>Hastigheten som beräknas ur dopplerformeln ovan är <em>relativ
+      teleskopet</em> — men teleskopet står inte stilla. Jorden roterar,
+      kretsar kring solen, och solen rör sig själv genom Galaxen. Om du observerar
+      samma vätemoln vid olika tider på dygnet eller året ändras hastigheten
+      i teleskopets referenssystem bara för att teleskopets rörelse
+      har ändrats, trots att molnet inte gjort det.</p>
+      <p>För att göra mätningar jämförbara mellan olika tidpunkter och
+      observationsplatser omvandlar astronomer denna hastighet till referenssystemet
+      <strong>Local Standard of Rest (LSR)</strong>: ett tänkt system vid
+      solens position där solens egenrörelse räknats bort. I LSR-systemet
+      har gasmoln i Galaxen väldefinierade hastigheter som stämmer med
+      publicerade HI-kartor och rotationskurvemätningar.</p>
+      <p>SALSA beräknar och tillämpar korrektionen <em>automatiskt</em>
+      när du observerar ett mål i galaktiska koordinater, med 21 cm-vätelinjens
+      vilofrekvens (1420,405 MHz) som referens. Hastighetsaxeln
+      i spektrumdiagrammet är därför i LSR-systemet för
+      galaktiska mål — direkt jämförbar med litteraturvärden utan
+      ytterligare korrektion. För icke-galaktiska mål (solen, satelliter) beräknas ingen
+      LSR-korrektion.</p>
+      <p>Mer om LSR-systemet och hur det definieras finns på
+      <a href="https://en.wikipedia.org/wiki/Local_standard_of_rest">Wikipedia: Local standard of rest</a> (på engelska).</p>
+    </div>
+  </details>
+
+  <!-- Chapter 2 -->
+  <details open class="space-y-6 text-gray-700">
+    <summary class="cursor-pointer"><h3 id="ch2" class="text-2xl font-semibold text-gray-800 inline">2. Vintergatans struktur och kinematik</h3></summary>
+    <p>I det här kapitlet beskriver vi hur SALSA kan användas för att mäta Vintergatans
+    struktur och kinematik. Först förklarar vi hur man mäter rotationskurvan,
+    dvs. gasens rotationshastighet på olika avstånd från det galaktiska
+    centrumet. Sedan bygger vi vidare på resultaten för att göra en karta över spiralarmarna.</p>
+
+    <div class="space-y-4">
+      <h4 id="s2-1" class="text-lg font-semibold text-gray-800">2.1 Vintergatans rotationskurva</h4>
+      <p>En rotationskurva är en funktion som beskriver galaxens rotationshastighet
+      på olika avstånd från centrum, vanligen betecknad V(R). För att konstruera
+      en rotationskurva behöver vi först förstå hur hastigheten vi mäter (genom
+      dopplerskift) hänger ihop med gasmolnens rörelse i Vintergatan. Låt oss
+      föreställa oss att vi riktar radioteleskopet mot ett gasmoln i Galaxen, dvs.
+      vi observerar längs siktlinjen i Fig. 2.1. För framtida referens listar vi några
+      variabler som används i figuren:</p>
+
+      <table class="text-sm border-collapse w-full max-w-md">
+        <thead>
+          <tr class="bg-gray-100">
+            <th class="border border-gray-300 px-3 py-1 text-left">Symbol</th>
+            <th class="border border-gray-300 px-3 py-1 text-left">Betydelse</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td class="border border-gray-300 px-3 py-1 font-mono">V₀</td><td class="border border-gray-300 px-3 py-1">Solens hastighet runt det galaktiska centrumet, dvs. 220 km/s</td></tr>
+          <tr><td class="border border-gray-300 px-3 py-1 font-mono">R₀</td><td class="border border-gray-300 px-3 py-1">Solens avstånd till det galaktiska centrumet, dvs. 8,5 kpc</td></tr>
+          <tr><td class="border border-gray-300 px-3 py-1 font-mono">l</td><td class="border border-gray-300 px-3 py-1">Observationens galaktiska longitud</td></tr>
+          <tr><td class="border border-gray-300 px-3 py-1 font-mono">V</td><td class="border border-gray-300 px-3 py-1">Ett gasmolns hastighet</td></tr>
+          <tr><td class="border border-gray-300 px-3 py-1 font-mono">R</td><td class="border border-gray-300 px-3 py-1">Molnets avstånd till det galaktiska centrumet</td></tr>
+        </tbody>
+      </table>
+
+      <figure class="my-4 max-w-md">
+        <img src="/experiments-hi/galgeom.png" alt="Galaxens geometri" class="rounded border border-gray-200 w-full">
+        <figcaption class="text-sm text-gray-500 mt-1"><strong>Fig. 2.1.</strong> Galaxens geometri. <strong>C</strong> är det galaktiska centrumets läge, <strong>S</strong> solens, <strong>M</strong> ett gasmoln vi vill observera. Linjen SM är siktlinjen. Pilar visar rotationsriktningen och hastigheterna för solen (V₀) och gasmolnet (V).</figcaption>
+      </figure>
+      <p>Det kan finnas många moln i den här riktningen, men för härledningen
+      bryr vi oss bara om ett enda moln vid positionen M i Fig. 2.1.
+      Eftersom både solen och molnet rör sig mäter vi inte molnets hastighet
+      direkt. I stället mäter vi den relativa hastigheten, V<sub>r</sub>, mellan oss
+      och molnet, projicerad på siktlinjen. Med vinklarna i Fig. 2.1 kan
+      vi skriva detta som</p>
+      <div class="callout bg-gray-50 border-focus font-mono">
+        V<sub>r</sub> = V cos α − V₀ sin c &nbsp;&nbsp;&nbsp; (2.1)
+      </div>
+
+      <p>För att uttrycket ska vara användbart behöver vi koppla vinklarna till de galaktiska
+      koordinaterna från avsnitt 1.2. Vi vet att vinkelsumman i den övre
+      högra triangeln måste vara 180°, vilket betyder att vi kan koppla vinkeln c till
+      den galaktiska longituden l som</p>
+      <div class="callout bg-gray-50 border-focus font-mono">
+        (90 − l) + 90 + c = 180 &nbsp;⟹&nbsp; c = l &nbsp;&nbsp;&nbsp; (2.2)
+      </div>
+
+      <p>Vi vill nu också koppla vinkeln α till longituden l. Vi noterar att
+      vinkeln mellan V och R är 90° och kan skrivas som summan av a och α, dvs.
+      90° = b + α. Ur triangeln CMT noterar vi också att b = 90° − a. Sammantaget
+      får vi</p>
+      <div class="callout bg-gray-50 border-focus font-mono">
+        90 = 90 − a + α &nbsp;⟹&nbsp; a = α &nbsp;&nbsp;&nbsp; (2.3)
+      </div>
+
+      <p>Ur trianglarna CST och CMT ser vi att avståndet mellan det
+      galaktiska centrumet (C) och tangentpunkten (T) kan uttryckas på två
+      olika sätt:</p>
+      <div class="callout bg-gray-50 border-focus font-mono">
+        CT = R₀ sin l = R cos a &nbsp;⟹&nbsp; cos a = R₀ sin l / R &nbsp;&nbsp;&nbsp; (2.4)
+      </div>
+
+      <p>Med ekvationerna 2.2, 2.3 och 2.4 kan vi nu skriva om ekvation 2.1 som</p>
+      <div class="callout bg-gray-50 border-focus font-mono">
+        V<sub>r</sub> = V (R₀/R) sin l − V₀ sin l &nbsp;&nbsp;&nbsp; (2.5)
+      </div>
+
+      <p>Ekvationen gäller för alla longituder l. Men att mäta enbart V<sub>r</sub>
+      för ett givet l räcker inte för att lösa ekvationen och få fram både V och R.
+      En lösning är att begränsa möjliga l till första kvadranten och bara
+      använda den största detekterade hastigheten i beräkningarna. Vi förklarar nu hur det
+      förenklar problemet.</p>
+
+      <figure class="my-4 max-w-md">
+        <img src="/experiments-hi/vmax.png" alt="Flera hastighetskomponenter i ett spektrum" class="rounded border border-gray-200 w-full">
+        <figcaption class="text-sm text-gray-500 mt-1"><strong>Fig. 2.2.</strong> Det kan finnas flera hastighetskomponenter i det observerade spektrumet; varje topp motsvarar ett moln med en viss relativ hastighet.</figcaption>
+      </figure>
+      <p>I en given riktning kan vi observera strålning från flera moln samtidigt.
+      Eftersom molnen rör sig med olika relativa hastigheter mäter vi flera
+      komponenter i spektrumet, som Fig. 2.2 illustrerar. Vi antar nu att moln
+      på större avstånd från centrum rör sig med samma eller lägre hastighet än moln
+      närmare centrum, som väntat vid vanlig keplersk rörelse (se appendix A).
+      I så fall kommer den <strong>största hastighetskomponenten</strong>,
+      V<sub>r,max</sub>, från molnet <strong>vid tangentpunkten (T)</strong>,
+      eftersom den största möjliga projicerade hastigheten fås när projektionsvinkeln är 0.
+      För ett moln vid tangentpunkten ser vi i Fig. 2.1 att molnets läge
+      ges av</p>
+      <div class="callout bg-gray-50 border-focus font-mono">
+        R = R₀ sin l &nbsp;&nbsp;&nbsp; (2.6)
+      </div>
+
+      <p>Det förenklar ekvation 2.5 så att vi vid tangentpunkten har:</p>
+      <div class="callout bg-gray-50 border-focus font-mono">
+        V = V<sub>r,max</sub> + V₀ sin l &nbsp;&nbsp;&nbsp; (2.7)
+      </div>
+
+      <p>Vi kan nu använda SALSA för att mäta V<sub>r,max</sub> vid olika l i första
+      kvadranten. Med ekvationerna 2.6 och 2.7 kan vi sedan beräkna rotationskurvan
+      V(R). Det är rimligt att anta att den uppmätta rotationskurvan gäller även i
+      de tre andra kvadranterna.</p>
+
+      <div class="space-y-3">
+        <h5 id="s2-1-1" class="font-semibold text-gray-800">2.1.1 Mät rotationskurvan med SALSA</h5>
+        <p>Efter att ha läst föregående avsnitt bör du ha en idé om hur Vintergatans
+        rotationskurva kan mätas med SALSA. Instruktioner för hur teleskopet
+        används finns på sidan
+        <a href="/support">Support och dokumentation</a>.
+        När du fått spektra vid några utvalda longituder, läs av den största
+        hastigheten i varje spektrum och plotta rotationskurvan. Enklast är
+        att använda markören för att inspektera spektrumet direkt i styrprogrammet, men
+        du kan också använda mer avancerade verktyg som Matlab.</p>
+        <p>För den slutliga plotten av rotationskurvan kan du använda ditt
+        favoritplottprogram. En enkel gratis lösning är det Excel-liknande programmet
+        LibreOffice Calc, där du lägger dina beräknade värden på V och R i ett
+        kalkylark och plottar datan med xy-diagrammet. Din slutliga plot bör
+        likna Fig. 2.3. Notera att rotationskurvan är nästan platt! Det är
+        ett indirekt belägg för mörk materia i vår galax. Du kan också jämföra
+        med resultaten i appendix A, och jämföra dina uppmätta spektra med referensdata
+        från storskaliga HI-kartläggningar (se appendix C).</p>
+        <figure class="my-4 max-w-md">
+          <img src="/experiments-hi/SALSA_rotcurve.png" alt="Exempel på rotationskurva uppmätt med SALSA" class="rounded border border-gray-200 w-full">
+          <figcaption class="text-sm text-gray-500 mt-1"><strong>Fig. 2.3.</strong> Exempel på en rotationskurva uppmätt med SALSA.</figcaption>
+        </figure>
+      </div>
+    </div>
+
+    <div class="space-y-4">
+      <h4 id="s2-2" class="text-lg font-semibold text-gray-800">2.2 Kartlägg Vintergatan</h4>
+      <p>Nu vill vi ta reda på <em>var</em> HI-gasen vi detekterat
+      finns. Låt oss därför återvända till ekvation 2.5. När vi tog fram rotationskurvan
+      använde vi bara den största hastighetskomponenten i spektrumet och antog
+      att den kom från gas vid tangentpunkten. Antagandet gjorde det möjligt
+      att lösa ekvation 2.5 i första kvadranten. Nu ska vi använda <em>alla
+      hastighetskomponenter</em> vi ser i våra spektra, och vi vill kunna
+      kartlägga i alla observerbara riktningar, inte bara i första kvadranten. Vi kan nu
+      använda kunskapen om rotationskurvan från avsnitt 2.1.1. Motiverade
+      av formen på vår uppmätta rotationskurva antar vi nu att gasen i
+      Vintergatan följer <em>differentiell rotation</em>, dvs. rotationshastigheten är
+      konstant med radien och samma som solens rotationshastighet, dvs.</p>
+      <div class="callout bg-gray-50 border-focus font-mono">
+        V(R) = konstant = V₀ &nbsp;&nbsp;&nbsp; (2.8)
+      </div>
+      <p>Med det antagandet förenklas ekvation 2.5 till</p>
+      <div class="callout bg-gray-50 border-focus font-mono">
+        V<sub>r</sub> = V₀ sin l (R₀/R − 1) &nbsp;&nbsp;&nbsp; (2.9)
+      </div>
+      <p>Ekvationen kan skrivas om som ett uttryck för molnavståndet R som
+      funktion av kända (eller, för V<sub>r</sub>, observerbara) storheter:</p>
+      <div class="callout bg-gray-50 border-focus font-mono">
+        R = R₀ V₀ sin l / (V₀ sin l + V<sub>r</sub>) &nbsp;&nbsp;&nbsp; (2.10)
+      </div>
+
+      <p>Nu vill vi göra en karta över Vintergatan och placera in positionen för
+      molnet vi detekterat. Ur mätningen av radialhastigheten
+      V<sub>r</sub> har vi just beräknat molnets avstånd till det galaktiska
+      centrumet, R, och vi vet i vilken riktning vi observerat (den galaktiska
+      longituden l).</p>
+
+      <p>Observera att om du observerar i kvadrant II eller III kan de utsändande
+      gasmolnens position bestämmas entydigt. Men vid observationer i kvadrant
+      I eller IV kan det finnas <em>två möjliga lägen</em> som motsvarar givna
+      värden på l och R: närmare oss än tangentpunkten T (punkten M
+      i figuren), eller längre bort, vid skärningen mellan ST-linjen och den inre
+      cirkeln (se Fig. 2.1). <strong>Gör gärna en ritning för att övertyga dig om
+      att det stämmer.</strong></p>
+
+      <p>Avståndstvetydigheten kan också visas matematiskt. Låt r beteckna
+      avståndet från solen till molnet, dvs. avståndet mellan punkterna S och M
+      i Fig. 2.1. Med cosinussatsen på triangeln CSM får vi följande
+      samband:</p>
+      <div class="callout bg-gray-50 border-focus font-mono">
+        R² = R₀² + r² − 2 R₀ r cos l &nbsp;&nbsp;&nbsp; (2.11)
+      </div>
+      <p>Det är en andragradsekvation i r, med två möjliga lösningar. Om vi
+      betecknar lösningarna r = r<sub>+</sub> och r = r<sub>−</sub> kan vi skriva dem
+      som</p>
+      <div class="callout bg-gray-50 border-focus font-mono">
+        r<sub>±</sub> = ±√(R² − R₀² sin²l) + R₀ cos l &nbsp;&nbsp;&nbsp; (2.12)
+      </div>
+
+      <p>Vi noterar ett par saker med ekvationen ovan. För vissa datapunkter
+      får man en positiv och en negativ lösning för r. Den negativa lösningen är
+      inte meningsfull (den skulle betyda på andra sidan solen) och ska
+      förkastas. I kvadrant II eller III är R alltid större än R₀ och cos l &lt; 0,
+      vilket betyder att det finns en och endast en positiv lösning, r<sub>+</sub>. I kvadrant
+      I eller IV kan det finnas två positiva, och därmed möjliga, lösningar. När
+      det finns två möjliga lösningar går det inte att avgöra vilken som är
+      den rätta utan ytterligare observationer. För att lösa tvetydigheten kan man
+      observera igen mot samma galaktiska longitud men mot en liten (några
+      grader) galaktisk latitud skild från noll. Om det tvetydiga molnet är långt bort
+      bör det inte längre synas. Om molnet är nära bör det fortfarande synas även
+      när man observerar något utanför planet. Lite experimenterande kan behövas här
+      för att hitta lämplig galaktisk latitud.</p>
+
+      <div class="space-y-3">
+        <h5 id="s2-2-1" class="font-semibold text-gray-800">2.2.1 Omvandla från r och l till kartesiska koordinater</h5>
+        <p>Vid plottning kan det vara opraktiskt att beskriva molnpositionerna med
+        koordinaterna r (molnets avstånd från solen) och l (galaktisk longitud).
+        I stället är det oftast bekvämare att gå över till ett kartesiskt system med
+        vinkelräta koordinater x och y. För att omvandla till x–y-koordinater behöver vi
+        relatera dem till r och l.</p>
+        <p>Du känner förmodligen till <em>polära koordinater</em>, vanligen definierade som</p>
+        <div class="callout bg-gray-50 border-focus font-mono">
+          x = r cos θ<br>
+          y = r sin θ &nbsp;&nbsp;&nbsp; (2.13)
+        </div>
+        <p>där r är avståndet från origo och θ rotationsvinkeln, och x
+        och y är kartesiska koordinater.</p>
+        <figure class="my-4 max-w-xs">
+          <img src="/experiments-hi/coordinate.png" alt="Polära kontra galaktiska koordinater" class="rounded border border-gray-200 w-full">
+          <figcaption class="text-sm text-gray-500 mt-1"><strong>Fig. 2.4.</strong> Illustration av polära (r, θ) kontra galaktiska (r, l) koordinater.</figcaption>
+        </figure>
+        <p>Polära koordinater är uppenbart mycket lika vårt r, l-system. Vi
+        finner att θ = 270° + l, eller θ = l − 90°. Det betyder att vi kan omvandla våra
+        positioner givna som r, l till kartesiska x–y-koordinater genom:</p>
+        <div class="callout bg-gray-50 border-focus font-mono">
+          x = r cos(l − 90°)<br>
+          y = r sin(l − 90°) &nbsp;&nbsp;&nbsp; (2.14)
+        </div>
+        <p>Det här formatet är oftast det bekvämaste för att plotta positionerna. Notera att
+        kartan då visas med jorden i centrum, vid positionen (0, 0). Vill du
+        i stället ha det galaktiska centrumet vid (0, 0), addera R₀ till y-koordinaten
+        för varje punkt.</p>
+      </div>
+
+      <div class="space-y-3">
+        <h5 id="s2-2-2" class="font-semibold text-gray-800">2.2.2 Gör en karta med SALSA</h5>
+        <p>Efter att ha läst föregående avsnitt bör du ha en idé om hur man
+        konstruerar en karta ur uppmätta hastigheter. Mätningarna görs på samma
+        sätt som i avsnitt 2.1.1, men nu behöver du inte mäta i första
+        kvadranten. Du ska också läsa av alla hastighetskomponenter i dina spektra, inte
+        bara den största. Instruktioner för hur teleskopet används finns återigen
+        på sidan
+        <a href="/support">Support och dokumentation</a>.
+        Enklaste sättet att få fram hastigheter ur ett spektrum är att använda markören
+        för att inspektera spektrumet direkt i styrprogrammet, men du kan också använda
+        mer avancerade verktyg som Matlab.</p>
+        <p>När du har en lista med uppmätta hastigheter för flera longituder kan du
+        använda ekvation 2.12 för att hitta molnens positioner. Notera att observationer i
+        kvadrant I eller IV kan kräva ytterligare observationer för att lösa eventuella
+        avståndstvetydigheter, som diskuterades i föregående avsnitt.</p>
+        <p>För den slutliga kartan kan du använda ditt favoritplottprogram. Återigen är en
+        enkel gratis lösning det Excel-liknande programmet LibreOffice Calc, där
+        du lägger dina beräknade positioner (x, y) i ett kalkylark och plottar
+        datan med xy-diagrammet. Din slutliga karta kan likna Fig. 2.5, även om
+        den beror på i vilka riktningar du observerat. Du kan också jämföra
+        med omslagsbilden högst upp på sidan, och verifiera dina
+        spektra mot professionell kartläggningsdata (se appendix C).</p>
+        <figure class="my-4 max-w-sm">
+          <img src="/experiments-hi/galaxopenoffice1.png" alt="Karta över Vintergatans spiralarmar" class="rounded border border-gray-200 w-full">
+          <figcaption class="text-sm text-gray-500 mt-1"><strong>Fig. 2.5.</strong> Skärmbild av xy-diagrammet i OpenOffice. Spiralarmarna i Galaxen syns tydligt. Den blå cirkeln representerar Galaxens område, med diametern 50 kpc.</figcaption>
+        </figure>
+      </div>
+    </div>
+  </details>
+
+  <!-- Appendices -->
+  <details open class="space-y-6 text-gray-700">
+    <summary class="cursor-pointer"><h3 id="appendices" class="text-2xl font-semibold text-gray-800 inline">Appendix</h3></summary>
+
+    <div class="space-y-4">
+      <h4 id="app-a" class="text-lg font-semibold text-gray-800">A. Rotationskurvor</h4>
+      <p>En rotationskurva visar den cirkulära hastigheten som funktion av radien.
+      Inom astronomin används en galax rotationskurva för att räkna ut dess massa. Vi
+      diskuterar här tre olika typer av rotationskurvor.</p>
+
+      <div class="space-y-2">
+        <h5 id="app-a1" class="font-semibold text-gray-800">A.1 Stelkroppsrotation</h5>
+        <p>Tänk på en skivtallrik, eller en roterande DVD-skiva. Den roterar med konstant
+        vinkelhastighet Ω = V/R = konstant. Den cirkulära hastigheten är därför proportionell
+        mot radien:</p>
+        <div class="callout bg-gray-50 border-focus font-mono">
+          V ∝ R &nbsp;&nbsp;&nbsp; (A.1)
+        </div>
+      </div>
+
+      <div class="flex flex-col sm:flex-row gap-4 my-4">
+        <figure class="flex-1">
+          <img src="/experiments-hi/cdrot.png" alt="Rotationskurva för en stel kropp" class="rounded border border-gray-200 w-full">
+          <figcaption class="text-sm text-gray-500 mt-1"><strong>Fig. A.1.</strong> Stelkroppsrotation (t.ex. en roterande CD-skiva).</figcaption>
+        </figure>
+        <figure class="flex-1">
+          <img src="/experiments-hi/solsystrot.png" alt="Solsystemets rotationskurva" class="rounded border border-gray-200 w-full">
+          <figcaption class="text-sm text-gray-500 mt-1"><strong>Fig. A.2.</strong> Rotationshastigheter för solsystemets planeter. Linjen motsvarar Keplers lag (ekv. A.3), som planeterna stämmer utmärkt med. 1 AU = 150·10<sup>6</sup> km.</figcaption>
+        </figure>
+        <figure class="flex-1">
+          <img src="/experiments-hi/mwrot.png" alt="Vintergatans rotationskurva" class="rounded border border-gray-200 w-full">
+          <figcaption class="text-sm text-gray-500 mt-1"><strong>Fig. A.3.</strong> Vintergatans verkliga rotationskurva (punkter) och en modell (heldragen linje). Eftersom massan i Vintergatan är utspridd över galaxen följer rotationskurvan inte det keplerska fallet, som den skulle om all massa var koncentrerad i centrum. Data från Sofue m.fl., 2009.</figcaption>
+        </figure>
+      </div>
+      <div class="space-y-2">
+        <h5 id="app-a2" class="font-semibold text-gray-800">A.2 Keplersk rotation: solsystemet</h5>
+        <p>I solsystemet har planeterna en försumbar massa jämfört med solens.
+        Solsystemets masscentrum ligger därför mycket nära
+        solens centrum. Centrifugalaccelerationen från planeternas cirkulära
+        hastigheter balanserar gravitationsaccelerationen:</p>
+        <div class="callout bg-gray-50 border-focus font-mono">
+          V²/R = GM/R² &nbsp;&nbsp;&nbsp; (A.2)
+        </div>
+        <p>där M är massan och G gravitationskonstanten. Rotationskurvan sägs
+        vara <em>keplersk</em>, och hastigheterna avtar med ökande
+        radie:</p>
+        <div class="callout bg-gray-50 border-focus font-mono">
+          V<sub>keplersk</sub>(R) = √(GM/R) &nbsp;&nbsp;&nbsp; (A.3)
+        </div>
+      </div>
+
+      <div class="space-y-2">
+        <h5 id="app-a3" class="font-semibold text-gray-800">A.3 Rotationskurvan hos en spiralgalax</h5>
+        <p>På motsvarande sätt visar en galax rotationskurva V(R) den cirkulära hastigheten
+        som funktion av galaktocentrisk radie. Till skillnad från rotationskurvan hos
+        system som solsystemet med en stor central massa uppvisar de flesta galaxer
+        platta rotationskurvor, dvs. V(R) beror inte på R bortom en viss radie:</p>
+        <div class="callout bg-gray-50 border-focus font-mono">
+          V<sub>galax</sub>(R) ~ konstant &nbsp;&nbsp;&nbsp; (A.4)
+        </div>
+        <p>Vinkelhastigheten varierar som Ω ∝ 1/R. Materia nära centrum roterar med
+        större vinkelhastighet än materia längre ut.</p>
+        <p>Vid stora radier är hastigheterna <em>betydligt större</em> än i det
+        keplerska fallet, och det är en indikation på att det finns ytterligare materia
+        vid stora radier. Det är ett indirekt sätt att visa att det finns mörk materia i
+        galaxer.</p>
+      </div>
+    </div>
+
+    <div class="space-y-3">
+      <h4 id="app-b" class="text-lg font-semibold text-gray-800">B. 21 cm-linjeobservationernas tidiga historia</h4>
+      <p>Historien om upptäckten av vätets 21 cm-linje är fascinerande
+      eftersom den började under andra världskriget, när internationella vetenskapliga kontakter
+      var avbrutna och en del forskare kämpade för att kunna bedriva forskning.</p>
+      <p>1944 presenterade H.C. van de Hulst, en student i Holland, vetenskapligt isolerad
+      på grund av nazisternas ockupation av landet, en uppsats vid ett kollokvium i Leiden
+      där han visade att hyperfinnivåerna i väteatomens grundtillstånd
+      ger upphov till en spektrallinje vid våglängden cirka 21 cm, och att den skulle kunna
+      detekteras i Galaxen. En artikel publicerades i en holländsk tidskrift (Bakker och
+      van de Hulst 1945).</p>
+      <p>Efter kriget gjordes ansträngningar i flera länder att konstruera och bygga
+      utrustning för att detektera spektrallinjen. Den observerades först i USA
+      av Ewen och Purcell den 21 mars 1951; i maj samma år observerades den av
+      Muller och Oort (1951) i Holland. Båda artiklarna publicerades i samma nummer av
+      tidskriften <em>Nature</em>. Inom två månader hade Christiansen och Hindman (1952) i
+      Australien detekterat linjen.</p>
+      <p>Den första systematiska undersökningen av HI i Galaxen gjordes i Holland av
+      van de Hulst, Muller och Oort (1954). Den holländska gruppen använde en reflektor från en
+      tysk radarmottagare av typen "Great Würzburg", 7,5 m i diameter.
+      Lobbredden vid λ21 cm var 1°,9 i horisontell riktning och 2°,7 i vertikal
+      riktning.</p>
+      <p>Christiansen och Hindman använde en sektion av en paraboloidreflektor, med en
+      lobbredd på cirka 2°.</p>
+      <figure class="my-4 max-w-xs">
+        <img src="/experiments-hi/ev2.png" alt="H.I. Ewen med sin antenn" class="rounded border border-gray-200 w-full">
+        <figcaption class="text-sm text-gray-500 mt-1"><strong>Fig. B.1.</strong> H.I. ("Doc") Ewen tillsammans med sin antenn vid ett besök på NRAO-Green Bank i maj 2001. Han hade inte sett sin antenn sedan 1956! Källa: NRAO / AUI / NSF.</figcaption>
+      </figure>
+    </div>
+
+    <div class="space-y-4">
+      <h4 id="app-c" class="text-lg font-semibold text-gray-800">C. Jämförelsedata för HI</h4>
+      <p>För jämförelse med dina SALSA-observationer tillhandahåller
+      <a href="https://www.astro.uni-bonn.de/hisurvey/AllSky_profiles/" target="_blank">Bonns universitets HI-profilserver</a>
+      HI-spektra från kartläggningarna GASS och LAB som täcker hela himlen. Sätt den
+      effektiva lobstorleken till 6° i förfrågan för resultat jämförbara med SALSA.</p>
+    </div>
+  </details>
+
+  <!-- Bibliography -->
+  <details open class="space-y-3 text-gray-700">
+    <summary class="cursor-pointer"><h3 id="bibliography" class="text-xl font-semibold text-gray-800 inline">Litteratur</h3></summary>
+    <ol class="list-decimal list-inside space-y-1 text-sm">
+      <li>Bakker, C.J., van de Hulst, H.C., 1945, <em>Nederl. Tijds. v. Natuurkunde</em> 11, 201. (Bakker, "Ontvangst [mottagning] der radiogolven"; van de Hulst, "Herkomst [ursprung] der radiogolven".)</li>
+      <li>Burton, W.B., i <em>Galactic and Extragalactic Radio Astronomy</em>, 1988, Verschuur G.L., Kellermann, K.I. (red.), Springer-Verlag.</li>
+      <li>Cohen-Tannoudji, C., Diu, B., Laloë, F., 1986, <em>Quantum Mechanics</em>, vol. 1 och 2, Wiley-VCH. (Se kapitel VII.C och XII.D om väteatomen.)</li>
+      <li>Ewen, H.I., Purcell, E.M., 1951, <em>Nature</em> 168, 356, "Radiation from galactic hydrogen at 1420 Mc/s".</li>
+      <li>Hulst, H.C. van de, Muller, C.A., Oort, J.H., 1954, <em>B.A.N.</em> 12, 117, "The spiral structure of the outer part of the galactic system derived from the hydrogen emission at 21-cm wavelength".</li>
+      <li>Lang, K.R., 1999, <em>Astrophysical Formulae, Volume II: Space, Time, Matter, and Cosmology</em>, Springer-Verlag.</li>
+      <li>Muller, C.A., Oort, J.H., 1951, <em>Nature</em> 168, 357, "The interstellar hydrogen line at 1420 Mc/s, and an estimate of galactic rotation".</li>
+      <li>Peebles, P.J.E., 1992, <em>Quantum Mechanics</em>, Princeton University Press, s. 273–303.</li>
+      <li>Rigden, J.S., 2003, <em>Hydrogen, The Essential Element</em>, kap. 7, Harvard University Press.</li>
+      <li>Shklovsky, I.S., 1960, <em>Cosmic Radio Waves</em>, översatt av R.B. Rodman och C.M. Varsavsky, Harvard University Press.</li>
+      <li>Sofue, Y., Honma, M., Omodaka, T. (2009). "Unified Rotation Curve of the Galaxy — Decomposition into de Vaucouleurs Bulge, Disk, Dark Halo, and the 9-kpc Rotation Dip." <em>PASJ</em>, 61:227.</li>
+    </ol>
+  </details>
+
+</div>

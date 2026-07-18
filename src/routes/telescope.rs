@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use crate::app::AppState;
 use crate::coords::{PRACTICAL_ELEVATION_LIMIT_DEG, vlsrcorr_from_galactic};
+use crate::i18n::Language;
 use crate::models::booking::is_authorized_for_telescope;
 use crate::models::telescope::Telescope;
 use crate::models::telescope_types::TelescopeStatus;
@@ -19,6 +20,7 @@ use axum::{
     routing::{any, get},
 };
 use chrono::Utc;
+use i18n_embed_fl::fl;
 use tokio::time::Duration;
 use tokio_util::bytes::Bytes;
 use tracing::debug;
@@ -117,6 +119,7 @@ impl IntoResponse for TelescopeNotFound {
 }
 
 pub async fn get_state(
+    Extension(lang): Extension<Language>,
     State(state): State<AppState>,
     Path(telescope_id): Path<String>,
 ) -> Result<impl IntoResponse, TelescopeNotFound> {
@@ -126,26 +129,38 @@ pub async fn get_state(
         .await
         .ok_or(TelescopeNotFound)?;
     Ok(Html(
-        telescope_state(&telescope_id, telescope.as_ref()).await,
+        telescope_state(&telescope_id, telescope.as_ref(), lang).await,
     ))
 }
 
 #[derive(Template)]
 #[template(path = "telescope_state.html")]
 struct TelescopeStateTemplate {
+    lang: Language,
     info: TelescopeInfo,
+    /// Machine-readable status ("Idle"/"Slewing"/"Tracking"), emitted as a
+    /// data attribute for the observe-page JS; the visible text is
+    /// translated separately.
     status: String,
     error: String,
+    /// Machine-readable error category for the observe-page JS ("" when
+    /// there is no error).
+    error_kind: &'static str,
     low_elevation_deg: Option<f64>,
 }
 
 #[derive(Template)]
 #[template(path = "telescope_state_offline.html")]
 struct TelescopeOfflineTemplate {
+    lang: Language,
     id: String,
 }
 
-pub async fn telescope_state(telescope_id: &str, telescope: &dyn Telescope) -> String {
+pub async fn telescope_state(
+    telescope_id: &str,
+    telescope: &dyn Telescope,
+    lang: Language,
+) -> String {
     match telescope.get_info().await {
         Ok(info)
             if matches!(
@@ -154,12 +169,14 @@ pub async fn telescope_state(telescope_id: &str, telescope: &dyn Telescope) -> S
             ) =>
         {
             TelescopeOfflineTemplate {
+                lang,
                 id: telescope_id.to_string(),
             }
             .render()
             .expect("Template rendering should always succeed")
         }
         Ok(info) => TelescopeStateTemplate {
+            lang,
             info: info.clone(),
             // Elevation-range checks only reject targets below the
             // telescope's hard minimum; a commanded position can still sit
@@ -181,24 +198,35 @@ pub async fn telescope_state(telescope_id: &str, telescope: &dyn Telescope) -> S
             error: match &info.most_recent_error {
                 Some(err) => match err {
                     TelescopeError::TargetOutOfElevationRange { min_deg, max_deg } => {
-                        format!("target is out of elevation range ({min_deg:.0}–{max_deg:.0}°)")
+                        fl!(
+                            lang.loader(),
+                            "state-error-elevation-range",
+                            min = format!("{min_deg:.0}"),
+                            max = format!("{max_deg:.0}")
+                        )
                     }
-                    TelescopeError::TelescopeIOError(_) => {
-                        "io error in communication with telescope".to_string()
-                    }
+                    TelescopeError::TelescopeIOError(_) => fl!(lang.loader(), "state-error-io"),
                     TelescopeError::TelescopeNotConnected => {
-                        "telescope is not connected".to_string()
+                        fl!(lang.loader(), "state-error-not-connected")
                     }
                     TelescopeError::ReceiverFailed(msg) => {
-                        format!("receiver failed: {msg}")
+                        fl!(lang.loader(), "state-error-receiver", msg = msg.as_str())
                     }
                 },
                 None => "".to_string(),
+            },
+            error_kind: match &info.most_recent_error {
+                Some(TelescopeError::TargetOutOfElevationRange { .. }) => "elevation",
+                Some(TelescopeError::TelescopeIOError(_)) => "io",
+                Some(TelescopeError::TelescopeNotConnected) => "not-connected",
+                Some(TelescopeError::ReceiverFailed(_)) => "receiver",
+                None => "",
             },
         }
         .render()
         .expect("Template rendering should always succeed"),
         Err(_) => TelescopeOfflineTemplate {
+            lang,
             id: telescope_id.to_string(),
         }
         .render()

@@ -8,6 +8,7 @@ use rusqlite::{Connection, Error, OptionalExtension};
 use tokio::sync::Mutex;
 
 use crate::error::InternalError;
+use crate::i18n::Language;
 
 #[derive(Debug, Clone)]
 pub struct User {
@@ -19,6 +20,9 @@ pub struct User {
     /// the user picks one (or it's auto-detected from the browser on first
     /// login); treated as UTC for display via [`User::tz`].
     pub timezone: Option<chrono_tz::Tz>,
+    /// Preferred UI language. `None` means no preference — the language
+    /// cookie or Accept-Language header decides instead.
+    pub language: Option<Language>,
 }
 
 async fn hash_password(password: String) -> Result<String, InternalError> {
@@ -60,6 +64,25 @@ impl User {
         Ok(())
     }
 
+    /// Persist the user's preferred UI language. The code is validated
+    /// against the supported languages before storing so we never keep
+    /// junk, and the canonical code is written back.
+    pub async fn set_language(
+        connection: Arc<Mutex<Connection>>,
+        user_id: i64,
+        language: &str,
+    ) -> Result<(), InternalError> {
+        let language = Language::from_code(language)
+            .ok_or_else(|| InternalError::new(format!("Unsupported language: {language}")))?;
+        let conn = connection.lock().await;
+        conn.execute(
+            "UPDATE user SET language = ?1 WHERE id = ?2",
+            (language.code(), user_id),
+        )
+        .map_err(|e| InternalError::new(format!("Failed to update language: {e}")))?;
+        Ok(())
+    }
+
     pub async fn create_from_external(
         connection: Arc<Mutex<Connection>>,
         name: String,
@@ -78,6 +101,7 @@ impl User {
             provider,
             is_admin: false,
             timezone: None,
+            language: None,
         })
     }
 
@@ -126,6 +150,7 @@ impl User {
             provider: "local".to_string(),
             is_admin: false,
             timezone: None,
+            language: None,
         })
     }
 
@@ -177,6 +202,7 @@ impl User {
                 provider: "local".to_string(),
                 is_admin: false,
                 timezone: None,
+                language: None,
             }))
         } else {
             Ok(None)
@@ -355,6 +381,7 @@ impl User {
                     provider: row.get(2).unwrap_or_default(),
                     is_admin: false,
                     timezone: None,
+                    language: None,
                 })
             })
             .map_err(|err| InternalError::new(format!("Failed to query users: {err}")))?;
@@ -389,6 +416,7 @@ impl User {
                 provider,
                 is_admin: false,
                 timezone: None,
+                language: None,
             })),
             Err(Error::QueryReturnedNoRows) => Ok(None),
             Err(err) => Err(InternalError::new(format!(

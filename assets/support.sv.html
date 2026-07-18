@@ -1,0 +1,140 @@
+<div class="section light space-y-8">
+  <h2 class="text-3xl font-semibold">Support och dokumentation</h2>
+
+  <!-- Contact -->
+  <div class="space-y-3 text-gray-700">
+    <h3 class="text-xl font-semibold text-gray-800">Kontakt</h3>
+    <p>Om du har frågor eller stöter på problem, läs först användarmanualen
+    och laborationsinstruktionerna nedan. Behöver du fortfarande hjälp, kontakta oss på
+    <a href="mailto:salsa.onsala@gmail.com">salsa.onsala@gmail.com</a>.</p>
+    <p>Vi vill också gärna höra från alla som använder SALSA — vad du observerade,
+    vad som fungerade, vad som förvånade dig. Samma adress. Att veta hur
+    teleskopen används hjälper oss att prioritera tiden vi lägger på att
+    hålla dem igång.</p>
+  </div>
+
+  <!-- User manual -->
+  <div class="space-y-3 text-gray-700">
+    <h3 class="text-xl font-semibold text-gray-800">Användarmanual</h3>
+    <p>Användarmanualen beskriver hur du använder SALSA-teleskopet — hur du bokar observationer,
+    riktar teleskopet, spelar in spektra och laddar ner data.</p>
+    <p><a href="/support/manual">Läs användarmanualen &rarr;</a></p>
+  </div>
+
+  <!-- Experiments -->
+  <div class="space-y-4 text-gray-700">
+    <h3 class="text-xl font-semibold text-gray-800">Laborationer</h3>
+    <p>Steg-för-steg-guider som täcker den vetenskapliga bakgrunden, observationsproceduren
+    och dataanalysen för varje laboration.</p>
+
+    <div class="space-y-3">
+      <div class="border border-gray-200 rounded-lg p-5 bg-white space-y-2">
+        <h4 class="font-semibold text-gray-800">
+          <a href="/experiments/hi">Kartlägg Vintergatan med 21 cm-vätelinjen</a>
+        </h4>
+        <p class="text-sm text-gray-600">Observera neutralt väte i Vintergatan, mät
+        dopplerförskjuten 21 cm-strålning, härled rotationskurvan och rekonstruera
+        spiralarmarnas positioner.</p>
+      </div>
+
+      <div class="border border-gray-200 rounded-lg p-5 bg-white space-y-2">
+        <h4 class="font-semibold text-gray-800">
+          <a href="/experiments/gnss">Signalspektra från GNSS-satelliter</a>
+        </h4>
+        <p class="text-sm text-gray-600">Ta emot och jämför radiosignaler från GPS-, Galileo-,
+        GLONASS- och BeiDou-satelliter, och se hur deras olika modulationsscheman ger
+        olika spektralformer.</p>
+      </div>
+
+      <div class="border border-gray-200 rounded-lg p-5 bg-white space-y-2">
+        <h4 class="font-semibold text-gray-800">
+          <a href="/experiments/sun">Mät SALSA-antennens lob</a>
+        </h4>
+        <p class="text-sm text-gray-600">Använd solen som stark radiokälla för att kartlägga
+        SALSA-antennens lobmönster, mät dess vinkelupplösning och jämför resultatet med
+        teoretiska förutsägelser för en cirkulär apertur.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Planning tools -->
+  <div class="space-y-3 text-gray-700">
+    <h3 class="text-xl font-semibold text-gray-800">Planeringsverktyg</h3>
+    <p>
+      <strong>Målsynlighet</strong> — se när ett galaktiskt, ekvatoriellt eller
+      solmål är över horisonten vid SALSA (Onsala) ett givet datum, så att du
+      kan välja en bokningstid när målet faktiskt går att observera.
+      <a href="/visibility">Öppna synlighetsplaneraren</a>.
+    </p>
+  </div>
+
+  <!-- Alternative analysis tools -->
+  <div class="space-y-3 text-gray-700">
+    <h3 class="text-xl font-semibold text-gray-800">Alternativa analysverktyg</h3>
+    <p>Sidan <a href="/observations">observationsarkiv</a> har inbyggda verktyg
+    för baslinjesubtraktion och gaussanpassning som täcker de flesta analysbehov.
+    Verktygen nedan finns kvar för användare som hellre arbetar i sin egen
+    miljö med FITS-filerna som SALSA exporterar.</p>
+
+    <ul class="space-y-3 list-disc list-inside">
+      <li><strong>SalsaSpectrum (MATLAB-klass)</strong> — en MATLAB-verktygslåda för
+      att analysera SALSA:s FITS-filer. Användbar när du vill bearbeta många spektra
+      programmatiskt eller stanna i ett befintligt MATLAB-arbetsflöde. Källkod:
+      <a href="https://raw.githubusercontent.com/salsa-telescope/salsa/main/SalsaSpectrum/SalsaSpectrum.m">SalsaSpectrum.m</a>
+      (högerklicka → Spara länk som). Dokumentation:
+      <a href="https://github.com/salsa-telescope/salsa/raw/main/SalsaSpectrum/Documentation/SalsaSpectrum_documentation.pdf" target="_blank">SalsaSpectrum_documentation.pdf</a>.
+      Klassen har anpassats (version 2.3, se kommentaren i filhuvudet) för att
+      fungera med FITS-filer skrivna av den nuvarande SALSA-styrmjukvaran;
+      för arkivfiler från det tidigare styrsystemet, använd den äldre
+      versionen 2.2 från det historiska varenius/salsa-repositoriet.</li>
+
+      <li><strong>SalsaSpectrum (Python)</strong> — en tredjeparts-Pythonportering
+      av MATLAB-klassen, byggd på scipy och astropy, med utökad baslinjemodellering,
+      brusuppskattning och diagnostik av anpassningskvalitet:
+      <a href="https://github.com/tiagobaroni/SalsaSpectrum" target="_blank">github.com/tiagobaroni/SalsaSpectrum</a>.
+      Underhålls utanför SALSA.</li>
+
+      <li><strong>SalsaTS</strong> — ett tredjeparts webbläsarbaserat analysverktyg.
+      Körs helt i webbläsaren, ingen installation:
+      <a href="https://appolloford.github.io/salsa-ts/" target="_blank">appolloford.github.io/salsa-ts</a>.
+      Underhålls utanför SALSA, så funktioner och FITS-formatkompatibilitet
+      kan skilja sig från de inbyggda verktygen.</li>
+
+      <li><strong>Google Kalkylark</strong> — för snabb visuell inspektion av en
+      exporterad CSV utan att installera något: se den korta
+      <a href="/support/google-sheets-guide">guiden för Google Kalkylark</a>.</li>
+    </ul>
+  </div>
+
+  <!-- Publications -->
+  <div class="space-y-3 text-gray-700">
+    <h3 class="text-xl font-semibold text-gray-800">Publikationer</h3>
+    <ul class="space-y-4 list-disc list-inside">
+      <li>
+        En populärvetenskaplig beskrivning av SALSA publicerades av Cathy Horellou och Daniel Johansson
+        i tidskriften <em>Populär astronomi</em> 2008.
+        <a href="/2008-4_salsa.pdf" target="_blank">PDF (på svenska)</a>.
+      </li>
+      <li>
+        SALSA omnämndes i artikeln <em>A Radio Astronomical Star Party for those "On The Verge"</em>,
+        som beskriver en stjärnkväll i Onsala 2012. Publicerad i
+        <a href="http://www.capjournal.org" target="_blank"><em>CAPjournal</em></a>
+        (nummer 13, 2013) av Eva Wirström och Robert Cumming.
+        <a href="/13_06.pdf" target="_blank">PDF (på engelska)</a>.
+      </li>
+      <li>
+        Thomas Hobiger, Rüdiger Haas och Eskil Varenius beskriver hur de två SALSA-teleskopen
+        används som pedagogisk interferometerdemonstrator i <em>Hard and Software Tools for the Education of Geodetic VLBI</em>,
+        publicerad i IVS 2016 General Meeting Proceedings (NASA/CP-2016-219016, s. 234–238).
+        <a href="/246644.pdf" target="_blank">PDF (på engelska)</a>.
+      </li>
+    </ul>
+  </div>
+
+  <div class="space-y-2">
+    <h2 class="text-2xl font-semibold">Tekniska specifikationer</h2>
+    <p>För hårdvarudetaljer — signalkedja, rotorprotokoll, LNA-mätningar och komponentreferenser — se sidan
+    <a href="/technical">Tekniska specifikationer</a>.</p>
+  </div>
+
+</div>
