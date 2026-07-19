@@ -1,8 +1,8 @@
 use crate::coords::{Direction, Location};
 use crate::models::telescope::Telescope;
 use crate::models::telescope_types::{
-    IQ_BLOCK_SIZE, IqBlock, Measurement, ObservationMode, ObservedSpectra, ReceiverConfiguration,
-    ReceiverError, TelescopeError, TelescopeInfo, TelescopeTarget,
+    CalibrationResult, IQ_BLOCK_SIZE, IqBlock, Measurement, ObservationMode, ObservedSpectra,
+    ReceiverConfiguration, ReceiverError, TelescopeError, TelescopeInfo, TelescopeTarget,
 };
 use crate::telescope_tracker::TelescopeTracker;
 use crate::tle_cache::TleCacheHandle;
@@ -184,6 +184,31 @@ impl Telescope for SalsaTelescope {
     async fn stop(&self) -> Result<(), TelescopeError> {
         let mut inner = self.inner.lock().await;
         inner.controller.stop()
+    }
+
+    async fn calibrate(
+        &self,
+        az_offset_rad: f64,
+        el_offset_rad: f64,
+    ) -> Result<CalibrationResult, TelescopeError> {
+        // Request the calibration while holding the lock, but await the
+        // outcome outside it: the tracker task executes on its next cycle
+        // and other trait methods must not block on it.
+        let receiver = {
+            let inner = self.inner.lock().await;
+            inner
+                .controller
+                .request_calibration(az_offset_rad, el_offset_rad)?
+        };
+        match tokio::time::timeout(Duration::from_secs(10), receiver).await {
+            Ok(Ok(result)) => result,
+            Ok(Err(_)) => Err(TelescopeError::TelescopeIOError(
+                "Calibration task ended without reporting a result".to_string(),
+            )),
+            Err(_) => Err(TelescopeError::TelescopeIOError(
+                "Calibration timed out".to_string(),
+            )),
+        }
     }
 
     async fn set_receiver_configuration(

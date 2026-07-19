@@ -24,6 +24,11 @@ pub fn routes(state: AppState) -> Router {
     Router::new()
         .route("/", get(get_admin))
         .route("/telescope/{name}/toggle", post(toggle_maintenance))
+        .route(
+            "/telescope/{name}/calibrate/preview",
+            post(calibrate_preview_handler),
+        )
+        .route("/telescope/{name}/calibrate", post(calibrate_handler))
         .route("/announcement", post(save_announcement_handler))
         .route("/local-users", post(create_local_user_handler))
         .route("/local-users/{id}/delete", post(delete_local_user_handler))
@@ -41,6 +46,11 @@ const MAX_USERNAME_CHARS: usize = 64;
 const MAX_PASSWORD_BYTES: usize = 512;
 const MAX_COMMENT_CHARS: usize = 500;
 const MAX_ANNOUNCEMENT_CHARS: usize = 2000;
+
+/// Typo guard for pointing calibration: real pointing offsets are a few
+/// degrees at most, so anything larger is more likely a slipped decimal
+/// point than a measurement.
+const MAX_CALIBRATION_OFFSET_DEG: f64 = 10.0;
 
 fn require_admin(user: Option<User>) -> Result<User, StatusCode> {
     let user = user.ok_or(StatusCode::UNAUTHORIZED)?;
@@ -365,6 +375,187 @@ async fn save_announcement_handler(
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     Ok(Redirect::to("/admin").into_response())
+}
+
+#[derive(Template)]
+#[template(path = "admin_calibrate_confirm.html")]
+struct CalibrateConfirmTemplate {
+    name: String,
+    az_offset_deg: f64,
+    el_offset_deg: f64,
+    current_az: String,
+    current_el: String,
+    new_az: String,
+    new_el: String,
+}
+
+#[derive(Template)]
+#[template(path = "admin_calibrate_result.html")]
+struct CalibrateResultTemplate {
+    name: String,
+    error: Option<String>,
+    previous_az: String,
+    previous_el: String,
+    adjusted_az: String,
+    adjusted_el: String,
+}
+
+#[derive(Deserialize)]
+struct CalibrateForm {
+    az_offset_deg: f64,
+    el_offset_deg: f64,
+}
+
+fn calibrate_error_response(name: &str, error: String) -> Response {
+    Html(
+        CalibrateResultTemplate {
+            name: name.to_string(),
+            error: Some(error),
+            previous_az: String::new(),
+            previous_el: String::new(),
+            adjusted_az: String::new(),
+            adjusted_el: String::new(),
+        }
+        .render()
+        .expect("Template rendering should always succeed"),
+    )
+    .into_response()
+}
+
+/// Common guards for both calibration steps. Returns an error message to
+/// show in the panel when the adjustment must not proceed.
+async fn check_calibration_allowed(
+    state: &AppState,
+    name: &str,
+    form: &CalibrateForm,
+) -> Result<(), String> {
+    if !form.az_offset_deg.is_finite() || !form.el_offset_deg.is_finite() {
+        return Err("Offsets must be numbers.".to_string());
+    }
+    if form.az_offset_deg.abs() > MAX_CALIBRATION_OFFSET_DEG
+        || form.el_offset_deg.abs() > MAX_CALIBRATION_OFFSET_DEG
+    {
+        return Err(format!(
+            "Offsets larger than ±{MAX_CALIBRATION_OFFSET_DEG}° are refused as a typo guard."
+        ));
+    }
+    if form.az_offset_deg == 0.0 && form.el_offset_deg == 0.0 {
+        return Err("Both offsets are zero — nothing to adjust.".to_string());
+    }
+    let maintenance = fetch_maintenance_set(state.database_connection.clone())
+        .await
+        .map_err(|_| "Failed to read maintenance state.".to_string())?;
+    if !maintenance.contains(name) {
+        return Err("Telescope must be in maintenance mode before adjusting pointing.".to_string());
+    }
+    let active_bookings = Booking::fetch_active(state.database_connection.clone())
+        .await
+        .map_err(|_| "Failed to read bookings.".to_string())?;
+    if active_bookings.iter().any(|b| b.telescope_name == name) {
+        return Err("Telescope has an active booking — wait until the slot ends.".to_string());
+    }
+    Ok(())
+}
+
+fn format_deg(angle_rad: f64) -> String {
+    format!("{:.1}", angle_rad.to_degrees())
+}
+
+async fn calibrate_preview_handler(
+    Extension(user): Extension<Option<User>>,
+    State(state): State<AppState>,
+    Path(name): Path<String>,
+    Form(form): Form<CalibrateForm>,
+) -> Result<Response, StatusCode> {
+    require_admin(user)?;
+    let telescope = state
+        .telescopes
+        .get(&name)
+        .await
+        .ok_or(StatusCode::NOT_FOUND)?;
+    if let Err(message) = check_calibration_allowed(&state, &name, &form).await {
+        return Ok(calibrate_error_response(&name, message));
+    }
+    let current = match telescope.get_info().await {
+        Ok(info) => info.current_horizontal,
+        Err(err) => return Ok(calibrate_error_response(&name, err.to_string())),
+    };
+    let Some(current) = current else {
+        return Ok(calibrate_error_response(
+            &name,
+            "The controller has not reported a position yet.".to_string(),
+        ));
+    };
+    let content = CalibrateConfirmTemplate {
+        current_az: format_deg(current.azimuth),
+        current_el: format_deg(current.elevation),
+        new_az: format_deg(current.azimuth - form.az_offset_deg.to_radians()),
+        new_el: format_deg(current.elevation - form.el_offset_deg.to_radians()),
+        name,
+        az_offset_deg: form.az_offset_deg,
+        el_offset_deg: form.el_offset_deg,
+    }
+    .render()
+    .expect("Template rendering should always succeed");
+    Ok(Html(content).into_response())
+}
+
+async fn calibrate_handler(
+    Extension(user): Extension<Option<User>>,
+    State(state): State<AppState>,
+    Path(name): Path<String>,
+    Form(form): Form<CalibrateForm>,
+) -> Result<Response, StatusCode> {
+    let admin = require_admin(user)?;
+    let telescope = state
+        .telescopes
+        .get(&name)
+        .await
+        .ok_or(StatusCode::NOT_FOUND)?;
+    if let Err(message) = check_calibration_allowed(&state, &name, &form).await {
+        return Ok(calibrate_error_response(&name, message));
+    }
+    let result = telescope
+        .calibrate(
+            form.az_offset_deg.to_radians(),
+            form.el_offset_deg.to_radians(),
+        )
+        .await;
+    match result {
+        Ok(calibration) => {
+            info!(
+                "Admin {} ({}) adjusted MD01 pointing for {}: offsets az {:.2}°, el {:.2}°; \
+                 position az {} -> {}°, el {} -> {}°",
+                admin.name,
+                admin.provider,
+                name,
+                form.az_offset_deg,
+                form.el_offset_deg,
+                format_deg(calibration.previous.azimuth),
+                format_deg(calibration.adjusted.azimuth),
+                format_deg(calibration.previous.elevation),
+                format_deg(calibration.adjusted.elevation),
+            );
+            let content = CalibrateResultTemplate {
+                previous_az: format_deg(calibration.previous.azimuth),
+                previous_el: format_deg(calibration.previous.elevation),
+                adjusted_az: format_deg(calibration.adjusted.azimuth),
+                adjusted_el: format_deg(calibration.adjusted.elevation),
+                name,
+                error: None,
+            }
+            .render()
+            .expect("Template rendering should always succeed");
+            Ok(Html(content).into_response())
+        }
+        Err(err) => {
+            info!(
+                "Admin {} ({}) failed to adjust MD01 pointing for {}: {}",
+                admin.name, admin.provider, name, err
+            );
+            Ok(calibrate_error_response(&name, err.to_string()))
+        }
+    }
 }
 
 async fn toggle_maintenance(

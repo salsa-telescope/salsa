@@ -212,6 +212,9 @@ pub async fn telescope_state(
                     TelescopeError::ReceiverFailed(msg) => {
                         fl!(lang.loader(), "state-error-receiver", msg = msg.as_str())
                     }
+                    // Calibration rejections are reported synchronously to the
+                    // admin page and never stored in most_recent_error.
+                    TelescopeError::TelescopeBusy => err.to_string(),
                 },
                 None => "".to_string(),
             },
@@ -220,6 +223,7 @@ pub async fn telescope_state(
                 Some(TelescopeError::TelescopeIOError(_)) => "io",
                 Some(TelescopeError::TelescopeNotConnected) => "not-connected",
                 Some(TelescopeError::ReceiverFailed(_)) => "receiver",
+                Some(TelescopeError::TelescopeBusy) => "busy",
                 None => "",
             },
         }

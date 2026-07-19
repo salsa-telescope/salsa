@@ -73,6 +73,44 @@
   </table>
   </div>
 
+  <h3 class="font-semibold mt-12 mb-2">Adjust pointing offsets</h3>
+  <p class="text-gray-500 text-sm mb-4">
+    If observations of a strong source (e.g. the Sun) show the peak at an az/el
+    offset, enter that offset here to correct the MD01 controller's stored
+    position. The reported position decreases by the entered values; the rotor
+    does not move. The telescope must be in maintenance mode and not currently
+    booked. See the <a href="/technical/rot2prog">ROT2PROG protocol reference</a>
+    for details on the calibration command.
+  </p>
+  {% for (name, in_maintenance, is_booked_now, is_connected, receiver_connected) in telescopes %}
+  <div class="mb-4">
+    <form
+      hx-post="/admin/telescope/{{ name }}/calibrate/preview"
+      hx-target="#calibrate-panel-{{ name }}"
+      class="flex items-end gap-3 flex-wrap text-sm">
+      <span class="font-medium pb-2 w-24">{{ name }}</span>
+      <label class="flex flex-col gap-1">
+        <span class="text-gray-500">Az offset (&deg;)</span>
+        <input type="number" name="az_offset_deg" value="0" step="0.1" min="-10" max="10" required
+          class="border rounded px-2 py-1 w-24 focus:outline-none focus:ring-1 focus:ring-accent-focus">
+      </label>
+      <label class="flex flex-col gap-1">
+        <span class="text-gray-500">El offset (&deg;)</span>
+        <input type="number" name="el_offset_deg" value="0" step="0.1" min="-10" max="10" required
+          class="border rounded px-2 py-1 w-24 focus:outline-none focus:ring-1 focus:ring-accent-focus">
+      </label>
+      {% if in_maintenance %}
+      <button type="submit" class="btn">Adjust MD01&hellip;</button>
+      {% else %}
+      <button type="submit" class="btn" disabled
+        title="Put the telescope into maintenance mode first">Adjust MD01&hellip;</button>
+      <span class="text-gray-400 pb-2">requires maintenance mode</span>
+      {% endif %}
+    </form>
+    <div id="calibrate-panel-{{ name }}"></div>
+  </div>
+  {% endfor %}
+
   <h3 class="font-semibold mt-12 mb-2">Support page announcement</h3>
   <p class="text-gray-500 text-sm mb-4">Shown as a banner at the top of the <a href="/support">Support</a> page. Use this to flag known issues (e.g. "Vale telescope down", "Webcam offline") so users don't email about them. Leave empty and save to remove the banner.</p>
   <form method="post" action="/admin/announcement" class="flex flex-col gap-2 max-w-xl">

@@ -1,6 +1,8 @@
 use crate::coords::{Direction, Location};
 use crate::coords::{horizontal_from_equatorial, horizontal_from_galactic, horizontal_from_sun};
-use crate::models::telescope_types::{TelescopeError, TelescopeStatus, TelescopeTarget};
+use crate::models::telescope_types::{
+    CalibrationResult, TelescopeError, TelescopeStatus, TelescopeTarget,
+};
 use crate::telescope_controller::{TelescopeCommand, TelescopeController, TelescopeResponse};
 use crate::tle_cache::TleCacheHandle;
 use chrono::{DateTime, Utc};
@@ -40,6 +42,7 @@ impl TelescopeTracker {
             current_direction: None,
             most_recent_error: None,
             should_restart: false,
+            pending_calibration: None,
             quit: false,
             tle_cache: tle_cache.clone(),
             location,
@@ -108,6 +111,36 @@ impl TelescopeTracker {
         Ok(())
     }
 
+    /// Request a pointing calibration: rewrite the controller's stored
+    /// position so its reported direction decreases by the given offsets
+    /// (the observing offsets at which the peak of a strong source was
+    /// found). The command is executed by the tracker task on its next
+    /// cycle; await the returned receiver for the outcome. Refused while
+    /// a target is being tracked or another calibration is pending.
+    pub fn request_calibration(
+        &self,
+        az_offset_rad: f64,
+        el_offset_rad: f64,
+    ) -> Result<
+        tokio::sync::oneshot::Receiver<Result<CalibrationResult, TelescopeError>>,
+        TelescopeError,
+    > {
+        let mut state = self.state.lock().unwrap();
+        if state.quit {
+            return Err(TelescopeError::TelescopeNotConnected);
+        }
+        if state.target.is_some() || state.pending_calibration.is_some() {
+            return Err(TelescopeError::TelescopeBusy);
+        }
+        let (responder, receiver) = tokio::sync::oneshot::channel();
+        state.pending_calibration = Some(PendingCalibration {
+            az_offset_rad,
+            el_offset_rad,
+            responder,
+        });
+        Ok(receiver)
+    }
+
     #[allow(dead_code)]
     pub fn restart(&self) {
         let mut state = self.state.lock().unwrap();
@@ -167,11 +200,18 @@ struct TelescopeTrackerState {
     current_direction: Option<Direction>,
     most_recent_error: Option<TelescopeError>,
     should_restart: bool,
+    pending_calibration: Option<PendingCalibration>,
     quit: bool,
     tle_cache: TleCacheHandle,
     location: Location,
     min_elevation_rad: f64,
     max_elevation_rad: f64,
+}
+
+struct PendingCalibration {
+    az_offset_rad: f64,
+    el_offset_rad: f64,
+    responder: tokio::sync::oneshot::Sender<Result<CalibrationResult, TelescopeError>>,
 }
 
 async fn tracker_task_function(
@@ -258,6 +298,28 @@ async fn tracker_task_function(
             continue;
         }
 
+        let pending_calibration = state.lock().unwrap().pending_calibration.take();
+        if let Some(pending) = pending_calibration {
+            let result = perform_calibration(ctrl, pending.az_offset_rad, pending.el_offset_rad);
+            if let Ok(calibration) = &result {
+                info!(
+                    "Calibrated controller position: az/el ({:.2}°, {:.2}°) -> ({:.2}°, {:.2}°)",
+                    calibration.previous.azimuth.to_degrees(),
+                    calibration.previous.elevation.to_degrees(),
+                    calibration.adjusted.azimuth.to_degrees(),
+                    calibration.adjusted.elevation.to_degrees(),
+                );
+                state.lock().unwrap().current_direction = Some(calibration.adjusted);
+            }
+            // The requester may have timed out and dropped the receiver;
+            // nothing to do about it, the calibration already happened.
+            let _ = pending.responder.send(result);
+            // Reconnect fresh: the calibration response is in the legacy
+            // frame format and the connection state after it is untested.
+            controller = None;
+            continue;
+        }
+
         let res = update_direction(&state, Utc::now(), ctrl);
         match res {
             Ok(()) => {
@@ -274,6 +336,32 @@ async fn tracker_task_function(
             }
         }
     }
+}
+
+/// Read the controller's reported position and rewrite it, reduced by the
+/// measured pointing offsets, using the calibration command (which does not
+/// move the rotor). The peak of a strong source was found with the observing
+/// offsets applied, i.e. the controller's reported position is too high by
+/// exactly those offsets.
+fn perform_calibration(
+    controller: &mut TelescopeController,
+    az_offset_rad: f64,
+    el_offset_rad: f64,
+) -> Result<CalibrationResult, TelescopeError> {
+    let previous = match controller.execute(TelescopeCommand::GetDirection)? {
+        TelescopeResponse::CurrentDirection(direction) => direction,
+        _ => {
+            return Err(TelescopeError::TelescopeIOError(
+                "Telescope did not respond with current direction".to_string(),
+            ));
+        }
+    };
+    let adjusted = Direction {
+        azimuth: previous.azimuth - az_offset_rad,
+        elevation: previous.elevation - el_offset_rad,
+    };
+    controller.execute(TelescopeCommand::Calibrate(adjusted))?;
+    Ok(CalibrationResult { previous, adjusted })
 }
 
 fn update_direction(

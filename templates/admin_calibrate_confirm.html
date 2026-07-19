@@ -1,0 +1,38 @@
+<div class="border border-warning-border bg-warning-bg rounded p-4 mt-3 max-w-xl space-y-2 text-sm">
+  <p class="font-semibold">Confirm MD01 pointing adjustment for {{ name }}</p>
+  <p>
+    The controller's stored position values will be rewritten
+    <strong>without moving the rotor</strong>. The reported position changes:
+  </p>
+  <table class="text-sm">
+    <tbody>
+      <tr>
+        <td class="pr-4 text-gray-500">Azimuth</td>
+        <td>{{ current_az }}&deg; &rarr; <strong>{{ new_az }}&deg;</strong></td>
+      </tr>
+      <tr>
+        <td class="pr-4 text-gray-500">Elevation</td>
+        <td>{{ current_el }}&deg; &rarr; <strong>{{ new_el }}&deg;</strong></td>
+      </tr>
+    </tbody>
+  </table>
+  <p class="text-gray-500">
+    The exact values are re-read from the controller when you confirm; the
+    entered offsets (az {{ az_offset_deg }}&deg;, el {{ el_offset_deg }}&deg;)
+    are subtracted from the position reported at that moment.
+  </p>
+  <div class="flex gap-2 pt-1">
+    <form
+      hx-post="/admin/telescope/{{ name }}/calibrate"
+      hx-target="#calibrate-panel-{{ name }}"
+      hx-confirm="Really rewrite the MD01 position values for {{ name }}? This changes the pointing calibration of the telescope.">
+      <input type="hidden" name="az_offset_deg" value="{{ az_offset_deg }}">
+      <input type="hidden" name="el_offset_deg" value="{{ el_offset_deg }}">
+      <button type="submit" class="btn bg-danger hover:bg-danger-hover">Adjust MD01</button>
+    </form>
+    <button type="button" class="btn bg-neutral-500 hover:bg-neutral-700"
+      onclick="document.getElementById('calibrate-panel-{{ name }}').innerHTML=''">
+      Cancel
+    </button>
+  </div>
+</div>

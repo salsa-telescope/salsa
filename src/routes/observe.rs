@@ -1406,6 +1406,13 @@ mod tests {
         ) -> Result<TelescopeTarget, TelescopeError> {
             unimplemented!()
         }
+        async fn calibrate(
+            &self,
+            _az_offset_rad: f64,
+            _el_offset_rad: f64,
+        ) -> Result<crate::models::telescope_types::CalibrationResult, TelescopeError> {
+            unimplemented!()
+        }
         async fn stop(&self) -> Result<(), TelescopeError> {
             unimplemented!()
         }
