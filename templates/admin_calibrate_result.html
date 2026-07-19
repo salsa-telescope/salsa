@@ -1,0 +1,12 @@
+{% if let Some(error) = error %}
+<div class="border border-danger-border bg-danger-bg rounded p-4 mt-3 max-w-xl text-sm">
+  <p class="font-semibold text-danger">Pointing adjustment for {{ name }} failed</p>
+  <p>{{ error }}</p>
+</div>
+{% else %}
+<div class="border border-success-border bg-success-bg rounded p-4 mt-3 max-w-xl space-y-1 text-sm">
+  <p class="font-semibold text-success">MD01 position for {{ name }} adjusted</p>
+  <p>Azimuth {{ previous_az }}&deg; &rarr; {{ adjusted_az }}&deg;, elevation {{ previous_el }}&deg; &rarr; {{ adjusted_el }}&deg;.</p>
+  <p class="text-gray-500">Verify the new pointing with another observation of a strong source.</p>
+</div>
+{% endif %}

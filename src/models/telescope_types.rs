@@ -105,6 +105,15 @@ pub enum TelescopeError {
     TelescopeIOError(String),
     TelescopeNotConnected,
     ReceiverFailed(String),
+    TelescopeBusy,
+}
+
+/// Outcome of a pointing calibration: the controller's reported position
+/// before the adjustment and the corrected position written to it.
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub struct CalibrationResult {
+    pub previous: Direction,
+    pub adjusted: Direction,
 }
 
 impl Display for TelescopeTarget {
@@ -153,6 +162,9 @@ impl Display for TelescopeError {
                 message
             )),
             TelescopeError::TelescopeNotConnected => f.write_str("Telescope is not connected."),
+            TelescopeError::TelescopeBusy => {
+                f.write_str("Telescope is busy tracking a target. Stop it first.")
+            }
             TelescopeError::ReceiverFailed(message) => f.write_str(&format!(
                 "Receiver failed: {}",
                 message

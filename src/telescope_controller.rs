@@ -16,6 +16,9 @@ pub enum TelescopeCommand {
     Restart,
     GetDirection,
     SetDirection(Direction),
+    /// Overwrite the controller's stored current position without moving
+    /// the rotor (ROTn_CMD_CALIBRATION). Used to correct pointing offsets.
+    Calibrate(Direction),
 }
 
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -74,6 +77,14 @@ impl TelescopeCommand {
                 bytes.extend([0x5F, 0x20]);
                 bytes
             }
+            TelescopeCommand::Calibrate(direction) => {
+                let mut bytes = Vec::with_capacity(13);
+                bytes.extend([0x57]);
+                bytes.extend(rot2prog_calibration_angle_to_bytes(direction.azimuth).as_slice());
+                bytes.extend(rot2prog_calibration_angle_to_bytes(direction.elevation).as_slice());
+                bytes.extend([0xF9, 0x20]);
+                bytes
+            }
         }
     }
 
@@ -86,6 +97,7 @@ impl TelescopeCommand {
             TelescopeCommand::Restart => parse_ack_response(bytes, "restart"),
             TelescopeCommand::GetDirection => parse_direction_response(bytes, "get direction"),
             TelescopeCommand::SetDirection(_) => parse_direction_response(bytes, "set direction"),
+            TelescopeCommand::Calibrate(_) => parse_legacy_direction_response(bytes, "calibrate"),
         }
     }
 }
@@ -123,6 +135,35 @@ fn parse_direction_response(
     }
 }
 
+// The calibration command exists only in the legacy protocol format, where
+// each angle is four digit characters scaled by a divisor byte. Four digits
+// cannot hold (angle + 360) × 100, so 10 units per degree is effectively the
+// maximum — which matches the rotor's 0.1° mechanical resolution anyway.
+const CALIBRATION_DIVISOR: u8 = 10;
+
+/// Parse the legacy 12-byte position frame returned by the calibration
+/// command: start byte 0x57, four raw digit bytes + divisor per angle,
+/// angle = value / divisor − 360.
+fn parse_legacy_direction_response(
+    bytes: &[u8],
+    command_name: &str,
+) -> Result<TelescopeResponse, TelescopeError> {
+    if bytes.len() == 12 && bytes[0] == 0x57 && bytes[11] == 0x20 && bytes[5] != 0 && bytes[10] != 0
+    {
+        let azimuth = rot2prog_legacy_bytes_to_angle(&bytes[1..=4], bytes[5]);
+        let elevation = rot2prog_legacy_bytes_to_angle(&bytes[6..=9], bytes[10]);
+        Ok(TelescopeResponse::CurrentDirection(Direction {
+            azimuth,
+            elevation,
+        }))
+    } else {
+        Err(TelescopeError::TelescopeIOError(format!(
+            "Unexpected response to {} command: {:?}",
+            command_name, bytes,
+        )))
+    }
+}
+
 fn create_connection(address: &str) -> Result<TcpStream, TelescopeError> {
     let timeout = CONTROLLER_IO_TIMEOUT;
     let address = SocketAddr::from_str(address).map_err(|err| {
@@ -147,6 +188,23 @@ fn rot2prog_bytes_to_int(bytes: &[u8]) -> u32 {
 
 fn rot2prog_bytes_to_angle(bytes: &[u8]) -> f64 {
     (rot2prog_bytes_to_int(bytes) as f64 / 100.0 - 360.0).to_radians()
+}
+
+fn rot2prog_legacy_bytes_to_angle(digits: &[u8], divisor: u8) -> f64 {
+    (rot2prog_bytes_to_int(digits) as f64 / f64::from(divisor) - 360.0).to_radians()
+}
+
+/// Legacy-format angle field: four ASCII digits of
+/// (angle_degrees + 360) × divisor, followed by the divisor byte.
+fn rot2prog_calibration_angle_to_bytes(angle: f64) -> [u8; 5] {
+    let mut bytes = [0; 5];
+    let value = ((angle.to_degrees() + 360.0) * f64::from(CALIBRATION_DIVISOR)).round();
+    bytes[0] = (value / 1000.0) as u8 + 0x30;
+    bytes[1] = ((value % 1000.0) / 100.0) as u8 + 0x30;
+    bytes[2] = ((value % 100.0) / 10.0) as u8 + 0x30;
+    bytes[3] = (value % 10.0) as u8 + 0x30;
+    bytes[4] = CALIBRATION_DIVISOR;
+    bytes
 }
 
 // Responses are documented as ascii encoded numbers, but the telescope seems to return the
@@ -247,5 +305,58 @@ mod test {
     #[test]
     fn test_rot2prog_bytes_to_angle() {
         assert!((rot2prog_bytes_to_angle(&[0x03, 0x06, 0x00, 0x00, 0x00,]) - 0.0).abs() < 0.01,);
+    }
+
+    #[test]
+    fn test_calibrate_to_bytes_matches_official_example() {
+        // "Set Motor 1 to 1 degree and Motor 2 to -1 degree" from the
+        // official protocol documentation (assets/Rot2Prog_protocol_version_2.0.pdf).
+        let command = TelescopeCommand::Calibrate(Direction {
+            azimuth: 1.0_f64.to_radians(),
+            elevation: (-1.0_f64).to_radians(),
+        });
+        assert_eq!(
+            command.to_bytes(),
+            vec![
+                0x57, 0x33, 0x36, 0x31, 0x30, 0x0A, 0x33, 0x35, 0x39, 0x30, 0x0A, 0xF9, 0x20,
+            ],
+        );
+    }
+
+    #[test]
+    fn test_calibrate_parses_legacy_response() {
+        // Legacy position frame with raw digit bytes: az 22.3°, el 0.5°
+        // (example values from the official documentation).
+        let command = TelescopeCommand::Calibrate(Direction {
+            azimuth: 0.0,
+            elevation: 0.0,
+        });
+        let response = command
+            .parse_response(&[
+                0x57, 0x03, 0x08, 0x02, 0x03, 0x0A, 0x03, 0x06, 0x00, 0x05, 0x0A, 0x20,
+            ])
+            .unwrap();
+        let TelescopeResponse::CurrentDirection(direction) = response else {
+            panic!("Expected direction response");
+        };
+        assert!((direction.azimuth.to_degrees() - 22.3).abs() < 0.01);
+        assert!((direction.elevation.to_degrees() - 0.5).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_calibrate_rejects_wrong_frame() {
+        let command = TelescopeCommand::Calibrate(Direction {
+            azimuth: 0.0,
+            elevation: 0.0,
+        });
+        // The 0x58 frame used by the _100 commands is not a valid
+        // calibration response.
+        assert!(
+            command
+                .parse_response(&[
+                    0x58, 0x03, 0x08, 0x02, 0x03, 0x03, 0x03, 0x06, 0x00, 0x05, 0x02, 0x20,
+                ])
+                .is_err()
+        );
     }
 }

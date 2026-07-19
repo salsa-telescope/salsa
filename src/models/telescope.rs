@@ -1,7 +1,8 @@
 use crate::coords::{Direction, Location};
 use crate::models::telescope_types::{
-    IqBlock, ObservedSpectra, ReceiverConfiguration, ReceiverError, TelescopeDefinition,
-    TelescopeError, TelescopeInfo, TelescopeTarget, TelescopeType, TelescopesConfig,
+    CalibrationResult, IqBlock, ObservedSpectra, ReceiverConfiguration, ReceiverError,
+    TelescopeDefinition, TelescopeError, TelescopeInfo, TelescopeTarget, TelescopeType,
+    TelescopesConfig,
 };
 
 use crate::models::fake_telescope;
@@ -24,6 +25,16 @@ pub trait Telescope: Send + Sync {
         el_offset_rad: f64,
     ) -> Result<TelescopeTarget, TelescopeError>;
     async fn stop(&self) -> Result<(), TelescopeError>;
+    /// Correct a measured pointing offset by rewriting the rotor
+    /// controller's stored current position (without moving the rotor).
+    /// The offsets are the observing offsets at which the peak of a strong
+    /// source was found; the reported position decreases by these amounts.
+    /// Refused while a target is being tracked.
+    async fn calibrate(
+        &self,
+        az_offset_rad: f64,
+        el_offset_rad: f64,
+    ) -> Result<CalibrationResult, TelescopeError>;
     async fn set_receiver_configuration(
         &self,
         receiver_configuration: ReceiverConfiguration,

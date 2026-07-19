@@ -2,8 +2,8 @@ use crate::coords::{Direction, Location};
 use crate::coords::{horizontal_from_equatorial, horizontal_from_galactic, horizontal_from_sun};
 use crate::models::telescope::Telescope;
 use crate::models::telescope_types::{
-    IQ_BLOCK_SIZE, IqBlock, ObservedSpectra, ReceiverConfiguration, ReceiverError, TelescopeError,
-    TelescopeInfo, TelescopeStatus, TelescopeTarget,
+    CalibrationResult, IQ_BLOCK_SIZE, IqBlock, ObservedSpectra, ReceiverConfiguration,
+    ReceiverError, TelescopeError, TelescopeInfo, TelescopeStatus, TelescopeTarget,
 };
 use crate::tle_cache::TleCacheHandle;
 use async_trait::async_trait;
@@ -163,6 +163,32 @@ impl Telescope for FakeTelescope {
         info!("Stopping telescope {}", &inner.name);
         inner.target = None;
         Ok(())
+    }
+
+    async fn calibrate(
+        &self,
+        az_offset_rad: f64,
+        el_offset_rad: f64,
+    ) -> Result<CalibrationResult, TelescopeError> {
+        let mut inner = self.inner.lock().await;
+        if inner.target.is_some() {
+            return Err(TelescopeError::TelescopeBusy);
+        }
+        let previous = inner.horizontal;
+        let adjusted = Direction {
+            azimuth: previous.azimuth - az_offset_rad,
+            elevation: previous.elevation - el_offset_rad,
+        };
+        inner.horizontal = adjusted;
+        info!(
+            "Calibrated fake telescope {}: az/el ({:.2}°, {:.2}°) -> ({:.2}°, {:.2}°)",
+            inner.name,
+            previous.azimuth.to_degrees(),
+            previous.elevation.to_degrees(),
+            adjusted.azimuth.to_degrees(),
+            adjusted.elevation.to_degrees(),
+        );
+        Ok(CalibrationResult { previous, adjusted })
     }
 
     async fn set_receiver_configuration(
