@@ -528,7 +528,9 @@ fn measure_switched(
 /// revert to plain centre tuning, whose narrow DC dip is far less
 /// harmful there than a multi-dB tilt. (The 10 MHz dome seen in the
 /// same tests is unrelated CIC droop: decimation 10 engages only one
-/// compensating halfband. Present with or without the offset.)
+/// compensating halfband. Present with or without the offset. The
+/// 10 MHz option was therefore replaced by 12.5 MHz — decimation 8,
+/// which engages both halfbands.)
 const LO_OFFSET_MAX_BW_HZ: f64 = 5e6;
 
 /// LO offset for direct-conversion tuning (see measure_single): exactly

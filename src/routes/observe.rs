@@ -1035,7 +1035,7 @@ const GAIN_MAX_DB: f64 = 88.0;
 // these sets cannot be produced by the form, so they imply tampering — and
 // since `spectral_channels` flows into a `vec![0.0; n]` and `bandwidth_mhz`
 // sizes the IQ sample buffer, an unbounded value can OOM-abort the process.
-const VALID_BANDWIDTH_MHZ: &[f64] = &[1.0, 2.5, 5.0, 10.0, 25.0];
+const VALID_BANDWIDTH_MHZ: &[f64] = &[1.0, 2.5, 5.0, 12.5, 25.0];
 const VALID_SPECTRAL_CHANNELS: &[usize] = &[64, 128, 256, 512, 1024, 2048, 4096, 8192];
 const MAX_INTEGRATION_TIME_SECS: f64 = 3600.0;
 
