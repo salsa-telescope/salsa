@@ -1022,7 +1022,7 @@ async fn get_observe_maintenance(
 }
 
 pub const FREQ_MIN_USER_MHZ: u32 = 1350;
-pub const FREQ_MAX_USER_MHZ: u32 = 1600;
+pub const FREQ_MAX_USER_MHZ: u32 = 1620;
 pub const FREQ_MIN_ADMIN_MHZ: u32 = 800;
 pub const FREQ_MAX_ADMIN_MHZ: u32 = 2300;
 

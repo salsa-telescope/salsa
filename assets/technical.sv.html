@@ -19,7 +19,7 @@ Onsala rymdobservatorium, 57°24'N, 11°55'Ö, cirka 5 m över havet.
         <h3 class="text-lg font-semibold text-gray-800">Nyckelspecifikationer</h3>
         <ul class="list-disc list-inside space-y-1">
           <li>Parabolens diameter: 2,3 m (huvudlob ~6° vid 21 cm)</li>
-          <li>Frekvensområde: 1350–1600 MHz (upp till 25 MHz momentan bandbredd)</li>
+          <li>Frekvensområde: 1350–1620 MHz (upp till 25 MHz momentan bandbredd)</li>
           <li>Hastighetsupplösning (HI): ~1 km/s vid standardinställningen 2,5 MHz bandbredd / 512 kanaler, ner till ~26 m/s vid 1 MHz / 8192 kanaler</li>
           <li>Systemtemperatur: T<sub>sys</sub> ≈ 300 K</li>
           <li>Rotationshastighet: 1,5° / sekund</li>
@@ -81,7 +81,7 @@ nedan.</p>
       <div class="space-y-2">
         <h3 class="text-lg font-semibold text-gray-800">Signalväg och sampler</h3>
         <p>De inkommande elektromagnetiska vågorna reflekteras i parabolen och summeras koherent (i fas för våglängden 21 cm) vid matarhornet. Inuti hornet sitter en liten (5 cm) metallprob som är själva antennen, känslig för en enda linjär polarisation. Proben har en N-kontakt på hornets utsida, och en kort (30 cm) CNT-400-kabel ansluter den till en liten låda monterad på hornet. Lådan innehåller en lågbrusförstärkare (LNA) med en Bias-T som matar LNA:n med 12 V likspänning genom koaxialkabeln. LNA:n är specialbyggd av Tommy Henderson vid AGO i USA.</p>
-        <p>Efter LNA:n går signalen ner längs teleskopet genom cirka 10 m RG-400-kabel till en kopplingsbox. Här matar en andra Bias-T in 12 V-försörjningen på kabeln till LNA:n ovanför. Efter kopplingsboxen fortsätter signalen via cirka 30 m CNT-400-koax in i byggnaden där samplern finns. Samplern är en <a href="https://files.ettus.com/manual/page_usrp2.html">USRP N210</a> utrustad med ett <a href="https://kb.ettus.com/DBSRX2">DBSRX2</a>-dotterkort, som digitaliserar vågformen och skickar sampel via 1 Gbps Ethernet till styrdatorn. DBSRX2-kortet täcker 0,8–2,3 GHz, men på grund av starka störningar över 1,8 GHz har LNA:erna extra filter som begränsar det användbara området till 1350–1600 MHz. USRP:n stöder upp till 25 MHz momentan bandbredd; för vanliga HI-observationer räcker standardvärdet 2,5 MHz. Både bandbredd och kanalupplösning kan väljas av användaren. DBSRX2 har ett mjukvarustyrt förstärkningsområde på 0–88 dB (73 dB RF-förstärkning plus 15 dB basbandsförstärkning); AD-omvandlaren mättas vid ungefär −10 till 0 dBm vid SMA-ingången beroende på förstärkningsinställning, så den totala effekten i bandet bör hållas runt −20 till −30 dBm för ren linjär drift.</p>
+        <p>Efter LNA:n går signalen ner längs teleskopet genom cirka 10 m RG-400-kabel till en kopplingsbox. Här matar en andra Bias-T in 12 V-försörjningen på kabeln till LNA:n ovanför. Efter kopplingsboxen fortsätter signalen via cirka 30 m CNT-400-koax in i byggnaden där samplern finns. Samplern är en <a href="https://files.ettus.com/manual/page_usrp2.html">USRP N210</a> utrustad med ett <a href="https://kb.ettus.com/DBSRX2">DBSRX2</a>-dotterkort, som digitaliserar vågformen och skickar sampel via 1 Gbps Ethernet till styrdatorn. DBSRX2-kortet täcker 0,8–2,3 GHz, men på grund av starka störningar över 1,8 GHz har LNA:erna extra filter som begränsar det användbara området till 1350–1620 MHz. USRP:n stöder upp till 25 MHz momentan bandbredd; för vanliga HI-observationer räcker standardvärdet 2,5 MHz. Både bandbredd och kanalupplösning kan väljas av användaren. DBSRX2 har ett mjukvarustyrt förstärkningsområde på 0–88 dB (73 dB RF-förstärkning plus 15 dB basbandsförstärkning); AD-omvandlaren mättas vid ungefär −10 till 0 dBm vid SMA-ingången beroende på förstärkningsinställning, så den totala effekten i bandet bör hållas runt −20 till −30 dBm för ren linjär drift.</p>
       </div>
 
       <div class="space-y-2">
@@ -131,7 +131,7 @@ nedan.</p>
           <div class="text-gray-500 text-[1.4em] leading-tight">↓</div>
           <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-white text-center">Koaxialkabel CNT-400 (30 cm)</div>
           <div class="text-gray-500 text-[1.4em] leading-tight">↓</div>
-          <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-white text-center">LNA<br><span class="text-[0.85em] text-gray-500">filter 1350–1600 MHz, 12 V via Bias-T</span></div>
+          <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-white text-center">LNA<br><span class="text-[0.85em] text-gray-500">filter 1350–1620 MHz, 12 V via Bias-T</span></div>
           <div class="text-gray-500 text-[1.4em] leading-tight">↓</div>
           <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-white text-center">Koaxialkabel RG-400 (10 m)</div>
           <div class="text-gray-500 text-[1.4em] leading-tight">↓</div>
