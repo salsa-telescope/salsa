@@ -450,7 +450,15 @@
           if (refFreqInput) refFreqInput.value = refFreqInput.defaultValue;
           if (bwSelect) bwSelect.value = '2.5';
       }
+      if (!isGnss) {
+          // Leaving GNSS: restore the RFI filter, which satelliteChanged()
+          // turns off because a GNSS carrier is itself a narrow spike the
+          // clipper can't tell apart from real RFI.
+          const rfiOn = document.querySelector("details input[name='rfi_filter'][value='true']");
+          if (rfiOn) rfiOn.checked = true;
+      }
       updateRefFreqVisibility();
+      updateSpectralResolution();
       switch (e.target.value) {
       case "galactic":
           x_label.textContent = OBSERVE_I18N.lblLong
@@ -549,7 +557,13 @@
           if (opt25) bwSelect.value = opt25.value;
       }
       document.getElementById('obs-mode-raw').checked = true;
+      // GNSS carriers are themselves narrow spikes, indistinguishable from
+      // RFI to the spike clipper — leaving the filter on would clip the
+      // signal being observed.
+      const rfiOff = document.querySelector("details input[name='rfi_filter'][value='false']");
+      if (rfiOff) rfiOff.checked = true;
       updateRefFreqVisibility();
+      updateSpectralResolution();
   }
 
   let wasObserving = false;
