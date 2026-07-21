@@ -56,6 +56,7 @@
                 <option value="sun" {% if target_mode=="sun" %}selected="selected"{% endif %}>{{ lang.t("observe-coord-sun") }}</option>
                 <option value="gnss" {% if target_mode=="gnss" %}selected="selected"{% endif %}>{{ lang.t("observe-coord-gnss") }}</option>
                 {% if info.stow_position.is_some() %}<option value="stow">{{ lang.t("observe-coord-stow") }}</option>{% endif %}
+                {% if info.service_position.is_some() %}<option value="service">{{ lang.t("observe-coord-service") }}</option>{% endif %}
               </select>
             </div>
             <div id="coord-x" class="flex-1">
@@ -427,9 +428,10 @@
       const satPicker = document.getElementById('satellite-picker');
       const isSun = e.target.value === 'sun';
       const isStow = e.target.value === 'stow';
+      const isService = e.target.value === 'service';
       const isGnss = e.target.value === 'gnss';
-      coordX.classList.toggle('hidden', isSun || isStow || isGnss);
-      coordY.classList.toggle('hidden', isSun || isStow || isGnss);
+      coordX.classList.toggle('hidden', isSun || isStow || isService || isGnss);
+      coordY.classList.toggle('hidden', isSun || isStow || isService || isGnss);
       satPicker.classList.toggle('hidden', !isGnss);
       const modeRaw = document.getElementById('obs-mode-raw');
       const modeFreqSwitched = document.getElementById('obs-mode-freqswitched');
@@ -488,6 +490,7 @@
           fetchSatellites();
           break;
       case "stow":
+      case "service":
           x_label.textContent = OBSERVE_I18N.lblAz
           y_label.textContent = OBSERVE_I18N.lblEl
           inputX.value = '';
@@ -667,13 +670,13 @@
       const inputX = document.querySelector("form input[name='x']");
       const inputY = document.querySelector("form input[name='y']");
       const satSelect = document.getElementById('satellite-select');
-      const isStow = select.value === 'stow';
+      const isFixedPosition = select.value === 'stow' || select.value === 'service';
       select.style.pointerEvents = tracking ? 'none' : '';
       select.classList.toggle('opacity-50', tracking);
-      inputX.readOnly = tracking || isStow;
-      inputX.classList.toggle('opacity-50', tracking || isStow);
-      inputY.readOnly = tracking || isStow;
-      inputY.classList.toggle('opacity-50', tracking || isStow);
+      inputX.readOnly = tracking || isFixedPosition;
+      inputX.classList.toggle('opacity-50', tracking || isFixedPosition);
+      inputY.readOnly = tracking || isFixedPosition;
+      inputY.classList.toggle('opacity-50', tracking || isFixedPosition);
       satSelect.disabled = tracking;
       satSelect.classList.toggle('opacity-50', tracking);
       document.querySelectorAll("input[name='az_offset_deg'], input[name='el_offset_deg']").forEach(el => {
@@ -707,9 +710,9 @@
       const coordinateSystemDropdown = document.querySelector("form select[name='coordinate_system']");
       coordinateSystemDropdown.addEventListener("change", coordinateSystemChanged);
       const isGnss = coordinateSystemDropdown.value === 'gnss';
-      const isSunOrStow = coordinateSystemDropdown.value === 'sun' || coordinateSystemDropdown.value === 'stow';
-      document.getElementById('coord-x').classList.toggle('hidden', isSunOrStow || isGnss);
-      document.getElementById('coord-y').classList.toggle('hidden', isSunOrStow || isGnss);
+      const isSunStowOrService = ['sun', 'stow', 'service'].includes(coordinateSystemDropdown.value);
+      document.getElementById('coord-x').classList.toggle('hidden', isSunStowOrService || isGnss);
+      document.getElementById('coord-y').classList.toggle('hidden', isSunStowOrService || isGnss);
       document.getElementById('satellite-picker').classList.toggle('hidden', !isGnss);
       if (coordinateSystemDropdown.value === 'sun' || isGnss) {
           document.getElementById('obs-mode-raw').checked = true;

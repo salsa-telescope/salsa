@@ -151,6 +151,7 @@ observe-coord-horizontal = Horisontella
 observe-coord-sun = Solen
 observe-coord-gnss = GNSS
 observe-coord-stow = Parkera
+observe-coord-service = Service
 observe-lbl-long = Long. [grader]
 observe-lbl-lat = Lat. [grader]
 observe-lbl-ra = RA [grader]

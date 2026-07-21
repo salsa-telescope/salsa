@@ -115,6 +115,10 @@ fn create_telescope(def: TelescopeDefinition, tle_cache: TleCacheHandle) -> Arc<
         azimuth: p[0].to_radians(),
         elevation: p[1].to_radians(),
     });
+    let service_position = def.service_position.map(|p| Direction {
+        azimuth: p[0].to_radians(),
+        elevation: p[1].to_radians(),
+    });
     let min_elevation_rad = def.min_elevation.to_radians();
     let max_elevation_rad = def.max_elevation.to_radians();
     let default_ref_freq_hz = def.default_ref_freq_mhz * 1e6;
@@ -131,6 +135,7 @@ fn create_telescope(def: TelescopeDefinition, tle_cache: TleCacheHandle) -> Arc<
                 .clone(),
             def.gpsdo_enabled,
             stow_position,
+            service_position,
             location,
             min_elevation_rad,
             max_elevation_rad,
@@ -144,6 +149,7 @@ fn create_telescope(def: TelescopeDefinition, tle_cache: TleCacheHandle) -> Arc<
         TelescopeType::Fake => Arc::new(fake_telescope::create(
             def.name.clone(),
             stow_position,
+            service_position,
             location,
             min_elevation_rad,
             max_elevation_rad,

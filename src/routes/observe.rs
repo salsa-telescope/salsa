@@ -187,6 +187,8 @@ async fn get_preview(
 
     let calculated = if query.coordinate_system.as_deref() == Some("stow") {
         telescope_info.and_then(|i| i.stow_position)
+    } else if query.coordinate_system.as_deref() == Some("service") {
+        telescope_info.and_then(|i| i.service_position)
     } else if query.coordinate_system.as_deref() == Some("sun") {
         Some(horizontal_from_sun(location, Utc::now()))
     } else if query.coordinate_system.as_deref() == Some("gnss") {
@@ -225,7 +227,9 @@ async fn get_preview(
         }
     };
 
-    let calculated = if query.coordinate_system.as_deref() == Some("stow") {
+    let calculated = if query.coordinate_system.as_deref() == Some("stow")
+        || query.coordinate_system.as_deref() == Some("service")
+    {
         calculated
     } else {
         calculated.map(|dir| {
@@ -307,8 +311,8 @@ async fn get_satellites(
 
 #[derive(Deserialize, Debug)]
 struct Target {
-    x: Option<String>, // Degrees; not required when coordinate_system == "sun" or "stow"
-    y: Option<String>, // Degrees; not required when coordinate_system == "sun" or "stow"
+    x: Option<String>, // Degrees; not required when coordinate_system == "sun", "stow", or "service"
+    y: Option<String>, // Degrees; not required when coordinate_system == "sun", "stow", or "service"
     coordinate_system: String,
     #[serde(default)]
     az_offset_deg: f64,
@@ -386,6 +390,29 @@ async fn set_target(
         TelescopeTarget::Horizontal {
             azimuth: stow.azimuth,
             elevation: stow.elevation,
+        }
+    } else if target.coordinate_system == "service" {
+        let info = telescope.get_info().await.map_err(|err| {
+            error!("Failed to get telescope info: {err}");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+        let service = info.service_position.ok_or_else(|| {
+            error!("No service position configured for telescope {telescope_id}");
+            StatusCode::NOT_FOUND
+        })?;
+        if let Some(spectra) = telescope.stop_integration().await {
+            save_observation(
+                state.database_connection,
+                &user,
+                &info,
+                &spectra,
+                &state.tle_cache,
+            )
+            .await;
+        }
+        TelescopeTarget::Horizontal {
+            azimuth: service.azimuth,
+            elevation: service.elevation,
         }
     } else if target.coordinate_system == "sun" {
         TelescopeTarget::Sun
@@ -1368,6 +1395,7 @@ mod tests {
             measurement_in_progress: true,
             latest_observation: None,
             stow_position: None,
+            service_position: None,
             az_offset_rad: 0.0,
             el_offset_rad: 0.0,
             location: Location {

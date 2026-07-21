@@ -49,6 +49,7 @@ pub struct TelescopeInfo {
     pub measurement_in_progress: bool,
     pub latest_observation: Option<ObservedSpectra>,
     pub stow_position: Option<Direction>,
+    pub service_position: Option<Direction>,
     pub az_offset_rad: f64,
     pub el_offset_rad: f64,
     pub location: Location,
@@ -78,6 +79,7 @@ pub struct TelescopeDefinition {
     #[serde(default)]
     pub webcam_crop: Option<[f64; 4]>, // [x, y, w, h] fractions of image, top-left origin
     pub stow_position: Option<[f64; 2]>, // [azimuth, elevation] in degrees
+    pub service_position: Option<[f64; 2]>, // [azimuth, elevation] in degrees
     pub telescope_type: TelescopeType,
     pub controller_address: Option<String>,
     pub receiver_address: Option<String>,

@@ -151,6 +151,7 @@ observe-coord-horizontal = Horizontal
 observe-coord-sun = Sun
 observe-coord-gnss = GNSS
 observe-coord-stow = Stow
+observe-coord-service = Service
 observe-lbl-long = Long. [deg]
 observe-lbl-lat = Lat. [deg]
 observe-lbl-ra = R.A. [deg]
