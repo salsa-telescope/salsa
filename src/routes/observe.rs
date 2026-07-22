@@ -634,27 +634,29 @@ pub(crate) async fn save_observation(
     }
 }
 
-/// Await a fixed-duration deadline, or never resolve when there is none.
-/// Lets the integration monitor's `select!` include an optional timeout arm
-/// without special-casing interactive (open-ended) integrations.
-async fn wait_for_deadline(deadline: Option<tokio::time::Instant>) {
-    match deadline {
-        Some(deadline) => tokio::time::sleep_until(deadline).await,
-        None => std::future::pending().await,
-    }
-}
-
 /// Watch a running integration and stop+save it early on either of two events:
 /// the antenna leaving Tracking (a cable-unwrap slew, or the target sinking out
 /// of the elevation range — either way `measure()` would keep averaging
-/// off-source samples into the block), or an optional fixed-duration deadline.
-/// Both race the integration's cancellation token, so a manual End or booking
-/// handover pre-empts the monitor and it exits without touching a later run.
+/// off-source samples into the block), or an optional fixed duration being
+/// reached. Both race the integration's cancellation token, so a manual End or
+/// booking handover pre-empts the monitor and it exits without touching a
+/// later run.
+///
+/// The fixed-duration check compares against the *completed* measurement
+/// cycle's accumulated `observation_time` (from `get_info()`), not a
+/// wall-clock deadline. Each cycle is an uninterruptible ~1 s block (USRP
+/// hardware read, or the fake telescope's tick), and a wall-clock deadline set
+/// to exactly the requested duration reliably fires while the final cycle is
+/// still in flight, discarding it — requesting 1 s integration got 0
+/// completed cycles ("no data"), 2 s got only 1. Waiting for the real
+/// accumulated time to reach the target means we only ever stop right after a
+/// cycle completes, at the cost of running slightly over the requested
+/// duration rather than under it.
 #[allow(clippy::too_many_arguments)]
 async fn monitor_integration(
     telescope: Arc<dyn Telescope>,
     token: tokio_util::sync::CancellationToken,
-    fixed_deadline: Option<tokio::time::Instant>,
+    fixed_duration: Option<std::time::Duration>,
     db: Arc<Mutex<Connection>>,
     user: User,
     tle_cache: TleCacheHandle,
@@ -665,10 +667,6 @@ async fn monitor_integration(
     loop {
         tokio::select! {
             _ = token.cancelled() => break,
-            _ = wait_for_deadline(fixed_deadline) => {
-                stop_and_save_observation(telescope.as_ref(), db.clone(), &user, &tle_cache).await;
-                break;
-            }
             _ = ticker.tick() => {
                 match telescope.get_info().await {
                     Ok(info) if info.status != TelescopeStatus::Tracking => {
@@ -679,7 +677,17 @@ async fn monitor_integration(
                         stop_and_save_observation(telescope.as_ref(), db.clone(), &user, &tle_cache).await;
                         break;
                     }
-                    Ok(_) => {}
+                    Ok(info) => {
+                        let reached = fixed_duration.is_some_and(|target| {
+                            info.latest_observation
+                                .as_ref()
+                                .is_some_and(|obs| obs.observation_time >= target)
+                        });
+                        if reached {
+                            stop_and_save_observation(telescope.as_ref(), db.clone(), &user, &tle_cache).await;
+                            break;
+                        }
+                    }
                     Err(err) => warn!(
                         "Integration monitor could not read info for {telescope_id}: {err}"
                     ),
@@ -878,16 +886,16 @@ async fn start_observe(
     // clicks End first (or the booking ends) the token fires and the task
     // exits without touching whatever integration may follow.
     if let Some(token) = telescope.current_integration_token().await {
-        let fixed_deadline = match (form.integration_mode.as_deref(), form.integration_time_secs) {
+        let fixed_duration = match (form.integration_mode.as_deref(), form.integration_time_secs) {
             (Some("fixed"), Some(secs)) if secs > 0.0 && secs.is_finite() => {
-                Some(tokio::time::Instant::now() + std::time::Duration::from_secs_f64(secs))
+                Some(std::time::Duration::from_secs_f64(secs))
             }
             _ => None,
         };
         tokio::spawn(monitor_integration(
             telescope.clone(),
             token,
-            fixed_deadline,
+            fixed_duration,
             state.database_connection.clone(),
             user.clone(),
             state.tle_cache.clone(),
