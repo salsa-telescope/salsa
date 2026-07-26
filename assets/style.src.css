@@ -209,6 +209,15 @@ body {
     .btn:hover {
         background-color: var(--color-brand-hover);
     }
+    /* Buttons that command the telescope carry hx-disabled-elt, so htmx
+       disables them for the duration of the request. Without a visible
+       disabled state that produced no feedback at all: the antenna does not
+       start moving until the tracker's next cycle and the status panel only
+       refreshes on its own poll, so an observer could wait two or three
+       seconds with no sign the click had registered, and press again. */
+    .btn:disabled {
+        @apply opacity-50 cursor-not-allowed;
+    }
 }
 header {
     color: var(--color-brand-bg);

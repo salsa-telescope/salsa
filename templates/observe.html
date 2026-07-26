@@ -89,6 +89,7 @@
               hx-post="/observe/{{ info.id }}/set-target"
               hx-swap="none"
               hx-include="[name='coordinate_system'],[name='x'],[name='y'],[name='az_offset_deg'],[name='el_offset_deg']"
+              hx-disabled-elt="this"
               class="btn flex-shrink-0"
             >
               {{ lang.t("observe-track") }}
@@ -96,6 +97,7 @@
             <button id="stop-btn"
               hx-post="/observe/{{ info.id }}/stop-telescope"
               hx-swap="none"
+              hx-disabled-elt="this"
               class="btn bg-danger hover:bg-danger-hover flex-shrink-0 hidden"
             >
               {{ lang.t("observe-stop") }}
@@ -143,6 +145,7 @@
             hx-swap="none"
             hx-include="[name='mode'],[name='center_freq_mhz'],[name='ref_freq_mhz'],[name='bandwidth_mhz'],[name='gain_db'],[name='spectral_channels'],[name='rfi_filter'],[name='integration_mode'],[name='integration_time_secs']"
             hx-on::before-request="document.getElementById('errors').innerHTML=''"
+            hx-disabled-elt="this"
             class="btn"
           >
             {{ lang.t("observe-begin") }}
