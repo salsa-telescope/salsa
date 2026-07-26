@@ -90,6 +90,7 @@
               hx-swap="none"
               hx-include="[name='coordinate_system'],[name='x'],[name='y'],[name='az_offset_deg'],[name='el_offset_deg']"
               hx-disabled-elt="this"
+              hx-on::before-request="document.getElementById('errors').innerHTML=''; setTrackingState(true)"
               class="btn flex-shrink-0"
             >
               {{ lang.t("observe-track") }}
@@ -144,7 +145,7 @@
             hx-post="/observe/{{ info.id }}/observe"
             hx-swap="none"
             hx-include="[name='mode'],[name='center_freq_mhz'],[name='ref_freq_mhz'],[name='bandwidth_mhz'],[name='gain_db'],[name='spectral_channels'],[name='rfi_filter'],[name='integration_mode'],[name='integration_time_secs']"
-            hx-on::before-request="document.getElementById('errors').innerHTML=''"
+            hx-on::before-request="document.getElementById('errors').innerHTML=''; setObservingState(true)"
             hx-disabled-elt="this"
             class="btn"
           >
@@ -705,8 +706,13 @@
           updateTrackStopButtons();
           updateBookingCountdown();
       }
+      // Track and Begin swap their buttons the moment they are pressed, rather
+      // than waiting for the next status poll a second later — pressing a
+      // button that then sits there unchanged reads as the press not having
+      // registered. If the command was refused, resync both pairs from what
+      // the telescope actually reports, which undoes the optimistic swap.
       if (evt.detail.target.id === 'errors' && evt.detail.target.innerHTML.trim() !== '') {
-          setObservingState(false);
+          updateTrackStopButtons();
       }
   });
 
