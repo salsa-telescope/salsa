@@ -232,7 +232,7 @@
               {% if is_admin %}
               <div class="flex-1">
                 <label class="block text-sm text-gray-600">Gain [dB]</label>
-                <input type="number" name="gain_db" value="{{ info.default_gain_db }}" min="0" max="88" step="1"
+                <input type="number" name="gain_db" value="{{ info.default_gain_db }}" min="{{ gain_min_db }}" max="{{ gain_max_db }}" step="1"
                   class="border rounded px-2 py-1 bg-white w-full text-sm" />
               </div>
               {% else %}
