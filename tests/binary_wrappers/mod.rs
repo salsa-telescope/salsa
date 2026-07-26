@@ -117,6 +117,23 @@ impl SalsaTestServer {
             .expect("Should be able to send request");
         assert_eq!(StatusCode::OK, res.status());
     }
+
+    /// Rows in the observation table, as `(target_x_degrees, integration_time_secs)`
+    /// oldest first. Lets a test assert what actually reached the archive, which
+    /// is not visible from the HTTP responses alone.
+    pub fn saved_observations(&self) -> Vec<(f64, f64)> {
+        let connection =
+            rusqlite::Connection::open(self.database_dir.path().join("database.sqlite3"))
+                .expect("Test database should be openable");
+        let mut statement = connection
+            .prepare("SELECT target_x, integration_time_secs FROM observation ORDER BY id")
+            .expect("Should be able to prepare statement");
+        statement
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+            .expect("Should be able to query observations")
+            .collect::<Result<Vec<_>, _>>()
+            .expect("Rows should decode")
+    }
 }
 
 impl Drop for SalsaTestServer {

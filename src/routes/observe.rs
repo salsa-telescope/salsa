@@ -370,6 +370,24 @@ async fn set_target(
         .await
         .ok_or(StatusCode::NOT_FOUND)?;
 
+    // Close out any integration still open on the *current* target before
+    // pointing somewhere else. It has to happen here, ahead of the move: once
+    // the tracker takes the new target, `get_info()` reports it, and the
+    // spectrum — measured at the old position — would be filed under the new
+    // one. A no-op when nothing is running, so it is safe on every move.
+    //
+    // This is also what leaves the telescope in a clean state for the next
+    // `start_observe`: an integration whose measurement loop has finished but
+    // whose `active_integration` has not been reaped yet still counts as
+    // running, and starting on top of it silently does nothing.
+    stop_and_save_observation(
+        telescope.as_ref(),
+        state.database_connection.clone(),
+        &user,
+        &state.tle_cache,
+    )
+    .await;
+
     let mut az_offset_rad = target.az_offset_deg.to_radians();
     let mut el_offset_rad = target.el_offset_deg.to_radians();
 
@@ -396,16 +414,6 @@ async fn set_target(
             );
             StatusCode::NOT_FOUND
         })?;
-        if let Some(spectra) = telescope.stop_integration().await {
-            save_observation(
-                state.database_connection,
-                &user,
-                &info,
-                &spectra,
-                &state.tle_cache,
-            )
-            .await;
-        }
         az_offset_rad = 0.0;
         el_offset_rad = 0.0;
         TelescopeTarget::Horizontal {
@@ -884,6 +892,19 @@ async fn start_observe(
         _ => std::time::Duration::from_secs_f64(MAX_INTEGRATION_TIME_SECS),
     };
 
+    // Same reap as in `set_target`, for the case where a new run is started on
+    // the same pointing without moving in between. Starting while the previous
+    // integration is still open is a silent no-op down in
+    // `set_receiver_configuration` — no measurement task, no cleared buffer —
+    // so the new run has to begin from a genuinely idle receiver.
+    stop_and_save_observation(
+        telescope.as_ref(),
+        state.database_connection.clone(),
+        &user,
+        &state.tle_cache,
+    )
+    .await;
+
     telescope
         .set_receiver_configuration(ReceiverConfiguration {
             integrate: true,
@@ -916,14 +937,9 @@ async fn start_observe(
     // clicks End first (or the booking ends) the token fires and the task
     // exits without touching whatever integration may follow.
     //
-    // Skipped when an integration was already running: `set_receiver_configuration`
-    // is a no-op in that case and `current_integration_token` hands back the
-    // *running* integration's token, so a second POST would otherwise attach a
-    // second monitor to it — one that would see the already-accumulated time and
-    // cut the run short on its first tick.
-    if !info.measurement_in_progress
-        && let Some(token) = telescope.current_integration_token().await
-    {
+    // The reap above guarantees the receiver was idle a moment ago, so this
+    // token belongs to the run just started rather than to a previous one.
+    if let Some(token) = telescope.current_integration_token().await {
         tokio::spawn(monitor_integration(
             telescope.clone(),
             token,

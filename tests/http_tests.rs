@@ -395,3 +395,141 @@ fn cant_start_interferometry_with_same_telescope_twice() {
 
     assert_eq!(StatusCode::BAD_REQUEST, res.status());
 }
+
+/// Book `fake1` for the current hour and point it, so an observation can be
+/// started. Returns once the telescope reports it is tracking.
+fn book_and_point(server: &SalsaTestServer, client: &Client, azimuth_deg: &str) {
+    let this_hour = Utc::now()
+        .duration_trunc(TimeDelta::hours(1))
+        .expect("Should be possible to round down to closest hour")
+        .timestamp();
+    client
+        .post(server.addr() + "/bookings")
+        .form(&[
+            ("start_timestamp", format!("{this_hour}").as_str()),
+            ("telescope", "fake1"),
+        ])
+        .send()
+        .expect("Should be able to book");
+
+    let res = client
+        .post(server.addr() + "/observe/fake1/set-target")
+        .form(&[
+            ("coordinate_system", "horizontal"),
+            ("x", azimuth_deg),
+            ("y", "30"),
+            ("az_offset_deg", "0"),
+            ("el_offset_deg", "0"),
+        ])
+        .send()
+        .expect("Should be able to set target");
+    assert_eq!(StatusCode::OK, res.status());
+
+    for _ in 0..100 {
+        let state = client
+            .get(server.addr() + "/telescope/fake1/state")
+            .send()
+            .expect("Should be able to read state")
+            .text()
+            .expect("State should be text");
+        if state.contains(r#"data-status="Tracking""#) {
+            return;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    }
+    panic!("Telescope never reached Tracking");
+}
+
+fn start_one_second_integration(server: &SalsaTestServer, client: &Client) {
+    let res = client
+        .post(server.addr() + "/observe/fake1/observe")
+        .form(&[
+            ("mode", "FreqSwitched"),
+            ("center_freq_mhz", "1420.0"),
+            ("ref_freq_mhz", "1417.9"),
+            ("bandwidth_mhz", "2.5"),
+            ("gain_db", "60"),
+            ("spectral_channels", "512"),
+            ("rfi_filter", "true"),
+            ("integration_mode", "fixed"),
+            ("integration_time_secs", "1"),
+        ])
+        .send()
+        .expect("Should be able to start observation");
+    assert_eq!(StatusCode::OK, res.status());
+}
+
+// Consecutive observations must each reach the archive. Starting a new run
+// while the previous one is finished but not yet reaped used to be a silent
+// no-op: the receiver was still flagged as integrating, so nothing started and
+// nothing was saved, losing roughly half of a scan paced this tightly.
+#[test]
+fn consecutive_observations_are_all_saved() {
+    let server = SalsaTestServer::spawn();
+    let user = server.add_local_user("scan_user", "password");
+    let client = Client::builder().cookie_store(true).build().unwrap();
+    server.login(&client, &user);
+    book_and_point(&server, &client, "120");
+
+    // Paced just under the one second run length, so each Start lands while the
+    // previous run is finishing rather than long after it. Ten attempts over
+    // eight seconds can yield at most eight completed one second integrations;
+    // the silent no-op used to cut that to five.
+    let runs = 10;
+    for _ in 0..runs {
+        start_one_second_integration(&server, &client);
+        std::thread::sleep(std::time::Duration::from_millis(800));
+    }
+    std::thread::sleep(std::time::Duration::from_secs(4));
+
+    let saved = server.saved_observations();
+    assert!(
+        saved.len() >= 7,
+        "tightly paced runs should nearly all reach the archive, got {} of {runs}: {saved:?}",
+        saved.len()
+    );
+    for (_, integration_time_secs) in &saved {
+        assert_eq!(
+            1.0, *integration_time_secs,
+            "each saved run should be a complete one second integration, got {saved:?}"
+        );
+    }
+}
+
+// An integration must be filed under the position it was measured at. Moving
+// the telescope while a run is still open used to leave the save until after
+// the tracker had taken the new target, so the spectrum was archived against
+// the position the dish moved to rather than the one it came from.
+#[test]
+fn observation_is_saved_against_the_position_it_was_taken_at() {
+    let server = SalsaTestServer::spawn();
+    let user = server.add_local_user("move_user", "password");
+    let client = Client::builder().cookie_store(true).build().unwrap();
+    server.login(&client, &user);
+    book_and_point(&server, &client, "100");
+
+    start_one_second_integration(&server, &client);
+    std::thread::sleep(std::time::Duration::from_millis(1100));
+
+    let res = client
+        .post(server.addr() + "/observe/fake1/set-target")
+        .form(&[
+            ("coordinate_system", "horizontal"),
+            ("x", "200"),
+            ("y", "30"),
+            ("az_offset_deg", "0"),
+            ("el_offset_deg", "0"),
+        ])
+        .send()
+        .expect("Should be able to set target");
+    assert_eq!(StatusCode::OK, res.status());
+    std::thread::sleep(std::time::Duration::from_secs(3));
+
+    let saved = server.saved_observations();
+    assert_eq!(1, saved.len(), "the integration should have been saved");
+    assert!(
+        (saved[0].0 - 100.0).abs() < 0.01,
+        "expected the observation to be filed at azimuth 100, where it was measured, got {:?}",
+        saved[0].0
+    );
+}
