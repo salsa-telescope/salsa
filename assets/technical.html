@@ -106,6 +106,8 @@ below.</p>
       <div class="space-y-2">
         <h3 class="text-lg font-semibold text-gray-800">Rotor and controller</h3>
         <p>The rotor and controller are manufactured by <a href="http://spid.net.pl">SPID Elektronik</a>. The rotor model is <a href="/Manual-BIG-RAS-HR-EN.pdf">BIG RAS/HR</a> with 0.1 degrees resolution and 1.5 degrees / second rotation speed. The rotor is powered by a <a href="/SPID_MD-0x_MANUAL_ENG.pdf">MD01</a> control unit which also reads the current rotor position. The MD01 accepts azimuth/elevation commands via the ROT2PROG protocol over a TCP connection. All coordinate conversions (galactic, equatorial, horizontal) are handled by the SALSA webserver before commanding the rotor.</p>
+
+        <p>The MD01 has its own software limits allowing roughly 10° of travel past each end of the azimuth range, to protect the feed cabling from being wound up. The SALSA webserver never commands an azimuth outside 0–360°, so this margin is not used in normal operation and the rotor never reports a position outside that range either. The practical consequence is for observers rather than for the hardware: a target whose azimuth crosses due north cannot be followed straight through 0°/360°, and the telescope has to unwind nearly a full turn the other way before tracking resumes.</p>
       </div>
 
     </div>

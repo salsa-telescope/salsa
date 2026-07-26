@@ -106,6 +106,8 @@ nedan.</p>
       <div class="space-y-2">
         <h3 class="text-lg font-semibold text-gray-800">Rotor och styrenhet</h3>
         <p>Rotorn och styrenheten tillverkas av <a href="http://spid.net.pl">SPID Elektronik</a>. Rotormodellen är <a href="/Manual-BIG-RAS-HR-EN.pdf">BIG RAS/HR</a> med 0,1 graders upplösning och 1,5 graders rotationshastighet per sekund. Rotorn drivs av en <a href="/SPID_MD-0x_MANUAL_ENG.pdf">MD01</a>-styrenhet som också läser av rotorns aktuella position. MD01 tar emot azimut-/elevationskommandon via ROT2PROG-protokollet över en TCP-anslutning. Alla koordinatomvandlingar (galaktiska, ekvatoriella, horisontella) hanteras av SALSA:s webbserver innan rotorn kommenderas.</p>
+
+        <p>MD01 har egna mjukvarugränser som tillåter ungefär 10° rörelse förbi vardera änden av azimutområdet, för att skydda matarkablarna från att lindas upp. SALSA:s webbserver kommenderar aldrig en azimut utanför 0–360°, så denna marginal används inte i normal drift och rotorn rapporterar därför aldrig heller en position utanför det området. Den praktiska följden gäller observatören snarare än hårdvaran: ett mål vars azimut korsar rakt norrut kan inte följas rakt igenom 0°/360°, utan teleskopet måste vrida sig nästan ett helt varv tillbaka innan följningen kan återupptas.</p>
       </div>
 
     </div>

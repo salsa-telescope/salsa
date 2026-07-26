@@ -134,6 +134,7 @@ movement through space. </p>
         <li><strong>Sun</strong> — Automatically tracks the Sun. The SALSA software automatically calculates the current position of the Sun.</li>
         <li><strong>GNSS satellite</strong> — Select a visible satellite from the dropdown. The SALSA software updates the satellite orbits automatically once per day.</li>
         <li><strong>Stow</strong> — Parks the telescope in its resting position.</li>
+        <li><strong>Service</strong> — Moves the telescope to a fixed maintenance position. Only shown on telescopes where one is configured.</li>
       </ul>
 
       <p>In the <em>Advanced section</em> you can also apply small <strong>azimuth and elevation offsets</strong> (in degrees)
@@ -141,6 +142,23 @@ movement through space. </p>
 
       <p>The telescope will not move below its minimum elevation limit. If your target is
       too low, an error will be shown.</p>
+
+      <p>The same limits apply <em>while</em> you observe, not just when you start. A target
+      that is high enough now will eventually set, and once it drops below the minimum
+      elevation the telescope can no longer follow it. If an integration is running when
+      that happens, it is stopped and the data collected so far is saved, so you keep what
+      was measured on target rather than a spectrum polluted by the telescope drifting away.
+      For a long integration, check that your target stays up for the whole run.</p>
+
+      <p>A second, less obvious interruption comes from azimuth. The telescope moves between
+      0° and 360° in azimuth and cannot pass through that boundary — so a target whose
+      azimuth crosses due north (0°/360°) as it moves across the sky forces the telescope to
+      unwind almost a full circle the other way before it can carry on. This affects targets
+      that pass north of the zenith, which at Onsala means anything far enough north to stay
+      above the horizon all day. The result is a long slew, during which the telescope is off
+      target; a running integration is stopped and saved just as it is for a setting target.
+      If you are planning a long run on a northern target, it is worth checking whether it
+      will cross due north partway through.</p>
     </div>
 
     <div class="space-y-3">

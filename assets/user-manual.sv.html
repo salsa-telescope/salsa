@@ -134,6 +134,7 @@ genom rymden.</p>
         <li><strong>Solen</strong> — följer solen automatiskt. SALSA-mjukvaran beräknar automatiskt solens aktuella position.</li>
         <li><strong>GNSS-satellit</strong> — välj en synlig satellit i menyn. SALSA-mjukvaran uppdaterar satellitbanorna automatiskt en gång per dygn.</li>
         <li><strong>Parkera</strong> — parkerar teleskopet i dess viloläge.</li>
+        <li><strong>Service</strong> — kör teleskopet till ett fast serviceläge. Visas bara för teleskop där ett sådant är konfigurerat.</li>
       </ul>
 
       <p>I <em>avancerade inställningar</em> kan du också lägga på små <strong>azimut- och elevationsoffset</strong> (i grader)
@@ -141,6 +142,24 @@ genom rymden.</p>
 
       <p>Teleskopet rör sig inte under sin lägsta tillåtna elevation. Om målet är
       för lågt visas ett felmeddelande.</p>
+
+      <p>Samma gränser gäller <em>under</em> observationen, inte bara när du startar den. Ett
+      mål som är tillräckligt högt nu kommer så småningom att gå ned, och när det sjunker
+      under den lägsta tillåtna elevationen kan teleskopet inte längre följa det. Om en
+      integration pågår när det händer avbryts den och det som hunnit mätas sparas, så att du
+      får med det som mättes mot målet i stället för ett spektrum som förorenats av att
+      teleskopet glidit bort. Kontrollera för långa integrationer att målet är uppe under hela
+      mätningen.</p>
+
+      <p>Ett andra, mindre uppenbart avbrott beror på azimut. Teleskopet rör sig mellan 0° och
+      360° i azimut och kan inte passera den gränsen — ett mål vars azimut korsar rakt norrut
+      (0°/360°) under sin väg över himlen tvingar därför teleskopet att vrida sig nästan ett
+      helt varv tillbaka innan det kan fortsätta. Detta gäller mål som passerar norr om zenit,
+      vilket vid Onsala innebär allt som ligger tillräckligt långt norrut för att vara uppe
+      hela dygnet. Följden blir en lång omställning, och under tiden pekar teleskopet inte mot
+      målet; en pågående integration avbryts och sparas på samma sätt som för ett mål som går
+      ned. Planerar du en lång mätning mot ett nordligt mål är det värt att kontrollera om det
+      kommer att passera rakt norrut under tiden.</p>
     </div>
 
     <div class="space-y-3">
