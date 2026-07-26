@@ -46,3 +46,6 @@ unic-langid = "0.9.6"
 
 [dev-dependencies]
 tempfile = "*"
+# `start_paused` for the integration-monitor tests: they wait out one-second
+# poll ticks and a minute-long backstop, which on a paused clock cost nothing.
+tokio = { version = "1.*", features = ["test-util"] }

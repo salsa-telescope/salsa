@@ -427,11 +427,11 @@
       const coordY = document.getElementById('coord-y');
       const satPicker = document.getElementById('satellite-picker');
       const isSun = e.target.value === 'sun';
-      const isStow = e.target.value === 'stow';
-      const isService = e.target.value === 'service';
       const isGnss = e.target.value === 'gnss';
-      coordX.classList.toggle('hidden', isSun || isStow || isService || isGnss);
-      coordY.classList.toggle('hidden', isSun || isStow || isService || isGnss);
+      // Coordinates come from the server for these, so the x/y inputs are hidden.
+      const hasNoCoordinateInputs = ['sun', 'stow', 'service', 'gnss'].includes(e.target.value);
+      coordX.classList.toggle('hidden', hasNoCoordinateInputs);
+      coordY.classList.toggle('hidden', hasNoCoordinateInputs);
       satPicker.classList.toggle('hidden', !isGnss);
       const modeRaw = document.getElementById('obs-mode-raw');
       const modeFreqSwitched = document.getElementById('obs-mode-freqswitched');
@@ -453,9 +453,10 @@
           if (bwSelect) bwSelect.value = '2.5';
       }
       if (!isGnss) {
-          // Leaving GNSS: restore the RFI filter, which satelliteChanged()
-          // turns off because a GNSS carrier is itself a narrow spike the
-          // clipper can't tell apart from real RFI.
+          // Any non-GNSS target gets the RFI filter back on, alongside the
+          // receiver defaults reset above — satelliteChanged() turns it off
+          // because a GNSS carrier is itself a narrow spike the clipper can't
+          // tell apart from real RFI.
           const rfiOn = document.querySelector("details input[name='rfi_filter'][value='true']");
           if (rfiOn) rfiOn.checked = true;
       }
@@ -710,9 +711,11 @@
       const coordinateSystemDropdown = document.querySelector("form select[name='coordinate_system']");
       coordinateSystemDropdown.addEventListener("change", coordinateSystemChanged);
       const isGnss = coordinateSystemDropdown.value === 'gnss';
-      const isSunStowOrService = ['sun', 'stow', 'service'].includes(coordinateSystemDropdown.value);
-      document.getElementById('coord-x').classList.toggle('hidden', isSunStowOrService || isGnss);
-      document.getElementById('coord-y').classList.toggle('hidden', isSunStowOrService || isGnss);
+      // Same set as in coordinateSystemChanged(): coordinates come from the
+      // server, so the x/y inputs are hidden.
+      const hasNoCoordinateInputs = ['sun', 'stow', 'service', 'gnss'].includes(coordinateSystemDropdown.value);
+      document.getElementById('coord-x').classList.toggle('hidden', hasNoCoordinateInputs);
+      document.getElementById('coord-y').classList.toggle('hidden', hasNoCoordinateInputs);
       document.getElementById('satellite-picker').classList.toggle('hidden', !isGnss);
       if (coordinateSystemDropdown.value === 'sun' || isGnss) {
           document.getElementById('obs-mode-raw').checked = true;

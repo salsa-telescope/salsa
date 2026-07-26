@@ -308,6 +308,7 @@ impl Telescope for SalsaTelescope {
             frequencies: m.freqs.clone(),
             spectra: m.amps.clone(),
             observation_time: m.duration,
+            start: m.start,
         })
     }
 
@@ -344,6 +345,7 @@ impl Telescope for SalsaTelescope {
                         frequencies: measurement.freqs,
                         spectra: measurement.amps,
                         observation_time: measurement.duration,
+                        start: measurement.start,
                     };
                     Some(latest_observation)
                 }
@@ -800,6 +802,16 @@ fn measure(
         measurements.push(measurement);
     }
 
+    // Fixed-duration mode: run a whole number of cycles covering the request,
+    // rounding up so the observer never gets less time than they asked for.
+    // Enforced here rather than by cancelling from outside, because a cancel
+    // landing mid-cycle cannot shorten the block: Raw mode has no abort point
+    // inside `measure_single`, so the block completes and is averaged in
+    // anyway, one full cycle past the target.
+    let max_cycles = config
+        .max_duration
+        .map(|target| ((target.as_secs_f64() / tint).ceil() as u64).max(1));
+
     // start taking data until integrate is false
     let mut n = 0.0;
     while !cancellation_token.is_cancelled() {
@@ -845,10 +857,17 @@ fn measure(
         for (amp, spec_val) in zip(measurement.amps.iter_mut(), spec.iter()).take(avg_pts) {
             *amp = (*amp * (n - 1.0) + spec_val) / n;
         }
-        measurement.duration = Utc::now()
-            .signed_duration_since(measurement.start)
-            .to_std()
-            .unwrap();
+        // Sample time integrated, not wall clock: `n` completed cycles of
+        // `tint` each. The wall-clock span also covers the retune, stream
+        // setup and FFT work between blocks, which contribute no samples and
+        // so overstate the integration — badly at wide bandwidths, where the
+        // FFT stack is the larger cost.
+        measurement.duration = Duration::from_secs_f64(n * tint);
+        drop(measurements);
+
+        if max_cycles.is_some_and(|max| n as u64 >= max) {
+            break;
+        }
     }
     Ok(())
 }

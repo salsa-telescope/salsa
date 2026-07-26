@@ -35,7 +35,17 @@ pub enum TelescopeStatus {
 pub struct ObservedSpectra {
     pub frequencies: Vec<f64>,
     pub spectra: Vec<f64>,
+    /// Sample time actually integrated into this spectrum: the number of
+    /// completed measurement cycles times the per-cycle integration time.
+    /// Deliberately *not* the wall-clock span, which also counts per-cycle
+    /// retune, stream setup and FFT overhead — the noise in the spectrum
+    /// falls with the samples integrated, so that is the number an observer
+    /// can reason about. Use `start` and `Utc::now()` for elapsed time.
     pub observation_time: Duration,
+    /// When the first measurement cycle began. Recorded separately because
+    /// `observation_time` no longer spans wall clock, so it cannot be
+    /// subtracted from "now" to recover the start.
+    pub start: DateTime<Utc>,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
@@ -255,6 +265,14 @@ pub struct ReceiverConfiguration {
     pub spectral_channels: usize,
     #[serde(default = "default_rfi_filter")]
     pub rfi_filter: bool,
+    /// Fixed-duration mode: stop after accumulating at least this much
+    /// integration time. The measurement loop enforces it itself, on a whole
+    /// number of cycles, rather than being cancelled from outside partway
+    /// through one — cancelling mid-cycle either discards that cycle's data
+    /// or (in Raw mode, which cannot abort a block) runs a whole extra cycle
+    /// past the target. `None` integrates until stopped.
+    #[serde(default)]
+    pub max_duration: Option<Duration>,
 }
 
 impl Default for ReceiverConfiguration {
@@ -268,6 +286,7 @@ impl Default for ReceiverConfiguration {
             gain_db: default_gain_db(),
             spectral_channels: default_spectral_channels(),
             rfi_filter: default_rfi_filter(),
+            max_duration: None,
         }
     }
 }

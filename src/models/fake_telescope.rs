@@ -207,6 +207,11 @@ impl Telescope for FakeTelescope {
             info!("Starting integration on {}", &inner.name);
             inner.current_spectra.clear();
             inner.receiver_configuration.integrate = true;
+            // The fake receiver simulates neither frequency nor gain, so the
+            // rest of the configuration is ignored — but the requested
+            // duration governs when the integration ends, which it does have
+            // to honour.
+            inner.receiver_configuration.max_duration = receiver_configuration.max_duration;
             inner.spectrum_cancellation_token = Some(CancellationToken::new());
         } else if !receiver_configuration.integrate && inner.receiver_configuration.integrate {
             info!("Stopping integration on {}", &inner.name);
@@ -233,27 +238,7 @@ impl Telescope for FakeTelescope {
         if let Some(token) = inner.spectrum_cancellation_token.take() {
             token.cancel();
         }
-        if inner.current_spectra.is_empty() {
-            return None;
-        }
-        let mut result = ObservedSpectra {
-            frequencies: vec![0f64; FAKE_TELESCOPE_CHANNELS],
-            spectra: vec![0f64; FAKE_TELESCOPE_CHANNELS],
-            observation_time: Duration::from_secs(0),
-        };
-        for integration in &inner.current_spectra {
-            result.spectra = result
-                .spectra
-                .into_iter()
-                .zip(integration.spectra.iter())
-                .map(|(a, b)| a + b)
-                .collect();
-            result.observation_time += integration.observation_time;
-        }
-        result.frequencies = inner.current_spectra[0].frequencies.clone();
-        let n = inner.current_spectra.len() as f64;
-        result.spectra = result.spectra.into_iter().map(|v| v / n).collect();
-        Some(result)
+        average_spectra(&inner.current_spectra)
     }
 
     async fn clear_measurements(&self) {
@@ -292,31 +277,7 @@ impl Telescope for FakeTelescope {
             (TelescopeStatus::Idle, None)
         };
 
-        let latest_observation = if inner.current_spectra.is_empty() {
-            None
-        } else {
-            let mut latest_observation = ObservedSpectra {
-                frequencies: vec![0f64; FAKE_TELESCOPE_CHANNELS],
-                spectra: vec![0f64; FAKE_TELESCOPE_CHANNELS],
-                observation_time: Duration::from_secs(0),
-            };
-            for integration in &inner.current_spectra {
-                latest_observation.spectra = latest_observation
-                    .spectra
-                    .into_iter()
-                    .zip(integration.spectra.iter())
-                    .map(|(a, b)| a + b)
-                    .collect();
-                latest_observation.observation_time += integration.observation_time;
-            }
-            latest_observation.frequencies = inner.current_spectra[0].frequencies.clone();
-            latest_observation.spectra = latest_observation
-                .spectra
-                .into_iter()
-                .map(|value| value / inner.current_spectra.len() as f64)
-                .collect();
-            Some(latest_observation)
-        };
+        let latest_observation = average_spectra(&inner.current_spectra);
         Ok(TelescopeInfo {
             id: inner.name.clone(),
             status,
@@ -436,12 +397,52 @@ impl Inner {
         }
 
         if self.receiver_configuration.integrate {
-            trace!("Pushing spectum...");
-            self.current_spectra.push(create_fake_spectra(delta_time))
+            // Fixed-duration mode: stop accumulating once the request is
+            // covered. The real telescope's `measure()` does the same, so a
+            // fixed-duration run behaves the same way in development.
+            let accumulated: Duration = self
+                .current_spectra
+                .iter()
+                .map(|spectra| spectra.observation_time)
+                .sum();
+            if self
+                .receiver_configuration
+                .max_duration
+                .is_none_or(|target| accumulated < target)
+            {
+                trace!("Pushing spectum...");
+                self.current_spectra.push(create_fake_spectra(delta_time))
+            }
         }
 
         Ok(())
     }
+}
+
+/// Average the per-tick chunks of one integration into a single spectrum,
+/// summing their integration times. `None` when nothing has been collected
+/// yet. Both `get_info` (live view) and `stop_integration` (what gets saved)
+/// report the same aggregate.
+fn average_spectra(chunks: &[ObservedSpectra]) -> Option<ObservedSpectra> {
+    let first = chunks.first()?;
+    let mut result = ObservedSpectra {
+        frequencies: first.frequencies.clone(),
+        spectra: vec![0f64; FAKE_TELESCOPE_CHANNELS],
+        observation_time: Duration::from_secs(0),
+        start: first.start,
+    };
+    for chunk in chunks {
+        result.spectra = result
+            .spectra
+            .into_iter()
+            .zip(chunk.spectra.iter())
+            .map(|(a, b)| a + b)
+            .collect();
+        result.observation_time += chunk.observation_time;
+    }
+    let n = chunks.len() as f64;
+    result.spectra = result.spectra.into_iter().map(|v| v / n).collect();
+    Some(result)
 }
 
 fn create_fake_spectra(integration_time: Duration) -> ObservedSpectra {
@@ -461,6 +462,10 @@ fn create_fake_spectra(integration_time: Duration) -> ObservedSpectra {
         frequencies,
         spectra,
         observation_time: integration_time,
+        // The chunk covers the tick that has just elapsed, so it began one
+        // tick ago. The first chunk's `start` is what `average_spectra`
+        // reports as the start of the whole integration.
+        start: Utc::now() - integration_time,
     }
 }
 
@@ -498,5 +503,79 @@ fn apply_offset(dir: Direction, az_offset_rad: f64, el_offset_rad: f64) -> Direc
     Direction {
         azimuth: ((dir.azimuth + az_offset_rad) % full_circle + full_circle) % full_circle,
         elevation: dir.elevation + el_offset_rad,
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    fn telescope() -> FakeTelescope {
+        create(
+            "test".to_string(),
+            None,
+            None,
+            Location {
+                longitude: 0.0,
+                latitude: 0.0,
+            },
+            0.0,
+            PI,
+            None,
+            1417.9e6,
+            60.0,
+            TleCacheHandle::new(),
+        )
+    }
+
+    fn integrating(max_duration: Option<Duration>) -> ReceiverConfiguration {
+        ReceiverConfiguration {
+            integrate: true,
+            max_duration,
+            ..Default::default()
+        }
+    }
+
+    /// A fixed-duration request must yield exactly the time asked for: no
+    /// short block from stopping mid-cycle, and no extra cycle from stopping
+    /// late. Time is paused, so the update loop's one-second ticks are free.
+    #[tokio::test(start_paused = true)]
+    async fn fixed_duration_integration_accumulates_exactly_what_was_asked_for() {
+        let telescope = telescope();
+        telescope
+            .set_receiver_configuration(integrating(Some(Duration::from_secs(2))))
+            .await
+            .expect("integration should start");
+
+        // Well past the request: the extra ticks must not be accumulated.
+        tokio::time::sleep(Duration::from_secs(10)).await;
+
+        let observed = telescope
+            .stop_integration()
+            .await
+            .expect("an integration of two seconds should have been collected");
+        assert_eq!(observed.observation_time, Duration::from_secs(2));
+    }
+
+    /// Open-ended integrations keep accumulating until stopped.
+    #[tokio::test(start_paused = true)]
+    async fn open_ended_integration_keeps_accumulating() {
+        let telescope = telescope();
+        telescope
+            .set_receiver_configuration(integrating(None))
+            .await
+            .expect("integration should start");
+
+        tokio::time::sleep(Duration::from_secs(10)).await;
+
+        let observed = telescope
+            .stop_integration()
+            .await
+            .expect("an integration should have been collected");
+        assert!(
+            observed.observation_time >= Duration::from_secs(9),
+            "expected around ten seconds, got {:?}",
+            observed.observation_time
+        );
     }
 }

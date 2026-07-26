@@ -31,7 +31,7 @@ use axum::{
     Router,
     routing::{get, post},
 };
-use chrono::{Duration, Utc};
+use chrono::Utc;
 use rusqlite::Connection;
 use serde::Deserialize;
 use std::net::SocketAddr;
@@ -185,6 +185,13 @@ async fn get_preview(
     let az_offset_rad = query.az_offset_deg.to_radians();
     let el_offset_rad = query.el_offset_deg.to_radians();
 
+    // Stow and Service are fixed mechanical positions, not sky targets: shown
+    // and commanded exactly as configured, with no az/el offsets applied.
+    let is_fixed_position = matches!(
+        query.coordinate_system.as_deref(),
+        Some("stow") | Some("service")
+    );
+
     let calculated = if query.coordinate_system.as_deref() == Some("stow") {
         telescope_info.and_then(|i| i.stow_position)
     } else if query.coordinate_system.as_deref() == Some("service") {
@@ -227,9 +234,7 @@ async fn get_preview(
         }
     };
 
-    let calculated = if query.coordinate_system.as_deref() == Some("stow")
-        || query.coordinate_system.as_deref() == Some("service")
-    {
+    let calculated = if is_fixed_position {
         calculated
     } else {
         calculated.map(|dir| {
@@ -365,16 +370,30 @@ async fn set_target(
         .await
         .ok_or(StatusCode::NOT_FOUND)?;
 
-    let az_offset_rad = target.az_offset_deg.to_radians();
-    let el_offset_rad = target.el_offset_deg.to_radians();
+    let mut az_offset_rad = target.az_offset_deg.to_radians();
+    let mut el_offset_rad = target.el_offset_deg.to_radians();
 
-    let telescope_target = if target.coordinate_system == "stow" {
+    // Stow and Service are fixed mechanical positions rather than sky targets:
+    // going there means going *exactly* there. The preview already ignores the
+    // az/el offsets for them, and applying the offsets here would both
+    // contradict it and, since a Service position typically sits right on
+    // `min_elevation`, let a stray negative offset push the move out of the
+    // allowed elevation range and fail it outright.
+    let telescope_target = if matches!(target.coordinate_system.as_str(), "stow" | "service") {
         let info = telescope.get_info().await.map_err(|err| {
             error!("Failed to get telescope info: {err}");
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
-        let stow = info.stow_position.ok_or_else(|| {
-            error!("No stow position configured for telescope {telescope_id}");
+        let position = if target.coordinate_system == "stow" {
+            info.stow_position
+        } else {
+            info.service_position
+        }
+        .ok_or_else(|| {
+            error!(
+                "No {} position configured for telescope {telescope_id}",
+                target.coordinate_system
+            );
             StatusCode::NOT_FOUND
         })?;
         if let Some(spectra) = telescope.stop_integration().await {
@@ -387,32 +406,11 @@ async fn set_target(
             )
             .await;
         }
+        az_offset_rad = 0.0;
+        el_offset_rad = 0.0;
         TelescopeTarget::Horizontal {
-            azimuth: stow.azimuth,
-            elevation: stow.elevation,
-        }
-    } else if target.coordinate_system == "service" {
-        let info = telescope.get_info().await.map_err(|err| {
-            error!("Failed to get telescope info: {err}");
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
-        let service = info.service_position.ok_or_else(|| {
-            error!("No service position configured for telescope {telescope_id}");
-            StatusCode::NOT_FOUND
-        })?;
-        if let Some(spectra) = telescope.stop_integration().await {
-            save_observation(
-                state.database_connection,
-                &user,
-                &info,
-                &spectra,
-                &state.tle_cache,
-            )
-            .await;
-        }
-        TelescopeTarget::Horizontal {
-            azimuth: service.azimuth,
-            elevation: service.elevation,
+            azimuth: position.azimuth,
+            elevation: position.elevation,
         }
     } else if target.coordinate_system == "sun" {
         TelescopeTarget::Sun
@@ -528,8 +526,10 @@ pub(crate) async fn save_observation(
         return;
     }
     let integration_time_secs = spectra.observation_time.as_secs_f64();
-    let start_time =
-        Utc::now() - Duration::milliseconds(spectra.observation_time.as_millis() as i64);
+    // Taken from the measurement rather than derived as `now - observation_time`:
+    // `observation_time` counts sample time only, so subtracting it from now
+    // would place the start of a long run well after it actually began.
+    let start_time = spectra.start;
 
     let Some(current_target) = info.current_target else {
         return;
@@ -634,39 +634,56 @@ pub(crate) async fn save_observation(
     }
 }
 
-/// Watch a running integration and stop+save it early on either of two events:
-/// the antenna leaving Tracking (a cable-unwrap slew, or the target sinking out
+/// How long past `max_duration` the monitor waits before stopping the
+/// integration regardless of what the telescope reports. Only reached when
+/// `get_info()` stops being readable or the measurement loop dies early — the
+/// normal path stops as soon as the reported `observation_time` covers the
+/// request. Generous on purpose: it must never pre-empt a healthy run, whose
+/// per-cycle overhead makes it take longer in wall clock than in sample time.
+const DURATION_BACKSTOP: std::time::Duration = std::time::Duration::from_secs(60);
+
+/// Watch a running integration and stop+save it once it is done, or early if
+/// the antenna leaves Tracking (a cable-unwrap slew, or the target sinking out
 /// of the elevation range — either way `measure()` would keep averaging
-/// off-source samples into the block), or an optional fixed duration being
-/// reached. Both race the integration's cancellation token, so a manual End or
-/// booking handover pre-empts the monitor and it exits without touching a
-/// later run.
+/// off-source samples into the block). Both race the integration's cancellation
+/// token, so a manual End or booking handover pre-empts the monitor and it
+/// exits without touching a later run.
 ///
-/// The fixed-duration check compares against the *completed* measurement
-/// cycle's accumulated `observation_time` (from `get_info()`), not a
-/// wall-clock deadline. Each cycle is an uninterruptible ~1 s block (USRP
-/// hardware read, or the fake telescope's tick), and a wall-clock deadline set
-/// to exactly the requested duration reliably fires while the final cycle is
-/// still in flight, discarding it — requesting 1 s integration got 0
-/// completed cycles ("no data"), 2 s got only 1. Waiting for the real
-/// accumulated time to reach the target means we only ever stop right after a
-/// cycle completes, at the cost of running slightly over the requested
-/// duration rather than under it.
+/// The monitor does *not* decide when the integration is long enough: the
+/// measurement loop is given the same `max_duration` and ends itself on a cycle
+/// boundary (see `measure()`), which is the only place that can hit the target
+/// exactly — a cycle is an uninterruptible ~1 s block, so a cancellation from
+/// out here lands mid-cycle and either throws that cycle away or, in Raw mode,
+/// lets it run to completion a full cycle past the target. The monitor just
+/// polls `observation_time` until it covers the request, then persists the
+/// result and stops the receiver.
+///
+/// Because that check reads `get_info()`, a telescope whose info goes unreadable
+/// would otherwise never auto-stop, so a wall-clock backstop bounds the failure.
 #[allow(clippy::too_many_arguments)]
 async fn monitor_integration(
     telescope: Arc<dyn Telescope>,
     token: tokio_util::sync::CancellationToken,
-    fixed_duration: Option<std::time::Duration>,
+    max_duration: std::time::Duration,
     db: Arc<Mutex<Connection>>,
     user: User,
     tle_cache: TleCacheHandle,
     telescope_id: String,
 ) {
+    let backstop = tokio::time::Instant::now() + max_duration + DURATION_BACKSTOP;
     let mut ticker = tokio::time::interval(std::time::Duration::from_secs(1));
     ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
     loop {
         tokio::select! {
             _ = token.cancelled() => break,
+            _ = tokio::time::sleep_until(backstop) => {
+                warn!(
+                    "Stopping integration on {telescope_id}: backstop fired, the telescope \
+                     never reported reaching the requested integration time"
+                );
+                stop_and_save_observation(telescope.as_ref(), db.clone(), &user, &tle_cache).await;
+                break;
+            }
             _ = ticker.tick() => {
                 match telescope.get_info().await {
                     Ok(info) if info.status != TelescopeStatus::Tracking => {
@@ -678,11 +695,10 @@ async fn monitor_integration(
                         break;
                     }
                     Ok(info) => {
-                        let reached = fixed_duration.is_some_and(|target| {
-                            info.latest_observation
-                                .as_ref()
-                                .is_some_and(|obs| obs.observation_time >= target)
-                        });
+                        let reached = info
+                            .latest_observation
+                            .as_ref()
+                            .is_some_and(|obs| obs.observation_time >= max_duration);
                         if reached {
                             stop_and_save_observation(telescope.as_ref(), db.clone(), &user, &tle_cache).await;
                             break;
@@ -859,6 +875,15 @@ async fn start_observe(
         return Err(StatusCode::BAD_REQUEST);
     }
 
+    // Open-ended runs fall back to the same ceiling the fixed-duration field is
+    // capped at, so every integration ends on its own eventually.
+    let max_duration = match (form.integration_mode.as_deref(), form.integration_time_secs) {
+        (Some("fixed"), Some(secs)) if secs > 0.0 && secs.is_finite() => {
+            std::time::Duration::from_secs_f64(secs)
+        }
+        _ => std::time::Duration::from_secs_f64(MAX_INTEGRATION_TIME_SECS),
+    };
+
     telescope
         .set_receiver_configuration(ReceiverConfiguration {
             integrate: true,
@@ -869,6 +894,10 @@ async fn start_observe(
             gain_db: form.gain_db,
             spectral_channels: form.spectral_channels,
             rfi_filter: form.rfi_filter,
+            // The measurement loop enforces the duration itself, on a cycle
+            // boundary. The monitor below only notices that it has finished
+            // and saves the result.
+            max_duration: Some(max_duration),
         })
         .await
         .map_err(|err| {
@@ -881,21 +910,24 @@ async fn start_observe(
     //     target). measure() would otherwise keep averaging off-source samples
     //     into the same block, silently corrupting a long integration, so we
     //     cut it off as soon as status leaves Tracking.
-    //   * Fixed-duration mode reaches its configured length.
+    //   * The integration reaches its length — the requested one in fixed mode,
+    //     otherwise the MAX_INTEGRATION_TIME_SECS ceiling.
     // Both race against this integration's cancellation token: if the user
     // clicks End first (or the booking ends) the token fires and the task
     // exits without touching whatever integration may follow.
-    if let Some(token) = telescope.current_integration_token().await {
-        let fixed_duration = match (form.integration_mode.as_deref(), form.integration_time_secs) {
-            (Some("fixed"), Some(secs)) if secs > 0.0 && secs.is_finite() => {
-                Some(std::time::Duration::from_secs_f64(secs))
-            }
-            _ => None,
-        };
+    //
+    // Skipped when an integration was already running: `set_receiver_configuration`
+    // is a no-op in that case and `current_integration_token` hands back the
+    // *running* integration's token, so a second POST would otherwise attach a
+    // second monitor to it — one that would see the already-accumulated time and
+    // cut the run short on its first tick.
+    if !info.measurement_in_progress
+        && let Some(token) = telescope.current_integration_token().await
+    {
         tokio::spawn(monitor_integration(
             telescope.clone(),
             token,
-            fixed_duration,
+            max_duration,
             state.database_connection.clone(),
             user.clone(),
             state.tle_cache.clone(),
@@ -1072,6 +1104,10 @@ const GAIN_MAX_DB: f64 = 88.0;
 // sizes the IQ sample buffer, an unbounded value can OOM-abort the process.
 const VALID_BANDWIDTH_MHZ: &[f64] = &[1.0, 2.5, 5.0, 12.5, 25.0];
 const VALID_SPECTRAL_CHANNELS: &[usize] = &[64, 128, 256, 512, 1024, 2048, 4096, 8192];
+/// Ceiling on a single integration. Bounds the fixed-duration form field, and
+/// open-ended (interactive) runs get it as their implicit duration — there is
+/// no reason to let clicking Start outlast the longest run a user could have
+/// asked for explicitly.
 const MAX_INTEGRATION_TIME_SECS: f64 = 3600.0;
 
 #[derive(Template)]
@@ -1374,65 +1410,104 @@ mod tests {
     use crate::coords::{Direction, Location};
     use crate::models::telescope_types::IqBlock;
     use async_trait::async_trait;
-    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::atomic::{AtomicU64, Ordering};
     use tokio_util::sync::CancellationToken;
 
-    // A telescope that reports Slewing while an integration is in progress —
-    // the exact state the FakeTelescope cannot produce (its own set_target
-    // stops integration, and it never autonomously slews), so we mock it to
-    // isolate the monitor's tracking-loss stop. Records whether the monitor
-    // called stop_integration.
-    struct SlewingMock {
-        stop_called: Arc<AtomicBool>,
+    /// What the mock telescope reports to the integration monitor. None of
+    /// these states can be produced by FakeTelescope: its own `set_target`
+    /// stops any integration and it never autonomously slews or drops offline.
+    enum Reports {
+        /// Antenna has left the target mid-integration.
+        Slewing,
+        /// Holds track, one more second of integration on every poll — a
+        /// stand-in for `measure()`'s cycle loop, which is what actually
+        /// decides a run has reached its requested length.
+        Tracking,
+        /// `get_info` always fails, as when the controller connection drops.
+        Nothing,
     }
 
-    fn info_slewing_and_measuring() -> TelescopeInfo {
-        TelescopeInfo {
-            id: "mock".to_string(),
-            status: TelescopeStatus::Slewing,
-            commanded_horizontal: Some(Direction {
-                azimuth: 0.0,
-                elevation: 1.0,
-            }),
-            current_horizontal: Some(Direction {
-                azimuth: 3.0,
-                elevation: 1.0,
-            }),
-            current_target: None,
-            most_recent_error: None,
-            measurement_in_progress: true,
-            latest_observation: None,
-            stow_position: None,
-            service_position: None,
-            az_offset_rad: 0.0,
-            el_offset_rad: 0.0,
-            location: Location {
-                longitude: 0.0,
-                latitude: 0.0,
-            },
-            min_elevation_rad: 0.0,
-            max_elevation_rad: std::f64::consts::PI,
-            webcam_crop: None,
-            receiver_connected: None,
-            controller_connected: None,
-            wind_warning_ms: None,
-            default_ref_freq_mhz: 1417.9,
-            default_gain_db: 60.0,
+    struct TelescopeMock {
+        reports: Reports,
+        polls: AtomicU64,
+        /// Number of polls served when the monitor called `stop_integration`,
+        /// or 0 if it never did.
+        polls_at_stop: AtomicU64,
+    }
+
+    impl TelescopeMock {
+        fn new(reports: Reports) -> Arc<Self> {
+            Arc::new(TelescopeMock {
+                reports,
+                polls: AtomicU64::new(0),
+                polls_at_stop: AtomicU64::new(0),
+            })
+        }
+
+        fn stopped(&self) -> bool {
+            self.polls_at_stop.load(Ordering::SeqCst) > 0
+        }
+    }
+
+    fn observed_for(observation_time: std::time::Duration) -> ObservedSpectra {
+        ObservedSpectra {
+            frequencies: vec![0.0],
+            spectra: vec![0.0],
+            observation_time,
+            start: Utc::now(),
         }
     }
 
     #[async_trait]
-    impl Telescope for SlewingMock {
+    impl Telescope for TelescopeMock {
         async fn get_info(&self) -> Result<TelescopeInfo, TelescopeError> {
-            Ok(info_slewing_and_measuring())
+            if matches!(self.reports, Reports::Nothing) {
+                return Err(TelescopeError::TelescopeNotConnected);
+            }
+            // First poll reports nothing integrated yet, then one second more
+            // each time — so a request for N seconds cannot be satisfied
+            // before poll N + 1.
+            let secs = self.polls.fetch_add(1, Ordering::SeqCst);
+            Ok(TelescopeInfo {
+                id: "mock".to_string(),
+                status: match self.reports {
+                    Reports::Slewing => TelescopeStatus::Slewing,
+                    _ => TelescopeStatus::Tracking,
+                },
+                commanded_horizontal: Some(Direction {
+                    azimuth: 0.0,
+                    elevation: 1.0,
+                }),
+                current_horizontal: Some(Direction {
+                    azimuth: 3.0,
+                    elevation: 1.0,
+                }),
+                current_target: None,
+                most_recent_error: None,
+                measurement_in_progress: true,
+                latest_observation: Some(observed_for(std::time::Duration::from_secs(secs))),
+                stow_position: None,
+                service_position: None,
+                az_offset_rad: 0.0,
+                el_offset_rad: 0.0,
+                location: Location {
+                    longitude: 0.0,
+                    latitude: 0.0,
+                },
+                min_elevation_rad: 0.0,
+                max_elevation_rad: std::f64::consts::PI,
+                webcam_crop: None,
+                receiver_connected: None,
+                controller_connected: None,
+                wind_warning_ms: None,
+                default_ref_freq_mhz: 1417.9,
+                default_gain_db: 60.0,
+            })
         }
         async fn stop_integration(&self) -> Option<ObservedSpectra> {
-            self.stop_called.store(true, Ordering::SeqCst);
-            Some(ObservedSpectra {
-                frequencies: vec![0.0],
-                spectra: vec![0.0],
-                observation_time: std::time::Duration::from_secs(1),
-            })
+            self.polls_at_stop
+                .store(self.polls.load(Ordering::SeqCst).max(1), Ordering::SeqCst);
+            Some(observed_for(std::time::Duration::from_secs(1)))
         }
         async fn set_target(
             &self,
@@ -1478,19 +1553,10 @@ mod tests {
         }
     }
 
-    // The monitor must stop the integration once the telescope reports it is no
-    // longer Tracking. A guest user is used so save_observation short-circuits
-    // and the in-memory DB is never touched. If the tracking-loss check were
-    // removed the monitor would loop forever and the timeout would trip.
-    #[tokio::test]
-    async fn monitor_stops_integration_when_tracking_lost() {
-        let stop_called = Arc::new(AtomicBool::new(false));
-        let telescope: Arc<dyn Telescope> = Arc::new(SlewingMock {
-            stop_called: stop_called.clone(),
-        });
-        let db = Arc::new(Mutex::new(
-            Connection::open_in_memory().expect("in-memory sqlite"),
-        ));
+    /// Runs the monitor to completion against `telescope`, giving up after an
+    /// hour of (paused, so instantaneous) time. `false` means it never
+    /// returned. A guest user keeps `save_observation` from touching the DB.
+    async fn run_monitor(telescope: Arc<TelescopeMock>, max_duration: std::time::Duration) -> bool {
         let guest = User {
             id: 1,
             name: "guest".to_string(),
@@ -1499,28 +1565,81 @@ mod tests {
             timezone: None,
             language: None,
         };
-
-        let finished = tokio::time::timeout(
-            std::time::Duration::from_secs(5),
+        tokio::time::timeout(
+            std::time::Duration::from_secs(3600),
             monitor_integration(
                 telescope,
                 CancellationToken::new(),
-                None,
-                db,
+                max_duration,
+                Arc::new(Mutex::new(
+                    Connection::open_in_memory().expect("in-memory sqlite"),
+                )),
                 guest,
                 TleCacheHandle::new(),
                 "mock".to_string(),
             ),
         )
-        .await;
+        .await
+        .is_ok()
+    }
 
+    // The monitor must stop the integration once the telescope reports it is
+    // no longer Tracking, rather than averaging off-source samples into the
+    // block for the rest of the run.
+    #[tokio::test(start_paused = true)]
+    async fn monitor_stops_integration_when_tracking_lost() {
+        let telescope = TelescopeMock::new(Reports::Slewing);
         assert!(
-            finished.is_ok(),
+            run_monitor(telescope.clone(), std::time::Duration::from_secs(600)).await,
             "monitor should stop the off-target integration and return, not loop"
         );
         assert!(
-            stop_called.load(Ordering::SeqCst),
+            telescope.stopped(),
             "monitor should have called stop_integration"
+        );
+    }
+
+    // A run must not be cut short: the monitor stops only once the telescope
+    // reports having integrated at least as long as was asked for. Getting
+    // this wrong is what made a 1 s request return "no data" — the old
+    // wall-clock deadline fired while the first cycle was still in flight.
+    #[tokio::test(start_paused = true)]
+    async fn monitor_waits_for_the_full_requested_duration() {
+        let telescope = TelescopeMock::new(Reports::Tracking);
+        let target_secs = 3;
+
+        assert!(
+            run_monitor(
+                telescope.clone(),
+                std::time::Duration::from_secs(target_secs)
+            )
+            .await,
+            "monitor should stop once the requested duration is covered, not loop"
+        );
+        // Poll k reports k - 1 seconds integrated, so the target is first met
+        // on poll target_secs + 1. Fewer means the monitor stopped the run
+        // before the telescope had integrated for as long as was requested.
+        let polls_at_stop = telescope.polls_at_stop.load(Ordering::SeqCst);
+        assert!(
+            polls_at_stop > target_secs,
+            "monitor stopped after {polls_at_stop} polls, before {target_secs} s had been \
+             integrated"
+        );
+    }
+
+    // The duration check reads get_info(), so a telescope whose info goes
+    // unreadable would never reach its target and would integrate until the
+    // booking ended. The backstop bounds that.
+    #[tokio::test(start_paused = true)]
+    async fn monitor_backstop_stops_integration_when_info_is_unreadable() {
+        let telescope = TelescopeMock::new(Reports::Nothing);
+        assert!(
+            run_monitor(telescope.clone(), std::time::Duration::from_secs(5)).await,
+            "backstop should stop an integration whose telescope never reports progress"
+        );
+        assert!(
+            telescope.stopped(),
+            "backstop should have called stop_integration"
         );
     }
 }

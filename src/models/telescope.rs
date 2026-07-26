@@ -14,7 +14,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use tracing::info;
+use tracing::{info, warn};
 
 #[async_trait]
 pub trait Telescope: Send + Sync {
@@ -121,6 +121,26 @@ fn create_telescope(def: TelescopeDefinition, tle_cache: TleCacheHandle) -> Arc<
     });
     let min_elevation_rad = def.min_elevation.to_radians();
     let max_elevation_rad = def.max_elevation.to_radians();
+
+    // The tracker rejects any move outside the elevation limits, including
+    // these fixed positions. Catching it here names the offending config key;
+    // otherwise the first operator to select the position gets a bare "target
+    // out of elevation range" and no hint that it can never succeed.
+    for (name, position) in [("stow", stow_position), ("service", service_position)] {
+        if let Some(position) = position
+            && (position.elevation < min_elevation_rad || position.elevation > max_elevation_rad)
+        {
+            warn!(
+                "Telescope {}: {name}_position elevation {:.1}° is outside the configured \
+                 elevation range {:.1}°–{:.1}°, so moving there will always be refused",
+                def.name,
+                position.elevation.to_degrees(),
+                def.min_elevation,
+                def.max_elevation
+            );
+        }
+    }
+
     let default_ref_freq_hz = def.default_ref_freq_mhz * 1e6;
     let default_gain_db = def.default_gain_db;
     let tsys_k = def.tsys_k;
