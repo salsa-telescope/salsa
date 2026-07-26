@@ -31,7 +31,12 @@ enum IntegrationKind {
 
 pub struct ActiveIntegration {
     cancellation_token: CancellationToken,
-    measurement_task: tokio::task::JoinHandle<Result<(), TelescopeError>>,
+    /// `None` once the task has been awaited. Since `measure()` ends by itself
+    /// on reaching its requested duration, the periodic reaper in
+    /// `Inner::update` collects the handle to surface any error it died with —
+    /// but the `ActiveIntegration` itself must outlive that, because it is what
+    /// tells `stop_integration` there is a spectrum to hand back.
+    measurement_task: Option<tokio::task::JoinHandle<Result<(), TelescopeError>>>,
     kind: IntegrationKind,
 }
 
@@ -246,7 +251,7 @@ impl Telescope for SalsaTelescope {
             };
             inner.active_integration = Some(ActiveIntegration {
                 cancellation_token,
-                measurement_task,
+                measurement_task: Some(measurement_task),
                 kind: IntegrationKind::Spectrum,
             });
         } else if !receiver_configuration.integrate && inner.receiver_configuration.integrate {
@@ -261,11 +266,14 @@ impl Telescope for SalsaTelescope {
             drop(inner);
             if let Some(ai) = active {
                 ai.cancellation_token.cancel();
-                match ai.measurement_task.await {
-                    Ok(Ok(())) => {}
-                    Ok(Err(err)) => error!("Measurement task failed before stop: {err}"),
-                    Err(join_err) => {
-                        error!("Error waiting for measurement task to finish: {join_err}")
+                // Already `None` when the reaper in `update` collected it.
+                if let Some(task) = ai.measurement_task {
+                    match task.await {
+                        Ok(Ok(())) => {}
+                        Ok(Err(err)) => error!("Measurement task failed before stop: {err}"),
+                        Err(join_err) => {
+                            error!("Error waiting for measurement task to finish: {join_err}")
+                        }
                     }
                 }
             }
@@ -288,11 +296,15 @@ impl Telescope for SalsaTelescope {
         let kind = active_integration.as_ref().map(|ai| ai.kind);
         if let Some(ai) = active_integration {
             ai.cancellation_token.cancel();
-            match ai.measurement_task.await {
-                Ok(Ok(())) => {}
-                Ok(Err(err)) => error!("Measurement task failed before stop: {err}"),
-                Err(join_err) => {
-                    error!("Error waiting for measurement task to finish: {join_err}")
+            // Already `None` when the reaper in `update` collected it — which is
+            // the normal case now that `measure()` ends on its own.
+            if let Some(task) = ai.measurement_task {
+                match task.await {
+                    Ok(Ok(())) => {}
+                    Ok(Err(err)) => error!("Measurement task failed before stop: {err}"),
+                    Err(join_err) => {
+                        error!("Error waiting for measurement task to finish: {join_err}")
+                    }
                 }
             }
         }
@@ -427,7 +439,7 @@ impl Telescope for SalsaTelescope {
         inner.receiver_configuration.integrate = true;
         inner.active_integration = Some(ActiveIntegration {
             cancellation_token,
-            measurement_task,
+            measurement_task: Some(measurement_task),
             kind: IntegrationKind::Iq,
         });
         Ok(rx)
@@ -436,22 +448,33 @@ impl Telescope for SalsaTelescope {
 
 impl Inner {
     async fn update(&mut self, _delta_time: Duration) -> Result<(), TelescopeError> {
-        if let Some(active_integration) = self.active_integration.take() {
-            if active_integration.measurement_task.is_finished() {
-                match active_integration.measurement_task.await {
-                    Ok(Ok(())) => {}
-                    Ok(Err(err)) => {
-                        error!("Measurement task failed: {}", err);
-                        self.last_receiver_error = Some(err);
-                    }
-                    Err(join_err) => {
-                        error!("Measurement task panicked: {}", join_err);
-                        self.last_receiver_error =
-                            Some(TelescopeError::ReceiverFailed(join_err.to_string()));
-                    }
+        // Collect a measurement task that has finished on its own so an error it
+        // died with reaches the page. Only the handle is taken: the
+        // `ActiveIntegration` has to stay until the integration is actually
+        // stopped, because `stop_integration` uses it to recognise the run and
+        // return its spectrum. Taking the whole thing here left `integrate` true
+        // with nothing attached, and the finished spectrum was then discarded —
+        // which is what silently lost one-second integrations, since those are
+        // over long before anything stops them.
+        let finished_task =
+            self.active_integration
+                .as_mut()
+                .and_then(|active| match &active.measurement_task {
+                    Some(task) if task.is_finished() => active.measurement_task.take(),
+                    _ => None,
+                });
+        if let Some(task) = finished_task {
+            match task.await {
+                Ok(Ok(())) => {}
+                Ok(Err(err)) => {
+                    error!("Measurement task failed: {}", err);
+                    self.last_receiver_error = Some(err);
                 }
-            } else {
-                self.active_integration = Some(active_integration);
+                Err(join_err) => {
+                    error!("Measurement task panicked: {}", join_err);
+                    self.last_receiver_error =
+                        Some(TelescopeError::ReceiverFailed(join_err.to_string()));
+                }
             }
         }
         let connected = !matches!(
