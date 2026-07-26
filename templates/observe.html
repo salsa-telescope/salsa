@@ -178,7 +178,7 @@
                     onchange="updateIntegrationTimeVisibility()" />
                   {{ lang.t("observe-fixed") }}
                   <input type="number" id="integration-time-secs" name="integration_time_secs"
-                    value="60" min="1" max="3600" step="1" disabled
+                    value="60" min="1" max="{{ max_integration_time_secs }}" step="1" disabled
                     class="border rounded px-2 py-1 bg-white text-sm w-20 disabled:opacity-50" />
                   {{ lang.t("observe-seconds") }}
                 </label>

@@ -1104,10 +1104,11 @@ const GAIN_MAX_DB: f64 = 88.0;
 // sizes the IQ sample buffer, an unbounded value can OOM-abort the process.
 const VALID_BANDWIDTH_MHZ: &[f64] = &[1.0, 2.5, 5.0, 12.5, 25.0];
 const VALID_SPECTRAL_CHANNELS: &[usize] = &[64, 128, 256, 512, 1024, 2048, 4096, 8192];
-/// Ceiling on a single integration. Bounds the fixed-duration form field, and
-/// open-ended (interactive) runs get it as their implicit duration — there is
-/// no reason to let clicking Start outlast the longest run a user could have
-/// asked for explicitly.
+/// Ceiling on a single integration, one booking slot long. Validates the
+/// fixed-duration form, fills that field's `max` (via `ObserveTemplate`, so the
+/// browser and the backend cannot disagree), and open-ended runs take it as
+/// their implicit duration — there is no reason to let clicking Start outlast
+/// the longest run a user could have asked for explicitly.
 const MAX_INTEGRATION_TIME_SECS: f64 = 3600.0;
 
 #[derive(Template)]
@@ -1123,6 +1124,7 @@ struct ObserveTemplate {
     is_admin: bool,
     freq_min_mhz: u32,
     freq_max_mhz: u32,
+    max_integration_time_secs: u32,
     wind_warning: bool,
     guest_started_at: Option<i64>,
     guest_last_activity_at: Option<i64>,
@@ -1206,6 +1208,7 @@ async fn observe(
         is_admin,
         freq_min_mhz,
         freq_max_mhz,
+        max_integration_time_secs: MAX_INTEGRATION_TIME_SECS as u32,
         wind_warning,
         guest_started_at: guest_session.map(|g| g.started_at.timestamp()),
         guest_last_activity_at: guest_session.map(|g| g.last_activity_at.timestamp()),
