@@ -507,18 +507,40 @@ pub(crate) async fn stop_and_save_observation(
     user: &User,
     tle_cache: &TleCacheHandle,
 ) {
-    // get_info before stop so the snapshot reflects the integration's target.
-    let info_result = telescope.get_info().await;
-    if let Some(spectra) = telescope.stop_integration().await {
-        match info_result {
-            Ok(info) => {
-                save_observation(connection, user, &info, &spectra, tle_cache).await;
-            }
-            Err(err) => {
-                error!("Failed to get telescope info while stopping integration: {err}");
+    // get_info before stop so the snapshot reflects the integration's target:
+    // callers such as `set_target` move the telescope immediately afterwards.
+    let info_before_stop = telescope.get_info().await;
+
+    let Some(spectra) = telescope.stop_integration().await else {
+        // Routine when nothing was running — the reaps in `set_target` and
+        // `start_observe` call this unconditionally. `stop_integration` logs
+        // the cases where an integration *was* running but yielded nothing.
+        return;
+    };
+
+    // Past this point the spectrum has been taken out of the telescope and
+    // exists only here, so every path has to end in a save or an explicit
+    // complaint. Returning quietly would destroy an observation.
+    let info = match info_before_stop {
+        Ok(info) => info,
+        Err(err) => {
+            warn!(
+                "Could not read telescope info before stopping the integration ({err}); \
+                 retrying after the stop rather than discarding the spectrum"
+            );
+            match telescope.get_info().await {
+                Ok(info) => info,
+                Err(err) => {
+                    error!(
+                        "Discarding a completed spectrum: telescope info unreadable ({err}), \
+                         so there is no target to file it against"
+                    );
+                    return;
+                }
             }
         }
-    }
+    };
+    save_observation(connection, user, &info, &spectra, tle_cache).await;
 }
 
 pub(crate) async fn save_observation(
@@ -531,6 +553,10 @@ pub(crate) async fn save_observation(
     // Guest sessions are explicitly ephemeral — the live spectrum is shown
     // in the chart while observing, but nothing is persisted to the DB.
     if user.provider == "guest" {
+        info!(
+            "Not saving observation on {}: guest sessions are not persisted",
+            info.id
+        );
         return;
     }
     let integration_time_secs = spectra.observation_time.as_secs_f64();
@@ -540,6 +566,11 @@ pub(crate) async fn save_observation(
     let start_time = spectra.start;
 
     let Some(current_target) = info.current_target else {
+        error!(
+            "Discarding a {integration_time_secs} s spectrum from {}: the telescope reports \
+             no current target, so there is nothing to file it against",
+            info.id
+        );
         return;
     };
     let az_offset_deg = info.az_offset_rad.to_degrees();
@@ -639,6 +670,15 @@ pub(crate) async fn save_observation(
     .await
     {
         error!("Failed to save observation: {err:?}");
+    } else {
+        // Logged so a successful save is distinguishable from the paths that
+        // drop a spectrum. Without it, "nothing in the archive" and "saved
+        // normally" look identical in the journal.
+        info!(
+            "Saved observation on {}: {integration_time_secs} s, {coordinate_system} \
+             ({target_x:.1}, {target_y:.1}), started {start_time}",
+            info.id
+        );
     }
 }
 

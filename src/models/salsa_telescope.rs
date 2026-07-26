@@ -300,16 +300,28 @@ impl Telescope for SalsaTelescope {
         // `measurements` would surface stale single-dish data from earlier in the
         // process lifetime and mis-file it under the current user/target.
         if kind != Some(IntegrationKind::Spectrum) {
+            warn!(
+                "Stopped an integration that yielded no spectrum to save: kind was {kind:?} \
+                 rather than Spectrum (None means the integration had already been claimed)"
+            );
             return None;
         }
         let inner = self.inner.lock().await;
         let measurements = inner.measurements.lock().await;
-        measurements.last().map(|m| ObservedSpectra {
+        let spectra = measurements.last().map(|m| ObservedSpectra {
             frequencies: m.freqs.clone(),
             spectra: m.amps.clone(),
             observation_time: m.duration,
             start: m.start,
-        })
+        });
+        if spectra.is_none() {
+            warn!(
+                "Stopped an integration on {} with an empty measurement buffer, so there is \
+                 nothing to save",
+                inner.name
+            );
+        }
+        spectra
     }
 
     async fn clear_measurements(&self) {
