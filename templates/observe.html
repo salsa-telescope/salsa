@@ -90,7 +90,6 @@
               hx-swap="none"
               hx-include="[name='coordinate_system'],[name='x'],[name='y'],[name='az_offset_deg'],[name='el_offset_deg']"
               hx-disabled-elt="this"
-              hx-on::before-request="document.getElementById('errors').innerHTML=''; setTrackingState(true)"
               class="btn flex-shrink-0"
             >
               {{ lang.t("observe-track") }}
@@ -145,7 +144,6 @@
             hx-post="/observe/{{ info.id }}/observe"
             hx-swap="none"
             hx-include="[name='mode'],[name='center_freq_mhz'],[name='ref_freq_mhz'],[name='bandwidth_mhz'],[name='gain_db'],[name='spectral_channels'],[name='rfi_filter'],[name='integration_mode'],[name='integration_time_secs']"
-            hx-on::before-request="document.getElementById('errors').innerHTML=''; setObservingState(true)"
             hx-disabled-elt="this"
             class="btn"
           >
@@ -703,14 +701,67 @@
       });
   }
 
+  // Track/Begin (and their Stop counterparts) swap the moment they are
+  // pressed rather than waiting for the next status poll — a button that sits
+  // there unchanged for up to a second reads as the press not having
+  // registered. These were once hx-on::before-request attributes, but htmx
+  // compiles those with new Function(), and our CSP sets script-src without
+  // 'unsafe-eval', so they threw a CSP violation and never ran. Plain
+  // listeners need no eval.
+  //
+  // The status poll stays the authority; it just lags a press. A pending
+  // press holds the pressed-for state until the command has been answered and
+  // one poll has run since, then the server wins again — including when it
+  // refused the command, which snaps the button back on its own.
+  let pendingTrack = null;
+  let pendingObserve = null;
+
+  // Backstop for a response that never arrives, so a dropped request cannot
+  // strand the button in the pressed-for state indefinitely.
+  const PRESS_HOLD_MS = 10000;
+
+  function pressButton(which, want) {
+      const errors = document.getElementById('errors');
+      if (errors) errors.innerHTML = '';
+      const pending = { want: want, settled: false, deadline: Date.now() + PRESS_HOLD_MS };
+      if (which === 'track') {
+          pendingTrack = pending;
+          setTrackingState(want);
+      } else {
+          pendingObserve = pending;
+          setObservingState(want);
+      }
+  }
+
+  function resolvePress(pending, serverState) {
+      if (!pending || pending.settled || Date.now() > pending.deadline) {
+          return { pending: null, show: serverState };
+      }
+      return { pending: pending, show: pending.want };
+  }
+
+  function wireButtonPress(id, which, want) {
+      const btn = document.getElementById(id);
+      if (!btn) return;
+      btn.addEventListener('htmx:beforeRequest', function () {
+          pressButton(which, want);
+      });
+      btn.addEventListener('htmx:afterRequest', function () {
+          const pending = which === 'track' ? pendingTrack : pendingObserve;
+          if (pending) pending.settled = true;
+      });
+  }
+
   function updateTrackStopButtons() {
-      const status = currentTelescopeStatus();
-      const isTracking = status === 'Tracking';
-      const isIdle = status === 'Idle';
-      setTrackingState(!isIdle);
+      const isIdle = currentTelescopeStatus() === 'Idle';
       const measuringEl = document.getElementById('measuring-state');
-      const isMeasuring = measuringEl && measuringEl.dataset.measuring === 'true';
-      setObservingState(isMeasuring);
+      const isMeasuring = !!(measuringEl && measuringEl.dataset.measuring === 'true');
+      const track = resolvePress(pendingTrack, !isIdle);
+      pendingTrack = track.pending;
+      setTrackingState(track.show);
+      const observe = resolvePress(pendingObserve, isMeasuring);
+      pendingObserve = observe.pending;
+      setObservingState(observe.show);
   }
 
   document.addEventListener('htmx:afterSwap', function (evt) {
@@ -719,12 +770,11 @@
           updateTrackStopButtons();
           updateBookingCountdown();
       }
-      // Track and Begin swap their buttons the moment they are pressed, rather
-      // than waiting for the next status poll a second later — pressing a
-      // button that then sits there unchanged reads as the press not having
-      // registered. If the command was refused, resync both pairs from what
-      // the telescope actually reports, which undoes the optimistic swap.
+      // The command was refused, so drop any optimistic swap and resync both
+      // pairs from what the telescope actually reports.
       if (evt.detail.target.id === 'errors' && evt.detail.target.innerHTML.trim() !== '') {
+          pendingTrack = null;
+          pendingObserve = null;
           updateTrackStopButtons();
       }
   });
@@ -746,6 +796,10 @@
       const satSelect = document.getElementById('satellite-select');
       satSelect.addEventListener('change', satelliteChanged);
       if (isGnss) fetchSatellites();
+      wireButtonPress('track-btn', 'track', true);
+      wireButtonPress('stop-btn', 'track', false);
+      wireButtonPress('observe-btn', 'observe', true);
+      wireButtonPress('stop-obs-btn', 'observe', false);
       updateObsTimer();
       updateTrackStopButtons();
       updateSpectralResolution();
