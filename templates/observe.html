@@ -391,11 +391,24 @@
           inlineEl.textContent = ' \u2014 ' + OBSERVE_I18N.timeLeft + ' ' + mm + ':' + ss;
       }
 
-      if (remaining <= 300 && !warningSent) {
-          warningSent = true;
+      // Derived from the remaining time on every tick, like the countdown
+      // colour above, rather than latched on once. Extending the booking —
+      // including from another tab or another client — puts `remaining` back
+      // above the threshold, and the banner has to follow it back down.
+      // Clearing `warningSent` too, so a booking that runs low a second time
+      // warns again instead of failing silently.
+      if (remaining <= 300) {
+          if (!warningSent) {
+              warningSent = true;
+              if (warningEl) {
+                  warningEl.textContent = OBSERVE_I18N.bookingEnding;
+                  warningEl.classList.remove('hidden');
+              }
+          }
+      } else if (warningSent) {
+          warningSent = false;
           if (warningEl) {
-              warningEl.textContent = OBSERVE_I18N.bookingEnding;
-              warningEl.classList.remove('hidden');
+              warningEl.classList.add('hidden');
           }
       }
   }
