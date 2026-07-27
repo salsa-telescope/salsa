@@ -71,6 +71,11 @@ pub struct TelescopeInfo {
     pub wind_warning_ms: Option<f64>, // warn if 10-min avg wind exceeds this (m/s)
     pub default_ref_freq_mhz: f64,
     pub default_gain_db: f64,
+    /// What the receiver is actually set to, as opposed to the `default_*`
+    /// fields above which are only the configured starting points. Recorded
+    /// with each observation so an archived spectrum carries the gain, mode
+    /// and filter state it was taken with.
+    pub receiver_configuration: ReceiverConfiguration,
 }
 
 #[derive(Deserialize, PartialEq, Debug, Clone)]

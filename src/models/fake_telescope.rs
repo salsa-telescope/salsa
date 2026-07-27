@@ -206,12 +206,11 @@ impl Telescope for FakeTelescope {
             }
             info!("Starting integration on {}", &inner.name);
             inner.current_spectra.clear();
-            inner.receiver_configuration.integrate = true;
-            // The fake receiver simulates neither frequency nor gain, so the
-            // rest of the configuration is ignored — but the requested
-            // duration governs when the integration ends, which it does have
-            // to honour.
-            inner.receiver_configuration.max_duration = receiver_configuration.max_duration;
+            // The fake receiver simulates neither frequency nor gain, but it
+            // still keeps the whole configuration: `max_duration` governs when
+            // the integration ends, and the rest is reported back through
+            // `get_info` so it can be recorded with the observation.
+            inner.receiver_configuration = receiver_configuration;
             inner.spectrum_cancellation_token = Some(CancellationToken::new());
         } else if !receiver_configuration.integrate && inner.receiver_configuration.integrate {
             info!("Stopping integration on {}", &inner.name);
@@ -300,6 +299,7 @@ impl Telescope for FakeTelescope {
             wind_warning_ms: None,
             default_ref_freq_mhz: inner.default_ref_freq_hz / 1e6,
             default_gain_db: inner.default_gain_db,
+            receiver_configuration: inner.receiver_configuration,
         })
     }
     async fn shutdown(&self) {

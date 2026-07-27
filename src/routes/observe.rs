@@ -666,6 +666,7 @@ pub(crate) async fn save_observation(
         vlsr_correction_mps,
         stored_az_offset,
         stored_el_offset,
+        &info.receiver_configuration,
     )
     .await
     {
@@ -1565,6 +1566,7 @@ mod tests {
                 wind_warning_ms: None,
                 default_ref_freq_mhz: 1417.9,
                 default_gain_db: 60.0,
+                receiver_configuration: ReceiverConfiguration::default(),
             })
         }
         async fn stop_integration(&self) -> Option<ObservedSpectra> {

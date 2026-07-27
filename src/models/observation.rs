@@ -7,6 +7,7 @@ use tokio::sync::Mutex;
 
 use crate::coords::{ONSALA_LOCATION, horizontal_from_equatorial, horizontal_from_galactic};
 use crate::error::InternalError;
+use crate::models::telescope_types::ReceiverConfiguration;
 use crate::models::user::User;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -24,6 +25,15 @@ pub struct Observation {
     pub vlsr_correction_mps: Option<f64>,
     pub az_offset_deg: Option<f64>,
     pub el_offset_deg: Option<f64>,
+    /// Receiver settings the spectrum was taken with. `None` for observations
+    /// recorded before these were stored (migration V18).
+    pub gain_db: Option<f64>,
+    pub center_freq_hz: Option<f64>,
+    pub ref_freq_hz: Option<f64>,
+    pub bandwidth_hz: Option<f64>,
+    pub spectral_channels: Option<i64>,
+    pub observation_mode: Option<String>,
+    pub rfi_filter: Option<bool>,
 }
 
 impl Observation {
@@ -42,12 +52,15 @@ impl Observation {
         vlsr_correction_mps: Option<f64>,
         az_offset_deg: Option<f64>,
         el_offset_deg: Option<f64>,
+        receiver: &ReceiverConfiguration,
     ) -> Result<(), InternalError> {
         let conn = connection.lock().await;
         conn.execute(
-            "INSERT INTO observation (user_id, telescope_id, start_time, coordinate_system, target_x, target_y, integration_time_secs, frequencies_json, amplitudes_json, vlsr_correction_mps, az_offset_deg, el_offset_deg)
-                 VALUES ((?1), (?2), (?3), (?4), (?5), (?6), (?7), (?8), (?9), (?10), (?11), (?12))",
-            (
+            "INSERT INTO observation (user_id, telescope_id, start_time, coordinate_system, target_x, target_y, integration_time_secs, frequencies_json, amplitudes_json, vlsr_correction_mps, az_offset_deg, el_offset_deg, gain_db, center_freq_hz, ref_freq_hz, bandwidth_hz, spectral_channels, observation_mode, rfi_filter)
+                 VALUES ((?1), (?2), (?3), (?4), (?5), (?6), (?7), (?8), (?9), (?10), (?11), (?12), (?13), (?14), (?15), (?16), (?17), (?18), (?19))",
+            // `params!` rather than a tuple: rusqlite only implements `Params`
+            // for tuples up to 16 elements, and this is past that.
+            rusqlite::params![
                 &user.id,
                 telescope_id,
                 start_time.timestamp(),
@@ -60,7 +73,14 @@ impl Observation {
                 vlsr_correction_mps,
                 az_offset_deg,
                 el_offset_deg,
-            ),
+                receiver.gain_db,
+                receiver.center_freq_hz,
+                receiver.ref_freq_hz,
+                receiver.bandwidth_hz,
+                receiver.spectral_channels as i64,
+                format!("{:?}", receiver.mode),
+                receiver.rfi_filter,
+            ],
         )
         .map_err(|err| InternalError::new(format!("Failed to insert observation in db: {err}")))?;
         Ok(())
@@ -75,7 +95,7 @@ impl Observation {
         let conn = connection.lock().await;
         let mut stmt = conn
             .prepare(
-                "SELECT id, user_id, telescope_id, start_time, coordinate_system, target_x, target_y, integration_time_secs, frequencies_json, amplitudes_json, vlsr_correction_mps, az_offset_deg, el_offset_deg
+                "SELECT id, user_id, telescope_id, start_time, coordinate_system, target_x, target_y, integration_time_secs, frequencies_json, amplitudes_json, vlsr_correction_mps, az_offset_deg, el_offset_deg, gain_db, center_freq_hz, ref_freq_hz, bandwidth_hz, spectral_channels, observation_mode, rfi_filter
                  FROM observation
                  WHERE user_id = (?1)
                  ORDER BY start_time DESC
@@ -98,6 +118,13 @@ impl Observation {
                     vlsr_correction_mps: row.get(10)?,
                     az_offset_deg: row.get(11)?,
                     el_offset_deg: row.get(12)?,
+                    gain_db: row.get(13)?,
+                    center_freq_hz: row.get(14)?,
+                    ref_freq_hz: row.get(15)?,
+                    bandwidth_hz: row.get(16)?,
+                    spectral_channels: row.get(17)?,
+                    observation_mode: row.get(18)?,
+                    rfi_filter: row.get(19)?,
                 })
             })
             .map_err(|err| InternalError::new(format!("Failed to query_map: {err}")))?;
@@ -149,7 +176,7 @@ impl Observation {
         let conn = connection.lock().await;
         let mut stmt = conn
             .prepare(
-                "SELECT id, user_id, telescope_id, start_time, coordinate_system, target_x, target_y, integration_time_secs, frequencies_json, amplitudes_json, vlsr_correction_mps, az_offset_deg, el_offset_deg
+                "SELECT id, user_id, telescope_id, start_time, coordinate_system, target_x, target_y, integration_time_secs, frequencies_json, amplitudes_json, vlsr_correction_mps, az_offset_deg, el_offset_deg, gain_db, center_freq_hz, ref_freq_hz, bandwidth_hz, spectral_channels, observation_mode, rfi_filter
                  FROM observation
                  WHERE id = (?1) AND ((?2) IS NULL OR user_id = (?2))",
             )
@@ -170,6 +197,13 @@ impl Observation {
                     vlsr_correction_mps: row.get(10)?,
                     az_offset_deg: row.get(11)?,
                     el_offset_deg: row.get(12)?,
+                    gain_db: row.get(13)?,
+                    center_freq_hz: row.get(14)?,
+                    ref_freq_hz: row.get(15)?,
+                    bandwidth_hz: row.get(16)?,
+                    spectral_channels: row.get(17)?,
+                    observation_mode: row.get(18)?,
+                    rfi_filter: row.get(19)?,
                 })
             })
             .map_err(|err| InternalError::new(format!("Failed to query_map: {err}")))?;
@@ -239,6 +273,13 @@ mod tests {
             vlsr_correction_mps: None,
             az_offset_deg: None,
             el_offset_deg: None,
+            gain_db: None,
+            center_freq_hz: None,
+            ref_freq_hz: None,
+            bandwidth_hz: None,
+            spectral_channels: None,
+            observation_mode: None,
+            rfi_filter: None,
         }
     }
 

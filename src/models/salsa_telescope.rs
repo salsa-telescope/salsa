@@ -230,7 +230,11 @@ impl Telescope for SalsaTelescope {
             }
 
             info!("Starting integration on {}", inner.name);
-            inner.receiver_configuration.integrate = true;
+            // Keep the whole configuration, not just the flag. The rest of it
+            // used to go straight to `measure()` and be forgotten, so nothing
+            // downstream — `get_info`, and through it the saved observation —
+            // could report what gain or mode a spectrum was actually taken at.
+            inner.receiver_configuration = receiver_configuration;
             inner.last_receiver_error = None;
             inner.measurements.lock().await.clear();
             let cancellation_token = CancellationToken::new();
@@ -404,6 +408,7 @@ impl Telescope for SalsaTelescope {
             wind_warning_ms: inner.wind_warning_ms,
             default_ref_freq_mhz: inner.default_ref_freq_hz / 1e6,
             default_gain_db: inner.default_gain_db,
+            receiver_configuration: inner.receiver_configuration,
         })
     }
     async fn shutdown(&self) {

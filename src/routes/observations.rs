@@ -446,6 +446,31 @@ async fn get_observation_csv(
         "# Integration time: {:.0} s\n",
         observation.integration_time_secs
     ));
+    // Receiver settings, so a spectrum can be told apart from one taken at a
+    // different gain or in a different mode. Absent for observations recorded
+    // before these were stored, hence emitting each line only when present
+    // rather than writing a placeholder that could be mistaken for a value.
+    if let Some(mode) = &observation.observation_mode {
+        csv.push_str(&format!("# Observation mode: {mode}\n"));
+    }
+    if let Some(v) = observation.center_freq_hz {
+        csv.push_str(&format!("# Center frequency: {:.6} MHz\n", v / 1e6));
+    }
+    if let Some(v) = observation.ref_freq_hz {
+        csv.push_str(&format!("# Reference frequency: {:.6} MHz\n", v / 1e6));
+    }
+    if let Some(v) = observation.bandwidth_hz {
+        csv.push_str(&format!("# Bandwidth: {:.4} MHz\n", v / 1e6));
+    }
+    if let Some(v) = observation.spectral_channels {
+        csv.push_str(&format!("# Spectral channels: {v}\n"));
+    }
+    if let Some(v) = observation.gain_db {
+        csv.push_str(&format!("# Receiver gain: {v:.1} dB\n"));
+    }
+    if let Some(v) = observation.rfi_filter {
+        csv.push_str(&format!("# RFI filter: {}\n", if v { "on" } else { "off" }));
+    }
     if has_vlsr {
         csv.push_str(&format!("# VLSR correction: {:.2} m/s\n", vlsr_mps));
         csv.push_str("# Columns: frequency_hz,amplitude,vlsr_mps\n");
