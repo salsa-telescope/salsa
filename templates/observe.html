@@ -709,21 +709,27 @@
   // 'unsafe-eval', so they threw a CSP violation and never ran. Plain
   // listeners need no eval.
   //
-  // The status poll stays the authority; it just lags a press. A pending
-  // press holds the pressed-for state until the command has been answered and
-  // one poll has run since, then the server wins again — including when it
-  // refused the command, which snaps the button back on its own.
+  // The status poll stays the authority; it just lags a press, and by more
+  // than one poll. The telescope's own status loop runs at 1 Hz and the page
+  // polls it on an independent 1 Hz timer, so for up to a second after a
+  // command the polled status still describes the state before the press.
+  // A pending press therefore holds the pressed-for state until the telescope
+  // actually reports it, not merely until the next poll arrives — waiting a
+  // fixed number of polls lands on exactly that stale reading and flicks the
+  // button back and forth.
   let pendingTrack = null;
   let pendingObserve = null;
 
-  // Backstop for a response that never arrives, so a dropped request cannot
-  // strand the button in the pressed-for state indefinitely.
+  // Backstop for a command that is accepted but never takes effect, so the
+  // button cannot stay stuck in the pressed-for state indefinitely. A command
+  // that is *refused* does not wait for this — the error swap clears the hold
+  // at once.
   const PRESS_HOLD_MS = 10000;
 
   function pressButton(which, want) {
       const errors = document.getElementById('errors');
       if (errors) errors.innerHTML = '';
-      const pending = { want: want, settled: false, deadline: Date.now() + PRESS_HOLD_MS };
+      const pending = { want: want, deadline: Date.now() + PRESS_HOLD_MS };
       if (which === 'track') {
           pendingTrack = pending;
           setTrackingState(want);
@@ -734,7 +740,7 @@
   }
 
   function resolvePress(pending, serverState) {
-      if (!pending || pending.settled || Date.now() > pending.deadline) {
+      if (!pending || pending.want === serverState || Date.now() > pending.deadline) {
           return { pending: null, show: serverState };
       }
       return { pending: pending, show: pending.want };
@@ -745,10 +751,6 @@
       if (!btn) return;
       btn.addEventListener('htmx:beforeRequest', function () {
           pressButton(which, want);
-      });
-      btn.addEventListener('htmx:afterRequest', function () {
-          const pending = which === 'track' ? pendingTrack : pendingObserve;
-          if (pending) pending.settled = true;
       });
   }
 
