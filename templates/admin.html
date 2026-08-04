@@ -242,13 +242,20 @@
     telescope as a single booking; <strong>total booked hours</strong> sums the
     raw slot durations. <strong>Guest sessions</strong> are anonymous
     &ldquo;Observe now&rdquo; usage and live in their own table — they do not
-    affect the booking counts above.
+    affect the booking counts above. Admin bookings are included by default;
+    tick <strong>exclude admin bookings</strong> to drop them, which leaves out
+    maintenance and test slots that would otherwise swamp the science usage.
+    Guest session figures are unaffected either way.
   </p>
   <form hx-get="/admin" hx-target="#page" hx-push-url="true" class="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-4 text-sm">
     <label class="text-gray-600">From</label>
     <input type="date" name="from" value="{{ usage_from }}" class="border rounded px-2 py-1" />
     <label class="text-gray-600">To</label>
     <input type="date" name="to" value="{{ usage_to }}" class="border rounded px-2 py-1" />
+    <label class="text-gray-600 flex items-center gap-1.5">
+      <input type="checkbox" name="exclude_admins" value="true" {% if exclude_admins %}checked{% endif %} />
+      Exclude admin bookings
+    </label>
     <button type="submit" class="btn">Update</button>
   </form>
   <div class="overflow-x-auto">

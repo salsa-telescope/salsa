@@ -66,6 +66,9 @@ struct AdminTemplate {
     telescopes: Vec<(String, bool, bool, bool, Option<bool>)>, // (name, in_maintenance, is_booked_now, controller_connected, receiver_connected)
     usage_from: NaiveDate,
     usage_to: NaiveDate,
+    /// Whether the booking figures below leave out admin-made bookings, so
+    /// the checkbox can be re-rendered in the state that produced them.
+    exclude_admins: bool,
     total_bookings: usize,
     total_hours: i64,
     unique_users: usize,
@@ -141,6 +144,15 @@ async fn get_admin(
     let bookings = Booking::fetch_in_range(state.database_connection.clone(), from_dt, to_dt)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    // Admin bookings are often long maintenance and test slots, which swamp
+    // the science usage they sit alongside. Dropped before anything is
+    // counted, so every booking figure below reflects the same set.
+    let exclude_admins = query.exclude_admins.unwrap_or(false);
+    let bookings = if exclude_admins {
+        without_admin_bookings(bookings, &state.admin_config.user_ids)
+    } else {
+        bookings
+    };
     let total_bookings = count_booking_segments(&bookings);
     let total_hours = bookings
         .iter()
@@ -216,6 +228,7 @@ async fn get_admin(
         telescopes,
         usage_from,
         usage_to,
+        exclude_admins,
         total_bookings,
         total_hours,
         unique_users,
@@ -247,6 +260,11 @@ struct AdminQuery {
     from: Option<NaiveDate>,
     to: Option<NaiveDate>,
     error: Option<String>,
+    /// Set by the usage-report checkbox. Phrased as "exclude" rather than
+    /// "include" so that its absence — an unticked box, or a bare /admin with
+    /// no query string at all — means the report covers everyone, which is
+    /// the total the page is expected to show by default.
+    exclude_admins: Option<bool>,
 }
 
 #[derive(Deserialize)]
@@ -617,6 +635,19 @@ fn count_booking_segments(bookings: &[Booking]) -> usize {
     segments
 }
 
+/// Drop bookings made by admin users from the usage report.
+///
+/// Admin status is not a column on the user table — it is a list of user ids
+/// in the server config, applied to a `User` when the session loads. So the
+/// caller passes that list in rather than this reading anything from the
+/// booking rows themselves.
+fn without_admin_bookings(bookings: Vec<Booking>, admin_user_ids: &[i64]) -> Vec<Booking> {
+    bookings
+        .into_iter()
+        .filter(|booking| !admin_user_ids.contains(&booking.user_id))
+        .collect()
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -682,5 +713,52 @@ mod test {
             count_booking_segments(&ordered),
             count_booking_segments(&reversed)
         );
+    }
+
+    #[test]
+    fn admin_bookings_are_dropped_and_others_kept() {
+        let rows = vec![
+            booking(1, "vale", 0, 3600),
+            booking(7, "vale", 3600, 7200),
+            booking(2, "brage", 0, 3600),
+        ];
+        let kept = without_admin_bookings(rows, &[7]);
+        assert_eq!(
+            kept.iter().map(|b| b.user_id).collect::<Vec<_>>(),
+            vec![1, 2]
+        );
+    }
+
+    #[test]
+    fn every_admin_in_the_list_is_dropped() {
+        let rows = vec![
+            booking(7, "vale", 0, 3600),
+            booking(9, "vale", 3600, 7200),
+            booking(3, "vale", 7200, 10800),
+        ];
+        let kept = without_admin_bookings(rows, &[7, 9]);
+        assert_eq!(kept.iter().map(|b| b.user_id).collect::<Vec<_>>(), vec![3]);
+    }
+
+    /// The unticked box is the default, and it must leave the totals alone.
+    #[test]
+    fn no_configured_admins_keeps_everything() {
+        let rows = vec![booking(1, "vale", 0, 3600), booking(7, "vale", 3600, 7200)];
+        assert_eq!(without_admin_bookings(rows, &[]).len(), 2);
+    }
+
+    /// Consecutive slots merge into one booking, so dropping an admin run
+    /// from the middle has to split the segment count rather than leave the
+    /// neighbours looking adjacent.
+    #[test]
+    fn dropping_an_admin_run_splits_the_surrounding_segment() {
+        let rows = vec![
+            booking(1, "vale", 0, 3600),
+            booking(7, "vale", 3600, 7200),
+            booking(1, "vale", 7200, 10800),
+        ];
+        assert_eq!(count_booking_segments(&rows), 3);
+        let kept = without_admin_bookings(rows, &[7]);
+        assert_eq!(count_booking_segments(&kept), 2);
     }
 }
