@@ -1,4 +1,6 @@
-<span id="measuring-state" data-measuring="false" data-obs-secs="0" class="hidden"></span>
+{# The receiver is a separate device from the rotator controller, so these
+   report what it is actually doing even while the controller is offline. #}
+<span id="measuring-state" data-measuring="{{ measuring }}" data-obs-secs="{{ obs_secs }}" class="hidden"></span>
 
 <h2 class="text-xl font-semibold mb-3">{{ lang.t("state-telescope") }} &mdash; {{ id }} &mdash;
   <span class="text-danger" data-status="Offline">{{ lang.t("state-offline") }}</span>
