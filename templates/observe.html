@@ -434,6 +434,7 @@
   }
 
   function coordinateSystemChanged(e) {
+      stopSatelliteRefresh();
       const x_label = document.querySelector("form label[for='x']");
       const y_label = document.querySelector("form label[for='y']");
       const inputX = document.querySelector("form input[name='x']");
@@ -503,7 +504,8 @@
       case "gnss":
           inputX.value = '';
           inputY.value = '';
-          fetchSatellites();
+          fetchSatellites(true);
+          startSatelliteRefresh();
           break;
       case "stow":
       case "service":
@@ -524,35 +526,86 @@
       return 'GPS';
   }
 
-  function fetchSatellites() {
+  // A GNSS satellite moves roughly half a degree per minute, so the az/el in
+  // the option labels goes stale within a couple of minutes. Keep refreshing
+  // them while the picker is on screen, so what the list says matches where
+  // the telescope will actually go when Track is pressed.
+  const SATELLITE_REFRESH_MS = 15000;
+  let satelliteRefreshTimer = null;
+
+  function startSatelliteRefresh() {
+      if (satelliteRefreshTimer !== null) return;
+      satelliteRefreshTimer = setInterval(() => fetchSatellites(false), SATELLITE_REFRESH_MS);
+  }
+
+  function stopSatelliteRefresh() {
+      if (satelliteRefreshTimer === null) return;
+      clearInterval(satelliteRefreshTimer);
+      satelliteRefreshTimer = null;
+  }
+
+  function satelliteLabel(s) {
+      return s.name + ' (az ' + s.azimuth_deg.toFixed(1) + '°, el ' + s.elevation_deg.toFixed(1) + '°)';
+  }
+
+  function rebuildSatelliteOptions(sel, sats) {
+      sel.innerHTML = '';
+      const groups = {};
+      sats.forEach(s => {
+          const grp = satConstellation(s.name);
+          if (!groups[grp]) groups[grp] = [];
+          groups[grp].push(s);
+      });
+      ['GPS', 'Galileo', 'GLONASS', 'BeiDou'].forEach(grpName => {
+          const members = groups[grpName];
+          if (!members || members.length === 0) return;
+          const optgrp = document.createElement('optgroup');
+          optgrp.label = grpName;
+          members.forEach(s => {
+              const opt = document.createElement('option');
+              opt.value = s.norad_id;
+              opt.dataset.freqMhz = s.freq_mhz;
+              opt.textContent = satelliteLabel(s);
+              optgrp.appendChild(opt);
+          });
+          sel.appendChild(optgrp);
+      });
+  }
+
+  // initial: first population of the picker, as opposed to a periodic refresh.
+  function fetchSatellites(initial) {
       fetch('/observe/{{ info.id }}/satellites')
           .then(r => r.json())
           .then(sats => {
               const sel = document.getElementById('satellite-select');
               const prev = sel.value || document.querySelector("form input[name='x']").value;
-              sel.innerHTML = '';
-              const groups = {};
-              sats.forEach(s => {
-                  const grp = satConstellation(s.name);
-                  if (!groups[grp]) groups[grp] = [];
-                  groups[grp].push(s);
+              const byId = new Map(sats.map(s => [String(s.norad_id), s]));
+              const stillListed = byId.has(prev);
+              // The picker is disabled while tracking, and its selection is
+              // then the live target. If that satellite has set, keep the old
+              // list rather than silently moving the selection elsewhere.
+              if (sel.disabled && prev && !stillListed) return;
+              // Relabel the options already on screen instead of rebuilding.
+              // A rebuild would reorder the list (the server sorts by
+              // elevation) and would close the dropdown if it happened to be
+              // open, so a refresh only ever changes the numbers in place.
+              const listed = [...sel.options].map(o => o.value);
+              [...sel.options].forEach(o => {
+                  const s = byId.get(o.value);
+                  if (s) o.textContent = satelliteLabel(s);
               });
-              ['GPS', 'Galileo', 'GLONASS', 'BeiDou'].forEach(grpName => {
-                  const members = groups[grpName];
-                  if (!members || members.length === 0) return;
-                  const optgrp = document.createElement('optgroup');
-                  optgrp.label = grpName;
-                  members.forEach(s => {
-                      const opt = document.createElement('option');
-                      opt.value = s.norad_id;
-                      opt.dataset.freqMhz = s.freq_mhz;
-                      opt.textContent = s.name + ' (az ' + s.azimuth_deg.toFixed(1) + '°, el ' + s.elevation_deg.toFixed(1) + '°)';
-                      optgrp.appendChild(opt);
-                  });
-                  sel.appendChild(optgrp);
-              });
-              if (prev && [...sel.options].some(o => o.value === prev)) sel.value = prev;
-              satelliteChanged();
+              // Adding or removing options is a structural change, so only do
+              // it when a satellite has actually risen or set — and never
+              // while the user has the picker focused. The next refresh will
+              // pick it up once they are done.
+              const sameSet = listed.length === sats.length && listed.every(id => byId.has(id));
+              if (!initial && (sameSet || document.activeElement === sel)) return;
+              rebuildSatelliteOptions(sel, sats);
+              if (prev && stillListed) sel.value = prev;
+              // satelliteChanged() re-applies the GNSS receiver preset, which
+              // would stomp on settings the observer has since tuned by hand.
+              // Only do that when the selection is new to them.
+              if (initial || !stillListed) satelliteChanged();
           })
           .catch(() => {});
   }
@@ -797,7 +850,10 @@
       }
       const satSelect = document.getElementById('satellite-select');
       satSelect.addEventListener('change', satelliteChanged);
-      if (isGnss) fetchSatellites();
+      if (isGnss) {
+          fetchSatellites(true);
+          startSatelliteRefresh();
+      }
       wireButtonPress('track-btn', 'track', true);
       wireButtonPress('stop-btn', 'track', false);
       wireButtonPress('observe-btn', 'observe', true);

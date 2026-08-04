@@ -298,33 +298,80 @@
     return 'GPS';
   }
 
-  async function fetchSatellites() {
+  // GNSS satellites move roughly half a degree per minute, so the az/el in the
+  // option labels goes stale within a couple of minutes. Keep them refreshed
+  // while the picker is on screen.
+  const SATELLITE_REFRESH_MS = 15000;
+  let satelliteRefreshTimer = null;
+
+  function startSatelliteRefresh() {
+    if (satelliteRefreshTimer !== null) return;
+    satelliteRefreshTimer = setInterval(() => fetchSatellites(false), SATELLITE_REFRESH_MS);
+  }
+
+  function stopSatelliteRefresh() {
+    if (satelliteRefreshTimer === null) return;
+    clearInterval(satelliteRefreshTimer);
+    satelliteRefreshTimer = null;
+  }
+
+  function satelliteLabel(s) {
+    return s.name + ' (az ' + s.azimuth_deg.toFixed(1) + '°, el ' + s.elevation_deg.toFixed(1) + '°)';
+  }
+
+  function rebuildSatelliteOptions(sel, sats) {
+    sel.innerHTML = '';
+    const groups = {};
+    sats.forEach(s => {
+      const grp = satConstellation(s.name);
+      if (!groups[grp]) groups[grp] = [];
+      groups[grp].push(s);
+    });
+    ['GPS', 'Galileo', 'GLONASS', 'BeiDou'].forEach(grpName => {
+      const members = groups[grpName];
+      if (!members || members.length === 0) return;
+      const optgrp = document.createElement('optgroup');
+      optgrp.label = grpName;
+      members.forEach(s => {
+        const opt = document.createElement('option');
+        opt.value = s.norad_id;
+        opt.dataset.freqMhz = s.freq_mhz;
+        opt.textContent = satelliteLabel(s);
+        optgrp.appendChild(opt);
+      });
+      sel.appendChild(optgrp);
+    });
+  }
+
+  // initial: first population of the picker, as opposed to a periodic refresh.
+  async function fetchSatellites(initial) {
     try {
       const res = await fetch('/interferometry/satellites');
       const sats = await res.json();
       const sel = document.getElementById('satellite-select');
-      sel.innerHTML = '';
-      const groups = {};
-      sats.forEach(s => {
-        const grp = satConstellation(s.name);
-        if (!groups[grp]) groups[grp] = [];
-        groups[grp].push(s);
+      const prev = sel.value;
+      const byId = new Map(sats.map(s => [String(s.norad_id), s]));
+      const stillListed = byId.has(prev);
+      // Relabel the options already on screen instead of rebuilding. A rebuild
+      // would reorder the list (the server sorts by elevation) and would close
+      // the dropdown if it happened to be open, so a refresh only ever changes
+      // the numbers in place.
+      const listed = [...sel.options].map(o => o.value);
+      [...sel.options].forEach(o => {
+        const s = byId.get(o.value);
+        if (s) o.textContent = satelliteLabel(s);
       });
-      ['GPS', 'Galileo', 'GLONASS', 'BeiDou'].forEach(grpName => {
-        const members = groups[grpName];
-        if (!members || members.length === 0) return;
-        const optgrp = document.createElement('optgroup');
-        optgrp.label = grpName;
-        members.forEach(s => {
-          const opt = document.createElement('option');
-          opt.value = s.norad_id;
-          opt.dataset.freqMhz = s.freq_mhz;
-          opt.textContent = s.name + ' (az ' + s.azimuth_deg.toFixed(1) + '°, el ' + s.elevation_deg.toFixed(1) + '°)';
-          optgrp.appendChild(opt);
-        });
-        sel.appendChild(optgrp);
-      });
-      satelliteChanged();
+      // Adding or removing options is a structural change, so only do it when a
+      // satellite has actually risen or set — and never while the user has the
+      // picker focused. The next refresh will pick it up once they are done.
+      const sameSet = listed.length === sats.length && listed.every(id => byId.has(id));
+      if (!initial && (sameSet || document.activeElement === sel)) return;
+      rebuildSatelliteOptions(sel, sats);
+      if (prev && stillListed) sel.value = prev;
+      // satelliteChanged() re-applies the centre frequency for the selected
+      // constellation, so a periodic refresh must not call it — it would undo
+      // a value the user has typed. Only do so when the selection is new.
+      if (initial || !stillListed) satelliteChanged();
     } catch (_) {}
   }
 
@@ -351,7 +398,12 @@
     if (cs === 'galactic')   { lx.textContent = 'l [deg]'; ly.textContent = 'b [deg]'; }
     if (cs === 'equatorial') { lx.textContent = 'RA [deg]'; ly.textContent = 'Dec [deg]'; }
     if (cs === 'horizontal') { lx.textContent = 'Az [deg]'; ly.textContent = 'El [deg]'; }
-    if (cs === 'gnss') fetchSatellites();
+    if (cs === 'gnss') {
+      fetchSatellites(true);
+      startSatelliteRefresh();
+    } else {
+      stopSatelliteRefresh();
+    }
   }
 
   // Expose to inline onclick handlers
