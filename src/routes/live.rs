@@ -354,6 +354,21 @@ fn jpeg_response(bytes: Bytes) -> Response {
 struct LiveTemplate {
     lang: Language,
     initial_snapshot_src: String,
+    labels: Vec<TelescopeLabel>,
+}
+
+/// A caption placed under a telescope in the panorama.
+///
+/// Derived from the same `webcam_crop` that cuts that telescope's close-up,
+/// rather than written into the template as a percentage: the two describe
+/// the same thing, and when they were maintained separately the captions
+/// drifted off their telescopes every time the camera was aimed or replaced.
+struct TelescopeLabel {
+    name: String,
+    /// Centre of the telescope as a percentage of the panorama's width. The
+    /// strip spans the full frame width, so a crop's horizontal fractions
+    /// carry over unchanged.
+    left_pct: f64,
 }
 
 async fn get_live_page(
@@ -372,9 +387,27 @@ async fn get_live_page(
         ),
         None => "/live/snapshot".to_string(),
     };
+    let mut labels = Vec::new();
+    for telescope in state.app_state.telescopes.get_all().await {
+        if let Ok(info) = telescope.get_info().await
+            && let Some(crop) = info.webcam_crop
+        {
+            // Ids are lowercase in the config; the caption is a display name.
+            let mut name = info.id.clone();
+            if !name.is_empty() {
+                name[..1].make_ascii_uppercase();
+            }
+            labels.push(TelescopeLabel {
+                name,
+                left_pct: (crop[0] + crop[2] / 2.0) * 100.0,
+            });
+        }
+    }
+
     let content = LiveTemplate {
         lang,
         initial_snapshot_src,
+        labels,
     }
     .render()
     .expect("Template rendering should always succeed");
