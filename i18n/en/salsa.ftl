@@ -287,7 +287,7 @@ obs-gaussian = Gaussian fit
 
 ## Live status page and fragments
 
-live-webcam-note = Webcam updated every 2 seconds, timestamp is Swedish summer time (CEST = UTC+2). No lights, so telescopes are not visible after dark, but can still be controlled.
+live-webcam-note = Webcam updated every 2 seconds. No lights, so telescopes are not visible after dark, but can still be controlled.
 live-webcam-alt = Live webcam feed of the SALSA telescopes (Torre, Vale, Brage)
 live-telescope-status = Telescope status
 live-guest = Guest

@@ -51,12 +51,41 @@ pub struct AdminConfig {
     pub user_ids: Vec<i64>,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+pub struct WebcamConfig {
+    /// How far down the camera frame the 32:9 panorama strip starts, as a
+    /// fraction of frame height. Where the horizon falls in the frame is a
+    /// property of how the camera is mounted, so it belongs beside the
+    /// per-telescope `webcam_crop` values rather than in the binary — moving
+    /// or replacing the camera should not need a rebuild and a service
+    /// restart. Only the vertical offset is configurable: the strip spans the
+    /// full width at a fixed 32:9, which is what the page is laid out for.
+    #[serde(default = "default_panorama_top")]
+    pub panorama_top: f64,
+}
+
+/// Suits the camera installed 2026-08-05. Kept as the default so an existing
+/// deployment that has not added the key keeps the framing it has today.
+fn default_panorama_top() -> f64 {
+    0.167
+}
+
+impl Default for WebcamConfig {
+    fn default() -> Self {
+        Self {
+            panorama_top: default_panorama_top(),
+        }
+    }
+}
+
 #[derive(Deserialize)]
 struct SalsaConfig {
     #[serde(default)]
     bookings: BookingConfig,
     #[serde(default)]
     admin: AdminConfig,
+    #[serde(default)]
+    webcam: WebcamConfig,
 }
 
 // Anything that goes in here must be a handle or pointer that can be cloned.
@@ -93,6 +122,7 @@ pub async fn create_app(config_dir: &Path, database_dir: &Path) -> (Router, AppS
         toml::from_str(&config_str).expect("config.toml should be valid toml");
     let booking_config = Arc::new(salsa_config.bookings);
     let admin_config = Arc::new(salsa_config.admin);
+    let webcam_config = salsa_config.webcam;
 
     let tle_cache = TleCacheHandle::new();
     start_tle_refresh(tle_cache.clone());
@@ -162,7 +192,7 @@ pub async fn create_app(config_dir: &Path, database_dir: &Path) -> (Router, AppS
         )
         .nest(
             "/live",
-            routes::live::routes(state.secrets.webcam.clone(), state.clone()),
+            routes::live::routes(state.secrets.webcam.clone(), webcam_config, state.clone()),
         )
         .nest("/weather", routes::weather::routes(state.clone()))
         .nest(

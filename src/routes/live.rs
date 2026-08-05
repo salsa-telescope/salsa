@@ -16,7 +16,7 @@ use i18n_embed_fl::fl;
 use tokio::sync::Mutex;
 use tracing::{debug, error, info};
 
-use crate::app::AppState;
+use crate::app::{AppState, WebcamConfig};
 use crate::i18n::Language;
 use crate::models::booking::Booking;
 use crate::models::guest::GuestSession;
@@ -34,10 +34,6 @@ const WEBCAM_STALE_SECS: u64 = 30;
 /// Width of the downsampled panorama served to clients. The camera frame is
 /// 4K, but the page never shows it larger than roughly this.
 const PANORAMA_WIDTH: u32 = 1280;
-
-/// How far down the camera frame the 32:9 panorama strip starts, as a
-/// fraction of frame height. See `process_frame`.
-const PANORAMA_TOP_FRAC: f64 = 0.07;
 
 /// JPEG quality for the per-telescope close-ups. Higher than the panorama's:
 /// these are the most zoomed-in thing on the site, cut from a frame the
@@ -58,6 +54,7 @@ struct CachedFrames {
 struct WebcamState {
     /// `None` when no webcam is configured in `.secrets.toml`.
     camera: Option<WebcamCredentials>,
+    webcam_config: WebcamConfig,
     cache: Arc<Mutex<Option<Arc<CachedFrames>>>>,
     app_state: AppState,
 }
@@ -196,16 +193,22 @@ fn http_client() -> &'static reqwest::Client {
     })
 }
 
-pub fn routes(camera: Option<WebcamCredentials>, app_state: AppState) -> Router {
+pub fn routes(
+    camera: Option<WebcamCredentials>,
+    webcam_config: WebcamConfig,
+    app_state: AppState,
+) -> Router {
     let state = WebcamState {
         cache: Arc::new(Mutex::new(None)),
         camera,
+        webcam_config,
         app_state,
     };
 
     if let Some(camera) = state.camera.clone() {
         let cache_clone = state.cache.clone();
         let app_state_clone = state.app_state.clone();
+        let panorama_top = state.webcam_config.panorama_top;
         tokio::spawn(async move {
             // The camera needs ~1 s to encode a 4K snapshot, so this loop
             // effectively runs at about 1 Hz. The interval is only a floor
@@ -229,10 +232,12 @@ pub fn routes(camera: Option<WebcamCredentials>, app_state: AppState) -> Router 
                                 crop_defs.push((info.id, crop));
                             }
                         }
-                        tokio::task::spawn_blocking(move || process_frame(&bytes, &crop_defs))
-                            .await
-                            .map_err(|e| format!("frame processing task failed: {e}"))
-                            .and_then(|r| r)
+                        tokio::task::spawn_blocking(move || {
+                            process_frame(&bytes, &crop_defs, panorama_top)
+                        })
+                        .await
+                        .map_err(|e| format!("frame processing task failed: {e}"))
+                        .and_then(|r| r)
                     }
                     Err(msg) => Err(msg),
                 };
@@ -273,19 +278,23 @@ pub fn routes(camera: Option<WebcamCredentials>, app_state: AppState) -> Router 
 
 /// Decode a camera frame and derive the images served to clients: the
 /// downsampled panorama and one full-resolution close-up per telescope.
-fn process_frame(jpeg: &[u8], crop_defs: &[(String, [f64; 4])]) -> Result<CachedFrames, String> {
+fn process_frame(
+    jpeg: &[u8],
+    crop_defs: &[(String, [f64; 4])],
+    panorama_top: f64,
+) -> Result<CachedFrames, String> {
     let full = image::load_from_memory_with_format(jpeg, image::ImageFormat::Jpeg)
         .map_err(|e| format!("image decode error: {e}"))?
         .into_rgb8();
     let (width, height) = full.dimensions();
 
     // The pages show a 32:9 strip of the (16:9) camera frame, taken
-    // PANORAMA_TOP_FRAC down from the top. The strip used to start at the very
-    // top, which suited the previous camera; the replacement sits lower on the
-    // horizon and left the westmost telescope hanging 110 px below the strip.
-    // Offsetting also drops most of the dark roof overhang in the top corner.
+    // `panorama_top` of the way down. The strip used to start at the very top,
+    // which suited the previous camera; the replacement sits lower on the
+    // horizon and left the masts cut off at the bottom. See `WebcamConfig`.
     let strip_height = (width * 9 / 32).min(height);
-    let strip_top = ((f64::from(height) * PANORAMA_TOP_FRAC) as u32).min(height - strip_height);
+    let strip_top =
+        ((f64::from(height) * panorama_top.clamp(0.0, 1.0)) as u32).min(height - strip_height);
     let panorama_height = (PANORAMA_WIDTH * strip_height / width).max(1);
     let strip = image::imageops::crop_imm(&full, 0, strip_top, width, strip_height).to_image();
     let panorama = image::imageops::resize(
@@ -297,8 +306,8 @@ fn process_frame(jpeg: &[u8], crop_defs: &[(String, [f64; 4])]) -> Result<Cached
 
     // Crop fractions: x and w scale with the image width, y and h with the
     // 32:9 viewport height (width * 9/32). The origin stays the top of the
-    // camera frame, not the top of the panorama strip, so PANORAMA_TOP_FRAC
-    // does not shift the close-ups.
+    // camera frame, not the top of the panorama strip, so `panorama_top` does
+    // not shift the close-ups.
     let view_height = f64::from(width) * 9.0 / 32.0;
     let mut crops = HashMap::new();
     for (id, c) in crop_defs {

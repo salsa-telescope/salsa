@@ -287,7 +287,7 @@ obs-gaussian = Gaussanpassning
 
 ## Live status page and fragments
 
-live-webcam-note = Webbkameran uppdateras varannan sekund; tidsstämpeln är svensk sommartid (CEST = UTC+2). Ingen belysning, så teleskopen syns inte efter mörkrets inbrott men kan fortfarande styras.
+live-webcam-note = Webbkameran uppdateras varannan sekund. Ingen belysning, så teleskopen syns inte efter mörkrets inbrott men kan fortfarande styras.
 live-webcam-alt = Webbkamerabild i realtid av SALSA-teleskopen (Torre, Vale, Brage)
 live-telescope-status = Teleskopstatus
 live-guest = Gäst

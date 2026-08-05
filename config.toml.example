@@ -5,6 +5,14 @@ max_upcoming_bookings = 6
 # User IDs (from the OAuth provider) that should have admin access.
 user_ids = [1]
 
+[webcam]
+# How far down the camera frame the live-page panorama strip starts, as a
+# fraction of frame height. The strip is always the full width at 32:9; this
+# only sets where it sits vertically, which depends on how the camera is
+# mounted. Raise it to show less sky and more ground. Measured for the camera
+# installed 2026-08-05; re-measure if the camera is moved or replaced.
+panorama_top = 0.167
+
 # --- Fake telescopes (useful for development / testing) ---
 
 [[telescopes]]
@@ -35,13 +43,18 @@ telescope_type = "Fake"
 # viewport height (width * 9/32), measured from the top of the frame. The values
 # below were measured on the camera installed 2026-08-05 and are not valid for
 # any earlier one — re-measure after the camera is moved or replaced.
+#
+# Each box holds the dish and the counterweight below it with roughly 90 px of
+# margin at top and bottom, in a 3840x2160 frame. The counterweight swings on
+# an arc as the dish tilts and hangs lowest near zenith, so the bottom margin
+# has to clear that position, not the one in whatever snapshot you measure.
 
 # [[telescopes]]
 # name = "torre"
 # location = [ 11.9188, 57.3934 ]  # [longitude, latitude] in degrees
 # min_elevation = 5.0    # in degrees
 # max_elevation = 175.0  # in degrees
-# webcam_crop = [ 0.1513, 0.8241, 0.0677, 0.2778 ]  # [x, y, w, h] fractions, top-left origin
+# webcam_crop = [ 0.1513, 0.8796, 0.0677, 0.2778 ]  # [x, y, w, h] fractions, top-left origin
 # stow_position = [ 90.0, 90.0 ]  # [azimuth, elevation] in degrees
 # service_position = [ 0.0, 5.0 ]  # [azimuth, elevation] in degrees; elevation should match min_elevation
 # telescope_type = "Salsa"
@@ -58,7 +71,7 @@ telescope_type = "Fake"
 # location = [ 11.9188, 57.3934 ]  # [longitude, latitude] in degrees
 # min_elevation = 5.0    # in degrees
 # max_elevation = 175.0  # in degrees
-# webcam_crop = [ 0.3167, 0.4769, 0.1354, 0.4213 ]  # [x, y, w, h] fractions, top-left origin
+# webcam_crop = [ 0.3167, 0.4769, 0.1354, 0.5278 ]  # [x, y, w, h] fractions, top-left origin
 # stow_position = [ 90.0, 90.0 ]  # [azimuth, elevation] in degrees
 # service_position = [ 0.0, 5.0 ]  # [azimuth, elevation] in degrees; elevation should match min_elevation
 # telescope_type = "Salsa"
@@ -75,7 +88,7 @@ telescope_type = "Fake"
 # location = [ 11.9188, 57.3934 ]  # [longitude, latitude] in degrees
 # min_elevation = 5.0    # in degrees
 # max_elevation = 175.0  # in degrees
-# webcam_crop = [ 0.7057, 0.5509, 0.1094, 0.3472 ]  # [x, y, w, h] fractions, top-left origin
+# webcam_crop = [ 0.7055, 0.5509, 0.1094, 0.4352 ]  # [x, y, w, h] fractions, top-left origin
 # stow_position = [ 90.0, 90.0 ]  # [azimuth, elevation] in degrees
 # service_position = [ 70.0, 5.0 ]  # [azimuth, elevation] in degrees; elevation should match min_elevation
 # telescope_type = "Salsa"
