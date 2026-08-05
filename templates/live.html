@@ -3,7 +3,7 @@
     <h2 class="text-xl font-semibold">{{ lang.t("nav-live") }}</h2>
     <p class="text-gray-500 text-sm">{{ lang.t("live-webcam-note") }}</p>
   </div>
-  <div class="rounded shadow" style="position: relative; width: 100%; aspect-ratio: 32/9; overflow: hidden; background:#000;">
+  <div class="rounded shadow" style="position: relative; width: 100%; aspect-ratio: {{ panorama_aspect|fmt("{:.4}") }}; overflow: hidden; background:#000;">
     <img id="webcam-a" src="{{ initial_snapshot_src }}" style="position: absolute; top: 0; left: 0; width: 100%;" alt="{{ lang.t("live-webcam-alt") }}" />
     <img id="webcam-b" src="" style="position: absolute; top: 0; left: 0; width: 100%; opacity: 0;" alt="" aria-hidden="true" />
     {# Positions come from each telescope's webcam_crop, so a caption cannot

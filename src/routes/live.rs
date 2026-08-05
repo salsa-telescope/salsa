@@ -42,8 +42,12 @@ const PANORAMA_WIDTH: u32 = 1280;
 const CROP_JPEG_QUALITY: u8 = 90;
 
 struct CachedFrames {
-    /// Top 32:9 strip of the camera frame, downsampled to PANORAMA_WIDTH.
+    /// The configured region of the camera frame, downsampled to
+    /// PANORAMA_WIDTH.
     panorama: Bytes,
+    /// Dimensions of `panorama`, so the page can size its box to the picture
+    /// it is actually going to receive.
+    panorama_size: (u32, u32),
     /// Per-telescope close-ups cut from the full-resolution frame,
     /// keyed by telescope id.
     crops: HashMap<String, Bytes>,
@@ -208,7 +212,7 @@ pub fn routes(
     if let Some(camera) = state.camera.clone() {
         let cache_clone = state.cache.clone();
         let app_state_clone = state.app_state.clone();
-        let panorama_top = state.webcam_config.panorama_top;
+        let panorama_crop = state.webcam_config.panorama_crop;
         tokio::spawn(async move {
             // The camera needs ~1 s to encode a 4K snapshot, so this loop
             // effectively runs at about 1 Hz. The interval is only a floor
@@ -233,7 +237,7 @@ pub fn routes(
                             }
                         }
                         tokio::task::spawn_blocking(move || {
-                            process_frame(&bytes, &crop_defs, panorama_top)
+                            process_frame(&bytes, &crop_defs, panorama_crop)
                         })
                         .await
                         .map_err(|e| format!("frame processing task failed: {e}"))
@@ -281,22 +285,26 @@ pub fn routes(
 fn process_frame(
     jpeg: &[u8],
     crop_defs: &[(String, [f64; 4])],
-    panorama_top: f64,
+    panorama_crop: [f64; 4],
 ) -> Result<CachedFrames, String> {
     let full = image::load_from_memory_with_format(jpeg, image::ImageFormat::Jpeg)
         .map_err(|e| format!("image decode error: {e}"))?
         .into_rgb8();
     let (width, height) = full.dimensions();
 
-    // The pages show a 32:9 strip of the (16:9) camera frame, taken
-    // `panorama_top` of the way down. The strip used to start at the very top,
-    // which suited the previous camera; the replacement sits lower on the
-    // horizon and left the masts cut off at the bottom. See `WebcamConfig`.
-    let strip_height = (width * 9 / 32).min(height);
-    let strip_top =
-        ((f64::from(height) * panorama_top.clamp(0.0, 1.0)) as u32).min(height - strip_height);
-    let panorama_height = (PANORAMA_WIDTH * strip_height / width).max(1);
-    let strip = image::imageops::crop_imm(&full, 0, strip_top, width, strip_height).to_image();
+    // The live page shows the configured region of the camera frame. It used
+    // to be a fixed 32:9 strip off the top, which suited the camera that was
+    // there first; the replacement sits lower and wider, so both where the
+    // region starts and how much of the width it spans are now configuration.
+    // See `WebcamConfig`.
+    let strip_x = ((f64::from(width) * panorama_crop[0].clamp(0.0, 1.0)) as u32).min(width - 1);
+    let strip_y = ((f64::from(height) * panorama_crop[1].clamp(0.0, 1.0)) as u32).min(height - 1);
+    let strip_w =
+        ((f64::from(width) * panorama_crop[2].clamp(0.0, 1.0)) as u32).clamp(1, width - strip_x);
+    let strip_h =
+        ((f64::from(height) * panorama_crop[3].clamp(0.0, 1.0)) as u32).clamp(1, height - strip_y);
+    let panorama_height = (PANORAMA_WIDTH * strip_h / strip_w).max(1);
+    let strip = image::imageops::crop_imm(&full, strip_x, strip_y, strip_w, strip_h).to_image();
     let panorama = image::imageops::resize(
         &strip,
         PANORAMA_WIDTH,
@@ -306,8 +314,8 @@ fn process_frame(
 
     // Crop fractions: x and w scale with the image width, y and h with the
     // 32:9 viewport height (width * 9/32). The origin stays the top of the
-    // camera frame, not the top of the panorama strip, so `panorama_top` does
-    // not shift the close-ups.
+    // camera frame, not the corner of the panorama region, so
+    // `panorama_crop` does not shift the close-ups.
     let view_height = f64::from(width) * 9.0 / 32.0;
     let mut crops = HashMap::new();
     for (id, c) in crop_defs {
@@ -325,6 +333,7 @@ fn process_frame(
 
     Ok(CachedFrames {
         panorama: encode_jpeg(&panorama, 75)?,
+        panorama_size: (PANORAMA_WIDTH, panorama_height),
         crops,
         fetched_at: Instant::now(),
     })
@@ -355,6 +364,10 @@ struct LiveTemplate {
     lang: Language,
     initial_snapshot_src: String,
     labels: Vec<TelescopeLabel>,
+    /// Width divided by height of the panorama, for the page's box. Taken
+    /// from the cached image when there is one so the box always matches the
+    /// picture that will land in it.
+    panorama_aspect: f64,
 }
 
 /// A caption placed under a telescope in the panorama.
@@ -365,9 +378,10 @@ struct LiveTemplate {
 /// drifted off their telescopes every time the camera was aimed or replaced.
 struct TelescopeLabel {
     name: String,
-    /// Centre of the telescope as a percentage of the panorama's width. The
-    /// strip spans the full frame width, so a crop's horizontal fractions
-    /// carry over unchanged.
+    /// Centre of the telescope as a percentage of the panorama's width,
+    /// mapped through the panorama region — the strip no longer spans the
+    /// whole frame, so a crop's frame-relative position is not its position
+    /// on screen.
     left_pct: f64,
 }
 
@@ -380,34 +394,55 @@ async fn get_live_page(
     // Inline the cached panorama as a data URI so the first image arrives
     // with the page instead of popping in after a second round trip.
     let cached = state.cache.lock().await.clone();
-    let initial_snapshot_src = match cached {
+    let initial_snapshot_src = match &cached {
         Some(frames) => format!(
             "data:image/jpeg;base64,{}",
             BASE64_STANDARD.encode(&frames.panorama)
         ),
         None => "/live/snapshot".to_string(),
     };
+    let [pano_x, _, pano_w, _] = state.webcam_config.panorama_crop;
     let mut labels = Vec::new();
     for telescope in state.app_state.telescopes.get_all().await {
         if let Ok(info) = telescope.get_info().await
             && let Some(crop) = info.webcam_crop
+            && pano_w > 0.0
         {
             // Ids are lowercase in the config; the caption is a display name.
             let mut name = info.id.clone();
             if !name.is_empty() {
                 name[..1].make_ascii_uppercase();
             }
-            labels.push(TelescopeLabel {
-                name,
-                left_pct: (crop[0] + crop[2] / 2.0) * 100.0,
-            });
+            let left_pct = ((crop[0] + crop[2] / 2.0) - pano_x) / pano_w * 100.0;
+            // A telescope the panorama does not reach gets no caption, rather
+            // than one pinned to an edge it is nowhere near.
+            if (0.0..=100.0).contains(&left_pct) {
+                labels.push(TelescopeLabel { name, left_pct });
+            }
         }
     }
+
+    // Fall back to the configured rectangle's shape before the first frame
+    // arrives; the camera frame is 16:9, so its fractions scale by 16/9.
+    let panorama_aspect = match &cached {
+        Some(frames) if frames.panorama_size.1 > 0 => {
+            f64::from(frames.panorama_size.0) / f64::from(frames.panorama_size.1)
+        }
+        _ => {
+            let [_, _, w, h] = state.webcam_config.panorama_crop;
+            if h > 0.0 {
+                w / h * 16.0 / 9.0
+            } else {
+                32.0 / 9.0
+            }
+        }
+    };
 
     let content = LiveTemplate {
         lang,
         initial_snapshot_src,
         labels,
+        panorama_aspect,
     }
     .render()
     .expect("Template rendering should always succeed");

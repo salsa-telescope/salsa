@@ -6,12 +6,17 @@ max_upcoming_bookings = 6
 user_ids = [1]
 
 [webcam]
-# How far down the camera frame the live-page panorama strip starts, as a
-# fraction of frame height. The strip is always the full width at 32:9; this
-# only sets where it sits vertically, which depends on how the camera is
-# mounted. Raise it to show less sky and more ground. Measured for the camera
-# installed 2026-08-05; re-measure if the camera is moved or replaced.
-panorama_top = 0.167
+# The region of the camera frame shown as the live-page panorama, as
+# [x, y, w, h] fractions of frame width and height, top-left origin. The page
+# sizes its box to whatever shape this is, so a narrower rectangle shows the
+# telescopes larger but takes more vertical space on the page.
+#
+# Measured for the camera installed 2026-08-05: starts right of the roof
+# overhang that intrudes into the top-left corner, and leaves equal margins
+# outside the outermost telescopes. Re-measure if the camera is moved or
+# replaced. The captions follow each telescope's webcam_crop through this
+# rectangle, so they need no separate adjustment.
+panorama_crop = [ 0.0549, 0.1667, 0.8357, 0.5 ]
 
 # --- Fake telescopes (useful for development / testing) ---
 

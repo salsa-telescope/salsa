@@ -53,27 +53,31 @@ pub struct AdminConfig {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct WebcamConfig {
-    /// How far down the camera frame the 32:9 panorama strip starts, as a
-    /// fraction of frame height. Where the horizon falls in the frame is a
-    /// property of how the camera is mounted, so it belongs beside the
-    /// per-telescope `webcam_crop` values rather than in the binary — moving
-    /// or replacing the camera should not need a rebuild and a service
-    /// restart. Only the vertical offset is configurable: the strip spans the
-    /// full width at a fixed 32:9, which is what the page is laid out for.
-    #[serde(default = "default_panorama_top")]
-    pub panorama_top: f64,
+    /// The region of the camera frame shown as the live-page panorama, as
+    /// `[x, y, w, h]` fractions of frame width and height. How the site sits
+    /// in the frame is a property of where the camera is bolted, so it
+    /// belongs here rather than in the binary — re-aiming or replacing the
+    /// camera should not need a rebuild and a restart of the live service.
+    ///
+    /// Unlike `webcam_crop`, all four are plain fractions of the frame. The
+    /// page sizes its box from this, so the aspect ratio is whatever the
+    /// rectangle is; a very tall one will push the rest of the page down.
+    #[serde(default = "default_panorama_crop")]
+    pub panorama_crop: [f64; 4],
 }
 
-/// Suits the camera installed 2026-08-05. Kept as the default so an existing
-/// deployment that has not added the key keeps the framing it has today.
-fn default_panorama_top() -> f64 {
-    0.167
+/// Framing measured for the camera installed 2026-08-05: trims the roof
+/// overhang out of the top-left corner, and leaves equal margins outside the
+/// outermost telescopes. Kept as the default so a deployment that has not set
+/// the key still gets a sensible picture.
+fn default_panorama_crop() -> [f64; 4] {
+    [0.0549, 0.1667, 0.8357, 0.5]
 }
 
 impl Default for WebcamConfig {
     fn default() -> Self {
         Self {
-            panorama_top: default_panorama_top(),
+            panorama_crop: default_panorama_crop(),
         }
     }
 }
