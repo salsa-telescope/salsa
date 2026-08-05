@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use askama::Template;
 use axum::body::Bytes;
@@ -24,6 +24,7 @@ use crate::models::maintenance::fetch_maintenance_set;
 use crate::models::telescope_types::{TelescopeStatus, TelescopeTarget};
 use crate::models::user::User;
 use crate::routes::index::render_main;
+use crate::secrets::WebcamCredentials;
 
 /// Age past which we treat the cached webcam image as definitely broken.
 const WEBCAM_VERY_STALE_SECS: u64 = 300;
@@ -33,6 +34,16 @@ const WEBCAM_STALE_SECS: u64 = 30;
 /// Width of the downsampled panorama served to clients. The camera frame is
 /// 4K, but the page never shows it larger than roughly this.
 const PANORAMA_WIDTH: u32 = 1280;
+
+/// How far down the camera frame the 32:9 panorama strip starts, as a
+/// fraction of frame height. See `process_frame`.
+const PANORAMA_TOP_FRAC: f64 = 0.07;
+
+/// JPEG quality for the per-telescope close-ups. Higher than the panorama's:
+/// these are the most zoomed-in thing on the site, cut from a frame the
+/// camera has already JPEG-compressed once, so re-encoding them cheaply
+/// compounds the loss. At 4K this costs ~13 kB per crop per second.
+const CROP_JPEG_QUALITY: u8 = 90;
 
 struct CachedFrames {
     /// Top 32:9 strip of the camera frame, downsampled to PANORAMA_WIDTH.
@@ -45,9 +56,131 @@ struct CachedFrames {
 
 #[derive(Clone)]
 struct WebcamState {
-    snapshot_url: String,
+    /// `None` when no webcam is configured in `.secrets.toml`.
+    camera: Option<WebcamCredentials>,
     cache: Arc<Mutex<Option<Arc<CachedFrames>>>>,
     app_state: AppState,
+}
+
+/// Re-login this far before the token's stated lease runs out, so a fetch
+/// never races the expiry.
+const TOKEN_REFRESH_MARGIN: Duration = Duration::from_secs(300);
+
+/// Render an error with its source chain.
+///
+/// `reqwest::Error`'s own Display stops at "error sending request for url
+/// (...)", which is the same message for a DNS failure, a refused connection
+/// and a TLS handshake rejection — the cause only lives in the chain. On a
+/// camera we cannot attach a debugger to, that distinction is the whole
+/// diagnosis.
+fn describe(err: &dyn std::error::Error) -> String {
+    let mut out = err.to_string();
+    let mut source = err.source();
+    while let Some(cause) = source {
+        out.push_str(&format!(": {cause}"));
+        source = cause.source();
+    }
+    out
+}
+
+/// A camera login token and the instant it stops being usable.
+struct Token {
+    value: String,
+    expires_at: Instant,
+}
+
+/// Log in and get a session token.
+///
+/// The camera used to accept `user=`/`password=` directly on the snapshot
+/// URL, which let the whole thing be one static string built at startup. The
+/// replacement camera (Reolink RLC-810A, firmware v3.1.0.764) rejects that
+/// with `"invalid user"` (rspCode -27), and rejects HTTP Basic and Digest
+/// with `"please login first"`, so a token is the only way in.
+async fn login(camera: &WebcamCredentials) -> Result<Token, String> {
+    let body = serde_json::json!([{
+        "cmd": "Login",
+        "param": { "User": {
+            "Version": "0",
+            "userName": camera.username,
+            "password": camera.password,
+        }}
+    }]);
+    let resp = http_client()
+        .post(format!("{}/cgi-bin/api.cgi?cmd=Login", camera.url))
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| format!("login request error: {}", describe(&e)))?;
+    let parsed: serde_json::Value = resp
+        .json()
+        .await
+        .map_err(|e| format!("login response was not JSON: {e}"))?;
+    let token = &parsed[0]["value"]["Token"];
+    let value = token["name"]
+        .as_str()
+        .ok_or_else(|| format!("login rejected: {}", parsed[0]["error"]))?;
+    // Fall back to a conservative lease if the camera omits one, rather than
+    // treating a missing field as "never expires".
+    let lease = token["leaseTime"].as_u64().unwrap_or(600);
+    Ok(Token {
+        value: value.to_string(),
+        expires_at: Instant::now()
+            + Duration::from_secs(lease).saturating_sub(TOKEN_REFRESH_MARGIN),
+    })
+}
+
+/// Fetch one full-resolution frame, logging in first if the cached token is
+/// missing or about to expire.
+///
+/// An expired token comes back as a JSON error body with HTTP 200, not as a
+/// status code, so the JPEG magic number is what actually tells us the fetch
+/// worked. On anything that is not a JPEG the token is dropped, which makes
+/// the next cycle log in again.
+async fn fetch_frame(
+    camera: &WebcamCredentials,
+    token: &mut Option<Token>,
+) -> Result<Bytes, String> {
+    if token
+        .as_ref()
+        .is_none_or(|t| Instant::now() >= t.expires_at)
+    {
+        *token = Some(login(camera).await?);
+    }
+    let Some(current) = token.as_ref() else {
+        return Err("no token after login".to_string());
+    };
+    let url = format!(
+        // snapType=main gives the full-resolution frame; the crops served to
+        // the observe page need the pixels. (Explicit width/height params are
+        // silently ignored by the camera unless they exactly match a stream
+        // profile, so we don't use them.)
+        "{}/cgi-bin/api.cgi?cmd=Snap&channel=0&rs=salsa&snapType=main&token={}",
+        camera.url, current.value
+    );
+    let result = async {
+        let resp = http_client()
+            .get(&url)
+            .send()
+            .await
+            .map_err(|e| format!("request error: {}", describe(&e)))?;
+        let bytes = resp
+            .bytes()
+            .await
+            .map_err(|e| format!("body read error: {e}"))?;
+        if bytes.starts_with(&[0xFF, 0xD8]) {
+            Ok(bytes)
+        } else {
+            Err(format!(
+                "camera returned no JPEG: {}",
+                String::from_utf8_lossy(&bytes[..bytes.len().min(200)]).replace('\n', " ")
+            ))
+        }
+    }
+    .await;
+    if result.is_err() {
+        *token = None;
+    }
+    result
 }
 
 static HTTP_CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
@@ -63,16 +196,15 @@ fn http_client() -> &'static reqwest::Client {
     })
 }
 
-pub fn routes(snapshot_url: String, app_state: AppState) -> Router {
+pub fn routes(camera: Option<WebcamCredentials>, app_state: AppState) -> Router {
     let state = WebcamState {
         cache: Arc::new(Mutex::new(None)),
-        snapshot_url,
+        camera,
         app_state,
     };
 
-    if !state.snapshot_url.is_empty() {
+    if let Some(camera) = state.camera.clone() {
         let cache_clone = state.cache.clone();
-        let url_clone = state.snapshot_url.clone();
         let app_state_clone = state.app_state.clone();
         tokio::spawn(async move {
             // The camera needs ~1 s to encode a 4K snapshot, so this loop
@@ -83,16 +215,10 @@ pub fn routes(snapshot_url: String, app_state: AppState) -> Router {
             // Track consecutive failures so we log loudly on transitions
             // (working->broken, broken->working) but stay quiet during a long outage.
             let mut consecutive_failures: u64 = 0;
+            let mut token: Option<Token> = None;
             loop {
                 interval.tick().await;
-                let result: Result<Bytes, String> = match http_client().get(&url_clone).send().await
-                {
-                    Ok(resp) => resp
-                        .bytes()
-                        .await
-                        .map_err(|e| format!("body read error: {e}")),
-                    Err(e) => Err(format!("request error: {e}")),
-                };
+                let result = fetch_frame(&camera, &mut token).await;
                 let result = match result {
                     Ok(bytes) => {
                         let mut crop_defs = Vec::new();
@@ -153,10 +279,15 @@ fn process_frame(jpeg: &[u8], crop_defs: &[(String, [f64; 4])]) -> Result<Cached
         .into_rgb8();
     let (width, height) = full.dimensions();
 
-    // The pages show a 32:9 strip from the top of the (16:9) camera frame.
+    // The pages show a 32:9 strip of the (16:9) camera frame, taken
+    // PANORAMA_TOP_FRAC down from the top. The strip used to start at the very
+    // top, which suited the previous camera; the replacement sits lower on the
+    // horizon and left the westmost telescope hanging 110 px below the strip.
+    // Offsetting also drops most of the dark roof overhang in the top corner.
     let strip_height = (width * 9 / 32).min(height);
+    let strip_top = ((f64::from(height) * PANORAMA_TOP_FRAC) as u32).min(height - strip_height);
     let panorama_height = (PANORAMA_WIDTH * strip_height / width).max(1);
-    let strip = image::imageops::crop_imm(&full, 0, 0, width, strip_height).to_image();
+    let strip = image::imageops::crop_imm(&full, 0, strip_top, width, strip_height).to_image();
     let panorama = image::imageops::resize(
         &strip,
         PANORAMA_WIDTH,
@@ -164,8 +295,10 @@ fn process_frame(jpeg: &[u8], crop_defs: &[(String, [f64; 4])]) -> Result<Cached
         image::imageops::FilterType::Triangle,
     );
 
-    // Crop fractions are relative to the 32:9 viewport: x and w scale with
-    // the image width, y and h with the viewport height (width * 9/32).
+    // Crop fractions: x and w scale with the image width, y and h with the
+    // 32:9 viewport height (width * 9/32). The origin stays the top of the
+    // camera frame, not the top of the panorama strip, so PANORAMA_TOP_FRAC
+    // does not shift the close-ups.
     let view_height = f64::from(width) * 9.0 / 32.0;
     let mut crops = HashMap::new();
     for (id, c) in crop_defs {
@@ -178,7 +311,7 @@ fn process_frame(jpeg: &[u8], crop_defs: &[(String, [f64; 4])]) -> Result<Cached
         }
         let region =
             image::imageops::crop_imm(&full, x, y, w.min(width - x), h.min(height - y)).to_image();
-        crops.insert(id.clone(), encode_jpeg(&region, 80)?);
+        crops.insert(id.clone(), encode_jpeg(&region, CROP_JPEG_QUALITY)?);
     }
 
     Ok(CachedFrames {
@@ -277,7 +410,7 @@ async fn get_webcam_status(
     Extension(lang): Extension<Language>,
     State(state): State<WebcamState>,
 ) -> Html<String> {
-    let template = if state.snapshot_url.is_empty() {
+    let template = if state.camera.is_none() {
         WebcamStatusTemplate {
             available: false,
             state_class: "very-stale",

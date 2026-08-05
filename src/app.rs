@@ -115,17 +115,6 @@ pub async fn create_app(config_dir: &Path, database_dir: &Path) -> (Router, AppS
         )
         .expect("Reading .secrets.toml should always succeed"),
     );
-    let webcam_snapshot_url = match secrets.webcam.as_ref() {
-        Some(creds) => format!(
-            // snapType=main gives the full-resolution frame; the crops served to
-            // the observe page need the pixels. (Explicit width/height params are
-            // silently ignored by the camera unless they exactly match a stream
-            // profile, so we don't use them.)
-            "{}/cgi-bin/api.cgi?cmd=Snap&channel=0&rs=salsa&user={}&password={}&snapType=main",
-            creds.url, creds.username, creds.password
-        ),
-        None => String::new(),
-    };
     let state = AppState {
         database_connection,
         telescopes,
@@ -173,7 +162,7 @@ pub async fn create_app(config_dir: &Path, database_dir: &Path) -> (Router, AppS
         )
         .nest(
             "/live",
-            routes::live::routes(webcam_snapshot_url, state.clone()),
+            routes::live::routes(state.secrets.webcam.clone(), state.clone()),
         )
         .nest("/weather", routes::weather::routes(state.clone()))
         .nest(

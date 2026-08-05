@@ -30,13 +30,18 @@ telescope_type = "Fake"
 # webcam_crop = [x, y, w, h]  — fractions of the full webcam image (top-left origin).
 # Crops the webcam snapshot to the telescope's position and displays it on the observe page.
 # Omit or comment out to disable the webcam panel for that telescope.
+#
+# x and w are fractions of the frame width; y and h are fractions of the 32:9
+# viewport height (width * 9/32), measured from the top of the frame. The values
+# below were measured on the camera installed 2026-08-05 and are not valid for
+# any earlier one — re-measure after the camera is moved or replaced.
 
 # [[telescopes]]
 # name = "torre"
 # location = [ 11.9188, 57.3934 ]  # [longitude, latitude] in degrees
 # min_elevation = 5.0    # in degrees
 # max_elevation = 175.0  # in degrees
-# webcam_crop = [ 0.096, 0.54, 0.077, 0.3 ]  # [x, y, w, h] fractions, top-left origin
+# webcam_crop = [ 0.1513, 0.8241, 0.0677, 0.2778 ]  # [x, y, w, h] fractions, top-left origin
 # stow_position = [ 90.0, 90.0 ]  # [azimuth, elevation] in degrees
 # service_position = [ 0.0, 5.0 ]  # [azimuth, elevation] in degrees; elevation should match min_elevation
 # telescope_type = "Salsa"
@@ -53,7 +58,7 @@ telescope_type = "Fake"
 # location = [ 11.9188, 57.3934 ]  # [longitude, latitude] in degrees
 # min_elevation = 5.0    # in degrees
 # max_elevation = 175.0  # in degrees
-# webcam_crop = [ 0.231, 0.133, 0.22, 0.733 ]  # [x, y, w, h] fractions, top-left origin
+# webcam_crop = [ 0.3167, 0.4769, 0.1354, 0.4213 ]  # [x, y, w, h] fractions, top-left origin
 # stow_position = [ 90.0, 90.0 ]  # [azimuth, elevation] in degrees
 # service_position = [ 0.0, 5.0 ]  # [azimuth, elevation] in degrees; elevation should match min_elevation
 # telescope_type = "Salsa"
@@ -70,7 +75,7 @@ telescope_type = "Fake"
 # location = [ 11.9188, 57.3934 ]  # [longitude, latitude] in degrees
 # min_elevation = 5.0    # in degrees
 # max_elevation = 175.0  # in degrees
-# webcam_crop = [ 0.66, 0.200, 0.160, 0.600 ]  # [x, y, w, h] fractions, top-left origin
+# webcam_crop = [ 0.7057, 0.5509, 0.1094, 0.3472 ]  # [x, y, w, h] fractions, top-left origin
 # stow_position = [ 90.0, 90.0 ]  # [azimuth, elevation] in degrees
 # service_position = [ 70.0, 5.0 ]  # [azimuth, elevation] in degrees; elevation should match min_elevation
 # telescope_type = "Salsa"
