@@ -14,9 +14,14 @@ use crate::models::user::User;
 pub const GUEST_SESSION_HARD_CEILING_SECS: i64 = 30 * 60;
 
 /// If no meaningful telescope command (set_target / start_observe / etc.) has
-/// been issued in this many seconds, the session is released. Slewing counts
-/// as activity (`set_target` triggers a touch), so 3 minutes is a reasonable
-/// quiet-period threshold even given that long slews can take ~4 min.
+/// been issued in this many seconds, the session is released.
+///
+/// This is a *user* quiet period, not a telescope-busy one: the clock is only
+/// touched by discrete commands, so a long slew looks exactly like inactivity
+/// while it runs. `guest_monitor` therefore withholds idle release while the
+/// antenna is slewing; see the note on `EndReason::Idle`. Time spent tracking
+/// deliberately does count, so a guest who points at a source and wanders off
+/// still gives the telescope back.
 pub const GUEST_IDLE_RELEASE_SECS: i64 = 3 * 60;
 
 /// How far ahead of `now` we look for upcoming non-guest bookings when
@@ -27,7 +32,8 @@ pub const GUEST_START_PROTECT_SECS: i64 = 5 * 60;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EndReason {
-    /// No telescope command in `GUEST_IDLE_RELEASE_SECS`.
+    /// No telescope command in `GUEST_IDLE_RELEASE_SECS`, and the telescope
+    /// was not slewing when the threshold was crossed.
     Idle,
     /// Reached `GUEST_SESSION_HARD_CEILING_SECS`.
     Ceiling,

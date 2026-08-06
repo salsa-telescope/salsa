@@ -1,7 +1,8 @@
 //! Lifecycle supervisor for active guest sessions.
 //!
 //! Three end conditions, evaluated once per tick:
-//!   * **Idle release** — no telescope command in `GUEST_IDLE_RELEASE_SECS`.
+//!   * **Idle release** — no telescope command in `GUEST_IDLE_RELEASE_SECS`,
+//!     and the antenna is not mid-slew (see `is_slewing`).
 //!   * **Hard ceiling** — wall-clock time since start exceeds
 //!     `GUEST_SESSION_HARD_CEILING_SECS`.
 //!   * **Preempted** — a real (non-guest) booking has become active on the
@@ -25,6 +26,7 @@ use crate::models::booking::Booking;
 use crate::models::guest::{
     EndReason, GUEST_IDLE_RELEASE_SECS, GUEST_SESSION_HARD_CEILING_SECS, GuestSession,
 };
+use crate::models::telescope_types::TelescopeStatus;
 use crate::models::user::User;
 use crate::routes::observe::stop_and_save_observation;
 
@@ -70,6 +72,7 @@ pub fn start(state: AppState) {
                         Some(EndReason::Preempted)
                     } else if (now - guest.last_activity_at).num_seconds()
                         >= GUEST_IDLE_RELEASE_SECS
+                        && !is_slewing(&state, &guest.telescope_id).await
                     {
                         Some(EndReason::Idle)
                     } else if (now - guest.started_at).num_seconds()
@@ -86,6 +89,30 @@ pub fn start(state: AppState) {
             }
         }
     });
+}
+
+/// True while the antenna is travelling to its commanded position.
+///
+/// The idle clock is only touched by discrete commands, so a slew that
+/// outlasts `GUEST_IDLE_RELEASE_SECS` — a full turn in azimuth takes ~4 min
+/// at 1.5 deg/s — is indistinguishable from a guest who walked away, and the
+/// session would be released (and the telescope stopped) part-way there.
+/// Withholding release while slewing is self-limiting, since a slew always
+/// ends; it also covers autonomous cable-unwrap slews mid-track. `Tracking`
+/// intentionally does not qualify: sitting on a source is exactly the state a
+/// bored guest leaves behind, and it must still time out.
+///
+/// A telescope that is missing or failing to report counts as not slewing, so
+/// a broken telescope cannot pin a session open. Neither can a stuck one: the
+/// hard ceiling and preemption checks are independent of this branch.
+async fn is_slewing(state: &AppState, telescope_id: &str) -> bool {
+    let Some(telescope) = state.telescopes.get(telescope_id).await else {
+        return false;
+    };
+    matches!(
+        telescope.get_info().await,
+        Ok(info) if info.status == TelescopeStatus::Slewing
+    )
 }
 
 /// Stop the telescope cleanly and mark a guest session ended.
