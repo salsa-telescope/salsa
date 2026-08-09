@@ -470,13 +470,7 @@ async fn build_bookings_page(
     let hours: Vec<u32> = (0..24).collect();
     let hour_labels: Vec<String> = (0..24).map(|h| format!("{h:02}:{off_min:02}")).collect();
 
-    let mut telescope_names = state.telescopes.get_names().await;
-    let preferred_order = ["torre", "vale", "brage"];
-    telescope_names.sort_by_key(|n| {
-        let lower = n.to_lowercase();
-        let pos = preferred_order.iter().position(|&p| p == lower.as_str());
-        (pos.is_none(), pos.unwrap_or(usize::MAX), lower)
-    });
+    let telescope_names = state.telescopes.get_names().await;
     let maintenance_set = fetch_maintenance_set(state.database_connection.clone())
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;

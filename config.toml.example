@@ -5,6 +5,18 @@ max_upcoming_bookings = 6
 # User IDs (from the OAuth provider) that should have admin access.
 user_ids = [1]
 
+[guests]
+# The order the "Observe now" button hands telescopes out in: guests get the
+# first one here that is free and not in maintenance. Vale and Brage lead
+# because the webcam shows them best, which is what a first-time visitor
+# looks at; the data is comparable on all three.
+#
+# Telescopes left off the list are still offered, after the listed ones, in
+# the order the live page shows them (left to right as the webcam sees them).
+# Drop the key entirely to use that order for everyone. Changing this needs a
+# restart, but no rebuild.
+telescope_priority = [ "vale", "brage", "torre" ]
+
 [webcam]
 # The region of the camera frame shown as the live-page panorama, as
 # [x, y, w, h] fractions of frame width and height, top-left origin. The page

@@ -51,6 +51,22 @@ pub struct AdminConfig {
     pub user_ids: Vec<i64>,
 }
 
+#[derive(Debug, Clone, Deserialize, Default)]
+pub struct GuestConfig {
+    /// The order the "Observe now" button hands telescopes out in: the first
+    /// one in this list that is free and not in maintenance is the one the
+    /// guest gets. Unlike the fixed display order this is a policy call —
+    /// which dish gives a newcomer the best first impression — so it belongs
+    /// in config, where it can be changed without a rebuild.
+    ///
+    /// Names not listed here are tried after the listed ones, in display
+    /// order; leaving the key out falls back to display order entirely.
+    /// Every telescope stays reachable either way, so a dish left off the
+    /// list is offered last rather than withheld.
+    #[serde(default)]
+    pub telescope_priority: Vec<String>,
+}
+
 #[derive(Debug, Clone, Deserialize)]
 pub struct WebcamConfig {
     /// The region of the camera frame shown as the live-page panorama, as
@@ -89,6 +105,8 @@ struct SalsaConfig {
     #[serde(default)]
     admin: AdminConfig,
     #[serde(default)]
+    guests: GuestConfig,
+    #[serde(default)]
     webcam: WebcamConfig,
 }
 
@@ -101,6 +119,7 @@ pub struct AppState {
     pub secrets: Arc<Secrets>,
     pub booking_config: Arc<BookingConfig>,
     pub admin_config: Arc<AdminConfig>,
+    pub guest_config: Arc<GuestConfig>,
     pub tle_cache: TleCacheHandle,
     pub weather_cache: WeatherCacheHandle,
     pub login_rate_limiter: LoginRateLimiterHandle,
@@ -126,6 +145,7 @@ pub async fn create_app(config_dir: &Path, database_dir: &Path) -> (Router, AppS
         toml::from_str(&config_str).expect("config.toml should be valid toml");
     let booking_config = Arc::new(salsa_config.bookings);
     let admin_config = Arc::new(salsa_config.admin);
+    let guest_config = Arc::new(salsa_config.guests);
     let webcam_config = salsa_config.webcam;
 
     let tle_cache = TleCacheHandle::new();
@@ -140,6 +160,23 @@ pub async fn create_app(config_dir: &Path, database_dir: &Path) -> (Router, AppS
             .expect("Config path should be convertible to string"),
         tle_cache.clone(),
     );
+
+    // A misspelled name in guests.telescope_priority just fails to match and
+    // silently does nothing, which looks exactly like the order not taking
+    // effect. Name it at startup instead of leaving it to be puzzled over.
+    let telescope_names = telescopes.get_names().await;
+    for preferred in &guest_config.telescope_priority {
+        if !telescope_names
+            .iter()
+            .any(|name| name.eq_ignore_ascii_case(preferred))
+        {
+            warn!(
+                "guests.telescope_priority lists {preferred:?}, which is not a configured \
+                 telescope; it will be ignored"
+            );
+        }
+    }
+
     let secrets_path = config_dir.join(".secrets.toml");
     let secrets = Arc::new(
         Secrets::read(
@@ -155,6 +192,7 @@ pub async fn create_app(config_dir: &Path, database_dir: &Path) -> (Router, AppS
         secrets,
         booking_config,
         admin_config,
+        guest_config,
         tle_cache,
         weather_cache,
         login_rate_limiter,

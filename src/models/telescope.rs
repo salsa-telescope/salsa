@@ -97,12 +97,41 @@ impl TelescopeCollectionHandle {
         telescopes.contains_key(id)
     }
 
+    /// Telescope names in [`DISPLAY_ORDER`]. Every page that lists the
+    /// telescopes uses this, so they all agree on the order.
     pub async fn get_names(&self) -> Vec<String> {
         let telescopes = self.telescopes.read().await;
         let mut res: Vec<_> = telescopes.keys().cloned().collect();
         res.sort();
+        sort_by_preference(&mut res, &DISPLAY_ORDER);
         res
     }
+}
+
+/// The order the telescopes stand in, left to right, as the webcam sees them.
+/// The live page lists its status cards in this order so they line up with the
+/// dishes in the panorama above them, and the booking calendar uses the same
+/// order for its columns. It only changes if a telescope is physically moved.
+/// Anything not named here — the fake telescopes, or a newly added dish —
+/// follows, in alphabetical order.
+///
+/// Which telescope a guest is handed first is a separate question, and a
+/// policy rather than a physical one: see `GuestConfig::telescope_priority`.
+const DISPLAY_ORDER: [&str; 3] = ["torre", "vale", "brage"];
+
+/// Move the names listed in `preference` to the front of `names`, in the order
+/// `preference` gives them. Matching is case-insensitive, and a preferred name
+/// that no telescope has is simply ignored.
+///
+/// The sort is stable, so names the list does not mention keep the order they
+/// arrived in — an empty `preference` leaves `names` untouched.
+pub fn sort_by_preference(names: &mut [String], preference: &[impl AsRef<str>]) {
+    names.sort_by_key(|name| {
+        preference
+            .iter()
+            .position(|p| p.as_ref().eq_ignore_ascii_case(name))
+            .unwrap_or(usize::MAX)
+    });
 }
 
 fn create_telescope(def: TelescopeDefinition, tle_cache: TleCacheHandle) -> Arc<dyn Telescope> {
@@ -201,5 +230,54 @@ pub fn create_telescope_collection(
 
     TelescopeCollectionHandle {
         telescopes: Arc::new(RwLock::new(telescopes)),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn names(names: &[&str]) -> Vec<String> {
+        names.iter().map(|n| n.to_string()).collect()
+    }
+
+    #[test]
+    fn preferred_names_come_first_in_the_order_given() {
+        let mut telescopes = names(&["torre", "vale", "brage"]);
+        sort_by_preference(&mut telescopes, &["vale", "brage", "torre"]);
+        assert_eq!(telescopes, names(&["vale", "brage", "torre"]));
+    }
+
+    #[test]
+    fn unpreferred_names_keep_their_incoming_order() {
+        // The guest priority sorts a list that is already in display order,
+        // so anything it does not mention has to stay where it was.
+        let mut telescopes = names(&["torre", "vale", "brage", "fake1", "fake2"]);
+        sort_by_preference(&mut telescopes, &["vale"]);
+        assert_eq!(
+            telescopes,
+            names(&["vale", "torre", "brage", "fake1", "fake2"])
+        );
+    }
+
+    #[test]
+    fn empty_preference_changes_nothing() {
+        let mut telescopes = names(&["torre", "vale", "brage"]);
+        sort_by_preference(&mut telescopes, &[] as &[String]);
+        assert_eq!(telescopes, names(&["torre", "vale", "brage"]));
+    }
+
+    #[test]
+    fn preference_matching_ignores_case() {
+        let mut telescopes = names(&["torre", "Vale"]);
+        sort_by_preference(&mut telescopes, &["VALE"]);
+        assert_eq!(telescopes, names(&["Vale", "torre"]));
+    }
+
+    #[test]
+    fn unknown_preferred_names_are_ignored() {
+        let mut telescopes = names(&["torre", "vale", "brage"]);
+        sort_by_preference(&mut telescopes, &["nosuchdish", "brage"]);
+        assert_eq!(telescopes, names(&["brage", "torre", "vale"]));
     }
 }

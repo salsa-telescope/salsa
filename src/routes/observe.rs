@@ -10,7 +10,7 @@ use crate::models::booking::{consecutive_booking_end, is_authorized_for_telescop
 use crate::models::guest::{EndReason, GuestSession, StartError, touch_if_guest};
 use crate::models::maintenance::fetch_maintenance_set;
 use crate::models::observation::Observation;
-use crate::models::telescope::Telescope;
+use crate::models::telescope::{Telescope, sort_by_preference};
 use crate::models::telescope_types::{
     ObservationMode, ObservedSpectra, ReceiverConfiguration, ReceiverError, TelescopeError,
     TelescopeInfo, TelescopeStatus, TelescopeTarget,
@@ -1281,9 +1281,9 @@ async fn observe(
 }
 
 /// Auto-pick variant for the "Observe now" button on the welcome page.
-/// Walks the telescope list in the same order the rest of the UI uses
-/// (preferred order: torre, vale, brage, then anything else) and tries
-/// each one until `GuestSession::start` succeeds. If every telescope is
+/// Walks the telescopes in the order `guests.telescope_priority` gives in
+/// config — falling back to the display order the rest of the UI uses — and
+/// tries each one until `GuestSession::start` succeeds. If every telescope is
 /// in maintenance or held, returns a small HTML page explaining the
 /// situation with a link back home.
 async fn start_guest_session_auto(
@@ -1298,12 +1298,7 @@ async fn start_guest_session_auto(
         return guest_start_error_response("rate_limited");
     }
     let mut names = state.telescopes.get_names().await;
-    let preferred_order = ["torre", "vale", "brage"];
-    names.sort_by_key(|n| {
-        let lower = n.to_lowercase();
-        let pos = preferred_order.iter().position(|&p| p == lower.as_str());
-        (pos.is_none(), pos.unwrap_or(usize::MAX), lower)
-    });
+    sort_by_preference(&mut names, &state.guest_config.telescope_priority);
     let maintenance = match fetch_maintenance_set(state.database_connection.clone()).await {
         Ok(m) => m,
         Err(_) => return guest_start_error_response("internal"),
