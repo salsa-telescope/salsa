@@ -131,45 +131,85 @@ later file wins). Keep the `zz-` prefix on any rename.
 
 ### TLS certificate
 
-SALSA holds port 80 for the HTTP→HTTPS redirect, so certbot cannot use
-`--standalone` (which wants that port to itself). Instead SALSA serves the
-HTTP-01 challenge directly, and certbot renews with `--webroot` while the
-service keeps running.
+SALSA holds port 80 for the HTTP→HTTPS redirect, so certbot renews with
+`--webroot`: SALSA serves the HTTP-01 challenge itself and the service keeps
+running throughout. There are no renewal hooks and none should be added —
+SALSA reloads the certificate from disk on its own.
 
-Create the challenge directory and obtain the certificate:
+The first certificate is a special case. SALSA loads its PEM files at startup
+and exits if they are missing, so it cannot yet serve the challenge that would
+obtain them. Issue it with `--standalone`, before SALSA is running and holding
+port 80:
+
+```bash
+sudo certbot certonly --standalone -d salsa.oso.chalmers.se
+```
+
+Then create the challenge directory:
 
 ```bash
 sudo mkdir -p /var/www/acme/.well-known/acme-challenge
 sudo chmod -R a+rx /var/www/acme
-sudo certbot certonly --webroot -w /var/www/acme -d salsa.oso.chalmers.se
 ```
 
-The directory must be writable by certbot (which runs as root) and
-readable/traversable by the `salsa` user. The path is passed to SALSA with
-`--acme-webroot` — it is already in the unit file template above. Without that
-flag SALSA redirects every port-80 request to HTTPS, including the challenge,
-and renewal fails validation.
+It must be writable by certbot (which runs as root) and readable/traversable
+by the `salsa` user. The path reaches SALSA through `--acme-webroot`, already
+set in the unit file template above. Without that flag SALSA redirects every
+port-80 request to HTTPS, the challenge included, and renewal fails validation.
 
-**No renewal hooks are needed, and none should be added.** SALSA re-reads the
-certificate from disk on its own: a background task checks the file hourly and
-reloads it in place when certbot replaces it, with no restart and no dropped
-connections. Certbot renews with ~30 days of validity remaining, so up to an
-hour of latency is immaterial. If the new files are unreadable or malformed,
-the reload is refused and the server keeps serving the previous certificate —
-check the journal for `cert_watcher`.
+Start SALSA, then point renewals at the webroot. `certonly --standalone`
+recorded `authenticator = standalone`, which will not work once SALSA owns
+port 80. Edit `/etc/letsencrypt/renewal/salsa.oso.chalmers.se.conf` so
+`[renewalparams]` contains
 
-This replaces an older setup that used `--standalone` with
-`pre_hook = systemctl stop salsa.service`. That hook existed to free port 80,
-but it also meant a hard restart roughly every 60 days at whatever hour
-certbot's timer fired — killing any observation in progress. If those hooks are
-still present in `/etc/letsencrypt/renewal/salsa.oso.chalmers.se.conf`, remove
-them.
+```
+authenticator = webroot
+webroot_path = /var/www/acme,
+```
 
-To verify the whole path without waiting for a real renewal:
+(the trailing comma is certbot's own list format), and add at the end of the
+file:
+
+```
+[[webroot_map]]
+salsa.oso.chalmers.se = /var/www/acme
+```
+
+#### Verifying
+
+First that SALSA serves a challenge file. No certbot involved, so this cannot
+break anything:
 
 ```bash
-sudo certbot renew --dry-run    # must pass with salsa.service running
+echo hello | sudo tee /var/www/acme/.well-known/acme-challenge/testfile
+curl http://salsa.oso.chalmers.se/.well-known/acme-challenge/testfile
+sudo rm /var/www/acme/.well-known/acme-challenge/testfile
 ```
+
+Must print `hello`. A 301/308 redirect means `--acme-webroot` is not in effect.
+
+Then the renewal, checking that the service is left alone — a renewal that
+still stops SALSA would otherwise look identical to success:
+
+```bash
+systemctl show salsa -p ActiveEnterTimestamp
+sudo certbot renew --dry-run
+systemctl show salsa -p ActiveEnterTimestamp   # must be UNCHANGED
+```
+
+Finally the in-place reload, which `touch` exercises without waiting for a
+real renewal: it follows the `live/` symlink into `archive/`, so the watcher
+sees a new mtime and reloads the same, valid certificate.
+
+```bash
+sudo touch /etc/letsencrypt/live/salsa.oso.chalmers.se/fullchain.pem
+# the watcher polls hourly, seeded at service start; check an hour after that
+sudo journalctl -u salsa --since "-2h" | grep cert_watcher
+```
+
+Expect `cert_watcher: reloaded TLS certificate from ...`. If the files are ever
+unreadable or malformed the reload is refused and SALSA keeps serving the
+certificate it already has.
 
 ### Initial server setup (WIP)
 
