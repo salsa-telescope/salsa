@@ -45,6 +45,12 @@ unic-langid = "0.9.6"
 
 [dev-dependencies]
 tempfile = "*"
+# Self-signed certificates for the cert_watcher tests, generated in-process so
+# the suite does not shell out to openssl or carry committed key material.
+rcgen = "0.14"
+# Bumping a file's mtime explicitly: filesystem timestamp resolution is too
+# coarse for a test that rewrites a file within milliseconds.
+filetime = "0.2"
 # `ServiceExt::oneshot`, to drive a Router in-process. The redirect app binds
 # port 80 in production, which needs privileges, so its routing is tested
 # against the Router directly rather than over a socket.
