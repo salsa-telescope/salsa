@@ -12,7 +12,7 @@ use std::iter::zip;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, error, info, warn};
+use tracing::{error, info, warn};
 
 use std::time::Duration;
 
@@ -411,16 +411,53 @@ impl Telescope for SalsaTelescope {
             receiver_configuration: inner.receiver_configuration,
         })
     }
+    /// Shut down in four steps, each of which can block on hardware.
+    ///
+    /// Every step announces itself *before* it runs, not just after. A step
+    /// that never returns cannot report its own duration, so the diagnostic
+    /// value is in the last line that has no matching completion — that names
+    /// the one that hung. At `info` deliberately: production runs
+    /// `RUST_LOG=info`, so the `debug!` that used to be here was never visible
+    /// on the server, which is part of why an unbounded shutdown went
+    /// unexplained for so long. Shutdown happens once per restart, so the
+    /// handful of extra lines costs nothing.
     async fn shutdown(&self) {
-        if let Some(tasks) = self.background_tasks.lock().await.take() {
-            for task in tasks {
+        let started = std::time::Instant::now();
+
+        // Bound the guard to this statement so the lock is definitely released
+        // before the loop below awaits.
+        info!("telescope shutdown: 1/4 taking background-task lock");
+        let tasks = self.background_tasks.lock().await.take();
+
+        if let Some(tasks) = tasks {
+            for (index, task) in tasks.into_iter().enumerate() {
+                // `abort()` does not interrupt a `spawn_blocking` closure, so
+                // this await can outlast the abort by however long the inner
+                // blocking work takes to return.
+                info!("telescope shutdown: 2/4 stopping background task {index}");
                 task.abort();
                 let _ = task.await;
             }
         }
+        info!(
+            "telescope shutdown: background tasks stopped after {:?}",
+            started.elapsed()
+        );
+
+        info!("telescope shutdown: 3/4 taking inner lock");
         let inner = self.inner.lock().await;
-        debug!("Shutting down {}", inner.name);
+
+        info!(
+            "telescope shutdown: 4/4 closing controller connection for {}",
+            inner.name
+        );
         inner.controller.shutdown().await;
+
+        info!(
+            "telescope shutdown: {} closed after {:?}",
+            inner.name,
+            started.elapsed()
+        );
     }
 
     async fn start_iq_stream(

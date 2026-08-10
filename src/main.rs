@@ -159,9 +159,13 @@ async fn main() {
         error!("HTTP server error: {e}");
     }
 
+    // Unconditional, so the journal always shows where the boundary between
+    // "waiting for connections" and "tearing down hardware" fell. Without it,
+    // a slow stop cannot be attributed to either stage.
     let still_open = shutdown_handle.connection_count();
+    info!("http server stopped with {still_open} connection(s) open, starting teardown");
     if still_open > 0 {
-        warn!("http server stopped with {still_open} connection(s) still open; they were cut off");
+        warn!("{still_open} connection(s) were still open at shutdown and were cut off");
     }
 
     // Bounded as a whole as well as per-telescope: teardown talks to hardware,

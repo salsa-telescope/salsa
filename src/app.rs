@@ -320,6 +320,7 @@ async fn shutdown_telescopes(
 ) {
     for (name, telescope) in telescopes {
         let started = std::time::Instant::now();
+        info!("teardown: shutting down telescope {name}");
         match tokio::time::timeout(TELESCOPE_SHUTDOWN_TIMEOUT, telescope.shutdown()).await {
             Ok(()) => info!(
                 "teardown: shut down telescope {name} in {:?}",
