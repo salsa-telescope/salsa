@@ -333,6 +333,34 @@ async fn shutdown_telescopes(
     for (name, telescope) in telescopes {
         let started = std::time::Instant::now();
         info!("teardown: shutting down telescope {name}");
+
+        // Stop any running integration first. `shutdown()` only aborts the
+        // update and ping loops; it never touches the measurement task, and
+        // that task is a `spawn_blocking` running UHD FFI. `spawn_blocking`
+        // work cannot be aborted, and dropping the tokio runtime waits for it,
+        // so leaving it running meant the process sat in runtime shutdown
+        // after main returned — past the last line this code can log — until
+        // systemd killed it. Measured on 2026-08-10: teardown finished in
+        // 2.4 s, then the process was SIGKILLed 8 s later with nothing in
+        // between.
+        //
+        // `stop_integration` cancels the token and awaits the task, and
+        // `measure()` checks that token once per cycle, so this returns within
+        // about one cycle. The spectrum it hands back is discarded: teardown
+        // has no user to file an observation against, and a partial run
+        // interrupted by a restart is not worth misattributing.
+        match tokio::time::timeout(TELESCOPE_SHUTDOWN_TIMEOUT, telescope.stop_integration()).await {
+            Ok(Some(_)) => info!(
+                "teardown: stopped a running integration on {name} in {:?}",
+                started.elapsed()
+            ),
+            Ok(None) => {}
+            Err(_) => warn!(
+                "teardown: integration on {name} did not stop within \
+                 {TELESCOPE_SHUTDOWN_TIMEOUT:?}; its measurement thread may still be running"
+            ),
+        }
+
         match tokio::time::timeout(TELESCOPE_SHUTDOWN_TIMEOUT, telescope.shutdown()).await {
             Ok(()) => info!(
                 "teardown: shut down telescope {name} in {:?}",

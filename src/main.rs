@@ -11,19 +11,26 @@ use tracing::{error, info, warn};
 
 /// How long in-flight connections get to finish once shutdown starts.
 ///
-/// Must stay comfortably under the unit's `TimeoutStopSec` (30 s), so the
-/// process exits on its own terms rather than being SIGKILLed part-way
-/// through telescope teardown. Ten seconds is far longer than any real
-/// request — the slowest logged are ~2 s telescope stops — so in practice
-/// only connections that would never close on their own are cut off.
-const GRACEFUL_SHUTDOWN_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+/// Sized against the *host's* stop timeout, which is 10 s — not the 90 s
+/// systemd default this was originally written for. Measured 2026-08-10:
+/// SIGTERM at 19:19:13, SIGKILL at 19:19:23, twice more at exactly 10 s
+/// earlier the same day. The unit now sets `TimeoutStopSec=30`, but that
+/// file is applied by hand and can be lost when the host is rebuilt, so the
+/// in-process budgets are kept inside 10 s on their own: 5 s here plus 4 s
+/// of teardown still exits before a bare-default host would kill us.
+///
+/// Five seconds is far longer than any real request — the slowest logged are
+/// ~2 s telescope stops — so in practice only connections that would never
+/// close on their own are cut off.
+const GRACEFUL_SHUTDOWN_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
 
 /// Budget for `teardown_app` once the server has stopped.
 ///
-/// Together with `GRACEFUL_SHUTDOWN_TIMEOUT` this bounds the whole stop at
-/// ~20 s, inside the unit's `TimeoutStopSec=30`, so systemd never has to
-/// SIGKILL us part-way through closing telescope connections.
-const TEARDOWN_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+/// Teardown measured at 82–250 ms idle and 2.4 s with three telescopes
+/// mid-integration, so 4 s is generous while keeping the whole stop inside
+/// the host's 10 s limit even if the unit file's `TimeoutStopSec=30` is not
+/// in place.
+const TEARDOWN_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(4);
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -177,6 +184,24 @@ async fn main() {
         Ok(()) => info!("Teardown complete in {:?}, exiting", started.elapsed()),
         Err(_) => error!("Teardown did not finish within {TEARDOWN_TIMEOUT:?}; exiting anyway"),
     }
+
+    // Exit without unwinding to the runtime drop.
+    //
+    // Returning from `main` drops the tokio runtime, and that waits for every
+    // `spawn_blocking` task to finish. Those cannot be cancelled, so one stuck
+    // in FFI holds the process open *after* the last line this function can
+    // log — which is precisely how the 2026-08-10 19:19 restart died: teardown
+    // reported success, then eight silent seconds, then SIGKILL. Stopping the
+    // integrations above removes the known offender, but the failure mode is
+    // invisible by construction, so this closes it off for good rather than
+    // trusting that no other blocking call ever lingers.
+    //
+    // Safe here because everything that owns state has already been shut down:
+    // the server has stopped, the correlator session is closed, and the
+    // telescopes are torn down. Skipping the remaining destructors costs
+    // nothing — SQLite runs in WAL mode, where committed transactions are
+    // durable and an unclean close is recovered on next open.
+    std::process::exit(0);
 }
 
 async fn handle_shutdown_signal(handle: axum_server::Handle) {
