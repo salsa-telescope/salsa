@@ -5,7 +5,7 @@ After=network.target
 [Service]
 User=salsa
 WorkingDirectory=/home/salsa/bin
-ExecStart=/home/salsa/bin/target/release/salsa --port 443 --log-to-journald --config-dir /home/salsa/config/ --database-dir /home/salsa/data/
+ExecStart=/home/salsa/bin/target/release/salsa --port 443 --log-to-journald --config-dir /home/salsa/config/ --database-dir /home/salsa/data/ --acme-webroot /var/www/acme
 Environment="RUST_LOG=info,rustls=error"
 Environment="KEY_FILE_PATH=/etc/letsencrypt/live/salsa.oso.chalmers.se/privkey.pem"
 Environment="CERT_FILE_PATH=/etc/letsencrypt/live/salsa.oso.chalmers.se/fullchain.pem"

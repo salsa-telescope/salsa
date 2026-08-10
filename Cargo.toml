@@ -45,6 +45,10 @@ unic-langid = "0.9.6"
 
 [dev-dependencies]
 tempfile = "*"
+# `ServiceExt::oneshot`, to drive a Router in-process. The redirect app binds
+# port 80 in production, which needs privileges, so its routing is tested
+# against the Router directly rather than over a socket.
+tower = { version = "0.5", features = ["util"] }
 # `start_paused` for the integration-monitor tests: they wait out one-second
 # poll ticks and a minute-long backstop, which on a paused clock cost nothing.
 tokio = { version = "1.*", features = ["test-util"] }

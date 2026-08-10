@@ -1,6 +1,8 @@
 use axum_server::tls_rustls::RustlsConfig;
 use clap::Parser;
-use salsa::{app, app::teardown_app, booking_monitor, guest_monitor, logging};
+use salsa::{
+    app, app::teardown_app, booking_monitor, cert_watcher, guest_monitor, logging, session_monitor,
+};
 use std::net::SocketAddr;
 use std::net::TcpListener;
 use std::path::PathBuf;
@@ -27,6 +29,13 @@ struct Args {
 
     #[arg(long)]
     log_to_journald: bool,
+
+    /// Directory certbot writes HTTP-01 challenges into, as passed to
+    /// `certbot --webroot -w`. When set, the port-80 redirect server serves
+    /// `<path>/.well-known/acme-challenge/` as files so renewal can complete
+    /// without stopping SALSA to free the port. Only meaningful with TLS on.
+    #[arg(long)]
+    acme_webroot: Option<PathBuf>,
 }
 
 #[tokio::main]
@@ -43,6 +52,7 @@ async fn main() {
     let (app, state) = app::create_app(&args.config_dir, &args.database_dir).await;
     booking_monitor::start(state.clone());
     guest_monitor::start(state.clone());
+    session_monitor::start(state.database_connection.clone());
 
     // Runtime heartbeat: if scheduling is healthy, this loop wakes every
     // ~500 ms. A skew well above that means tokio worker threads are
@@ -86,14 +96,23 @@ async fn main() {
             "using tls with key file {} and cert file {}",
             key_file_path, cert_file_path
         );
-        let tls_config = RustlsConfig::from_pem_file(cert_file_path, key_file_path)
+        let tls_config = RustlsConfig::from_pem_file(&cert_file_path, &key_file_path)
             .await
             .unwrap();
+
+        // Picks up certbot renewals in place, so renewal no longer needs to
+        // stop the service. Purely additive: if it never fires, the server
+        // behaves exactly as it did before.
+        cert_watcher::start(
+            tls_config.clone(),
+            PathBuf::from(&cert_file_path),
+            PathBuf::from(&key_file_path),
+        );
 
         let https_port = addr.port();
         let redirect_listener = TcpListener::bind(SocketAddr::from(([0, 0, 0, 0], 80))).unwrap();
         info!("listening for HTTP->HTTPS redirect on port 80");
-        let redirect_app = app::create_redirect_app(https_port);
+        let redirect_app = app::create_redirect_app(https_port, args.acme_webroot);
         let redirect_handle = handle.clone();
         tokio::spawn(async move {
             if let Err(e) = axum_server::from_tcp(redirect_listener)

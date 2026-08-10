@@ -4,7 +4,7 @@ use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Redirect, Response};
 use axum::{Router, routing::get};
 use rusqlite::Connection;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tower_http::services::ServeDir;
@@ -346,10 +346,26 @@ async fn slow_request_middleware(req: Request<axum::body::Body>, next: Next) -> 
     response
 }
 
-pub fn create_redirect_app(https_port: u16) -> Router {
-    Router::new()
-        .fallback(redirect_to_https)
-        .with_state(https_port)
+/// The port-80 listener: redirects everything to HTTPS, except ACME
+/// challenge files when `acme_webroot` is set.
+///
+/// Serving the challenge here is what lets certbot renew with `--webroot`
+/// while SALSA keeps running. Under `--standalone` certbot needs port 80 to
+/// itself, which is why renewal used to require stopping the service — a hard
+/// restart every ~60 days that could land mid-observation. A matched route
+/// wins over the fallback, so challenge files are served as files and
+/// everything else still redirects.
+///
+/// With no webroot configured the router is exactly what it was before: a
+/// bare redirect.
+pub fn create_redirect_app(https_port: u16, acme_webroot: Option<PathBuf>) -> Router {
+    let mut app = Router::new();
+    if let Some(webroot) = acme_webroot {
+        let challenge_dir = webroot.join(".well-known/acme-challenge");
+        debug!("serving ACME challenges from {}", challenge_dir.display());
+        app = app.nest_service("/.well-known/acme-challenge", ServeDir::new(challenge_dir));
+    }
+    app.fallback(redirect_to_https).with_state(https_port)
 }
 
 async fn redirect_to_https(
@@ -368,4 +384,113 @@ async fn redirect_to_https(
         format!("https://{hostname}:{https_port}{uri}")
     };
     Redirect::permanent(&https_url).into_response()
+}
+
+#[cfg(test)]
+mod redirect_app_tests {
+    use super::*;
+    use axum::body::Body;
+    use axum::http::StatusCode;
+    use tower::ServiceExt;
+
+    async fn get(app: Router, path: &str) -> Response {
+        app.oneshot(
+            Request::builder()
+                .uri(path)
+                .header("host", "salsa.example")
+                .body(Body::empty())
+                .expect("request should build"),
+        )
+        .await
+        .expect("router should respond")
+    }
+
+    fn webroot_with_challenge(token: &str, contents: &str) -> tempfile::TempDir {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let challenge_dir = dir.path().join(".well-known/acme-challenge");
+        std::fs::create_dir_all(&challenge_dir).expect("create challenge dir");
+        std::fs::write(challenge_dir.join(token), contents).expect("write challenge");
+        dir
+    }
+
+    /// The whole point of the webroot: certbot's HTTP-01 challenge must come
+    /// back as the file it wrote, not as a redirect to HTTPS. A redirect here
+    /// fails validation, and renewal fails with it.
+    #[tokio::test]
+    async fn acme_challenge_is_served_as_a_file() {
+        let webroot = webroot_with_challenge("test-token", "token-contents.key-auth");
+        let app = create_redirect_app(443, Some(webroot.path().to_path_buf()));
+
+        let response = get(app, "/.well-known/acme-challenge/test-token").await;
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .expect("body");
+        assert_eq!(&body[..], b"token-contents.key-auth");
+    }
+
+    /// Only the challenge path is exempt — everything else, including other
+    /// paths under /.well-known, still goes to HTTPS.
+    #[tokio::test]
+    async fn everything_else_still_redirects_when_a_webroot_is_configured() {
+        let webroot = webroot_with_challenge("test-token", "irrelevant");
+        let app = create_redirect_app(443, Some(webroot.path().to_path_buf()));
+
+        for path in ["/", "/observe", "/.well-known/other"] {
+            let response = get(app.clone(), path).await;
+            assert_eq!(
+                response.status(),
+                StatusCode::PERMANENT_REDIRECT,
+                "{path} should redirect"
+            );
+        }
+    }
+
+    /// A missing token must 404 rather than fall through to the redirect:
+    /// certbot reads a 301 as a broken challenge setup.
+    #[tokio::test]
+    async fn unknown_challenge_token_is_not_redirected() {
+        let webroot = webroot_with_challenge("test-token", "irrelevant");
+        let app = create_redirect_app(443, Some(webroot.path().to_path_buf()));
+
+        let response = get(app, "/.well-known/acme-challenge/no-such-token").await;
+
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    }
+
+    /// With no webroot configured the router must behave exactly as it did
+    /// before the challenge route existed: everything redirects.
+    #[tokio::test]
+    async fn without_a_webroot_every_path_redirects() {
+        let app = create_redirect_app(443, None);
+
+        for path in ["/", "/.well-known/acme-challenge/test-token"] {
+            let response = get(app.clone(), path).await;
+            assert_eq!(
+                response.status(),
+                StatusCode::PERMANENT_REDIRECT,
+                "{path} should redirect"
+            );
+        }
+    }
+
+    /// The port is carried into the redirect target for non-443 setups, and
+    /// omitted for 443. Guards the `https_port == 443` branch.
+    #[tokio::test]
+    async fn redirect_target_carries_a_non_default_port() {
+        for (port, expected) in [
+            (443u16, "https://salsa.example/observe"),
+            (8443, "https://salsa.example:8443/observe"),
+        ] {
+            let response = get(create_redirect_app(port, None), "/observe").await;
+            assert_eq!(
+                response
+                    .headers()
+                    .get("location")
+                    .and_then(|v| v.to_str().ok()),
+                Some(expected)
+            );
+        }
+    }
 }

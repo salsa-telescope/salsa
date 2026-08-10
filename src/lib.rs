@@ -1,5 +1,6 @@
 pub mod app;
 pub mod booking_monitor;
+pub mod cert_watcher;
 pub mod coords;
 pub mod correlator;
 pub mod database;
@@ -16,6 +17,7 @@ pub mod middleware;
 pub mod models;
 pub mod routes;
 pub mod secrets;
+pub mod session_monitor;
 pub mod supervised_task;
 pub mod telescope_controller;
 pub mod telescope_tracker;

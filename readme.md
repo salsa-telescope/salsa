@@ -131,18 +131,44 @@ later file wins). Keep the `zz-` prefix on any rename.
 
 ### TLS certificate
 
-Obtain a certificate via certbot (standalone mode — no web server needed):
+SALSA holds port 80 for the HTTP→HTTPS redirect, so certbot cannot use
+`--standalone` (which wants that port to itself). Instead SALSA serves the
+HTTP-01 challenge directly, and certbot renews with `--webroot` while the
+service keeps running.
+
+Create the challenge directory and obtain the certificate:
 
 ```bash
-sudo certbot certonly --standalone -d salsa.oso.chalmers.se
+sudo mkdir -p /var/www/acme/.well-known/acme-challenge
+sudo chmod -R a+rx /var/www/acme
+sudo certbot certonly --webroot -w /var/www/acme -d salsa.oso.chalmers.se
 ```
 
-To ensure the certificate auto-renews every 90 days, add pre/post hooks that
-stop and start the service. In `/etc/letsencrypt/renewal/salsa.oso.chalmers.se.conf`:
+The directory must be writable by certbot (which runs as root) and
+readable/traversable by the `salsa` user. The path is passed to SALSA with
+`--acme-webroot` — it is already in the unit file template above. Without that
+flag SALSA redirects every port-80 request to HTTPS, including the challenge,
+and renewal fails validation.
 
-```
-pre_hook = systemctl stop salsa.service
-post_hook = systemctl start salsa.service
+**No renewal hooks are needed, and none should be added.** SALSA re-reads the
+certificate from disk on its own: a background task checks the file hourly and
+reloads it in place when certbot replaces it, with no restart and no dropped
+connections. Certbot renews with ~30 days of validity remaining, so up to an
+hour of latency is immaterial. If the new files are unreadable or malformed,
+the reload is refused and the server keeps serving the previous certificate —
+check the journal for `cert_watcher`.
+
+This replaces an older setup that used `--standalone` with
+`pre_hook = systemctl stop salsa.service`. That hook existed to free port 80,
+but it also meant a hard restart roughly every 60 days at whatever hour
+certbot's timer fired — killing any observation in progress. If those hooks are
+still present in `/etc/letsencrypt/renewal/salsa.oso.chalmers.se.conf`, remove
+them.
+
+To verify the whole path without waiting for a real renewal:
+
+```bash
+sudo certbot renew --dry-run    # must pass with salsa.service running
 ```
 
 ### Initial server setup (WIP)
@@ -167,5 +193,17 @@ UHD runtime library:
 - **Routes** (`src/routes/`) — one file per feature area, registered in `app.rs`
 - **Models** (`src/models/`) — database models and telescope abstraction (`SalsaTelescope` / `FakeTelescope`)
 - **AppState** — shared state: database connection, telescope handles, config, TLE and weather caches
-- **Background tasks** — TLE satellite data refresh, weather cache refresh, booking monitor
+- **Background tasks** — TLE satellite data refresh, weather cache refresh, booking monitor,
+  guest monitor, expired-session purge, TLS certificate watcher
 - **Database** — SQLite with [Refinery](https://github.com/rust-db/refinery) migrations in `src/database.rs`
+
+### Database backups
+
+The database runs in WAL mode, which keeps recent commits in a
+`database.sqlite3-wal` sidecar until checkpoint. **`cp database.sqlite3` alone
+can therefore miss the most recent writes.** Use SQLite's own backup, which is
+also safe to run against the live server:
+
+```bash
+sqlite3 /home/salsa/data/database.sqlite3 ".backup /path/to/backup.sqlite3"
+```
