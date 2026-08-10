@@ -687,7 +687,14 @@ pub(crate) async fn save_observation(
 
 /// The submitted repeat interval was outside the allowed range.
 #[derive(Debug)]
-struct OutOfRange;
+enum RepeatIntervalError {
+    /// Outside the fixed 5 s .. 1 h bounds.
+    OutOfRange,
+    /// Shorter than the integration it is meant to repeat, which cannot be
+    /// honoured: the next cycle would already be due before the current one
+    /// finished.
+    ShorterThanIntegration { integration_secs: u32 },
+}
 
 /// Decide whether a submitted form starts a repeat series, and at what period.
 ///
@@ -700,8 +707,9 @@ struct OutOfRange;
 fn resolve_repeat_interval(
     integration_mode: Option<&str>,
     repeat_interval_secs: Option<f64>,
+    integration: std::time::Duration,
     is_admin: bool,
-) -> Result<Option<std::time::Duration>, OutOfRange> {
+) -> Result<Option<std::time::Duration>, RepeatIntervalError> {
     let Some(secs) = repeat_interval_secs else {
         return Ok(None);
     };
@@ -719,7 +727,19 @@ fn resolve_repeat_interval(
     }
     if !(secs.is_finite() && (MIN_REPEAT_INTERVAL_SECS..=MAX_REPEAT_INTERVAL_SECS).contains(&secs))
     {
-        return Err(OutOfRange);
+        return Err(RepeatIntervalError::OutOfRange);
+    }
+    // A period shorter than the integration cannot be delivered: the loop
+    // would find the next start already overdue every time and simply run
+    // back to back, silently ignoring the number that was asked for. Refuse
+    // instead, because the most likely cause is the two fields being filled
+    // in the wrong order. Equal values are allowed and are the supported way
+    // to ask for continuous coverage — per-cycle overhead makes each start
+    // due the moment the previous integration ends.
+    if secs + f64::EPSILON < integration.as_secs_f64() {
+        return Err(RepeatIntervalError::ShorterThanIntegration {
+            integration_secs: integration.as_secs_f64().ceil() as u32,
+        });
     }
     Ok(Some(std::time::Duration::from_secs_f64(secs)))
 }
@@ -1111,22 +1131,6 @@ async fn start_observe(
         return Err(StatusCode::BAD_REQUEST);
     }
 
-    let repeat_interval = match resolve_repeat_interval(
-        form.integration_mode.as_deref(),
-        form.repeat_interval_secs,
-        user.is_admin,
-    ) {
-        Ok(interval) => interval,
-        Err(OutOfRange) => {
-            return Ok(error_response(fl!(
-                lang.loader(),
-                "observe-error-repeat-interval",
-                min = (MIN_REPEAT_INTERVAL_SECS as u32),
-                max = (MAX_REPEAT_INTERVAL_SECS as u32)
-            )));
-        }
-    };
-
     // Open-ended runs fall back to the same ceiling the fixed-duration field is
     // capped at, so every integration ends on its own eventually.
     let max_duration = match (form.integration_mode.as_deref(), form.integration_time_secs) {
@@ -1134,6 +1138,30 @@ async fn start_observe(
             std::time::Duration::from_secs_f64(secs)
         }
         _ => std::time::Duration::from_secs_f64(MAX_INTEGRATION_TIME_SECS),
+    };
+
+    let repeat_interval = match resolve_repeat_interval(
+        form.integration_mode.as_deref(),
+        form.repeat_interval_secs,
+        max_duration,
+        user.is_admin,
+    ) {
+        Ok(interval) => interval,
+        Err(RepeatIntervalError::OutOfRange) => {
+            return Ok(error_response(fl!(
+                lang.loader(),
+                "observe-error-repeat-interval",
+                min = (MIN_REPEAT_INTERVAL_SECS as u32),
+                max = (MAX_REPEAT_INTERVAL_SECS as u32)
+            )));
+        }
+        Err(RepeatIntervalError::ShorterThanIntegration { integration_secs }) => {
+            return Ok(error_response(fl!(
+                lang.loader(),
+                "observe-error-repeat-too-short",
+                integration = integration_secs
+            )));
+        }
     };
 
     // Same reap as in `set_target`, for the case where a new run is started on
@@ -1776,10 +1804,14 @@ mod tests {
         })
     }
 
+    fn dur(v: f64) -> std::time::Duration {
+        std::time::Duration::from_secs_f64(v)
+    }
+
     #[test]
     fn no_repeat_field_means_a_single_integration() {
         assert!(
-            resolve_repeat_interval(Some("fixed"), None, true)
+            resolve_repeat_interval(Some("fixed"), None, dur(2.0), true)
                 .expect("valid")
                 .is_none()
         );
@@ -1787,10 +1819,48 @@ mod tests {
 
     #[test]
     fn a_repeat_interval_is_accepted_in_fixed_mode() {
-        let interval = resolve_repeat_interval(Some("fixed"), Some(30.0), true)
+        let interval = resolve_repeat_interval(Some("fixed"), Some(30.0), dur(2.0), true)
             .expect("30 s is within range")
             .expect("a series should be requested");
         assert_eq!(interval, std::time::Duration::from_secs(30));
+    }
+
+    /// A period shorter than the integration cannot be delivered — the loop
+    /// would find every start already overdue and run back to back, quietly
+    /// ignoring the number entered. The likeliest cause is the integration
+    /// time and the interval being filled in the wrong order, so it is worth
+    /// saying so rather than silently doing something else.
+    #[test]
+    fn a_repeat_interval_shorter_than_the_integration_is_refused() {
+        assert!(matches!(
+            resolve_repeat_interval(Some("fixed"), Some(10.0), dur(30.0), true),
+            Err(RepeatIntervalError::ShorterThanIntegration {
+                integration_secs: 30
+            })
+        ));
+    }
+
+    /// Equal is allowed, and is the supported way to ask for continuous
+    /// coverage: per-cycle overhead means the next start is already due when
+    /// the previous integration ends, so cycles run back to back.
+    #[test]
+    fn a_repeat_interval_equal_to_the_integration_is_allowed() {
+        assert_eq!(
+            resolve_repeat_interval(Some("fixed"), Some(30.0), dur(30.0), true)
+                .expect("equal should be accepted"),
+            Some(dur(30.0))
+        );
+    }
+
+    /// The comparison must not trip on float representation: a 2.5 s
+    /// integration repeated every 2.5 s is the same number twice.
+    #[test]
+    fn fractional_equal_values_are_not_rejected_by_rounding() {
+        assert!(
+            resolve_repeat_interval(Some("fixed"), Some(7.5), dur(7.5), true)
+                .expect("equal fractional values should be accepted")
+                .is_some()
+        );
     }
 
     /// Repeat series are admin-only for now: an unattended run can write
@@ -1800,7 +1870,7 @@ mod tests {
     #[test]
     fn a_repeat_interval_is_ignored_for_non_admins() {
         assert!(
-            resolve_repeat_interval(Some("fixed"), Some(30.0), false)
+            resolve_repeat_interval(Some("fixed"), Some(30.0), dur(2.0), false)
                 .expect("valid")
                 .is_none(),
             "a non-admin request should not start a series"
@@ -1814,7 +1884,7 @@ mod tests {
     fn a_repeat_interval_is_ignored_outside_fixed_mode() {
         for mode in [Some("interactive"), None] {
             assert!(
-                resolve_repeat_interval(mode, Some(30.0), true)
+                resolve_repeat_interval(mode, Some(30.0), dur(2.0), true)
                     .expect("valid")
                     .is_none(),
                 "{mode:?} should not start a series"
@@ -1835,7 +1905,7 @@ mod tests {
             f64::INFINITY,
         ] {
             assert!(
-                resolve_repeat_interval(Some("fixed"), Some(secs), true).is_err(),
+                resolve_repeat_interval(Some("fixed"), Some(secs), dur(1.0), true).is_err(),
                 "{secs} should be refused"
             );
         }
@@ -1845,7 +1915,7 @@ mod tests {
     fn the_range_bounds_themselves_are_allowed() {
         for secs in [MIN_REPEAT_INTERVAL_SECS, MAX_REPEAT_INTERVAL_SECS] {
             assert!(
-                resolve_repeat_interval(Some("fixed"), Some(secs), true)
+                resolve_repeat_interval(Some("fixed"), Some(secs), dur(1.0), true)
                     .expect("bound should be valid")
                     .is_some()
             );

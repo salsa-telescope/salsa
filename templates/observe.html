@@ -182,6 +182,7 @@
                   {{ lang.t("observe-fixed") }}
                   <input type="number" id="integration-time-secs" name="integration_time_secs"
                     value="60" min="1" max="{{ max_integration_time_secs }}" step="1" disabled
+                    oninput="updateIntegrationTimeVisibility()"
                     class="border rounded px-2 py-1 bg-white text-sm w-20 disabled:opacity-50" />
                   {{ lang.t("observe-seconds") }}
                 </label>
@@ -462,6 +463,15 @@
       if (repeat && fixed) {
           repeat.disabled = !fixed.checked;
           if (!fixed.checked) repeat.value = '';
+          // The server refuses an interval shorter than the integration —
+          // it cannot be delivered, and it usually means the two fields were
+          // filled in the wrong order. Raise the input's own minimum to match
+          // so the browser catches it before the request is made.
+          const t = parseFloat(input && input.value);
+          const floor = Number.isFinite(t) && t > 0
+              ? Math.max({{ min_repeat_interval_secs }}, Math.ceil(t))
+              : {{ min_repeat_interval_secs }};
+          repeat.min = floor;
       }
       if (hint && fixed) hint.classList.toggle('hidden', !fixed.checked);
   }

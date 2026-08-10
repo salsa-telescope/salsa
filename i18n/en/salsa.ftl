@@ -222,6 +222,7 @@ observe-error-center-freq = Center frequency must be between { $min } and { $max
 observe-error-ref-freq = Reference frequency must be between { $min } and { $max } MHz.
 observe-error-gain = Gain must be between { $min } and { $max } dB.
 observe-error-repeat-interval = Repeat interval must be between { $min } and { $max } seconds.
+observe-error-repeat-too-short = Repeat interval must be at least as long as the integration time ({ $integration } s).
 
 ## Telescope status fragment
 
