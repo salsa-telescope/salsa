@@ -9,6 +9,22 @@ use std::path::PathBuf;
 use tokio::signal;
 use tracing::{error, info, warn};
 
+/// How long in-flight connections get to finish once shutdown starts.
+///
+/// Must stay comfortably under the unit's `TimeoutStopSec` (30 s), so the
+/// process exits on its own terms rather than being SIGKILLed part-way
+/// through telescope teardown. Ten seconds is far longer than any real
+/// request — the slowest logged are ~2 s telescope stops — so in practice
+/// only connections that would never close on their own are cut off.
+const GRACEFUL_SHUTDOWN_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+
+/// Budget for `teardown_app` once the server has stopped.
+///
+/// Together with `GRACEFUL_SHUTDOWN_TIMEOUT` this bounds the whole stop at
+/// ~20 s, inside the unit's `TimeoutStopSec=30`, so systemd never has to
+/// SIGKILL us part-way through closing telescope connections.
+const TEARDOWN_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
@@ -83,6 +99,7 @@ async fn main() {
     }
 
     let handle = axum_server::Handle::new();
+    let shutdown_handle = handle.clone();
     tokio::spawn(handle_shutdown_signal(handle.clone()));
 
     if let Some(key_file_path) = args.key_file_path {
@@ -124,20 +141,38 @@ async fn main() {
             }
         });
 
-        axum_server::from_tcp_rustls(listener, tls_config)
-            .handle(handle)
+        // Errors are logged rather than unwrapped: a panic here would skip the
+        // teardown below, which is the one thing that must happen on the way
+        // out.
+        if let Err(e) = axum_server::from_tcp_rustls(listener, tls_config)
+            .handle(shutdown_handle.clone())
             .serve(app.into_make_service_with_connect_info::<SocketAddr>())
             .await
-            .unwrap();
-    } else {
-        axum_server::from_tcp(listener)
-            .handle(handle)
-            .serve(app.into_make_service_with_connect_info::<SocketAddr>())
-            .await
-            .unwrap();
+        {
+            error!("HTTPS server error: {e}");
+        }
+    } else if let Err(e) = axum_server::from_tcp(listener)
+        .handle(shutdown_handle.clone())
+        .serve(app.into_make_service_with_connect_info::<SocketAddr>())
+        .await
+    {
+        error!("HTTP server error: {e}");
     }
 
-    teardown_app(state).await;
+    let still_open = shutdown_handle.connection_count();
+    if still_open > 0 {
+        warn!("http server stopped with {still_open} connection(s) still open; they were cut off");
+    }
+
+    // Bounded as a whole as well as per-telescope: teardown talks to hardware,
+    // and the point of this path is that the process exits on its own terms.
+    // Exceeding this is a bug worth seeing in the journal, not a reason to sit
+    // there until systemd sends SIGKILL.
+    let started = std::time::Instant::now();
+    match tokio::time::timeout(TEARDOWN_TIMEOUT, teardown_app(state)).await {
+        Ok(()) => info!("Teardown complete in {:?}, exiting", started.elapsed()),
+        Err(_) => error!("Teardown did not finish within {TEARDOWN_TIMEOUT:?}; exiting anyway"),
+    }
 }
 
 async fn handle_shutdown_signal(handle: axum_server::Handle) {
@@ -163,6 +198,23 @@ async fn handle_shutdown_signal(handle: axum_server::Handle) {
         },
     }
 
-    info!("Shutting down");
-    handle.graceful_shutdown(None);
+    // `None` here would mean an *indefinite* grace period. That is what the
+    // process did until now, and because something always holds a connection
+    // open — the spectrum WebSocket, or a keep-alive from the observe page's
+    // 1 Hz polling — the wait never finished. systemd's TimeoutStopSec then
+    // expired and SIGKILLed the process on every single restart, which meant
+    // `teardown_app` (below the server in `main`) never ran: telescope
+    // controllers were never closed cleanly and a running correlator session
+    // was never ended.
+    //
+    // A bounded period lets in-flight requests finish while guaranteeing the
+    // server returns, so teardown actually happens. The connection count is
+    // logged so the journal shows whether the limit was generous enough or
+    // whether connections are being cut off.
+    info!(
+        "Shutting down: {} open connection(s), allowing up to {:?} to finish",
+        handle.connection_count(),
+        GRACEFUL_SHUTDOWN_TIMEOUT
+    );
+    handle.graceful_shutdown(Some(GRACEFUL_SHUTDOWN_TIMEOUT));
 }

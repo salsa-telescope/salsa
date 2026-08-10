@@ -9,7 +9,7 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use tower_http::services::ServeDir;
 use tower_http::trace::TraceLayer;
-use tracing::{debug, debug_span, warn};
+use tracing::{debug, debug_span, info, warn};
 
 use serde::Deserialize;
 
@@ -273,16 +273,95 @@ pub async fn create_app(config_dir: &Path, database_dir: &Path) -> (Router, AppS
     (app, state)
 }
 
+/// Per-telescope budget during teardown.
+///
+/// `SalsaTelescope::shutdown` aborts its background tasks and then closes the
+/// rotator connection, and both can block on hardware that has stopped
+/// answering — the journal regularly shows controllers dropping out. Without a
+/// bound, one unresponsive dish stalls the whole teardown and every telescope
+/// queued behind it.
+const TELESCOPE_SHUTDOWN_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(3);
+
+/// Stop everything that talks to hardware, in the order that keeps the
+/// database consistent.
+///
+/// Every step is bounded and logged. Until now teardown never ran at all in
+/// production — the server's graceful shutdown was unbounded, so systemd
+/// SIGKILLed the process first — and once it does run, anything that hangs
+/// here hangs the stop. The timings below are what tells you which stage is
+/// slow, since none of this is reachable with fake telescopes.
 pub async fn teardown_app(app: AppState) {
     // Stop any running correlator first — otherwise the session row is left
     // without an end_time and visibility inserts keep firing against a
     // soon-to-be-dropped DB connection.
     let running = app.active_correlator.lock().await.take();
     if let Some(handle) = running {
+        let started = std::time::Instant::now();
         crate::routes::interferometry::stop_correlator_session(&app, handle).await;
+        info!(
+            "teardown: stopped correlator session in {:?}",
+            started.elapsed()
+        );
     }
-    for telescope in app.telescopes.get_all().await {
-        telescope.shutdown().await;
+
+    let mut telescopes = Vec::new();
+    for name in app.telescopes.get_names().await {
+        if let Some(telescope) = app.telescopes.get(&name).await {
+            telescopes.push((name, telescope));
+        }
+    }
+    shutdown_telescopes(telescopes).await;
+}
+
+/// Shut each telescope down under its own timeout, so one that never returns
+/// costs its own budget rather than everyone else's.
+async fn shutdown_telescopes(
+    telescopes: Vec<(String, Arc<dyn crate::models::telescope::Telescope>)>,
+) {
+    for (name, telescope) in telescopes {
+        let started = std::time::Instant::now();
+        match tokio::time::timeout(TELESCOPE_SHUTDOWN_TIMEOUT, telescope.shutdown()).await {
+            Ok(()) => info!(
+                "teardown: shut down telescope {name} in {:?}",
+                started.elapsed()
+            ),
+            Err(_) => warn!(
+                "teardown: telescope {name} did not shut down within \
+                 {TELESCOPE_SHUTDOWN_TIMEOUT:?}; abandoning it and continuing"
+            ),
+        }
+    }
+}
+
+#[cfg(test)]
+mod teardown_tests {
+    use super::*;
+    use crate::models::mock_telescope::MockTelescope;
+    use crate::models::telescope::Telescope;
+
+    /// The failure this guards against is the live one: a telescope whose
+    /// shutdown blocks on unresponsive hardware must not strand the
+    /// telescopes queued behind it, or hold the process until systemd
+    /// SIGKILLs it part-way through teardown.
+    #[tokio::test(start_paused = true)]
+    async fn a_hanging_telescope_does_not_block_the_others() {
+        let stuck = MockTelescope::hanging_on_shutdown();
+        let healthy = MockTelescope::returning(Ok(crate::models::mock_telescope::mock_info()));
+
+        let telescopes: Vec<(String, Arc<dyn Telescope>)> = vec![
+            ("stuck".to_string(), stuck.clone()),
+            ("healthy".to_string(), healthy.clone()),
+        ];
+
+        // Completes at all only because each shutdown is bounded; without the
+        // timeout this future never resolves and the test hangs.
+        shutdown_telescopes(telescopes).await;
+
+        assert!(stuck.shutdown_called(), "the stuck telescope was attempted");
+        assert!(
+            healthy.shutdown_called(),
+            "the telescope after the stuck one must still be shut down"
+        );
     }
 }
 

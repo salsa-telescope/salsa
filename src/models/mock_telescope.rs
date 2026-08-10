@@ -14,7 +14,7 @@
 //! module that has one.
 
 use std::sync::Arc;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
 use async_trait::async_trait;
 use chrono::Utc;
@@ -84,6 +84,11 @@ pub struct MockTelescope {
     /// Polls served at the moment `stop_integration` was first called, or 0
     /// if it was never called.
     polls_at_stop: AtomicU64,
+    /// Makes `shutdown` never return, standing in for a real telescope whose
+    /// rotator connection or background task refuses to close.
+    hang_on_shutdown: bool,
+    /// Set once `shutdown` has been entered, whether or not it returned.
+    shutdown_called: AtomicBool,
 }
 
 impl MockTelescope {
@@ -95,12 +100,30 @@ impl MockTelescope {
             info: Box::new(info),
             polls: AtomicU64::new(0),
             polls_at_stop: AtomicU64::new(0),
+            hang_on_shutdown: false,
+            shutdown_called: AtomicBool::new(false),
         })
     }
 
     /// Reports the same result on every poll.
     pub fn returning(info: Result<TelescopeInfo, TelescopeError>) -> Arc<Self> {
         Self::new(move |_| info.clone())
+    }
+
+    /// A telescope whose `shutdown` never returns.
+    pub fn hanging_on_shutdown() -> Arc<Self> {
+        Arc::new(MockTelescope {
+            info: Box::new(|_| Ok(mock_info())),
+            polls: AtomicU64::new(0),
+            polls_at_stop: AtomicU64::new(0),
+            hang_on_shutdown: true,
+            shutdown_called: AtomicBool::new(false),
+        })
+    }
+
+    /// Whether `shutdown` was entered.
+    pub fn shutdown_called(&self) -> bool {
+        self.shutdown_called.load(Ordering::SeqCst)
     }
 
     /// Whether `stop_integration` has been called.
@@ -172,7 +195,12 @@ impl Telescope for MockTelescope {
         None
     }
 
-    async fn shutdown(&self) {}
+    async fn shutdown(&self) {
+        self.shutdown_called.store(true, Ordering::SeqCst);
+        if self.hang_on_shutdown {
+            std::future::pending::<()>().await;
+        }
+    }
 
     async fn start_iq_stream(
         &self,
