@@ -12,5 +12,6 @@ target/
 # macOS metadata
 .DS_Store
 
-# Local Claude Code guidance — not tracked
+# Local Claude Code guidance and configuration — not tracked
 CLAUDE.md
+.claude/
