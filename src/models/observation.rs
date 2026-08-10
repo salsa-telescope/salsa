@@ -36,6 +36,50 @@ pub struct Observation {
     pub rfi_filter: Option<bool>,
 }
 
+/// The metadata the archive list page renders, without the spectrum blobs.
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ObservationSummary {
+    pub id: i64,
+    pub telescope_id: String,
+    pub start_time: DateTime<Utc>,
+    pub coordinate_system: String,
+    pub target_x: f64,
+    pub target_y: f64,
+    pub integration_time_secs: f64,
+}
+
+/// Every column of `observation`, in the order [`map_observation_row`] reads
+/// them. Kept next to the mapper so the two cannot drift apart.
+const OBSERVATION_COLUMNS: &str = "id, user_id, telescope_id, start_time, coordinate_system, \
+     target_x, target_y, integration_time_secs, frequencies_json, amplitudes_json, \
+     vlsr_correction_mps, az_offset_deg, el_offset_deg, gain_db, center_freq_hz, ref_freq_hz, \
+     bandwidth_hz, spectral_channels, observation_mode, rfi_filter";
+
+fn map_observation_row(row: &rusqlite::Row) -> rusqlite::Result<Observation> {
+    Ok(Observation {
+        id: row.get(0)?,
+        user_id: row.get(1)?,
+        telescope_id: row.get(2)?,
+        start_time: DateTime::<Utc>::from_timestamp(row.get(3)?, 0).unwrap_or_default(),
+        coordinate_system: row.get(4)?,
+        target_x: row.get(5)?,
+        target_y: row.get(6)?,
+        integration_time_secs: row.get(7)?,
+        frequencies_json: row.get(8)?,
+        amplitudes_json: row.get(9)?,
+        vlsr_correction_mps: row.get(10)?,
+        az_offset_deg: row.get(11)?,
+        el_offset_deg: row.get(12)?,
+        gain_db: row.get(13)?,
+        center_freq_hz: row.get(14)?,
+        ref_freq_hz: row.get(15)?,
+        bandwidth_hz: row.get(16)?,
+        spectral_channels: row.get(17)?,
+        observation_mode: row.get(18)?,
+        rfi_filter: row.get(19)?,
+    })
+}
+
 impl Observation {
     #[allow(clippy::too_many_arguments)]
     pub async fn create(
@@ -86,59 +130,43 @@ impl Observation {
         Ok(())
     }
 
-    pub async fn fetch_for_user_page(
+    /// One page of the archive list.
+    ///
+    /// Deliberately returns [`ObservationSummary`] rather than `Observation`:
+    /// the list template renders metadata only, and the two spectrum columns
+    /// are several tens of kilobytes of JSON per row that would be read off
+    /// disk and parsed just to be dropped. The full row is only ever needed by
+    /// the download endpoints, which go through [`Observation::fetch_one`].
+    pub async fn fetch_summaries_for_user_page(
         connection: Arc<Mutex<Connection>>,
         user_id: i64,
         page_size: i64,
         offset: i64,
-    ) -> Result<Vec<Observation>, InternalError> {
+    ) -> Result<Vec<ObservationSummary>, InternalError> {
         let conn = connection.lock().await;
         let mut stmt = conn
             .prepare(
-                "SELECT id, user_id, telescope_id, start_time, coordinate_system, target_x, target_y, integration_time_secs, frequencies_json, amplitudes_json, vlsr_correction_mps, az_offset_deg, el_offset_deg, gain_db, center_freq_hz, ref_freq_hz, bandwidth_hz, spectral_channels, observation_mode, rfi_filter
+                "SELECT id, telescope_id, start_time, coordinate_system, target_x, target_y, integration_time_secs
                  FROM observation
                  WHERE user_id = (?1)
                  ORDER BY start_time DESC
                  LIMIT (?2) OFFSET (?3)",
-            )
-            .map_err(|err| InternalError::new(format!("Failed to prepare statement: {err}")))?;
-        let observations = stmt
-            .query_map(rusqlite::params![user_id, page_size, offset], |row| {
-                Ok(Observation {
-                    id: row.get(0)?,
-                    user_id: row.get(1)?,
-                    telescope_id: row.get(2)?,
-                    start_time: DateTime::<Utc>::from_timestamp(row.get(3)?, 0).unwrap_or_default(),
-                    coordinate_system: row.get(4)?,
-                    target_x: row.get(5)?,
-                    target_y: row.get(6)?,
-                    integration_time_secs: row.get(7)?,
-                    frequencies_json: row.get(8)?,
-                    amplitudes_json: row.get(9)?,
-                    vlsr_correction_mps: row.get(10)?,
-                    az_offset_deg: row.get(11)?,
-                    el_offset_deg: row.get(12)?,
-                    gain_db: row.get(13)?,
-                    center_freq_hz: row.get(14)?,
-                    ref_freq_hz: row.get(15)?,
-                    bandwidth_hz: row.get(16)?,
-                    spectral_channels: row.get(17)?,
-                    observation_mode: row.get(18)?,
-                    rfi_filter: row.get(19)?,
-                })
+            )?;
+        let summaries = stmt.query_map(rusqlite::params![user_id, page_size, offset], |row| {
+            Ok(ObservationSummary {
+                id: row.get(0)?,
+                telescope_id: row.get(1)?,
+                start_time: DateTime::<Utc>::from_timestamp(row.get(2)?, 0).unwrap_or_default(),
+                coordinate_system: row.get(3)?,
+                target_x: row.get(4)?,
+                target_y: row.get(5)?,
+                integration_time_secs: row.get(6)?,
             })
-            .map_err(|err| InternalError::new(format!("Failed to query_map: {err}")))?;
+        })?;
 
-        let mut res = Vec::new();
-        for obs in observations {
-            match obs {
-                Ok(obs) => res.push(obs),
-                Err(err) => {
-                    return Err(InternalError::new(format!("Failed to map row: {err}")));
-                }
-            }
-        }
-        Ok(res)
+        summaries
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(InternalError::from)
     }
 
     pub async fn count_for_user(
@@ -174,39 +202,13 @@ impl Observation {
         user_id: Option<i64>,
     ) -> Result<Option<Observation>, InternalError> {
         let conn = connection.lock().await;
-        let mut stmt = conn
-            .prepare(
-                "SELECT id, user_id, telescope_id, start_time, coordinate_system, target_x, target_y, integration_time_secs, frequencies_json, amplitudes_json, vlsr_correction_mps, az_offset_deg, el_offset_deg, gain_db, center_freq_hz, ref_freq_hz, bandwidth_hz, spectral_channels, observation_mode, rfi_filter
+        let mut stmt = conn.prepare(&format!(
+            "SELECT {OBSERVATION_COLUMNS}
                  FROM observation
-                 WHERE id = (?1) AND ((?2) IS NULL OR user_id = (?2))",
-            )
-            .map_err(|err| InternalError::new(format!("Failed to prepare statement: {err}")))?;
-        let mut observations = stmt
-            .query_map(rusqlite::params![id, user_id], |row| {
-                Ok(Observation {
-                    id: row.get(0)?,
-                    user_id: row.get(1)?,
-                    telescope_id: row.get(2)?,
-                    start_time: DateTime::<Utc>::from_timestamp(row.get(3)?, 0).unwrap_or_default(),
-                    coordinate_system: row.get(4)?,
-                    target_x: row.get(5)?,
-                    target_y: row.get(6)?,
-                    integration_time_secs: row.get(7)?,
-                    frequencies_json: row.get(8)?,
-                    amplitudes_json: row.get(9)?,
-                    vlsr_correction_mps: row.get(10)?,
-                    az_offset_deg: row.get(11)?,
-                    el_offset_deg: row.get(12)?,
-                    gain_db: row.get(13)?,
-                    center_freq_hz: row.get(14)?,
-                    ref_freq_hz: row.get(15)?,
-                    bandwidth_hz: row.get(16)?,
-                    spectral_channels: row.get(17)?,
-                    observation_mode: row.get(18)?,
-                    rfi_filter: row.get(19)?,
-                })
-            })
-            .map_err(|err| InternalError::new(format!("Failed to query_map: {err}")))?;
+                 WHERE id = (?1) AND ((?2) IS NULL OR user_id = (?2))"
+        ))?;
+        let mut observations =
+            stmt.query_map(rusqlite::params![id, user_id], map_observation_row)?;
 
         match observations.next() {
             Some(Ok(obs)) => Ok(Some(obs)),

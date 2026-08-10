@@ -1,4 +1,3 @@
-use deadpool_sqlite::{CreatePoolError, PoolError};
 use rusqlite::Connection;
 use std::path::PathBuf;
 use thiserror::Error;
@@ -10,16 +9,6 @@ pub enum SqliteDatabaseError {
     Rusqlite {
         #[from]
         source: rusqlite::Error,
-    },
-    #[error("Could not setup database connection pool: {source}")]
-    CreatePool {
-        #[from]
-        source: CreatePoolError,
-    },
-    #[error("Could not setup database connection pool: {source}")]
-    Pool {
-        #[from]
-        source: PoolError,
     },
 }
 

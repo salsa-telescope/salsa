@@ -2,7 +2,7 @@ use crate::app::AppState;
 use crate::fits::{SpectrumMeta, write_spectrum_fits};
 use crate::i18n::Language;
 use crate::models::interferometry::InterferometrySession;
-use crate::models::observation::Observation;
+use crate::models::observation::{Observation, ObservationSummary};
 use crate::models::user::User;
 use crate::routes::index::render_main;
 use crate::timefmt::InTz;
@@ -61,7 +61,7 @@ struct ObservationsTemplate {
     all_users: Vec<User>,
     show_interferometry_tab: bool,
     // single-dish fields
-    observations: Vec<Observation>,
+    observations: Vec<ObservationSummary>,
     current_page: usize,
     total_pages: usize,
     prev_page: Option<usize>,
@@ -99,7 +99,7 @@ fn make_interf_rows(
 fn build_observations_template(
     lang: Language,
     mode: String,
-    observations: Vec<Observation>,
+    observations: Vec<ObservationSummary>,
     total_count: i64,
     current_page: usize,
     is_admin: bool,
@@ -193,7 +193,7 @@ async fn get_observations(
         let total_pages = ((total_count as usize).saturating_sub(1) / PAGE_SIZE as usize) + 1;
         let current_page = current_page.min(total_pages.max(1));
         let offset = ((current_page - 1) as i64) * PAGE_SIZE;
-        let obs = Observation::fetch_for_user_page(
+        let obs = Observation::fetch_summaries_for_user_page(
             state.database_connection.clone(),
             viewed_user_id,
             PAGE_SIZE,
@@ -245,7 +245,7 @@ async fn delete_observation(
     let total_pages = ((total_count as usize).saturating_sub(1) / PAGE_SIZE as usize) + 1;
     let current_page = current_page.min(total_pages.max(1));
     let offset = ((current_page - 1) as i64) * PAGE_SIZE;
-    let observations = Observation::fetch_for_user_page(
+    let observations = Observation::fetch_summaries_for_user_page(
         state.database_connection.clone(),
         viewed_user_id,
         PAGE_SIZE,
@@ -318,7 +318,7 @@ async fn delete_interferometry_session(
     } else {
         let total_count =
             Observation::count_for_user(state.database_connection.clone(), viewed_user_id).await?;
-        let obs = Observation::fetch_for_user_page(
+        let obs = Observation::fetch_summaries_for_user_page(
             state.database_connection.clone(),
             viewed_user_id,
             PAGE_SIZE,

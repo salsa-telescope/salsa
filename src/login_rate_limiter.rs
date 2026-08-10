@@ -1,14 +1,21 @@
-use std::collections::HashMap;
+//! Per-IP rate limiter for failed logins.
+//!
+//! Failures are recorded as they happen and checked separately, so a
+//! successful login can clear the record — the policy is "ten bad attempts in
+//! five minutes locks you out until they age off, unless you get one right".
+//! The counting itself lives in [`IpEventLog`].
+
 use std::net::IpAddr;
-use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+use std::time::Duration;
+
+use crate::ip_event_log::IpEventLog;
 
 const MAX_FAILURES: usize = 10;
 const WINDOW: Duration = Duration::from_secs(5 * 60);
 
 #[derive(Clone)]
 pub struct LoginRateLimiterHandle {
-    inner: Arc<Mutex<HashMap<IpAddr, Vec<Instant>>>>,
+    failures: IpEventLog,
 }
 
 impl Default for LoginRateLimiterHandle {
@@ -20,29 +27,23 @@ impl Default for LoginRateLimiterHandle {
 impl LoginRateLimiterHandle {
     pub fn new() -> Self {
         Self {
-            inner: Arc::new(Mutex::new(HashMap::new())),
+            failures: IpEventLog::new(WINDOW),
         }
     }
 
     /// Returns true if the IP is currently blocked.
     pub fn is_blocked(&self, ip: IpAddr) -> bool {
-        let mut map = self.inner.lock().unwrap();
-        let now = Instant::now();
-        let timestamps = map.entry(ip).or_default();
-        timestamps.retain(|t| now.duration_since(*t) < WINDOW);
-        timestamps.len() >= MAX_FAILURES
+        self.failures.count(ip) >= MAX_FAILURES
     }
 
     /// Record a failed login attempt for this IP.
     pub fn record_failure(&self, ip: IpAddr) {
-        let mut map = self.inner.lock().unwrap();
-        map.entry(ip).or_default().push(Instant::now());
+        self.failures.record(ip);
     }
 
     /// Clear the failure record for this IP on successful login.
     pub fn record_success(&self, ip: IpAddr) {
-        let mut map = self.inner.lock().unwrap();
-        map.remove(&ip);
+        self.failures.clear(ip);
     }
 }
 

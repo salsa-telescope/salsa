@@ -10,15 +10,13 @@ pub async fn fetch_maintenance_set(
     connection: Arc<Mutex<Connection>>,
 ) -> Result<HashSet<String>, InternalError> {
     let conn = connection.lock().await;
-    let mut stmt = conn
-        .prepare("SELECT telescope_id FROM telescope_maintenance")
-        .map_err(|err| InternalError::new(format!("Failed to prepare statement: {err}")))?;
+    let mut stmt = conn.prepare("SELECT telescope_id FROM telescope_maintenance")?;
     let ids = stmt
         .query_map([], |row| row.get::<_, String>(0))
         .map_err(|err| InternalError::new(format!("Failed to query maintenance: {err}")))?;
     let mut set = HashSet::new();
     for id in ids {
-        set.insert(id.map_err(|err| InternalError::new(format!("Failed to read row: {err}")))?);
+        set.insert(id?);
     }
     Ok(set)
 }

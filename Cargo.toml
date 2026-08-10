@@ -16,7 +16,6 @@ base64 = { version = "0.22.*" }
 chrono = { version = "0.4.*", features = ["serde", "unstable-locales"] }
 chrono-tz = "0.10"
 clap = { version = "4.*", features = ["derive", "env"] }
-deadpool-sqlite = { version = "0.10", features = ["rt_tokio_1"] }
 oauth2 = "5.*"
 rand = "0.9.*"
 rand_distr = "0.5.*"

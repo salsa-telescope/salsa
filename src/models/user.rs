@@ -213,13 +213,11 @@ impl User {
         connection: Arc<Mutex<Connection>>,
     ) -> Result<Vec<(i64, String, String)>, InternalError> {
         let conn = connection.lock().await;
-        let mut stmt = conn
-            .prepare(
-                "SELECT u.id, u.username, l.comment
+        let mut stmt = conn.prepare(
+            "SELECT u.id, u.username, l.comment
                  FROM user u JOIN local_user l ON u.id = l.user_id
                  ORDER BY u.id ASC",
-            )
-            .map_err(|e| InternalError::new(format!("Failed to prepare statement: {e}")))?;
+        )?;
         let rows = stmt
             .query_map([], |row| {
                 Ok((
@@ -231,7 +229,7 @@ impl User {
             .map_err(|e| InternalError::new(format!("Failed to query local users: {e}")))?;
         let mut result = Vec::new();
         for row in rows {
-            result.push(row.map_err(|e| InternalError::new(format!("Failed to map row: {e}")))?);
+            result.push(row?);
         }
         Ok(result)
     }
@@ -340,14 +338,12 @@ impl User {
         connection: Arc<Mutex<Connection>>,
     ) -> Result<Vec<(String, usize)>, InternalError> {
         let conn = connection.lock().await;
-        let mut stmt = conn
-            .prepare(
-                "SELECT provider, COUNT(*) FROM user
+        let mut stmt = conn.prepare(
+            "SELECT provider, COUNT(*) FROM user
                  WHERE provider != 'guest'
                  GROUP BY provider
                  ORDER BY COUNT(*) DESC, provider ASC",
-            )
-            .map_err(|err| InternalError::new(format!("Failed to prepare statement: {err}")))?;
+        )?;
         let rows = stmt
             .query_map([], |row| {
                 Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)? as usize))
@@ -355,7 +351,7 @@ impl User {
             .map_err(|err| InternalError::new(format!("Failed to query providers: {err}")))?;
         let mut res = Vec::new();
         for r in rows {
-            res.push(r.map_err(|err| InternalError::new(format!("Failed to map row: {err}")))?);
+            res.push(r?);
         }
         Ok(res)
     }
@@ -367,12 +363,10 @@ impl User {
         connection: Arc<Mutex<Connection>>,
     ) -> Result<Vec<User>, InternalError> {
         let conn = connection.lock().await;
-        let mut stmt = conn
-            .prepare(
-                "SELECT id, username, provider FROM user
+        let mut stmt = conn.prepare(
+            "SELECT id, username, provider FROM user
                  WHERE provider != 'guest' ORDER BY id ASC",
-            )
-            .map_err(|err| InternalError::new(format!("Failed to prepare statement: {err}")))?;
+        )?;
         let users = stmt
             .query_map([], |row| {
                 Ok(User {
@@ -387,7 +381,7 @@ impl User {
             .map_err(|err| InternalError::new(format!("Failed to query users: {err}")))?;
         let mut res = Vec::new();
         for user in users {
-            res.push(user.map_err(|err| InternalError::new(format!("Failed to map row: {err}")))?);
+            res.push(user?);
         }
         Ok(res)
     }

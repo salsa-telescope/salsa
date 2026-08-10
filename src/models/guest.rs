@@ -260,18 +260,15 @@ impl GuestSession {
         connection: Arc<Mutex<Connection>>,
     ) -> Result<Vec<GuestSession>, InternalError> {
         let conn = connection.lock().await;
-        let mut stmt = conn
-            .prepare(
-                "SELECT id, user_id, telescope_id, started_at, ended_at, last_activity_at,
+        let mut stmt = conn.prepare(
+            "SELECT id, user_id, telescope_id, started_at, ended_at, last_activity_at,
                         end_reason, country
                  FROM guest_session
                  WHERE ended_at IS NULL",
-            )
-            .map_err(|e| InternalError::new(format!("Failed to prepare statement: {e}")))?;
-        stmt.query_map([], map_row)
-            .map_err(|e| InternalError::new(format!("Failed to query_map: {e}")))?
-            .map(|r| r.map_err(|err| InternalError::new(format!("Failed to map row: {err}"))))
-            .collect()
+        )?;
+        stmt.query_map([], map_row)?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(InternalError::from)
     }
 
     pub async fn fetch_active_for_telescope(
@@ -314,19 +311,16 @@ impl GuestSession {
         to: DateTime<Utc>,
     ) -> Result<Vec<GuestSession>, InternalError> {
         let conn = connection.lock().await;
-        let mut stmt = conn
-            .prepare(
-                "SELECT id, user_id, telescope_id, started_at, ended_at, last_activity_at,
+        let mut stmt = conn.prepare(
+            "SELECT id, user_id, telescope_id, started_at, ended_at, last_activity_at,
                         end_reason, country
                  FROM guest_session
                  WHERE started_at >= ?1 AND started_at < ?2
                  ORDER BY started_at ASC",
-            )
-            .map_err(|e| InternalError::new(format!("Failed to prepare statement: {e}")))?;
-        stmt.query_map((from.timestamp(), to.timestamp()), map_row)
-            .map_err(|e| InternalError::new(format!("Failed to query_map: {e}")))?
-            .map(|r| r.map_err(|err| InternalError::new(format!("Failed to map row: {err}"))))
-            .collect()
+        )?;
+        stmt.query_map((from.timestamp(), to.timestamp()), map_row)?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(InternalError::from)
     }
 }
 

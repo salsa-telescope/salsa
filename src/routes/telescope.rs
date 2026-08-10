@@ -268,108 +268,21 @@ pub async fn telescope_state(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::coords::Location;
-    use crate::models::telescope_types::{
-        CalibrationResult, IqBlock, ObservedSpectra, ReceiverConfiguration, ReceiverError,
-    };
-    use async_trait::async_trait;
-    use tokio_util::sync::CancellationToken;
+    use crate::models::mock_telescope::{MockTelescope, mock_info, observed_for};
 
-    /// Reports whatever `get_info()` is told to report, so a controller error
-    /// can be combined with a live receiver — a state the fake telescope
-    /// cannot reach, since it never raises `TelescopeIOError`.
-    struct TelescopeMock {
-        info: Result<TelescopeInfo, TelescopeError>,
-    }
-
+    /// A telescope reporting a controller error alongside a live receiver — a
+    /// state the fake telescope cannot reach, since it never raises
+    /// `TelescopeIOError`.
     fn info_with(
         most_recent_error: Option<TelescopeError>,
         measurement_in_progress: bool,
         observation_time: Duration,
     ) -> TelescopeInfo {
         TelescopeInfo {
-            id: "mock".to_string(),
-            status: TelescopeStatus::Tracking,
-            commanded_horizontal: None,
-            current_horizontal: None,
-            current_target: None,
             most_recent_error,
             measurement_in_progress,
-            latest_observation: Some(ObservedSpectra {
-                frequencies: vec![0.0],
-                spectra: vec![0.0],
-                observation_time,
-                start: Utc::now(),
-            }),
-            stow_position: None,
-            service_position: None,
-            az_offset_rad: 0.0,
-            el_offset_rad: 0.0,
-            location: Location {
-                longitude: 0.0,
-                latitude: 0.0,
-            },
-            min_elevation_rad: 0.0,
-            max_elevation_rad: std::f64::consts::PI,
-            webcam_crop: None,
-            receiver_connected: None,
-            controller_connected: None,
-            wind_warning_ms: None,
-            default_ref_freq_mhz: 1417.9,
-            default_gain_db: 60.0,
-            receiver_configuration: ReceiverConfiguration::default(),
-        }
-    }
-
-    #[async_trait]
-    impl Telescope for TelescopeMock {
-        async fn get_info(&self) -> Result<TelescopeInfo, TelescopeError> {
-            self.info.clone()
-        }
-        async fn set_target(
-            &self,
-            _t: TelescopeTarget,
-            _az: f64,
-            _el: f64,
-        ) -> Result<TelescopeTarget, TelescopeError> {
-            unimplemented!()
-        }
-        async fn stop(&self) -> Result<(), TelescopeError> {
-            unimplemented!()
-        }
-        async fn calibrate(
-            &self,
-            _az_offset_rad: f64,
-            _el_offset_rad: f64,
-        ) -> Result<CalibrationResult, TelescopeError> {
-            unimplemented!()
-        }
-        async fn set_receiver_configuration(
-            &self,
-            _c: ReceiverConfiguration,
-        ) -> Result<ReceiverConfiguration, ReceiverError> {
-            unimplemented!()
-        }
-        async fn stop_integration(&self) -> Option<ObservedSpectra> {
-            unimplemented!()
-        }
-        async fn clear_measurements(&self) {
-            unimplemented!()
-        }
-        async fn interferometry_capable(&self) -> bool {
-            unimplemented!()
-        }
-        async fn current_integration_token(&self) -> Option<CancellationToken> {
-            unimplemented!()
-        }
-        async fn shutdown(&self) {
-            unimplemented!()
-        }
-        async fn start_iq_stream(
-            &self,
-            _config: ReceiverConfiguration,
-        ) -> Result<tokio::sync::mpsc::Receiver<IqBlock>, ReceiverError> {
-            unimplemented!()
+            latest_observation: Some(observed_for(observation_time)),
+            ..mock_info()
         }
     }
 
@@ -383,10 +296,9 @@ mod tests {
             TelescopeError::TelescopeIOError("connection reset".to_string()),
             TelescopeError::TelescopeNotConnected,
         ] {
-            let telescope = TelescopeMock {
-                info: Ok(info_with(Some(error), true, Duration::from_secs(42))),
-            };
-            let rendered = telescope_state("vale", &telescope, Language::default()).await;
+            let telescope =
+                MockTelescope::returning(Ok(info_with(Some(error), true, Duration::from_secs(42))));
+            let rendered = telescope_state("vale", telescope.as_ref(), Language::default()).await;
 
             assert!(
                 rendered.contains(r#"data-measuring="true""#),
@@ -406,14 +318,12 @@ mod tests {
 
     #[tokio::test]
     async fn controller_offline_reports_an_idle_receiver_as_idle() {
-        let telescope = TelescopeMock {
-            info: Ok(info_with(
-                Some(TelescopeError::TelescopeNotConnected),
-                false,
-                Duration::from_secs(0),
-            )),
-        };
-        let rendered = telescope_state("vale", &telescope, Language::default()).await;
+        let telescope = MockTelescope::returning(Ok(info_with(
+            Some(TelescopeError::TelescopeNotConnected),
+            false,
+            Duration::from_secs(0),
+        )));
+        let rendered = telescope_state("vale", telescope.as_ref(), Language::default()).await;
 
         assert!(rendered.contains(r#"data-measuring="false""#));
         assert!(rendered.contains(r#"data-obs-secs="0""#));
@@ -424,10 +334,8 @@ mod tests {
     /// stranding the page on a Stop button for an integration we cannot see.
     #[tokio::test]
     async fn unreachable_telescope_reports_an_unknown_receiver_as_idle() {
-        let telescope = TelescopeMock {
-            info: Err(TelescopeError::TelescopeNotConnected),
-        };
-        let rendered = telescope_state("vale", &telescope, Language::default()).await;
+        let telescope = MockTelescope::returning(Err(TelescopeError::TelescopeNotConnected));
+        let rendered = telescope_state("vale", telescope.as_ref(), Language::default()).await;
 
         assert!(rendered.contains(r#"data-measuring="false""#));
         assert!(rendered.contains(r#"data-obs-secs="0""#));

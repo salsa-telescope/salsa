@@ -6,42 +6,41 @@
 //! hour is comfortable headroom for genuine "click once to try, give up,
 //! try again later" behaviour, while making spam pointless.
 //!
-//! Mirrors the in-memory style of `login_rate_limiter` rather than
-//! persisting to the database — guest starts are infrequent and the
-//! limiter is best-effort, so a process restart resetting the count is
-//! acceptable.
+//! Unlike `login_rate_limiter` there is nothing that clears the count: a
+//! start is consumed the moment it is allowed, so the check and the record
+//! are one atomic step. The counting itself lives in [`IpEventLog`].
 
-use std::collections::HashMap;
 use std::net::IpAddr;
-use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+use std::time::Duration;
+
+use crate::ip_event_log::IpEventLog;
 
 const MAX_STARTS_PER_WINDOW: usize = 5;
 const WINDOW: Duration = Duration::from_secs(60 * 60);
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct GuestStartLimiterHandle {
-    inner: Arc<Mutex<HashMap<IpAddr, Vec<Instant>>>>,
+    starts: IpEventLog,
+}
+
+impl Default for GuestStartLimiterHandle {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl GuestStartLimiterHandle {
     pub fn new() -> Self {
-        Self::default()
+        Self {
+            starts: IpEventLog::new(WINDOW),
+        }
     }
 
     /// If `ip` is at the limit, returns `true` and records nothing.
     /// Otherwise records the attempt and returns `false`. The handler
     /// should treat a `true` return as "refuse this start".
     pub fn check_and_record(&self, ip: IpAddr) -> bool {
-        let mut map = self.inner.lock().unwrap();
-        let now = Instant::now();
-        let timestamps = map.entry(ip).or_default();
-        timestamps.retain(|t| now.duration_since(*t) < WINDOW);
-        if timestamps.len() >= MAX_STARTS_PER_WINDOW {
-            return true;
-        }
-        timestamps.push(now);
-        false
+        self.starts.record_unless_at(ip, MAX_STARTS_PER_WINDOW)
     }
 }
 

@@ -91,12 +91,10 @@ impl Booking {
                 "SELECT booking.id, start_timestamp, end_timestamp, telescope_id, user.id, username, provider, description, country
                 FROM booking, user WHERE booking.user_id = user.id
                 ORDER BY start_timestamp ASC",
-            )
-            .map_err(|err| InternalError::new(format!("Failed to prepare statement: {err}")))?;
-        stmt.query_map([], map_booking_row)
-            .map_err(|err| InternalError::new(format!("Failed to query_map: {err}")))?
-            .map(|r| r.map_err(|err| InternalError::new(format!("Failed to map row: {err}"))))
-            .collect()
+            )?;
+        stmt.query_map([], map_booking_row)?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(InternalError::from)
     }
 
     pub async fn fetch_for_user(
@@ -116,12 +114,10 @@ impl Booking {
                 "SELECT booking.id, start_timestamp, end_timestamp, telescope_id, user.id, username, provider, description, country
                 FROM booking, user WHERE booking.user_id = user.id AND user.id = ?1
                 ORDER BY start_timestamp ASC",
-            )
-            .map_err(|err| InternalError::new(format!("Failed to prepare statement: {err}")))?;
-        stmt.query_map([user_id], map_booking_row)
-            .map_err(|err| InternalError::new(format!("Failed to query_map: {err}")))?
-            .map(|r| r.map_err(|err| InternalError::new(format!("Failed to map row: {err}"))))
-            .collect()
+            )?;
+        stmt.query_map([user_id], map_booking_row)?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(InternalError::from)
     }
 
     pub async fn fetch_one(
@@ -134,12 +130,9 @@ impl Booking {
                 "SELECT booking.id, start_timestamp, end_timestamp, telescope_id, user.id, username, provider, description, country
                 FROM booking, user WHERE booking.user_id = user.id AND booking.id = ?1
                 ORDER BY start_timestamp ASC",
-            )
-            .map_err(|err| InternalError::new(format!("Failed to prepare statement: {err}")))?;
+            )?;
         Ok(stmt
-            .query_map([id], map_booking_row)
-            .map_err(|err| InternalError::new(format!("Failed to query_map: {err}")))?
-            .map(|r| r.map_err(|err| InternalError::new(format!("Failed to map row: {err}"))))
+            .query_map([id], map_booking_row)?
             .collect::<Result<Vec<_>, _>>()?
             .pop())
     }
@@ -156,12 +149,10 @@ impl Booking {
                 FROM booking, user WHERE booking.user_id = user.id
                 AND start_timestamp >= ?1 AND start_timestamp < ?2
                 ORDER BY start_timestamp ASC",
-            )
-            .map_err(|err| InternalError::new(format!("Failed to prepare statement: {err}")))?;
-        stmt.query_map([from.timestamp(), to.timestamp()], map_booking_row)
-            .map_err(|err| InternalError::new(format!("Failed to query_map: {err}")))?
-            .map(|r| r.map_err(|err| InternalError::new(format!("Failed to map row: {err}"))))
-            .collect()
+            )?;
+        stmt.query_map([from.timestamp(), to.timestamp()], map_booking_row)?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(InternalError::from)
     }
 
     pub async fn fetch_active(
@@ -175,12 +166,10 @@ impl Booking {
                 FROM booking, user WHERE booking.user_id = user.id
                 AND start_timestamp <= ?1 AND end_timestamp > ?1
                 ORDER BY start_timestamp ASC",
-            )
-            .map_err(|err| InternalError::new(format!("Failed to prepare statement: {err}")))?;
-        stmt.query_map([now], map_booking_row)
-            .map_err(|err| InternalError::new(format!("Failed to query_map: {err}")))?
-            .map(|r| r.map_err(|err| InternalError::new(format!("Failed to map row: {err}"))))
-            .collect()
+            )?;
+        stmt.query_map([now], map_booking_row)?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(InternalError::from)
     }
 }
 

@@ -82,19 +82,16 @@ impl InterferometrySession {
         user_id: i64,
     ) -> Result<Vec<Self>, InternalError> {
         let conn = connection.lock().await;
-        let mut stmt = conn
-            .prepare(
-                "SELECT id, user_id, start_time, end_time, telescope_a, telescope_b,
+        let mut stmt = conn.prepare(
+            "SELECT id, user_id, start_time, end_time, telescope_a, telescope_b,
                         coordinate_system, target_x, target_y, center_freq_hz, bandwidth_hz
                  FROM interferometry_session
                  WHERE user_id = ?1
                  ORDER BY start_time DESC",
-            )
-            .map_err(|e| InternalError::new(format!("prepare: {e}")))?;
-        stmt.query_map([user_id], map_session_row)
-            .map_err(|e| InternalError::new(format!("query: {e}")))?
-            .collect::<Result<_, _>>()
-            .map_err(|e| InternalError::new(format!("row: {e}")))
+        )?;
+        stmt.query_map([user_id], map_session_row)?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(InternalError::from)
     }
 
     pub async fn fetch_one(
@@ -280,16 +277,14 @@ impl InterferometryVisibility {
         limit: i64,
     ) -> Result<Vec<Self>, InternalError> {
         let conn = connection.lock().await;
-        let mut stmt = conn
-            .prepare(
-                "SELECT id, session_id, time, mean_amplitude, mean_phase_deg, delay_ns,
+        let mut stmt = conn.prepare(
+            "SELECT id, session_id, time, mean_amplitude, mean_phase_deg, delay_ns,
                         amplitudes_json, phases_json, frequencies_json
                  FROM interferometry_visibility
                  WHERE session_id = ?1 AND id > ?2
                  ORDER BY id ASC
                  LIMIT ?3",
-            )
-            .map_err(|e| InternalError::new(format!("prepare: {e}")))?;
+        )?;
         stmt.query_map(rusqlite::params![session_id, after_id, limit], |row| {
             Ok(InterferometryVisibility {
                 id: row.get(0)?,
@@ -302,10 +297,9 @@ impl InterferometryVisibility {
                 phases_json: row.get(7)?,
                 frequencies_json: row.get(8)?,
             })
-        })
-        .map_err(|e| InternalError::new(format!("query: {e}")))?
-        .collect::<Result<_, _>>()
-        .map_err(|e| InternalError::new(format!("row: {e}")))
+        })?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(InternalError::from)
     }
 
     pub async fn count_for_session(

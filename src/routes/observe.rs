@@ -1466,10 +1466,8 @@ async fn end_guest_session(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::coords::{Direction, Location};
-    use crate::models::telescope_types::IqBlock;
-    use async_trait::async_trait;
-    use std::sync::atomic::{AtomicU64, Ordering};
+    use crate::models::mock_telescope::{MockTelescope, direction, mock_info, observed_for};
+    use crate::models::telescope_types::TelescopeStatus;
     use tokio_util::sync::CancellationToken;
 
     /// What the mock telescope reports to the integration monitor. None of
@@ -1486,137 +1484,35 @@ mod tests {
         Nothing,
     }
 
-    struct TelescopeMock {
-        reports: Reports,
-        polls: AtomicU64,
-        /// Number of polls served when the monitor called `stop_integration`,
-        /// or 0 if it never did.
-        polls_at_stop: AtomicU64,
-    }
-
-    impl TelescopeMock {
-        fn new(reports: Reports) -> Arc<Self> {
-            Arc::new(TelescopeMock {
-                reports,
-                polls: AtomicU64::new(0),
-                polls_at_stop: AtomicU64::new(0),
-            })
-        }
-
-        fn stopped(&self) -> bool {
-            self.polls_at_stop.load(Ordering::SeqCst) > 0
-        }
-    }
-
-    fn observed_for(observation_time: std::time::Duration) -> ObservedSpectra {
-        ObservedSpectra {
-            frequencies: vec![0.0],
-            spectra: vec![0.0],
-            observation_time,
-            start: Utc::now(),
-        }
-    }
-
-    #[async_trait]
-    impl Telescope for TelescopeMock {
-        async fn get_info(&self) -> Result<TelescopeInfo, TelescopeError> {
-            if matches!(self.reports, Reports::Nothing) {
+    /// A telescope whose reported integration time grows by one second per
+    /// poll, so the monitor's "has it integrated long enough yet" check has
+    /// something to advance against.
+    fn reporting(reports: Reports) -> Arc<MockTelescope> {
+        MockTelescope::new(move |polls| {
+            if matches!(reports, Reports::Nothing) {
                 return Err(TelescopeError::TelescopeNotConnected);
             }
             // First poll reports nothing integrated yet, then one second more
             // each time — so a request for N seconds cannot be satisfied
             // before poll N + 1.
-            let secs = self.polls.fetch_add(1, Ordering::SeqCst);
             Ok(TelescopeInfo {
-                id: "mock".to_string(),
-                status: match self.reports {
+                status: match reports {
                     Reports::Slewing => TelescopeStatus::Slewing,
                     _ => TelescopeStatus::Tracking,
                 },
-                commanded_horizontal: Some(Direction {
-                    azimuth: 0.0,
-                    elevation: 1.0,
-                }),
-                current_horizontal: Some(Direction {
-                    azimuth: 3.0,
-                    elevation: 1.0,
-                }),
-                current_target: None,
-                most_recent_error: None,
+                commanded_horizontal: Some(direction(0.0, 1.0)),
+                current_horizontal: Some(direction(3.0, 1.0)),
                 measurement_in_progress: true,
-                latest_observation: Some(observed_for(std::time::Duration::from_secs(secs))),
-                stow_position: None,
-                service_position: None,
-                az_offset_rad: 0.0,
-                el_offset_rad: 0.0,
-                location: Location {
-                    longitude: 0.0,
-                    latitude: 0.0,
-                },
-                min_elevation_rad: 0.0,
-                max_elevation_rad: std::f64::consts::PI,
-                webcam_crop: None,
-                receiver_connected: None,
-                controller_connected: None,
-                wind_warning_ms: None,
-                default_ref_freq_mhz: 1417.9,
-                default_gain_db: 60.0,
-                receiver_configuration: ReceiverConfiguration::default(),
+                latest_observation: Some(observed_for(std::time::Duration::from_secs(polls))),
+                ..mock_info()
             })
-        }
-        async fn stop_integration(&self) -> Option<ObservedSpectra> {
-            self.polls_at_stop
-                .store(self.polls.load(Ordering::SeqCst).max(1), Ordering::SeqCst);
-            Some(observed_for(std::time::Duration::from_secs(1)))
-        }
-        async fn set_target(
-            &self,
-            _t: TelescopeTarget,
-            _az: f64,
-            _el: f64,
-        ) -> Result<TelescopeTarget, TelescopeError> {
-            unimplemented!()
-        }
-        async fn calibrate(
-            &self,
-            _az_offset_rad: f64,
-            _el_offset_rad: f64,
-        ) -> Result<crate::models::telescope_types::CalibrationResult, TelescopeError> {
-            unimplemented!()
-        }
-        async fn stop(&self) -> Result<(), TelescopeError> {
-            unimplemented!()
-        }
-        async fn set_receiver_configuration(
-            &self,
-            _c: ReceiverConfiguration,
-        ) -> Result<ReceiverConfiguration, ReceiverError> {
-            unimplemented!()
-        }
-        async fn clear_measurements(&self) {
-            unimplemented!()
-        }
-        async fn interferometry_capable(&self) -> bool {
-            unimplemented!()
-        }
-        async fn current_integration_token(&self) -> Option<CancellationToken> {
-            unimplemented!()
-        }
-        async fn shutdown(&self) {
-            unimplemented!()
-        }
-        async fn start_iq_stream(
-            &self,
-            _c: ReceiverConfiguration,
-        ) -> Result<tokio::sync::mpsc::Receiver<IqBlock>, ReceiverError> {
-            unimplemented!()
-        }
+        })
     }
 
     /// Runs the monitor to completion against `telescope`, giving up after an
     /// hour of (paused, so instantaneous) time. `false` means it never
     /// returned. A guest user keeps `save_observation` from touching the DB.
-    async fn run_monitor(telescope: Arc<TelescopeMock>, max_duration: std::time::Duration) -> bool {
+    async fn run_monitor(telescope: Arc<MockTelescope>, max_duration: std::time::Duration) -> bool {
         let guest = User {
             id: 1,
             name: "guest".to_string(),
@@ -1648,7 +1544,7 @@ mod tests {
     // block for the rest of the run.
     #[tokio::test(start_paused = true)]
     async fn monitor_stops_integration_when_tracking_lost() {
-        let telescope = TelescopeMock::new(Reports::Slewing);
+        let telescope = reporting(Reports::Slewing);
         assert!(
             run_monitor(telescope.clone(), std::time::Duration::from_secs(600)).await,
             "monitor should stop the off-target integration and return, not loop"
@@ -1665,7 +1561,7 @@ mod tests {
     // wall-clock deadline fired while the first cycle was still in flight.
     #[tokio::test(start_paused = true)]
     async fn monitor_waits_for_the_full_requested_duration() {
-        let telescope = TelescopeMock::new(Reports::Tracking);
+        let telescope = reporting(Reports::Tracking);
         let target_secs = 3;
 
         assert!(
@@ -1679,7 +1575,7 @@ mod tests {
         // Poll k reports k - 1 seconds integrated, so the target is first met
         // on poll target_secs + 1. Fewer means the monitor stopped the run
         // before the telescope had integrated for as long as was requested.
-        let polls_at_stop = telescope.polls_at_stop.load(Ordering::SeqCst);
+        let polls_at_stop = telescope.polls_at_stop();
         assert!(
             polls_at_stop > target_secs,
             "monitor stopped after {polls_at_stop} polls, before {target_secs} s had been \
@@ -1692,7 +1588,7 @@ mod tests {
     // booking ended. The backstop bounds that.
     #[tokio::test(start_paused = true)]
     async fn monitor_backstop_stops_integration_when_info_is_unreadable() {
-        let telescope = TelescopeMock::new(Reports::Nothing);
+        let telescope = reporting(Reports::Nothing);
         assert!(
             run_monitor(telescope.clone(), std::time::Duration::from_secs(5)).await,
             "backstop should stop an integration whose telescope never reports progress"
