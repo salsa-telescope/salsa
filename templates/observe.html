@@ -143,7 +143,7 @@
             id="observe-btn"
             hx-post="/observe/{{ info.id }}/observe"
             hx-swap="none"
-            hx-include="[name='mode'],[name='center_freq_mhz'],[name='ref_freq_mhz'],[name='bandwidth_mhz'],[name='gain_db'],[name='spectral_channels'],[name='rfi_filter'],[name='integration_mode'],[name='integration_time_secs']"
+            hx-include="[name='mode'],[name='center_freq_mhz'],[name='ref_freq_mhz'],[name='bandwidth_mhz'],[name='gain_db'],[name='spectral_channels'],[name='rfi_filter'],[name='integration_mode'],[name='integration_time_secs'],[name='repeat_interval_secs']"
             hx-disabled-elt="this"
             class="btn"
           >
@@ -184,7 +184,18 @@
                     class="border rounded px-2 py-1 bg-white text-sm w-20 disabled:opacity-50" />
                   {{ lang.t("observe-seconds") }}
                 </label>
+                <label class="flex items-center gap-1 cursor-pointer">
+                  {{ lang.t("observe-repeat") }}
+                  <input type="number" id="repeat-interval-secs" name="repeat_interval_secs"
+                    placeholder="—" min="{{ min_repeat_interval_secs }}" max="{{ max_repeat_interval_secs }}"
+                    step="1" disabled
+                    class="border rounded px-2 py-1 bg-white text-sm w-20 disabled:opacity-50" />
+                  {{ lang.t("observe-seconds") }}
+                </label>
               </div>
+              <p id="repeat-hint" class="mt-1 text-xs text-gray-500 hidden">
+                {{ lang.t("observe-repeat-hint") }}
+              </p>
             </div>
             <div>
               <label class="block text-sm text-gray-600 mb-1">{{ lang.t("observe-mode") }}</label>
@@ -431,6 +442,16 @@
       const fixed = document.querySelector("input[name='integration_mode'][value='fixed']");
       const input = document.getElementById('integration-time-secs');
       if (input && fixed) input.disabled = !fixed.checked;
+      // Repeat only applies to a run with a defined end, so it follows the
+      // fixed radio. Clearing it on the way out avoids submitting a stale
+      // interval that the server would then ignore.
+      const repeat = document.getElementById('repeat-interval-secs');
+      const hint = document.getElementById('repeat-hint');
+      if (repeat && fixed) {
+          repeat.disabled = !fixed.checked;
+          if (!fixed.checked) repeat.value = '';
+      }
+      if (hint && fixed) hint.classList.toggle('hidden', !fixed.checked);
   }
 
   function coordinateSystemChanged(e) {
@@ -729,6 +750,16 @@
           const fixedChecked = document.querySelector("input[name='integration_mode'][value='fixed']")?.checked;
           timeInput.disabled = observing || !fixedChecked;
           timeInput.classList.toggle('opacity-50', observing);
+      }
+      // Same treatment for the repeat interval: it is only editable when
+      // "fixed" is selected and nothing is running. During a repeat series
+      // this keeps the value visible but locked, so the observer can see the
+      // cadence the run is using.
+      const repeatInput = document.getElementById('repeat-interval-secs');
+      if (repeatInput) {
+          const fixedChecked = document.querySelector("input[name='integration_mode'][value='fixed']")?.checked;
+          repeatInput.disabled = observing || !fixedChecked;
+          repeatInput.classList.toggle('opacity-50', observing);
       }
   }
 

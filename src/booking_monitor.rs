@@ -72,6 +72,11 @@ pub fn start(state: AppState) {
                         None => continue,
                     };
 
+                    // Ends any unattended repeat series with the booking, so
+                    // it cannot keep starting integrations into the next
+                    // user's slot.
+                    crate::routes::observe::cancel_repeat_series(&state, telescope_name).await;
+
                     stop_and_save_observation(
                         telescope.as_ref(),
                         state.database_connection.clone(),

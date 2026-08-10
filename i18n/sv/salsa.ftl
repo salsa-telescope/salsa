@@ -174,6 +174,8 @@ observe-integration-time = Integrationstid
 observe-interactive-end = Interaktivt slut
 observe-fixed = Fast:
 observe-seconds = sekunder
+observe-repeat = Upprepa var
+observe-repeat-hint = Lämna tomt för en enda integration. Upprepas tills du trycker Avsluta, bokningen tar slut eller målet går ner.
 observe-mode = Läge
 observe-freq-switched = Frekvensväxlad
 observe-raw = Rå
@@ -216,6 +218,7 @@ observe-error-receiver-unreachable = Mottagaren kan inte nås. Kontrollera motta
 observe-error-center-freq = Centerfrekvensen måste vara mellan { $min } och { $max } MHz.
 observe-error-ref-freq = Referensfrekvensen måste vara mellan { $min } och { $max } MHz.
 observe-error-gain = Förstärkningen måste vara mellan { $min } och { $max } dB.
+observe-error-repeat-interval = Upprepningsintervallet måste vara mellan { $min } och { $max } sekunder.
 
 ## Telescope status fragment
 

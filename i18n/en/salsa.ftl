@@ -174,6 +174,8 @@ observe-integration-time = Integration time
 observe-interactive-end = Interactive end
 observe-fixed = Fixed:
 observe-seconds = seconds
+observe-repeat = Repeat every
+observe-repeat-hint = Leave empty for a single integration. Repeats until you press End, the booking finishes, or the target sets.
 observe-mode = Mode
 observe-freq-switched = Freq. switched
 observe-raw = Raw
@@ -216,6 +218,7 @@ observe-error-receiver-unreachable = Receiver is not reachable. Check the receiv
 observe-error-center-freq = Center frequency must be between { $min } and { $max } MHz.
 observe-error-ref-freq = Reference frequency must be between { $min } and { $max } MHz.
 observe-error-gain = Gain must be between { $min } and { $max } dB.
+observe-error-repeat-interval = Repeat interval must be between { $min } and { $max } seconds.
 
 ## Telescope status fragment
 

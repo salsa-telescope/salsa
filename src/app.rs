@@ -4,9 +4,11 @@ use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Redirect, Response};
 use axum::{Router, routing::get};
 use rusqlite::Connection;
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::Mutex;
+use tokio_util::sync::CancellationToken;
 use tower_http::services::ServeDir;
 use tower_http::trace::TraceLayer;
 use tracing::{debug, debug_span, info, warn};
@@ -126,6 +128,15 @@ pub struct AppState {
     pub guest_start_limiter: GuestStartLimiterHandle,
     /// At most one correlator session running at a time.
     pub active_correlator: Arc<Mutex<Option<CorrelatorHandle>>>,
+    /// Cancellation tokens for running repeat series, keyed by telescope name.
+    ///
+    /// A repeat series outlives the individual integrations it starts, so it
+    /// needs a token of its own: each integration's token is replaced by the
+    /// next one, and cancelling those would only end the cycle in flight,
+    /// leaving the loop to start another. Everything that ends observing —
+    /// the Stop button, booking handover, guest session end — cancels this
+    /// instead.
+    pub active_repeats: Arc<Mutex<HashMap<String, CancellationToken>>>,
 }
 
 pub async fn create_app(config_dir: &Path, database_dir: &Path) -> (Router, AppState) {
@@ -198,6 +209,7 @@ pub async fn create_app(config_dir: &Path, database_dir: &Path) -> (Router, AppS
         login_rate_limiter,
         guest_start_limiter,
         active_correlator: Arc::new(Mutex::new(None)),
+        active_repeats: Arc::new(Mutex::new(HashMap::new())),
     };
 
     let assets_path = "assets";

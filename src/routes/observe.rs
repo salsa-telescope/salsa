@@ -37,6 +37,7 @@ use serde::Deserialize;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::sync::Mutex;
+use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, warn};
 
 pub fn routes(state: AppState) -> Router {
@@ -683,6 +684,156 @@ pub(crate) async fn save_observation(
     }
 }
 
+/// The submitted repeat interval was outside the allowed range.
+#[derive(Debug)]
+struct OutOfRange;
+
+/// Decide whether a submitted form starts a repeat series, and at what period.
+///
+/// Repeating only makes sense for a run with a defined end: an interactive
+/// integration is ended by the observer, so there is no moment at which the
+/// next one would begin. A repeat value arriving alongside `interactive` is
+/// therefore ignored rather than rejected — the browser disables and clears
+/// the field when the mode changes, so a value here means a stale or
+/// hand-made request, not a user asking for something impossible.
+fn resolve_repeat_interval(
+    integration_mode: Option<&str>,
+    repeat_interval_secs: Option<f64>,
+) -> Result<Option<std::time::Duration>, OutOfRange> {
+    let Some(secs) = repeat_interval_secs else {
+        return Ok(None);
+    };
+    if integration_mode != Some("fixed") {
+        debug!("ignoring repeat interval of {secs} s: not a fixed-duration run");
+        return Ok(None);
+    }
+    if !(secs.is_finite() && (MIN_REPEAT_INTERVAL_SECS..=MAX_REPEAT_INTERVAL_SECS).contains(&secs))
+    {
+        return Err(OutOfRange);
+    }
+    Ok(Some(std::time::Duration::from_secs_f64(secs)))
+}
+
+/// End any repeat series running on `telescope_id`, and remove it from the
+/// registry. A no-op when there is none.
+///
+/// Called from everything that ends observing — the Stop button, booking
+/// handover, guest session end — so a series can never outlive the booking
+/// that started it.
+pub async fn cancel_repeat_series(state: &AppState, telescope_id: &str) {
+    let existing = state.active_repeats.lock().await.remove(telescope_id);
+    if let Some(token) = existing {
+        token.cancel();
+        info!("Cancelled the repeat series on {telescope_id}");
+    }
+}
+
+/// Keep starting fixed-duration integrations on `telescope_id` every
+/// `interval`, until something ends the series.
+///
+/// The period is start-to-start, matching how observers describe a cadence
+/// ("a spectrum every 30 s") and, more practically, keeping sample times
+/// evenly spaced regardless of how long each integration and its overhead
+/// take. An integration that outlasts its period does not queue up a backlog:
+/// the next cycle simply starts immediately.
+///
+/// Ends when the series token is cancelled, when the antenna is no longer
+/// tracking — which is what happens when the target sets below the elevation
+/// limit, and is the natural end of an unattended run — or when the receiver
+/// cannot be configured.
+#[allow(clippy::too_many_arguments)]
+async fn repeat_observation_series(
+    state: AppState,
+    telescope: Arc<dyn Telescope>,
+    telescope_id: String,
+    receiver_configuration: ReceiverConfiguration,
+    max_duration: std::time::Duration,
+    interval: std::time::Duration,
+    user: User,
+    series_token: CancellationToken,
+) {
+    let mut cycle_start = tokio::time::Instant::now();
+    let mut completed: u64 = 0;
+
+    loop {
+        // The first integration was already started by `start_observe`, so
+        // this waits out that one before starting the second.
+        if let Some(token) = telescope.current_integration_token().await {
+            tokio::select! {
+                _ = series_token.cancelled() => break,
+                _ = monitor_integration(
+                    telescope.clone(),
+                    token,
+                    max_duration,
+                    state.database_connection.clone(),
+                    user.clone(),
+                    state.tle_cache.clone(),
+                    telescope_id.clone(),
+                ) => {}
+            }
+            completed += 1;
+        }
+
+        if series_token.is_cancelled() {
+            break;
+        }
+
+        // A target that has set is the ordinary way an unattended series
+        // ends. Stopping here rather than retrying avoids filling the archive
+        // with failed starts for the rest of the booking.
+        match telescope.get_info().await {
+            Ok(info) if info.status != TelescopeStatus::Tracking => {
+                info!(
+                    "Ending the repeat series on {telescope_id} after {completed} integration(s): \
+                     antenna is no longer tracking (status {:?})",
+                    info.status
+                );
+                break;
+            }
+            Err(err) => {
+                warn!(
+                    "Ending the repeat series on {telescope_id} after {completed} \
+                     integration(s): cannot read telescope info: {err}"
+                );
+                break;
+            }
+            Ok(_) => {}
+        }
+
+        // Sleep to the next start boundary. `checked_duration_since` is zero
+        // when the cycle already overran, so a slow integration is followed
+        // immediately by the next rather than accumulating drift.
+        cycle_start += interval;
+        tokio::select! {
+            _ = series_token.cancelled() => break,
+            _ = tokio::time::sleep_until(cycle_start) => {}
+        }
+
+        if let Err(err) = telescope
+            .set_receiver_configuration(receiver_configuration)
+            .await
+        {
+            warn!(
+                "Ending the repeat series on {telescope_id} after {completed} integration(s): \
+                 could not start the next integration: {err}"
+            );
+            break;
+        }
+    }
+
+    // Leave the registry clean unless another series has already replaced
+    // this one, which would otherwise be cancelled by a later Stop meant for
+    // the newer series.
+    let mut repeats = state.active_repeats.lock().await;
+    if repeats
+        .get(&telescope_id)
+        .is_some_and(|t| t.is_cancelled() || series_token.is_cancelled())
+    {
+        repeats.remove(&telescope_id);
+    }
+    info!("Repeat series on {telescope_id} ended after {completed} integration(s)");
+}
+
 /// How long past `max_duration` the monitor waits before stopping the
 /// integration regardless of what the telescope reports. Only reached when
 /// `get_info()` stops being readable or the measurement loop dies early — the
@@ -843,6 +994,12 @@ struct ObserveForm {
     integration_mode: Option<String>, // "interactive" (default) or "fixed"
     #[serde(default)]
     integration_time_secs: Option<f64>,
+    /// Start a new fixed integration this often, until stopped. `None` runs a
+    /// single integration, which is the behaviour when the field is left
+    /// empty. Only meaningful in `fixed` mode — an interactive run has no
+    /// defined end, so there is nothing to repeat.
+    #[serde(default)]
+    repeat_interval_secs: Option<f64>,
 }
 
 async fn start_observe(
@@ -924,6 +1081,21 @@ async fn start_observe(
         return Err(StatusCode::BAD_REQUEST);
     }
 
+    let repeat_interval = match resolve_repeat_interval(
+        form.integration_mode.as_deref(),
+        form.repeat_interval_secs,
+    ) {
+        Ok(interval) => interval,
+        Err(OutOfRange) => {
+            return Ok(error_response(fl!(
+                lang.loader(),
+                "observe-error-repeat-interval",
+                min = (MIN_REPEAT_INTERVAL_SECS as u32),
+                max = (MAX_REPEAT_INTERVAL_SECS as u32)
+            )));
+        }
+    };
+
     // Open-ended runs fall back to the same ceiling the fixed-duration field is
     // capped at, so every integration ends on its own eventually.
     let max_duration = match (form.integration_mode.as_deref(), form.integration_time_secs) {
@@ -946,21 +1118,23 @@ async fn start_observe(
     )
     .await;
 
+    let receiver_configuration = ReceiverConfiguration {
+        integrate: true,
+        mode: form.mode,
+        center_freq_hz: form.center_freq_mhz * 1e6,
+        ref_freq_hz: form.ref_freq_mhz * 1e6,
+        bandwidth_hz: form.bandwidth_mhz * 1e6,
+        gain_db: form.gain_db,
+        spectral_channels: form.spectral_channels,
+        rfi_filter: form.rfi_filter,
+        // The measurement loop enforces the duration itself, on a cycle
+        // boundary. The monitor below only notices that it has finished
+        // and saves the result.
+        max_duration: Some(max_duration),
+    };
+
     telescope
-        .set_receiver_configuration(ReceiverConfiguration {
-            integrate: true,
-            mode: form.mode,
-            center_freq_hz: form.center_freq_mhz * 1e6,
-            ref_freq_hz: form.ref_freq_mhz * 1e6,
-            bandwidth_hz: form.bandwidth_mhz * 1e6,
-            gain_db: form.gain_db,
-            spectral_channels: form.spectral_channels,
-            rfi_filter: form.rfi_filter,
-            // The measurement loop enforces the duration itself, on a cycle
-            // boundary. The monitor below only notices that it has finished
-            // and saves the result.
-            max_duration: Some(max_duration),
-        })
+        .set_receiver_configuration(receiver_configuration)
         .await
         .map_err(|err| {
             error!("Failed to set target {err}.");
@@ -990,6 +1164,37 @@ async fn start_observe(
             state.tle_cache.clone(),
             telescope_id.clone(),
         ));
+    }
+
+    // With a repeat period set, a supervisor takes over once this first
+    // integration finishes and keeps starting new ones. Registered before
+    // returning so the Stop button can find and cancel it.
+    if let Some(interval) = repeat_interval {
+        // A previous series on this telescope, if any, is ended first: two
+        // supervisors starting integrations on one receiver would interleave
+        // and neither would produce the cadence it was asked for.
+        cancel_repeat_series(&state, &telescope_id).await;
+        let series_token = CancellationToken::new();
+        state
+            .active_repeats
+            .lock()
+            .await
+            .insert(telescope_id.clone(), series_token.clone());
+        tokio::spawn(repeat_observation_series(
+            state.clone(),
+            telescope.clone(),
+            telescope_id.clone(),
+            receiver_configuration,
+            max_duration,
+            interval,
+            user.clone(),
+            series_token,
+        ));
+        info!(
+            "Started a repeat series on {telescope_id}: {} s integration every {} s",
+            max_duration.as_secs_f64(),
+            interval.as_secs_f64()
+        );
     }
 
     let guest_session = maybe_guest_session_for(&state, &user).await;
@@ -1027,6 +1232,11 @@ async fn stop_observe(
         .get(&telescope_id)
         .await
         .ok_or(StatusCode::NOT_FOUND)?;
+
+    // Before stopping the integration, not after: the supervisor reacts to an
+    // integration finishing by starting the next one, so cancelling second
+    // would race it into launching a fresh run just as the user stops.
+    cancel_repeat_series(&state, &telescope_id).await;
 
     stop_and_save_observation(
         telescope.as_ref(),
@@ -1168,6 +1378,18 @@ const VALID_SPECTRAL_CHANNELS: &[usize] = &[64, 128, 256, 512, 1024, 2048, 4096,
 /// the longest run a user could have asked for explicitly.
 const MAX_INTEGRATION_TIME_SECS: f64 = 3600.0;
 
+/// Bounds on the repeat period.
+///
+/// The floor keeps a series from becoming a tight loop of receiver
+/// reconfigurations: each cycle stops and restarts the receiver and writes a
+/// row, so a 1 s period would be mostly overhead. Five seconds is well under
+/// any cadence the science needs — solar eclipse monitoring has historically
+/// been run at 30 s — while leaving the loop clearly bounded.
+const MIN_REPEAT_INTERVAL_SECS: f64 = 5.0;
+/// An hour between samples is already far past the point where a repeat
+/// series is doing anything a person could not do by hand.
+const MAX_REPEAT_INTERVAL_SECS: f64 = 3600.0;
+
 #[derive(Template)]
 #[template(path = "observe.html")]
 struct ObserveTemplate {
@@ -1182,6 +1404,8 @@ struct ObserveTemplate {
     freq_min_mhz: u32,
     freq_max_mhz: u32,
     max_integration_time_secs: u32,
+    min_repeat_interval_secs: u32,
+    max_repeat_interval_secs: u32,
     gain_min_db: f64,
     gain_max_db: f64,
     wind_warning: bool,
@@ -1268,6 +1492,8 @@ async fn observe(
         freq_min_mhz,
         freq_max_mhz,
         max_integration_time_secs: MAX_INTEGRATION_TIME_SECS as u32,
+        min_repeat_interval_secs: MIN_REPEAT_INTERVAL_SECS as u32,
+        max_repeat_interval_secs: MAX_REPEAT_INTERVAL_SECS as u32,
         gain_min_db: GAIN_MIN_DB,
         gain_max_db: GAIN_MAX_DB,
         wind_warning,
@@ -1507,6 +1733,68 @@ mod tests {
                 ..mock_info()
             })
         })
+    }
+
+    #[test]
+    fn no_repeat_field_means_a_single_integration() {
+        assert!(
+            resolve_repeat_interval(Some("fixed"), None)
+                .expect("valid")
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn a_repeat_interval_is_accepted_in_fixed_mode() {
+        let interval = resolve_repeat_interval(Some("fixed"), Some(30.0))
+            .expect("30 s is within range")
+            .expect("a series should be requested");
+        assert_eq!(interval, std::time::Duration::from_secs(30));
+    }
+
+    /// An interactive run has no defined end, so there is nothing to repeat.
+    /// Ignored rather than rejected: the page clears the field when the mode
+    /// changes, so a value here is a stale request, not a user request.
+    #[test]
+    fn a_repeat_interval_is_ignored_outside_fixed_mode() {
+        for mode in [Some("interactive"), None] {
+            assert!(
+                resolve_repeat_interval(mode, Some(30.0))
+                    .expect("valid")
+                    .is_none(),
+                "{mode:?} should not start a series"
+            );
+        }
+    }
+
+    /// The floor matters: without it a one-second period would spend the run
+    /// reconfiguring the receiver rather than integrating.
+    #[test]
+    fn out_of_range_repeat_intervals_are_refused() {
+        for secs in [
+            0.0,
+            -5.0,
+            MIN_REPEAT_INTERVAL_SECS - 0.1,
+            MAX_REPEAT_INTERVAL_SECS + 0.1,
+            f64::NAN,
+            f64::INFINITY,
+        ] {
+            assert!(
+                resolve_repeat_interval(Some("fixed"), Some(secs)).is_err(),
+                "{secs} should be refused"
+            );
+        }
+    }
+
+    #[test]
+    fn the_range_bounds_themselves_are_allowed() {
+        for secs in [MIN_REPEAT_INTERVAL_SECS, MAX_REPEAT_INTERVAL_SECS] {
+            assert!(
+                resolve_repeat_interval(Some("fixed"), Some(secs))
+                    .expect("bound should be valid")
+                    .is_some()
+            );
+        }
     }
 
     /// Runs the monitor to completion against `telescope`, giving up after an

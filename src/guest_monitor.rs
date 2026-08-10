@@ -132,6 +132,7 @@ pub async fn end_session(state: &AppState, guest: &GuestSession, reason: EndReas
         timezone: None,
         language: None,
     };
+    crate::routes::observe::cancel_repeat_series(state, &guest.telescope_id).await;
     if let Some(telescope) = state.telescopes.get(&guest.telescope_id).await {
         stop_and_save_observation(
             telescope.as_ref(),
