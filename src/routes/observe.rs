@@ -1,4 +1,4 @@
-use crate::app::AppState;
+use crate::app::{AppState, RepeatSeries};
 use crate::coords::{
     Direction, Location, horizontal_from_equatorial, horizontal_from_galactic, horizontal_from_sun,
     vlsrcorr_from_galactic,
@@ -36,6 +36,7 @@ use rusqlite::Connection;
 use serde::Deserialize;
 use std::net::SocketAddr;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicI64, Ordering};
 use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, warn};
@@ -699,10 +700,19 @@ struct OutOfRange;
 fn resolve_repeat_interval(
     integration_mode: Option<&str>,
     repeat_interval_secs: Option<f64>,
+    is_admin: bool,
 ) -> Result<Option<std::time::Duration>, OutOfRange> {
     let Some(secs) = repeat_interval_secs else {
         return Ok(None);
     };
+    // Admin-only for now. An unattended series can write hundreds of spectra,
+    // and for ordinary users the point of the exercise is the hands-on rhythm
+    // of pointing and integrating. Enforced here as well as hidden in the
+    // page, since hiding a field does not stop a hand-made request.
+    if !is_admin {
+        debug!("ignoring repeat interval of {secs} s: repeat series are admin-only");
+        return Ok(None);
+    }
     if integration_mode != Some("fixed") {
         debug!("ignoring repeat interval of {secs} s: not a fixed-duration run");
         return Ok(None);
@@ -722,10 +732,15 @@ fn resolve_repeat_interval(
 /// that started it.
 pub async fn cancel_repeat_series(state: &AppState, telescope_id: &str) {
     let existing = state.active_repeats.lock().await.remove(telescope_id);
-    if let Some(token) = existing {
-        token.cancel();
+    if let Some(series) = existing {
+        series.token.cancel();
         info!("Cancelled the repeat series on {telescope_id}");
     }
+}
+
+/// The repeat series running on `telescope_id`, if any.
+pub async fn active_repeat_series(state: &AppState, telescope_id: &str) -> Option<RepeatSeries> {
+    state.active_repeats.lock().await.get(telescope_id).cloned()
 }
 
 /// Keep starting fixed-duration integrations on `telescope_id` every
@@ -751,6 +766,7 @@ async fn repeat_observation_series(
     interval: std::time::Duration,
     user: User,
     series_token: CancellationToken,
+    next_start_unix_ms: Arc<AtomicI64>,
 ) {
     let mut cycle_start = tokio::time::Instant::now();
     let mut completed: u64 = 0;
@@ -804,10 +820,24 @@ async fn repeat_observation_series(
         // when the cycle already overran, so a slow integration is followed
         // immediately by the next rather than accumulating drift.
         cycle_start += interval;
+
+        // Publish the due time so the observe page can count down to it. The
+        // page has no other way to tell "waiting between cycles" from "not
+        // observing" — the telescope reports no measurement in progress in
+        // both cases.
+        let wait = cycle_start.saturating_duration_since(tokio::time::Instant::now());
+        next_start_unix_ms.store(
+            Utc::now().timestamp_millis() + wait.as_millis() as i64,
+            Ordering::Relaxed,
+        );
+
         tokio::select! {
             _ = series_token.cancelled() => break,
             _ = tokio::time::sleep_until(cycle_start) => {}
         }
+
+        // Back to integrating: zero means "running", not "due now".
+        next_start_unix_ms.store(0, Ordering::Relaxed);
 
         if let Err(err) = telescope
             .set_receiver_configuration(receiver_configuration)
@@ -827,7 +857,7 @@ async fn repeat_observation_series(
     let mut repeats = state.active_repeats.lock().await;
     if repeats
         .get(&telescope_id)
-        .is_some_and(|t| t.is_cancelled() || series_token.is_cancelled())
+        .is_some_and(|s| s.token.is_cancelled() || series_token.is_cancelled())
     {
         repeats.remove(&telescope_id);
     }
@@ -1084,6 +1114,7 @@ async fn start_observe(
     let repeat_interval = match resolve_repeat_interval(
         form.integration_mode.as_deref(),
         form.repeat_interval_secs,
+        user.is_admin,
     ) {
         Ok(interval) => interval,
         Err(OutOfRange) => {
@@ -1175,11 +1206,16 @@ async fn start_observe(
         // and neither would produce the cadence it was asked for.
         cancel_repeat_series(&state, &telescope_id).await;
         let series_token = CancellationToken::new();
-        state
-            .active_repeats
-            .lock()
-            .await
-            .insert(telescope_id.clone(), series_token.clone());
+        // Starts at 0 — an integration is already running, courtesy of the
+        // call above.
+        let next_start_unix_ms = Arc::new(AtomicI64::new(0));
+        state.active_repeats.lock().await.insert(
+            telescope_id.clone(),
+            RepeatSeries {
+                token: series_token.clone(),
+                next_start_unix_ms: next_start_unix_ms.clone(),
+            },
+        );
         tokio::spawn(repeat_observation_series(
             state.clone(),
             telescope.clone(),
@@ -1189,6 +1225,7 @@ async fn start_observe(
             interval,
             user.clone(),
             series_token,
+            next_start_unix_ms,
         ));
         info!(
             "Started a repeat series on {telescope_id}: {} s integration every {} s",
@@ -1209,6 +1246,7 @@ async fn start_observe(
         user.is_admin,
         &state.weather_cache,
         guest_session.as_ref(),
+        active_repeat_series(&state, &telescope_id).await.as_ref(),
     )
     .await?;
     Ok(Html(content).into_response())
@@ -1257,6 +1295,7 @@ async fn stop_observe(
         user.is_admin,
         &state.weather_cache,
         guest_session.as_ref(),
+        active_repeat_series(&state, &telescope_id).await.as_ref(),
     )
     .await?;
     Ok(Html(content))
@@ -1295,6 +1334,7 @@ async fn get_observe(
         user.is_admin,
         &state.weather_cache,
         guest_session.as_ref(),
+        active_repeat_series(&state, &telescope_id).await.as_ref(),
     )
     .await?;
     let content = if headers.get("hx-request").is_some() {
@@ -1429,6 +1469,7 @@ async fn observe(
     is_admin: bool,
     weather_cache: &crate::weather_cache::WeatherCacheHandle,
     guest_session: Option<&GuestSession>,
+    repeat: Option<&RepeatSeries>,
 ) -> Result<String, StatusCode> {
     let info = telescope.get_info().await.map_err(|err| {
         error!("Failed to get info {err}");
@@ -1470,7 +1511,7 @@ async fn observe(
         // having to know what coordinates to enter.
         None => ("140".to_string(), "0".to_string()),
     };
-    let state_html = telescope_state(&info.id, telescope, lang).await;
+    let state_html = telescope_state(&info.id, telescope, lang, repeat).await;
     let (freq_min_mhz, freq_max_mhz) = if is_admin {
         (FREQ_MIN_ADMIN_MHZ, FREQ_MAX_ADMIN_MHZ)
     } else {
@@ -1738,7 +1779,7 @@ mod tests {
     #[test]
     fn no_repeat_field_means_a_single_integration() {
         assert!(
-            resolve_repeat_interval(Some("fixed"), None)
+            resolve_repeat_interval(Some("fixed"), None, true)
                 .expect("valid")
                 .is_none()
         );
@@ -1746,10 +1787,24 @@ mod tests {
 
     #[test]
     fn a_repeat_interval_is_accepted_in_fixed_mode() {
-        let interval = resolve_repeat_interval(Some("fixed"), Some(30.0))
+        let interval = resolve_repeat_interval(Some("fixed"), Some(30.0), true)
             .expect("30 s is within range")
             .expect("a series should be requested");
         assert_eq!(interval, std::time::Duration::from_secs(30));
+    }
+
+    /// Repeat series are admin-only for now: an unattended run can write
+    /// hundreds of spectra, and for ordinary users the hands-on rhythm of
+    /// pointing and integrating is the point. Hiding the field in the page is
+    /// not enough on its own — a hand-made request must be refused too.
+    #[test]
+    fn a_repeat_interval_is_ignored_for_non_admins() {
+        assert!(
+            resolve_repeat_interval(Some("fixed"), Some(30.0), false)
+                .expect("valid")
+                .is_none(),
+            "a non-admin request should not start a series"
+        );
     }
 
     /// An interactive run has no defined end, so there is nothing to repeat.
@@ -1759,7 +1814,7 @@ mod tests {
     fn a_repeat_interval_is_ignored_outside_fixed_mode() {
         for mode in [Some("interactive"), None] {
             assert!(
-                resolve_repeat_interval(mode, Some(30.0))
+                resolve_repeat_interval(mode, Some(30.0), true)
                     .expect("valid")
                     .is_none(),
                 "{mode:?} should not start a series"
@@ -1780,7 +1835,7 @@ mod tests {
             f64::INFINITY,
         ] {
             assert!(
-                resolve_repeat_interval(Some("fixed"), Some(secs)).is_err(),
+                resolve_repeat_interval(Some("fixed"), Some(secs), true).is_err(),
                 "{secs} should be refused"
             );
         }
@@ -1790,7 +1845,7 @@ mod tests {
     fn the_range_bounds_themselves_are_allowed() {
         for secs in [MIN_REPEAT_INTERVAL_SECS, MAX_REPEAT_INTERVAL_SECS] {
             assert!(
-                resolve_repeat_interval(Some("fixed"), Some(secs))
+                resolve_repeat_interval(Some("fixed"), Some(secs), true)
                     .expect("bound should be valid")
                     .is_some()
             );

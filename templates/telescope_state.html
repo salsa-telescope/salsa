@@ -1,5 +1,10 @@
 <span id="measuring-state"
   data-measuring="{{ info.measurement_in_progress }}"
+  {# A repeat series spans the gaps between integrations, so the observe page
+     locks its controls on this rather than on data-measuring, which drops to
+     false between cycles. #}
+  data-repeating="{{ repeating }}"
+  data-repeat-next-secs="{% if let Some(secs) = repeat_next_secs %}{{ secs }}{% else %}-1{% endif %}"
   data-obs-secs="{% if let Some(obs) = info.latest_observation %}{{ obs.observation_time.as_secs() }}{% else %}0{% endif %}"
   class="hidden"></span>
 

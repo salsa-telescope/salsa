@@ -128,8 +128,9 @@ pub async fn get_state(
         .get(&telescope_id)
         .await
         .ok_or(TelescopeNotFound)?;
+    let repeat = crate::routes::observe::active_repeat_series(&state, &telescope_id).await;
     Ok(Html(
-        telescope_state(&telescope_id, telescope.as_ref(), lang).await,
+        telescope_state(&telescope_id, telescope.as_ref(), lang, repeat.as_ref()).await,
     ))
 }
 
@@ -147,6 +148,14 @@ struct TelescopeStateTemplate {
     /// there is no error).
     error_kind: &'static str,
     low_elevation_deg: Option<f64>,
+    /// True while a repeat series is running on this telescope, whether or
+    /// not an integration is in progress right now. The observe page keeps
+    /// its controls locked and the End button visible on this rather than on
+    /// `info.measurement_in_progress`, which goes false between cycles.
+    repeating: bool,
+    /// Seconds until the next integration in the series, or `None` while one
+    /// is running.
+    repeat_next_secs: Option<u64>,
 }
 
 #[derive(Template)]
@@ -193,6 +202,7 @@ pub async fn telescope_state(
     telescope_id: &str,
     telescope: &dyn Telescope,
     lang: Language,
+    repeat: Option<&crate::app::RepeatSeries>,
 ) -> String {
     match telescope.get_info().await {
         Ok(info)
@@ -208,6 +218,8 @@ pub async fn telescope_state(
         Ok(info) => TelescopeStateTemplate {
             lang,
             info: info.clone(),
+            repeating: repeat.is_some(),
+            repeat_next_secs: repeat.and_then(|r| r.seconds_until_next()),
             // Elevation-range checks only reject targets below the
             // telescope's hard minimum; a commanded position can still sit
             // low enough that the ground degrades the spectrum. Only warn
@@ -298,7 +310,8 @@ mod tests {
         ] {
             let telescope =
                 MockTelescope::returning(Ok(info_with(Some(error), true, Duration::from_secs(42))));
-            let rendered = telescope_state("vale", telescope.as_ref(), Language::default()).await;
+            let rendered =
+                telescope_state("vale", telescope.as_ref(), Language::default(), None).await;
 
             assert!(
                 rendered.contains(r#"data-measuring="true""#),
@@ -323,7 +336,7 @@ mod tests {
             false,
             Duration::from_secs(0),
         )));
-        let rendered = telescope_state("vale", telescope.as_ref(), Language::default()).await;
+        let rendered = telescope_state("vale", telescope.as_ref(), Language::default(), None).await;
 
         assert!(rendered.contains(r#"data-measuring="false""#));
         assert!(rendered.contains(r#"data-obs-secs="0""#));
@@ -335,7 +348,7 @@ mod tests {
     #[tokio::test]
     async fn unreachable_telescope_reports_an_unknown_receiver_as_idle() {
         let telescope = MockTelescope::returning(Err(TelescopeError::TelescopeNotConnected));
-        let rendered = telescope_state("vale", telescope.as_ref(), Language::default()).await;
+        let rendered = telescope_state("vale", telescope.as_ref(), Language::default(), None).await;
 
         assert!(rendered.contains(r#"data-measuring="false""#));
         assert!(rendered.contains(r#"data-obs-secs="0""#));

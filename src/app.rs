@@ -128,7 +128,7 @@ pub struct AppState {
     pub guest_start_limiter: GuestStartLimiterHandle,
     /// At most one correlator session running at a time.
     pub active_correlator: Arc<Mutex<Option<CorrelatorHandle>>>,
-    /// Cancellation tokens for running repeat series, keyed by telescope name.
+    /// Running repeat series, keyed by telescope name.
     ///
     /// A repeat series outlives the individual integrations it starts, so it
     /// needs a token of its own: each integration's token is replaced by the
@@ -136,7 +136,37 @@ pub struct AppState {
     /// leaving the loop to start another. Everything that ends observing —
     /// the Stop button, booking handover, guest session end — cancels this
     /// instead.
-    pub active_repeats: Arc<Mutex<HashMap<String, CancellationToken>>>,
+    pub active_repeats: Arc<Mutex<HashMap<String, RepeatSeries>>>,
+}
+
+/// A repeat series in progress, as the rest of the app needs to see it.
+#[derive(Clone)]
+pub struct RepeatSeries {
+    pub token: CancellationToken,
+    /// When the next integration is due, as milliseconds since the unix
+    /// epoch, or 0 while one is actually running.
+    ///
+    /// Shared with the supervisor so the observe page can show a countdown
+    /// between cycles. Without it the page has only the telescope's
+    /// `measurement_in_progress`, which is false during the gap — so the
+    /// controls unlocked and the Stop button vanished between integrations,
+    /// leaving no way to end a series except by catching it mid-cycle.
+    pub next_start_unix_ms: Arc<std::sync::atomic::AtomicI64>,
+}
+
+impl RepeatSeries {
+    /// Seconds until the next integration starts. `None` while one is
+    /// running, or if the due time has already passed.
+    pub fn seconds_until_next(&self) -> Option<u64> {
+        let due = self
+            .next_start_unix_ms
+            .load(std::sync::atomic::Ordering::Relaxed);
+        if due == 0 {
+            return None;
+        }
+        let now = chrono::Utc::now().timestamp_millis();
+        (due > now).then(|| ((due - now) as f64 / 1000.0).ceil() as u64)
+    }
 }
 
 pub async fn create_app(config_dir: &Path, database_dir: &Path) -> (Router, AppState) {

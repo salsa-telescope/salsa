@@ -160,6 +160,7 @@
           </button>
           <span id="obs-timer" class="text-sm text-gray-500 hidden">
             <span id="obs-elapsed">0</span>s
+            <span id="repeat-countdown" class="ml-2 text-info hidden"></span>
           </span>
         </div>
 
@@ -184,6 +185,11 @@
                     class="border rounded px-2 py-1 bg-white text-sm w-20 disabled:opacity-50" />
                   {{ lang.t("observe-seconds") }}
                 </label>
+                {# Admin-only for now: a repeat series can fill the archive
+                   with hundreds of spectra, and the hands-on rhythm of
+                   pointing and integrating is the point of the exercise for
+                   ordinary users. The server enforces this too. #}
+                {% if is_admin %}
                 <label class="flex items-center gap-1 cursor-pointer">
                   {{ lang.t("observe-repeat") }}
                   <input type="number" id="repeat-interval-secs" name="repeat_interval_secs"
@@ -192,10 +198,13 @@
                     class="border rounded px-2 py-1 bg-white text-sm w-20 disabled:opacity-50" />
                   {{ lang.t("observe-seconds") }}
                 </label>
+                {% endif %}
               </div>
+              {% if is_admin %}
               <p id="repeat-hint" class="mt-1 text-xs text-gray-500 hidden">
                 {{ lang.t("observe-repeat-hint") }}
               </p>
+              {% endif %}
             </div>
             <div>
               <label class="block text-sm text-gray-600 mb-1">{{ lang.t("observe-mode") }}</label>
@@ -344,6 +353,9 @@
     khzChannel: "{{ lang.t("observe-js-khz-channel") }}",
     hzChannel: "{{ lang.t("observe-js-hz-channel") }}",
     integrating: "{{ lang.t("observe-js-integrating") }}",
+    repeatNextIn: "{{ lang.t("observe-js-repeat-next-in") }}",
+    repeatWaiting: "{{ lang.t("observe-js-repeat-waiting") }}",
+    repeatIntegrating: "{{ lang.t("observe-js-repeat-integrating") }}",
     integrationTime: "{{ lang.t("observe-js-integration-time") }}",
     avgPower: "{{ lang.t("observe-js-avg-power") }}",
     stopped: "{{ lang.t("observe-js-stopped-1") }}",
@@ -665,6 +677,9 @@
       const measuringEl = document.getElementById('measuring-state');
       if (!measuringEl) return;
       const isMeasuring = measuringEl.dataset.measuring === 'true';
+      const isRepeating = measuringEl.dataset.repeating === 'true';
+      // -1 means an integration is running rather than a wait in progress.
+      const nextSecs = parseInt(measuringEl.dataset.repeatNextSecs || '-1', 10);
       const serverSecs = parseInt(measuringEl.dataset.obsSecs || '0', 10);
       const timerEl = document.getElementById('obs-timer');
       const elapsedEl = document.getElementById('obs-elapsed');
@@ -694,12 +709,34 @@
           timerEl.classList.remove('hidden');
           elapsedEl.textContent = elapsedStr;
           if (window.setChartTitle) window.setChartTitle(OBSERVE_I18N.integrating + ' ' + elapsedStr + 's' + powerStr);
+      } else if (isRepeating) {
+          // Between cycles of a repeat series. Keep the timer row visible and
+          // count down to the next integration, so the page reads as "still
+          // running, waiting" rather than "stopped".
+          wasObserving = false;
+          timerEl.classList.remove('hidden');
+          elapsedEl.textContent = elapsedStr;
+          const waitStr = nextSecs >= 0
+              ? OBSERVE_I18N.repeatNextIn.replace('%s', nextSecs)
+              : OBSERVE_I18N.repeatWaiting;
+          if (window.setChartTitle) window.setChartTitle(waitStr + powerStr);
       } else {
           wasObserving = false;
           timerEl.classList.add('hidden');
           elapsedEl.textContent = '0';
           if (window.setChartTitle) window.setChartTitle(serverSecs > 0 ? OBSERVE_I18N.integrationTime + ' ' + serverSecs + 's' + powerStr : '');
           if (stoppedNow) maybeNotifyOffTargetStop();
+      }
+      // Countdown label next to the elapsed time, so the cadence is visible
+      // without watching the chart title.
+      const repeatEl = document.getElementById('repeat-countdown');
+      if (repeatEl) {
+          repeatEl.classList.toggle('hidden', !isRepeating);
+          repeatEl.textContent = isRepeating
+              ? (nextSecs >= 0
+                  ? OBSERVE_I18N.repeatNextIn.replace('%s', nextSecs)
+                  : OBSERVE_I18N.repeatIntegrating)
+              : '';
       }
   }
 
@@ -842,10 +879,14 @@
       const isIdle = currentTelescopeStatus() === 'Idle';
       const measuringEl = document.getElementById('measuring-state');
       const isMeasuring = !!(measuringEl && measuringEl.dataset.measuring === 'true');
+      // A repeat series counts as observing even between integrations.
+      // Otherwise the controls unlock and End disappears during the gap, and
+      // the only way to stop a series is to catch it mid-cycle.
+      const isRepeating = !!(measuringEl && measuringEl.dataset.repeating === 'true');
       const track = resolvePress(pendingTrack, !isIdle);
       pendingTrack = track.pending;
       setTrackingState(track.show);
-      const observe = resolvePress(pendingObserve, isMeasuring);
+      const observe = resolvePress(pendingObserve, isMeasuring || isRepeating);
       pendingObserve = observe.pending;
       setObservingState(observe.show);
   }
