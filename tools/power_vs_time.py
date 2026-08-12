@@ -498,7 +498,19 @@ def write_page(path, text):
     directory is unlikely to be the user running this.
     """
     directory = os.path.dirname(os.path.abspath(path))
-    handle, temporary = tempfile.mkstemp(dir=directory, suffix=".tmp")
+    if not os.path.isdir(directory):
+        raise SystemExit(f"No such directory: {directory}")
+    try:
+        handle, temporary = tempfile.mkstemp(dir=directory, suffix=".tmp")
+    except OSError as err:
+        raise SystemExit(
+            f"Cannot write to {directory}: {err}.\n"
+            f"Check the owner with: ls -ld {directory}\n"
+            f"A directory under the app's assets tree is often not owned by the "
+            f"user that runs the app, so either write into a subdirectory that "
+            f"this user does own (mkdir it and chown it once), or run as a user "
+            f"that can write here."
+        )
     try:
         with os.fdopen(handle, "w", encoding="utf-8") as out:
             out.write(text)
