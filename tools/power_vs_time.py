@@ -102,9 +102,9 @@ def connect(path):
 
 
 def fetch(conn, telescope, target, since_unix, until_unix, stat, channels, exclude):
-    """Return [(unix_start, power, elevation_deg, mode)] oldest first."""
+    """Return [(unix_start, power, elevation_deg, azimuth_deg, mode)] oldest first."""
     rows = conn.execute(
-        """SELECT start_time, target_y, observation_mode, frequencies_json,
+        """SELECT start_time, target_x, target_y, observation_mode, frequencies_json,
                   amplitudes_json
              FROM observation
             WHERE telescope_id = ?
@@ -119,7 +119,7 @@ def fetch(conn, telescope, target, since_unix, until_unix, stat, channels, exclu
     # Every observation in a run stores the same frequency axis, so parse each
     # distinct one once rather than 512 floats per row on every refresh.
     freq_cache = {}
-    for start_time, elevation, mode, frequencies_json, amplitudes_json in rows:
+    for start_time, azimuth, elevation, mode, frequencies_json, amplitudes_json in rows:
         try:
             amps = json.loads(amplitudes_json)
         except (TypeError, ValueError):
@@ -155,7 +155,7 @@ def fetch(conn, telescope, target, since_unix, until_unix, stat, channels, exclu
         if not any(amps):
             continue
         value = statistics.median(amps) if stat == "median" else sum(amps) / len(amps)
-        points.append((start_time, value, elevation, mode or "?"))
+        points.append((start_time, value, elevation, azimuth, mode or "?"))
     return points
 
 
@@ -322,8 +322,9 @@ def build_svg(points, tz, relative, stat):
             "label": datetime.fromtimestamp(t, tz).strftime("%H:%M:%S"),
             "value": f"{v:.2f}%" if relative else f"{v:.4g}",
             "el": f"{el:.1f}",
+            "az": f"{az:.1f}",
         }
-        for (t, v, el, _mode) in points
+        for (t, v, el, az, _mode) in points
     ]
     svg = (
         f'<svg viewBox="0 0 {width:.0f} {height:.0f}" '
@@ -360,7 +361,8 @@ HOVER_JS = """
     line.setAttribute('x2', best.x);
     dot.setAttribute('cx', best.x);
     dot.setAttribute('cy', best.y);
-    text.textContent = best.label + '  ' + best.value + '  (el ' + best.el + '\\u00b0)';
+    text.textContent = best.label + '  ' + best.value
+      + '  (az ' + best.az + '\\u00b0, el ' + best.el + '\\u00b0)';
     var left = best.x < viewW / 2;
     text.setAttribute('x', left ? best.x + 10 : best.x - 10);
     text.setAttribute('text-anchor', left ? 'start' : 'end');
@@ -438,10 +440,10 @@ def render(points, args, tz):
     if args.relative:
         baseline = statistics.median(values)
         if baseline:
-            points = [(t, 100.0 * v / baseline, el, m) for (t, v, el, m) in points]
+            points = [(t, 100.0 * v / baseline, el, az, m) for (t, v, el, az, m) in points]
 
     svg, samples = build_svg(points, tz, args.relative, args.stat)
-    modes = sorted({p[3] for p in points})
+    modes = sorted({p[4] for p in points})
     elevations = [p[2] for p in points]
     first = datetime.fromtimestamp(points[0][0], tz).strftime("%H:%M")
     last = datetime.fromtimestamp(points[-1][0], tz).strftime("%H:%M")
@@ -539,10 +541,10 @@ def gather(args, tz):
 
 def write_csv(points, tz):
     out = sys.stdout
-    out.write("iso_time,unix_time,power,elevation_deg,mode\n")
-    for t, v, el, mode in points:
+    out.write("iso_time,unix_time,power,azimuth_deg,elevation_deg,mode\n")
+    for t, v, el, az, mode in points:
         iso = datetime.fromtimestamp(t, tz).isoformat()
-        out.write(f"{iso},{t},{v!r},{el},{mode}\n")
+        out.write(f"{iso},{t},{v!r},{az},{el},{mode}\n")
 
 
 def write_page(path, text):
