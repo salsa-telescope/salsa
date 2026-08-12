@@ -101,10 +101,11 @@ def connect(path):
             )
 
 
-def fetch(conn, telescope, target, since_unix, until_unix, stat, channels):
+def fetch(conn, telescope, target, since_unix, until_unix, stat, channels, exclude):
     """Return [(unix_start, power, elevation_deg, mode)] oldest first."""
     rows = conn.execute(
-        """SELECT start_time, target_y, observation_mode, amplitudes_json
+        """SELECT start_time, target_y, observation_mode, frequencies_json,
+                  amplitudes_json
              FROM observation
             WHERE telescope_id = ?
               AND coordinate_system = ?
@@ -115,14 +116,35 @@ def fetch(conn, telescope, target, since_unix, until_unix, stat, channels):
     ).fetchall()
 
     points = []
-    for start_time, elevation, mode, amplitudes_json in rows:
+    # Every observation in a run stores the same frequency axis, so parse each
+    # distinct one once rather than 512 floats per row on every refresh.
+    freq_cache = {}
+    for start_time, elevation, mode, frequencies_json, amplitudes_json in rows:
         try:
             amps = json.loads(amplitudes_json)
         except (TypeError, ValueError):
             continue
+        freqs = None
+        if exclude:
+            if frequencies_json not in freq_cache:
+                try:
+                    freq_cache[frequencies_json] = json.loads(frequencies_json)
+                except (TypeError, ValueError):
+                    freq_cache[frequencies_json] = []
+            freqs = freq_cache[frequencies_json]
         if channels:
             lo, hi = channels
             amps = amps[lo:hi]
+            if freqs:
+                freqs = freqs[lo:hi]
+        if exclude and freqs and len(freqs) == len(amps):
+            # Notch by measured frequency rather than channel number, so the
+            # same flag keeps working across a change of centre or bandwidth.
+            amps = [
+                a
+                for a, f in zip(amps, freqs)
+                if not any(lo <= f <= hi for lo, hi in exclude)
+            ]
         amps = [a for a in amps if isinstance(a, (int, float))]
         if not amps:
             continue
@@ -428,8 +450,12 @@ def render(points, args, tz):
         f"elevation {min(elevations):.1f}°–{max(elevations):.1f}°, "
         f"mode {'/'.join(modes)}"
     )
+    notch = ""
+    if args.exclude:
+        bands = ", ".join(f"{lo / 1e6:g}–{hi / 1e6:g} MHz" for lo, hi in args.exclude)
+        notch = f"Excluding {bands}. "
     footer = (
-        f"Generated {generated}. {window_note} "
+        f"Generated {generated}. {window_note} {notch}"
         f"Power is the {args.stat} across channels; "
         f"in Raw mode this is total received power in arbitrary units, so only "
         f"relative changes are meaningful. Database: {args.db}"
@@ -498,7 +524,14 @@ def gather(args, tz):
     conn = connect(args.db)
     try:
         return fetch(
-            conn, args.telescope, args.target, since, until, args.stat, args.channels
+            conn,
+            args.telescope,
+            args.target,
+            since,
+            until,
+            args.stat,
+            args.channels,
+            args.exclude,
         )
     finally:
         conn.close()
@@ -554,6 +587,20 @@ def channel_range(text):
         raise argparse.ArgumentTypeError("channels must look like 100:400")
 
 
+def mhz_range(text):
+    """A frequency band to drop, given in MHz, returned in Hz."""
+    try:
+        lo, hi = text.split(":")
+        lo, hi = float(lo) * 1e6, float(hi) * 1e6
+    except ValueError:
+        raise argparse.ArgumentTypeError(
+            "--exclude wants MHZ_LOW:MHZ_HIGH, e.g. 1407.7:1408.3"
+        )
+    if hi <= lo:
+        raise argparse.ArgumentTypeError(f"--exclude {text}: the high edge must be the larger")
+    return (lo, hi)
+
+
 def main():
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
@@ -585,6 +632,14 @@ def main():
     )
     parser.add_argument(
         "--channels", type=channel_range, help="restrict to a channel slice, e.g. 100:400"
+    )
+    parser.add_argument(
+        "--exclude",
+        type=mhz_range,
+        action="append",
+        metavar="MHZ_LOW:MHZ_HIGH",
+        help="drop a frequency band from the average, e.g. --exclude 1407.7:1408.3 "
+        "to notch out interference at the centre. Repeatable.",
     )
     parser.add_argument(
         "--relative",
