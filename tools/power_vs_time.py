@@ -436,13 +436,29 @@ def render(points, args, tz):
             hover="",
         )
 
-    values = [p[1] for p in points]
-    if args.relative:
-        baseline = statistics.median(values)
-        if baseline:
-            points = [(t, 100.0 * v / baseline, el, az, m) for (t, v, el, az, m) in points]
+    # Asking for a baseline is asking for a relative scale.
+    relative = args.relative or args.baseline is not None
+    baseline_note = ""
+    if relative:
+        reference = points
+        described = "all data"
+        if args.baseline is not None:
+            cutoff = points[0][0] + args.baseline * 60
+            early = [p for p in points if p[0] <= cutoff]
+            if early:
+                reference = early
+                described = (
+                    f"first {args.baseline:g} min, "
+                    f"{datetime.fromtimestamp(reference[0][0], tz):%H:%M}"
+                    f"–{datetime.fromtimestamp(reference[-1][0], tz):%H:%M}, "
+                    f"{len(reference)} observations"
+                )
+        level = statistics.median([p[1] for p in reference])
+        if level:
+            points = [(t, 100.0 * v / level, el, az, m) for (t, v, el, az, m) in points]
+        baseline_note = f"100% = median of {described}. "
 
-    svg, samples = build_svg(points, tz, args.relative, args.stat)
+    svg, samples = build_svg(points, tz, relative, args.stat)
     modes = sorted({p[4] for p in points})
     elevations = [p[2] for p in points]
     first = datetime.fromtimestamp(points[0][0], tz).strftime("%H:%M")
@@ -457,7 +473,7 @@ def render(points, args, tz):
         bands = ", ".join(f"{lo / 1e6:g}–{hi / 1e6:g} MHz" for lo, hi in args.exclude)
         notch = f"Excluding {bands}. "
     footer = (
-        f"Generated {generated}. {window_note} {notch}"
+        f"Generated {generated}. {window_note} {notch}{baseline_note}"
         f"Power is the {args.stat} across channels; "
         f"in Raw mode this is total received power in arbitrary units, so only "
         f"relative changes are meaningful. Database: {args.db}"
@@ -647,6 +663,15 @@ def main():
         "--relative",
         action="store_true",
         help="plot as %% of the run's median, which makes a small dip readable",
+    )
+    parser.add_argument(
+        "--baseline",
+        type=float,
+        metavar="MINUTES",
+        help="fix the 100%% level to the first MINUTES of the window instead of "
+        "the whole run. Without this the reference is the median of everything "
+        "plotted, so a developing dip drags its own baseline down and reads "
+        "shallower than it is. Implies --relative.",
     )
     parser.add_argument("--tz", default="Europe/Stockholm", help="timezone for the time axis")
     parser.add_argument("--out", help="write the page to this file and exit")
