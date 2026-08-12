@@ -67,15 +67,16 @@
     updateXYVisibility();
 
     // Crosshair readout: the SVG from visibility.rs carries the sampled
-    // curve ("HH:MM,elevation" pairs) and plot geometry as data attributes,
-    // plus a hidden .vis-cursor group. Pointer moves snap the cursor to the
-    // nearest sample; pointerdown makes it work on touch screens too.
+    // curves ("HH:MM,elevation,azimuth" triples) and plot geometry as data
+    // attributes, plus a hidden .vis-cursor group. Pointer moves snap the
+    // cursor to the nearest sample; pointerdown makes it work on touch
+    // screens too.
     (function () {
         const svg = document.querySelector('svg[data-samples]');
         if (!svg) return;
-        const samples = svg.dataset.samples.split(';').map(function (pair) {
-            const parts = pair.split(',');
-            return { label: parts[0], el: parseFloat(parts[1]) };
+        const samples = svg.dataset.samples.split(';').map(function (triple) {
+            const parts = triple.split(',');
+            return { label: parts[0], el: parseFloat(parts[1]), az: parseFloat(parts[2]) };
         });
         const mLeft = parseFloat(svg.dataset.mleft);
         const mTop = parseFloat(svg.dataset.mtop);
@@ -84,6 +85,7 @@
         const cursor = svg.querySelector('.vis-cursor');
         const line = svg.querySelector('.vis-cursor-line');
         const dot = svg.querySelector('.vis-cursor-dot');
+        const dotAz = svg.querySelector('.vis-cursor-dot-az');
         const text = svg.querySelector('.vis-cursor-text');
         const capture = svg.querySelector('.vis-capture');
         const viewW = svg.viewBox.baseVal.width;
@@ -102,7 +104,16 @@
             line.setAttribute('x2', x);
             dot.setAttribute('cx', x);
             dot.setAttribute('cy', y);
-            text.textContent = s.label + ' · ' + s.el.toFixed(1) + '°';
+            // Azimuth is only plotted while the target is above the horizon,
+            // so the readout follows the same rule.
+            const up = s.el >= 0;
+            dotAz.setAttribute('visibility', up ? 'visible' : 'hidden');
+            if (up) {
+                dotAz.setAttribute('cx', x);
+                dotAz.setAttribute('cy', mTop + (360 - Math.min(360, Math.max(0, s.az))) / 360 * plotH);
+            }
+            text.textContent = s.label + ' · el ' + s.el.toFixed(1) + '°'
+                + (up ? ' · az ' + s.az.toFixed(1) + '°' : '');
             const onLeftHalf = x < mLeft + plotW / 2;
             text.setAttribute('x', onLeftHalf ? x + 8 : x - 8);
             text.setAttribute('text-anchor', onLeftHalf ? 'start' : 'end');

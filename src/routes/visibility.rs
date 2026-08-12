@@ -1,7 +1,7 @@
 //! Target-visibility planner: given a coordinate (galactic / equatorial /
-//! Sun) and a date, plot the target's elevation across the day at the
-//! SALSA site so users can pick a booking window where the target is
-//! actually above the horizon.
+//! Sun) and a date, plot the target's elevation and azimuth across the day
+//! at the SALSA site so users can pick a booking window where the target is
+//! actually above the horizon, and see where the dish will be pointing.
 //!
 //! Linked from the support page but not part of "support" — it's a
 //! planning tool, kept at the top-level `/visibility` URL.
@@ -34,6 +34,14 @@ const VISIBILITY_THRESHOLD_DEG: f64 = PRACTICAL_ELEVATION_LIMIT_DEG;
 // (0:00 inclusive ... 24:00 inclusive); DST transition days a few more or
 // fewer.
 const SAMPLE_STEP_MIN: i64 = 10;
+
+// The two curves. Elevation keeps the app's `info` blue; azimuth is a deep
+// rose picked because it stays separable from that blue under simulated
+// protanopia/deuteranopia (OKLab dE 20) and from the amber threshold line —
+// the obvious violet fails that test badly. Different dash pattern too, so
+// the pair never relies on colour alone.
+const ELEVATION_COLOR: &str = "#1d4ed8";
+const AZIMUTH_COLOR: &str = "#be185d";
 
 pub fn routes() -> Router {
     Router::new().route("/", get(get_visibility))
@@ -186,7 +194,8 @@ fn compute_visibility(
     };
 
     let n_steps = day_len_min / SAMPLE_STEP_MIN;
-    let mut samples: Vec<(i64, f64)> = Vec::with_capacity((n_steps + 1) as usize);
+    // (minutes since day start, elevation °, azimuth °)
+    let mut samples: Vec<Sample> = Vec::with_capacity((n_steps + 1) as usize);
     // All contiguous windows where elevation >= threshold. The sidereal day is
     // ~4 minutes shorter than 24h, so some targets rise twice in one UTC day —
     // we need to collect every window, not just the first-above / last-above
@@ -210,7 +219,7 @@ fn compute_visibility(
             },
         };
         let el = dir.elevation.to_degrees();
-        samples.push((minutes, el));
+        samples.push((minutes, el, dir.azimuth.to_degrees()));
         if el >= VISIBILITY_THRESHOLD_DEG {
             if current_start.is_none() {
                 current_start = Some(minutes);
@@ -250,6 +259,12 @@ fn compute_visibility(
         tz = tz.name()
     );
     let threshold = format!("{VISIBILITY_THRESHOLD_DEG:.0}");
+    // Built here because the title lines below consume `threshold`.
+    let threshold_label = fl!(
+        lang.loader(),
+        "vis-threshold-label",
+        threshold = threshold.as_str()
+    );
     let max = format!("{max_el:.1}");
     let peak = fmt_local(max_at);
     let title_line2 = if windows.is_empty() {
@@ -290,28 +305,78 @@ fn compute_visibility(
             &samples,
             day_len_min,
             &fmt_local,
-            &title_line1,
-            &title_line2,
-            &axis_label,
+            &ChartLabels {
+                title_line1: &title_line1,
+                title_line2: &title_line2,
+                x_axis: &axis_label,
+                elevation: &fl!(lang.loader(), "vis-lbl-elevation"),
+                azimuth: &fl!(lang.loader(), "vis-lbl-azimuth"),
+                threshold: &threshold_label,
+            },
         ),
     }
 }
 
+/// One sampled point: minutes since the start of the local day, elevation
+/// and azimuth in degrees.
+type Sample = (i64, f64, f64);
+
+/// Localised text drawn on the chart.
+struct ChartLabels<'a> {
+    title_line1: &'a str,
+    title_line2: &'a str,
+    x_axis: &'a str,
+    elevation: &'a str,
+    azimuth: &'a str,
+    threshold: &'a str,
+}
+
+/// Split the sampled azimuth track into separately drawn segments.
+///
+/// The pen lifts in two places: where the target is below the horizon (its
+/// azimuth is defined but meaningless for planning, and the swings there
+/// would just clutter the chart), and where azimuth wraps past due north,
+/// which would otherwise draw a full-height vertical line across the plot.
+fn azimuth_segments(samples: &[Sample]) -> Vec<Vec<(i64, f64)>> {
+    let mut segments: Vec<Vec<(i64, f64)>> = Vec::new();
+    let mut current: Vec<(i64, f64)> = Vec::new();
+    for (i, (minutes, el, az)) in samples.iter().enumerate() {
+        // A step of more than half a circle between two 10-minute samples is
+        // the 360°/0° seam, not real motion.
+        let wrapped = i > 0 && (*az - samples[i - 1].2).abs() > 180.0;
+        if *el < 0.0 || wrapped {
+            // A lone point draws nothing, so drop it rather than emit it.
+            if current.len() > 1 {
+                segments.push(std::mem::take(&mut current));
+            } else {
+                current.clear();
+            }
+        }
+        if *el >= 0.0 {
+            current.push((*minutes, *az));
+        }
+    }
+    if current.len() > 1 {
+        segments.push(current);
+    }
+    segments
+}
+
 fn build_svg(
-    samples: &[(i64, f64)],
+    samples: &[Sample],
     day_len_min: i64,
     fmt_local: &dyn Fn(i64) -> String,
-    title_line1: &str,
-    title_line2: &str,
-    axis_label: &str,
+    labels: &ChartLabels,
 ) -> String {
     let width = 720.0_f64;
-    let height = 360.0_f64;
+    let height = 380.0_f64;
     let m_left = 60.0_f64;
-    let m_right = 20.0_f64;
-    // Top margin holds two title lines (line 1 ~y=20, line 2 ~y=38) plus a
-    // little breathing room before the plot area.
-    let m_top = 56.0_f64;
+    // Mirrors the left margin: the azimuth scale needs room for "360°" plus
+    // its rotated axis title.
+    let m_right = 56.0_f64;
+    // Top margin holds two title lines (line 1 ~y=22, line 2 ~y=42) and the
+    // legend row (~y=62) before the plot area.
+    let m_top = 76.0_f64;
     let m_bottom = 40.0_f64;
     let plot_w = width - m_left - m_right;
     let plot_h = height - m_top - m_bottom;
@@ -320,21 +385,36 @@ fn build_svg(
 
     let x_for = |minutes: i64| m_left + (minutes as f64 / day_len_min as f64) * plot_w;
     let y_for = |el: f64| m_top + (90.0 - el.clamp(0.0, 90.0)) / 90.0 * plot_h;
+    let y_az_for = |az: f64| m_top + (360.0 - az.clamp(0.0, 360.0)) / 360.0 * plot_h;
 
     let mut path = String::new();
-    for (i, (minutes, el)) in samples.iter().enumerate() {
+    for (i, (minutes, el, _)) in samples.iter().enumerate() {
         let cmd = if i == 0 { 'M' } else { 'L' };
         let _ = write!(path, "{} {:.2} {:.2} ", cmd, x_for(*minutes), y_for(*el));
     }
 
-    // Per-sample "HH:MM,elevation" pairs read by the crosshair script in
-    // visibility.html. Samples are uniformly spaced, so together with the
-    // plot geometry (also passed as data attributes) the script can map a
-    // pointer position to the nearest sample without knowing about time.
+    let mut az_path = String::new();
+    for segment in azimuth_segments(samples) {
+        for (i, (minutes, az)) in segment.iter().enumerate() {
+            let cmd = if i == 0 { 'M' } else { 'L' };
+            let _ = write!(
+                az_path,
+                "{} {:.2} {:.2} ",
+                cmd,
+                x_for(*minutes),
+                y_az_for(*az)
+            );
+        }
+    }
+
+    // Per-sample "HH:MM,elevation,azimuth" triples read by the crosshair
+    // script in visibility.html. Samples are uniformly spaced, so together
+    // with the plot geometry (also passed as data attributes) the script can
+    // map a pointer position to the nearest sample without knowing about time.
     let mut cursor_data = String::new();
-    for (i, (minutes, el)) in samples.iter().enumerate() {
+    for (i, (minutes, el, az)) in samples.iter().enumerate() {
         let sep = if i == 0 { "" } else { ";" };
-        let _ = write!(cursor_data, "{sep}{},{el:.1}", fmt_local(*minutes));
+        let _ = write!(cursor_data, "{sep}{},{el:.1},{az:.1}", fmt_local(*minutes));
     }
 
     let mut x_ticks = String::new();
@@ -369,39 +449,70 @@ fn build_svg(
             r##"<line x1="{x_tick_left:.2}" y1="{yt:.2}" x2="{m_left:.2}" y2="{yt:.2}" stroke="#9ca3af"/><text x="{x_label:.2}" y="{yt:.2}" text-anchor="end" alignment-baseline="middle" font-size="11" fill="#4b5563">{el}°</text>"##,
         );
     }
+    let mut y_ticks_right = String::new();
+    for az in [0_i32, 90, 180, 270, 360] {
+        let yt = y_az_for(az as f64);
+        let x_tick_right = plot_right + 4.0;
+        let x_label = plot_right + 8.0;
+        let _ = write!(
+            y_ticks_right,
+            r##"<line x1="{plot_right:.2}" y1="{yt:.2}" x2="{x_tick_right:.2}" y2="{yt:.2}" stroke="#9ca3af"/><text x="{x_label:.2}" y="{yt:.2}" text-anchor="start" alignment-baseline="middle" font-size="11" fill="#4b5563">{az}°</text>"##,
+        );
+    }
     let y_thresh = y_for(VISIBILITY_THRESHOLD_DEG);
     let x_label_pos = m_left + plot_w / 2.0;
     let x_label_y = height - 4.0;
     let y_label_pos_x = 14.0_f64;
     let y_label_pos_y = m_top + plot_h / 2.0;
+    let y_label_right_x = width - 14.0;
+
+    // Legend, anchored to the axis each series belongs to: elevation reads
+    // against the left scale, azimuth against the right one.
+    let legend_y = m_top - 14.0;
+    let swatch_y = legend_y - 4.0;
+    let legend_left_x2 = m_left + 18.0;
+    let legend_left_text_x = m_left + 24.0;
+    let legend_right_x1 = plot_right - 18.0;
+    let legend_right_text_x = plot_right - 24.0;
 
     let title_x = width / 2.0;
-    let title_l1 = escape_xml(title_line1);
-    let title_l2 = escape_xml(title_line2);
-    let axis_l = escape_xml(axis_label);
+    let title_l1 = escape_xml(labels.title_line1);
+    let title_l2 = escape_xml(labels.title_line2);
+    let axis_l = escape_xml(labels.x_axis);
+    let el_l = escape_xml(labels.elevation);
+    let az_l = escape_xml(labels.azimuth);
+    let thresh_l = escape_xml(labels.threshold);
 
     format!(
         r##"<svg viewBox="0 0 {width:.0} {height:.0}" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;" data-samples="{cursor_data}" data-mleft="{m_left:.2}" data-mtop="{m_top:.2}" data-plotw="{plot_w:.2}" data-ploth="{plot_h:.2}">
   <text x="{title_x:.2}" y="22" text-anchor="middle" font-size="13" font-weight="600" fill="#111827">{title_l1}</text>
   <text x="{title_x:.2}" y="42" text-anchor="middle" font-size="12" fill="#4b5563">{title_l2}</text>
+  <line x1="{m_left:.2}" y1="{swatch_y:.2}" x2="{legend_left_x2:.2}" y2="{swatch_y:.2}" stroke="{ELEVATION_COLOR}" stroke-width="1.5"/>
+  <text x="{legend_left_text_x:.2}" y="{legend_y:.2}" text-anchor="start" font-size="11" fill="#374151">{el_l}</text>
+  <line x1="{legend_right_x1:.2}" y1="{swatch_y:.2}" x2="{plot_right:.2}" y2="{swatch_y:.2}" stroke="{AZIMUTH_COLOR}" stroke-width="1.5" stroke-dasharray="6,4"/>
+  <text x="{legend_right_text_x:.2}" y="{legend_y:.2}" text-anchor="end" font-size="11" fill="#374151">{az_l}</text>
   <rect x="{m_left:.2}" y="{m_top:.2}" width="{plot_w:.2}" height="{plot_h:.2}" fill="#f9fafb" stroke="none"/>
   <line x1="{m_left:.2}" y1="{m_top:.2}" x2="{m_left:.2}" y2="{plot_bottom:.2}" stroke="#9ca3af"/>
+  <line x1="{plot_right:.2}" y1="{m_top:.2}" x2="{plot_right:.2}" y2="{plot_bottom:.2}" stroke="#9ca3af"/>
   <line x1="{m_left:.2}" y1="{plot_bottom:.2}" x2="{plot_right:.2}" y2="{plot_bottom:.2}" stroke="#9ca3af"/>
   {x_ticks}
   {y_ticks}
+  {y_ticks_right}
   <line x1="{m_left:.2}" y1="{y_thresh:.2}" x2="{plot_right:.2}" y2="{y_thresh:.2}" stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="4,3"/>
-  <text x="{plot_right:.2}" y="{y_thresh:.2}" dx="-4" dy="-4" text-anchor="end" font-size="11" fill="#b45309">{threshold:.0}° threshold</text>
-  <path d="{path}" fill="none" stroke="#1d4ed8" stroke-width="1.5"/>
+  <text x="{plot_right:.2}" y="{y_thresh:.2}" dx="-4" dy="-4" text-anchor="end" font-size="11" fill="#b45309">{thresh_l}</text>
+  <path d="{az_path}" fill="none" stroke="{AZIMUTH_COLOR}" stroke-width="1.5" stroke-dasharray="6,4"/>
+  <path d="{path}" fill="none" stroke="{ELEVATION_COLOR}" stroke-width="1.5"/>
   <text x="{x_label_pos:.2}" y="{x_label_y:.2}" text-anchor="middle" font-size="12" fill="#374151">{axis_l}</text>
-  <text x="{y_label_pos_x:.2}" y="{y_label_pos_y:.2}" text-anchor="middle" font-size="12" fill="#374151" transform="rotate(-90 {y_label_pos_x:.2} {y_label_pos_y:.2})">Elevation</text>
+  <text x="{y_label_pos_x:.2}" y="{y_label_pos_y:.2}" text-anchor="middle" font-size="12" fill="#374151" transform="rotate(-90 {y_label_pos_x:.2} {y_label_pos_y:.2})">{el_l} (°)</text>
+  <text x="{y_label_right_x:.2}" y="{y_label_pos_y:.2}" text-anchor="middle" font-size="12" fill="#374151" transform="rotate(90 {y_label_right_x:.2} {y_label_pos_y:.2})">{az_l} (°)</text>
   <g class="vis-cursor" visibility="hidden" pointer-events="none">
     <line class="vis-cursor-line" y1="{m_top:.2}" y2="{plot_bottom:.2}" stroke="#6b7280" stroke-dasharray="3,3"/>
-    <circle class="vis-cursor-dot" r="3.5" fill="#1d4ed8"/>
+    <circle class="vis-cursor-dot" r="3.5" fill="{ELEVATION_COLOR}"/>
+    <circle class="vis-cursor-dot-az" r="3.5" fill="{AZIMUTH_COLOR}"/>
     <text class="vis-cursor-text" y="{cursor_text_y:.2}" font-size="11" font-weight="600" fill="#111827"/>
   </g>
   <rect class="vis-capture" x="{m_left:.2}" y="{m_top:.2}" width="{plot_w:.2}" height="{plot_h:.2}" fill="transparent"/>
 </svg>"##,
-        threshold = VISIBILITY_THRESHOLD_DEG,
         cursor_text_y = m_top + 14.0,
     )
 }
@@ -443,6 +554,43 @@ mod tests {
         assert_eq!(spring, 23 * 60);
         let (_, fall) = local_day_span(tz, date("2026-10-25"));
         assert_eq!(fall, 25 * 60);
+    }
+
+    #[test]
+    fn azimuth_is_only_drawn_above_the_horizon() {
+        let samples = vec![
+            (0, -5.0, 10.0),
+            (10, -1.0, 20.0),
+            (20, 3.0, 30.0),
+            (30, 8.0, 40.0),
+            (40, -2.0, 50.0),
+        ];
+        let segments = azimuth_segments(&samples);
+        assert_eq!(segments, vec![vec![(20, 30.0), (30, 40.0)]]);
+    }
+
+    #[test]
+    fn azimuth_breaks_at_the_north_seam() {
+        // 350° -> 5° is the wrap, not a sweep back across the sky.
+        let samples = vec![
+            (0, 10.0, 340.0),
+            (10, 11.0, 350.0),
+            (20, 12.0, 5.0),
+            (30, 13.0, 15.0),
+        ];
+        let segments = azimuth_segments(&samples);
+        assert_eq!(
+            segments,
+            vec![vec![(0, 340.0), (10, 350.0)], vec![(20, 5.0), (30, 15.0)],]
+        );
+    }
+
+    #[test]
+    fn lone_above_horizon_points_are_dropped() {
+        // A single point has nothing to join to and would draw nothing;
+        // it must not leave a stray one-element segment behind.
+        let samples = vec![(0, -1.0, 10.0), (10, 2.0, 20.0), (20, -1.0, 30.0)];
+        assert!(azimuth_segments(&samples).is_empty());
     }
 
     #[test]
