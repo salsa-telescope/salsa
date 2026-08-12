@@ -902,17 +902,31 @@ async fn repeat_observation_series(
         }
     }
 
-    // Leave the registry clean unless another series has already replaced
-    // this one, which would otherwise be cancelled by a later Stop meant for
-    // the newer series.
-    let mut repeats = state.active_repeats.lock().await;
-    if repeats
-        .get(&telescope_id)
-        .is_some_and(|s| s.token.is_cancelled() || series_token.is_cancelled())
-    {
-        repeats.remove(&telescope_id);
-    }
+    deregister_series(&state.active_repeats, &telescope_id, &next_start_unix_ms).await;
     info!("Repeat series on {telescope_id} ended after {completed} integration(s)");
+}
+
+/// Take this series out of the registry now that its supervisor has stopped.
+///
+/// Skipped when a later series has already replaced this one: removing that
+/// entry would strand it, still running but invisible to the Stop button.
+/// Identity is the shared countdown cell, which every series allocates for
+/// itself — comparing cancellation instead used to leave the entry behind
+/// whenever a series ended on its own rather than being cancelled (the
+/// antenna stopping tracking at sunset, say), and the page went on showing
+/// End and refusing to unlock long after the series was over.
+async fn deregister_series(
+    active_repeats: &Mutex<std::collections::HashMap<String, RepeatSeries>>,
+    telescope_id: &str,
+    next_start_unix_ms: &Arc<AtomicI64>,
+) {
+    let mut repeats = active_repeats.lock().await;
+    if repeats
+        .get(telescope_id)
+        .is_some_and(|series| Arc::ptr_eq(&series.next_start_unix_ms, next_start_unix_ms))
+    {
+        repeats.remove(telescope_id);
+    }
 }
 
 /// How long past `max_duration` the monitor waits before stopping the
@@ -1962,6 +1976,51 @@ mod tests {
     }
 
     /// Runs the monitor to completion against `telescope`, giving up after an
+    fn series_with(next_start_unix_ms: Arc<AtomicI64>) -> RepeatSeries {
+        RepeatSeries {
+            token: CancellationToken::new(),
+            next_start_unix_ms,
+        }
+    }
+
+    // A series that ends by itself must still leave the registry, or the page
+    // goes on believing one is running: End stays on the button and the
+    // controls stay locked. This is what happened on vale during the eclipse
+    // — the Sun set, the antenna stopped tracking, the series ended at
+    // 20:55, and the page was still offering End 24 minutes later.
+    #[tokio::test]
+    async fn a_series_that_ends_on_its_own_leaves_the_registry() {
+        let cell = Arc::new(AtomicI64::new(0));
+        let repeats = Mutex::new(std::collections::HashMap::from([(
+            "vale".to_string(),
+            series_with(cell.clone()),
+        )]));
+        // Nothing is cancelled: the supervisor simply stopped looping.
+        deregister_series(&repeats, "vale", &cell).await;
+        assert!(
+            repeats.lock().await.is_empty(),
+            "the finished series should have removed itself"
+        );
+    }
+
+    // The opposite hazard: a later series has already taken over, and the
+    // outgoing supervisor must not delete its entry, which would leave it
+    // running with nothing able to stop it.
+    #[tokio::test]
+    async fn a_replaced_series_leaves_its_successor_alone() {
+        let mine = Arc::new(AtomicI64::new(0));
+        let successor = Arc::new(AtomicI64::new(0));
+        let repeats = Mutex::new(std::collections::HashMap::from([(
+            "vale".to_string(),
+            series_with(successor.clone()),
+        )]));
+        deregister_series(&repeats, "vale", &mine).await;
+        assert!(
+            repeats.lock().await.contains_key("vale"),
+            "the successor's registration must survive the old series ending"
+        );
+    }
+
     /// Saves `spectra` against a real (in-memory) schema and reports how many
     /// observation rows ended up in the archive.
     async fn saved_rows_for(spectra: &ObservedSpectra) -> i64 {
