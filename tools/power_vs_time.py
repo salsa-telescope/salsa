@@ -126,6 +126,12 @@ def fetch(conn, telescope, target, since_unix, until_unix, stat, channels):
         amps = [a for a in amps if isinstance(a, (int, float))]
         if not amps:
             continue
+        # An all-zero spectrum is not a measurement: it is the buffer a run
+        # was stopped before it could fill. Releases before v1.5.3 filed
+        # those as 0 s observations, so old archives still contain them, and
+        # a zero point drags the whole y-axis down to meet it.
+        if not any(amps):
+            continue
         value = statistics.median(amps) if stat == "median" else sum(amps) / len(amps)
         points.append((start_time, value, elevation, mode or "?"))
     return points
@@ -236,9 +242,27 @@ def build_svg(points, tz, relative, stat):
         f'y2="{plot_bottom:.1f}" stroke="{AXIS}"/>'
     )
 
+    # Break the line across gaps far longer than the run's own cadence. A
+    # straight line from an afternoon test to an evening run would draw hours
+    # of data that were never taken. The dots still mark the real samples.
+    gaps = [later - earlier for earlier, later in zip(times, times[1:])]
+    cadence = statistics.median(gaps) if gaps else 0
+    max_join = max(cadence * 5, 60) if cadence else float("inf")
+    segments, current = [], []
+    previous = None
+    for t, v in zip(times, values):
+        if previous is not None and t - previous > max_join:
+            segments.append(current)
+            current = []
+        current.append((t, v))
+        previous = t
+    segments.append(current)
     path = " ".join(
-        f"{'M' if i == 0 else 'L'} {x_for(t):.2f} {y_for(v):.2f}"
-        for i, (t, v) in enumerate(zip(times, values))
+        " ".join(
+            f"{'M' if i == 0 else 'L'} {x_for(t):.2f} {y_for(v):.2f}"
+            for i, (t, v) in enumerate(segment)
+        )
+        for segment in segments
     )
     parts.append(f'<path d="{path}" fill="none" stroke="{LINE_COLOR}" stroke-width="1.8"/>')
     # Individual integrations are worth seeing while they are still countable.
