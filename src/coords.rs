@@ -30,8 +30,9 @@ pub const ONSALA_LOCATION: Location = Location {
 /// Recommended lower elevation limit at the SALSA site: below this the
 /// ground and surrounding buildings degrade the spectrum. Used as the
 /// visibility-planner threshold and the low-elevation warning limit.
-/// Mirrored in assets/observation_chart.js (archive view highlight) and
-/// quoted in templates/visibility.html — update those too when changing.
+/// Mirrored in assets/observation_chart.js (archive view highlight) — update
+/// that too when changing. The visibility planner reads this constant for
+/// both its threshold line and the limit quoted in its intro text.
 pub const PRACTICAL_ELEVATION_LIMIT_DEG: f64 = 15.0;
 
 #[derive(Serialize, Deserialize, PartialEq, Debug, Copy, Clone)]

@@ -42,6 +42,10 @@ const SAMPLE_STEP_MIN: i64 = 10;
 // the pair never relies on colour alone.
 const ELEVATION_COLOR: &str = "#1d4ed8";
 const AZIMUTH_COLOR: &str = "#be185d";
+// The threshold line and its label, in the app's `warning` token rather than
+// a raw Tailwind amber. Dark enough to clear 4.5:1 against the plot surface,
+// where the old amber managed 2.06:1 and relied on the label to be readable.
+const THRESHOLD_COLOR: &str = "#9a6a07";
 
 pub fn routes() -> Router {
     Router::new().route("/", get(get_visibility))
@@ -72,6 +76,9 @@ struct VisibilityTemplate {
     y: String,
     date: String,
     tz_name: String,
+    /// Rendered into the intro text, so the page quotes the same limit the
+    /// chart draws rather than a number that has to be kept in step by hand.
+    threshold_deg: String,
     error: Option<String>,
     result: Option<VisibilityResult>,
 }
@@ -123,6 +130,7 @@ async fn get_visibility(
         y: format!("{y_val}"),
         date: date_str,
         tz_name: tz.name().to_string(),
+        threshold_deg: format!("{VISIBILITY_THRESHOLD_DEG:.0}"),
         error,
         result,
     };
@@ -498,8 +506,8 @@ fn build_svg(
   {x_ticks}
   {y_ticks}
   {y_ticks_right}
-  <line x1="{m_left:.2}" y1="{y_thresh:.2}" x2="{plot_right:.2}" y2="{y_thresh:.2}" stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="4,3"/>
-  <text x="{plot_right:.2}" y="{y_thresh:.2}" dx="-4" dy="-4" text-anchor="end" font-size="11" fill="#b45309">{thresh_l}</text>
+  <line x1="{m_left:.2}" y1="{y_thresh:.2}" x2="{plot_right:.2}" y2="{y_thresh:.2}" stroke="{THRESHOLD_COLOR}" stroke-width="1.5" stroke-dasharray="4,3"/>
+  <text x="{plot_right:.2}" y="{y_thresh:.2}" dx="-4" dy="-4" text-anchor="end" font-size="11" fill="{THRESHOLD_COLOR}">{thresh_l}</text>
   <path d="{az_path}" fill="none" stroke="{AZIMUTH_COLOR}" stroke-width="1.5" stroke-dasharray="6,4"/>
   <path d="{path}" fill="none" stroke="{ELEVATION_COLOR}" stroke-width="1.5"/>
   <text x="{x_label_pos:.2}" y="{x_label_y:.2}" text-anchor="middle" font-size="12" fill="#374151">{axis_l}</text>

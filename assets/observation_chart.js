@@ -687,7 +687,8 @@ function loadObservation(id) {
       titleLine1.append("tspan").text(titlePre);
       if (hasAzEl) {
         titleLine1.append("tspan")
-          .attr("fill", lowElevation ? "#b45309" : null)
+          // The `warning` token, same as the visibility planner's threshold.
+          .attr("fill", lowElevation ? "#9a6a07" : null)
           .attr("font-weight", lowElevation ? "600" : null)
           .text(azElStr);
       }
