@@ -459,6 +459,61 @@ fn start_one_second_integration(server: &SalsaTestServer, client: &Client) {
     assert_eq!(StatusCode::OK, res.status());
 }
 
+// A blank repeat field means "just the one integration", and the browser
+// submits it as `repeat_interval_secs=`. That empty value used to fail form
+// deserialization outright, so the request was answered with a 422 and no
+// integration ever started — the Start button changed to End, but no data
+// arrived. Filling the field in was what made observing work at all.
+// Integration time gets the same treatment: it too can be cleared by hand.
+#[test]
+fn a_blank_repeat_interval_starts_a_single_integration() {
+    let server = SalsaTestServer::spawn();
+    let user = server.add_local_user("blank_repeat_user", "password");
+    let client = Client::builder().cookie_store(true).build().unwrap();
+    server.login(&client, &user);
+    book_and_point(&server, &client, "140");
+
+    let res = client
+        .post(server.addr() + "/observe/fake1/observe")
+        .form(&[
+            ("mode", "FreqSwitched"),
+            ("center_freq_mhz", "1420.0"),
+            ("ref_freq_mhz", "1417.9"),
+            ("bandwidth_mhz", "2.5"),
+            ("gain_db", "60"),
+            ("spectral_channels", "512"),
+            ("rfi_filter", "true"),
+            ("integration_mode", "fixed"),
+            ("integration_time_secs", "1"),
+            ("repeat_interval_secs", ""),
+        ])
+        .send()
+        .expect("Should be able to start observation");
+    assert_eq!(StatusCode::OK, res.status());
+
+    std::thread::sleep(std::time::Duration::from_secs(4));
+    let saved = server.saved_observations();
+    assert_eq!(
+        1,
+        saved.len(),
+        "a blank repeat field should run exactly one integration, got {saved:?}"
+    );
+}
+
+// The same empty-number-field trap on the visibility planner: clearing the
+// coordinate boxes used to answer with a bare 400 instead of the page.
+#[test]
+fn visibility_page_tolerates_cleared_coordinate_fields() {
+    let server = SalsaTestServer::spawn();
+    let client = Client::builder().cookie_store(true).build().unwrap();
+
+    let res = client
+        .get(server.addr() + "/visibility?coord=galactic&x=&y=&date=2026-08-12")
+        .send()
+        .expect("Should be able to request the visibility page");
+    assert_eq!(StatusCode::OK, res.status());
+}
+
 // Consecutive observations must each reach the archive. Starting a new run
 // while the previous one is finished but not yet reaped used to be a silent
 // no-op: the receiver was still flagged as integrating, so nothing started and

@@ -1042,13 +1042,13 @@ struct ObserveForm {
     rfi_filter: bool,
     #[serde(default)]
     integration_mode: Option<String>, // "interactive" (default) or "fixed"
-    #[serde(default)]
+    #[serde(default, deserialize_with = "crate::routes::empty_as_none")]
     integration_time_secs: Option<f64>,
     /// Start a new fixed integration this often, until stopped. `None` runs a
     /// single integration, which is the behaviour when the field is left
     /// empty. Only meaningful in `fixed` mode — an interactive run has no
     /// defined end, so there is nothing to repeat.
-    #[serde(default)]
+    #[serde(default, deserialize_with = "crate::routes::empty_as_none")]
     repeat_interval_secs: Option<f64>,
 }
 

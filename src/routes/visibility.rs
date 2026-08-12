@@ -42,7 +42,11 @@ pub fn routes() -> Router {
 #[derive(Deserialize, Default)]
 struct VisibilityForm {
     coord: Option<String>,
+    // Cleared number inputs arrive as `x=`, which plain `Option<f64>` would
+    // reject with a bare 400 instead of falling back to the default target.
+    #[serde(default, deserialize_with = "crate::routes::empty_as_none")]
     x: Option<f64>,
+    #[serde(default, deserialize_with = "crate::routes::empty_as_none")]
     y: Option<f64>,
     date: Option<String>,
 }
