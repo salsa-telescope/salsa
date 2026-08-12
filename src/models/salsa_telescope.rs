@@ -842,7 +842,15 @@ fn measure(
     let gain: f64 = config.gain_db;
     let mode = config.mode;
 
-    // Setup usrp for taking data
+    // Setup usrp for taking data. Opening and configuring the device takes
+    // about a second on an N210 and none of it is cancellation-aware, so a
+    // stop arriving during startup has to wait it out. Check on the way in
+    // and again on the way out, so at least a stop that lands before the
+    // open returns immediately rather than paying for a device we are about
+    // to abandon.
+    if cancellation_token.is_cancelled() {
+        return Ok(());
+    }
     let args = format!("addr={}", address);
     let mut usrp = Usrp::open(&args)
         .map_err(|e| TelescopeError::ReceiverFailed(format!("open USRP at {address}: {e}")))?;
@@ -864,6 +872,14 @@ fn measure(
 
     let tsys = tsys_k;
     info!("Tsys = {:.1} K (from config)", tsys);
+
+    // Nothing has been integrated yet, so leaving now costs no data. Bail
+    // before pushing the measurement rather than after: a pushed but empty
+    // measurement is what `stop_integration` hands back, and a zero-cycle
+    // spectrum used to reach the archive as a 0 s observation.
+    if cancellation_token.is_cancelled() {
+        return Ok(());
+    }
 
     {
         let mut measurements = measurements.blocking_lock();

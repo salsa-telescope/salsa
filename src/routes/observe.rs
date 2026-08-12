@@ -37,6 +37,7 @@ use serde::Deserialize;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicI64, Ordering};
+use std::time::Instant;
 use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, warn};
@@ -511,9 +512,15 @@ pub(crate) async fn stop_and_save_observation(
 ) {
     // get_info before stop so the snapshot reflects the integration's target:
     // callers such as `set_target` move the telescope immediately afterwards.
+    let info_started = Instant::now();
     let info_before_stop = telescope.get_info().await;
+    let info_ms = info_started.elapsed().as_millis();
 
-    let Some(spectra) = telescope.stop_integration().await else {
+    let stop_started = Instant::now();
+    let stop_result = telescope.stop_integration().await;
+    let stop_ms = stop_started.elapsed().as_millis();
+
+    let Some(spectra) = stop_result else {
         // Routine when nothing was running — the reaps in `set_target` and
         // `start_observe` call this unconditionally. `stop_integration` logs
         // the cases where an integration *was* running but yielded nothing.
@@ -542,7 +549,18 @@ pub(crate) async fn stop_and_save_observation(
             }
         }
     };
+    let save_started = Instant::now();
     save_observation(connection, user, &info, &spectra, tle_cache).await;
+    // One line per real stop — the early return above means this never fires
+    // for the routine no-op reaps. `integration exit` is the wait for the
+    // measurement loop to notice the cancellation and hand back its spectrum,
+    // which it can only do at a cycle boundary; compare the total against the
+    // "slow request" line to see what the surrounding page render costs.
+    info!(
+        "Stop timing on {}: info {info_ms} ms, integration exit {stop_ms} ms, save {} ms",
+        info.id,
+        save_started.elapsed().as_millis()
+    );
 }
 
 pub(crate) async fn save_observation(
@@ -562,6 +580,19 @@ pub(crate) async fn save_observation(
         return;
     }
     let integration_time_secs = spectra.observation_time.as_secs_f64();
+    // A spectrum with no completed cycles is not an observation: its
+    // amplitudes are still the zeros the measurement was initialised with.
+    // This happens when a stop lands on an integration that is still
+    // starting up, which the measurement loop now bails out of before
+    // pushing anything — but the check is cheap and covers every backend.
+    if integration_time_secs <= 0.0 {
+        info!(
+            "Not saving observation on {}: the integration was stopped before it \
+             completed a cycle, so there is no spectrum",
+            info.id
+        );
+        return;
+    }
     // Taken from the measurement rather than derived as `now - observation_time`:
     // `observation_time` counts sample time only, so subtracting it from now
     // would place the start of a long run well after it actually began.
@@ -1311,6 +1342,10 @@ async fn stop_observe(
         &state.tle_cache,
     )
     .await;
+    // The stop itself is timed inside `stop_and_save_observation`; this covers
+    // everything the response still needs after it, so the two together
+    // account for the request the "slow request" line reports.
+    let render_started = Instant::now();
     let guest_session = maybe_guest_session_for(&state, &user).await;
     let in_maintenance = fetch_maintenance_set(state.database_connection.clone())
         .await
@@ -1326,6 +1361,10 @@ async fn stop_observe(
         active_repeat_series(&state, &telescope_id).await.as_ref(),
     )
     .await?;
+    let render_ms = render_started.elapsed().as_millis();
+    if render_ms > 100 {
+        info!("Stop timing on {telescope_id}: page render {render_ms} ms");
+    }
     Ok(Html(content))
 }
 
@@ -1923,6 +1962,76 @@ mod tests {
     }
 
     /// Runs the monitor to completion against `telescope`, giving up after an
+    /// Saves `spectra` against a real (in-memory) schema and reports how many
+    /// observation rows ended up in the archive.
+    async fn saved_rows_for(spectra: &ObservedSpectra) -> i64 {
+        let mut connection = Connection::open_in_memory().expect("in-memory sqlite");
+        crate::database::apply_migrations(&mut connection).expect("migrations should apply");
+        // observation.user_id is a foreign key, and production turns
+        // enforcement on, so the row has to exist for the insert to land.
+        connection
+            .execute(
+                "INSERT INTO user (id, username, provider) VALUES (1, 'observer', 'local')",
+                [],
+            )
+            .expect("test user should insert");
+        connection
+            .execute("PRAGMA foreign_keys = ON", [])
+            .expect("foreign keys should be enablable");
+        let user = User {
+            id: 1,
+            name: "observer".to_string(),
+            provider: "local".to_string(),
+            is_admin: false,
+            timezone: None,
+            language: None,
+        };
+        let mut info = mock_info();
+        // save_observation refuses a spectrum it cannot file against a target,
+        // which would mask the check under test.
+        info.current_target = Some(TelescopeTarget::Galactic {
+            longitude: 0.0,
+            latitude: 0.0,
+        });
+        let connection = Arc::new(Mutex::new(connection));
+        save_observation(
+            connection.clone(),
+            &user,
+            &info,
+            spectra,
+            &TleCacheHandle::new(),
+        )
+        .await;
+        let connection = connection.lock().await;
+        connection
+            .query_row("SELECT COUNT(*) FROM observation", [], |row| row.get(0))
+            .expect("count should be queryable")
+    }
+
+    // A stop landing on an integration that has not completed a cycle yields a
+    // spectrum that is still all zeros, and saving it put a 0 s observation in
+    // the archive (seen on vale, 2026-08-12, when End raced a repeat cycle
+    // that was still opening the USRP).
+    #[tokio::test]
+    async fn a_zero_length_integration_is_not_saved() {
+        assert_eq!(
+            0,
+            saved_rows_for(&observed_for(std::time::Duration::ZERO)).await,
+            "an integration that completed no cycles is not an observation"
+        );
+    }
+
+    // The guard must be specific to the empty case: a real short run still has
+    // to reach the archive.
+    #[tokio::test]
+    async fn a_short_but_real_integration_is_saved() {
+        assert_eq!(
+            1,
+            saved_rows_for(&observed_for(std::time::Duration::from_secs(1))).await,
+            "a completed one second integration should still be saved"
+        );
+    }
+
     /// hour of (paused, so instantaneous) time. `false` means it never
     /// returned. A guest user keeps `save_observation` from touching the DB.
     async fn run_monitor(telescope: Arc<MockTelescope>, max_duration: std::time::Duration) -> bool {
