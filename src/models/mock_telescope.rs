@@ -89,6 +89,13 @@ pub struct MockTelescope {
     hang_on_shutdown: bool,
     /// Set once `shutdown` has been entered, whether or not it returned.
     shutdown_called: AtomicBool,
+    /// How long `stop_integration` takes before it yields its spectrum.
+    ///
+    /// A real stop is not instant: `SalsaTelescope` marks the receiver
+    /// stopped, then awaits the measurement task for the best part of a
+    /// second before the spectrum can be read. Tests about what happens
+    /// *during* that gap need a mock that actually has one.
+    stop_delay: Option<std::time::Duration>,
 }
 
 impl MockTelescope {
@@ -102,6 +109,7 @@ impl MockTelescope {
             polls_at_stop: AtomicU64::new(0),
             hang_on_shutdown: false,
             shutdown_called: AtomicBool::new(false),
+            stop_delay: None,
         })
     }
 
@@ -118,6 +126,23 @@ impl MockTelescope {
             polls_at_stop: AtomicU64::new(0),
             hang_on_shutdown: true,
             shutdown_called: AtomicBool::new(false),
+            stop_delay: None,
+        })
+    }
+
+    /// Reports `info`, and takes `delay` to hand back its spectrum, standing
+    /// in for the measurement task a real stop has to wait out.
+    pub fn with_slow_stop(
+        info: Result<TelescopeInfo, TelescopeError>,
+        delay: std::time::Duration,
+    ) -> Arc<Self> {
+        Arc::new(MockTelescope {
+            info: Box::new(move |_| info.clone()),
+            polls: AtomicU64::new(0),
+            polls_at_stop: AtomicU64::new(0),
+            hang_on_shutdown: false,
+            shutdown_called: AtomicBool::new(false),
+            stop_delay: Some(delay),
         })
     }
 
@@ -148,6 +173,9 @@ impl Telescope for MockTelescope {
         // from never having been called.
         self.polls_at_stop
             .store(self.polls.load(Ordering::SeqCst).max(1), Ordering::SeqCst);
+        if let Some(delay) = self.stop_delay {
+            tokio::time::sleep(delay).await;
+        }
         Some(observed_for(std::time::Duration::from_secs(1)))
     }
 

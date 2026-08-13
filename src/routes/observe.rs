@@ -383,11 +383,11 @@ async fn set_target(
     // `start_observe`: an integration whose measurement loop has finished but
     // whose `active_integration` has not been reaped yet still counts as
     // running, and starting on top of it silently does nothing.
-    stop_and_save_observation(
-        telescope.as_ref(),
+    stop_and_save_detached(
+        telescope.clone(),
         state.database_connection.clone(),
-        &user,
-        &state.tle_cache,
+        user.clone(),
+        state.tle_cache.clone(),
     )
     .await;
 
@@ -561,6 +561,35 @@ pub(crate) async fn stop_and_save_observation(
         info.id,
         save_started.elapsed().as_millis()
     );
+}
+
+/// Run [`stop_and_save_observation`] where an abandoned request cannot take
+/// the spectrum with it.
+///
+/// `stop_integration` marks the receiver stopped and lifts the integration out
+/// of the telescope *before* it awaits the measurement task, and that await is
+/// the best part of a second — 0.8 to 2.2 s on vale. From the moment it
+/// begins, the spectrum exists nowhere but in this future. A request that ends
+/// early takes the future down with it, so the telescope stops and the
+/// observation is simply lost, silently: the code never reaches any of the
+/// paths that would complain.
+///
+/// That happened on torre on 2026-08-13 — "Stopping integration on torre" and
+/// then nothing at all, no save and no error. Running the sequence on its own
+/// task decouples it from the request; awaiting the handle keeps the response
+/// honest for a client that is still listening.
+pub(crate) async fn stop_and_save_detached(
+    telescope: Arc<dyn Telescope>,
+    connection: Arc<Mutex<Connection>>,
+    user: User,
+    tle_cache: TleCacheHandle,
+) {
+    let task = tokio::spawn(async move {
+        stop_and_save_observation(telescope.as_ref(), connection, &user, &tle_cache).await;
+    });
+    if let Err(err) = task.await {
+        error!("The stop-and-save task did not finish: {err}");
+    }
 }
 
 pub(crate) async fn save_observation(
@@ -1024,20 +1053,17 @@ async fn stop_telescope(
         .get(&telescope_id)
         .await
         .ok_or(StatusCode::NOT_FOUND)?;
-    let info = telescope.get_info().await.map_err(|err| {
-        error!("Failed to get telescope info: {err}");
-        StatusCode::INTERNAL_SERVER_ERROR
-    })?;
-    if let Some(spectra) = telescope.stop_integration().await {
-        save_observation(
-            state.database_connection,
-            &user,
-            &info,
-            &spectra,
-            &state.tle_cache,
-        )
-        .await;
-    }
+    // Through the shared path rather than its own copy of it: this used to
+    // inline get_info → stop_integration → save_observation, which meant it
+    // missed the timing log every other stop emits and the retry that keeps a
+    // spectrum when the telescope's info cannot be read.
+    stop_and_save_detached(
+        telescope.clone(),
+        state.database_connection.clone(),
+        user.clone(),
+        state.tle_cache.clone(),
+    )
+    .await;
     telescope.stop().await.map_err(|err| {
         error!("Failed to stop telescope: {err}.");
         StatusCode::INTERNAL_SERVER_ERROR
@@ -1214,11 +1240,11 @@ async fn start_observe(
     // integration is still open is a silent no-op down in
     // `set_receiver_configuration` — no measurement task, no cleared buffer —
     // so the new run has to begin from a genuinely idle receiver.
-    stop_and_save_observation(
-        telescope.as_ref(),
+    stop_and_save_detached(
+        telescope.clone(),
         state.database_connection.clone(),
-        &user,
-        &state.tle_cache,
+        user.clone(),
+        state.tle_cache.clone(),
     )
     .await;
 
@@ -1349,11 +1375,11 @@ async fn stop_observe(
     // would race it into launching a fresh run just as the user stops.
     cancel_repeat_series(&state, &telescope_id).await;
 
-    stop_and_save_observation(
-        telescope.as_ref(),
+    stop_and_save_detached(
+        telescope.clone(),
         state.database_connection.clone(),
-        &user,
-        &state.tle_cache,
+        user.clone(),
+        state.tle_cache.clone(),
     )
     .await;
     // The stop itself is timed inside `stop_and_save_observation`; this covers
@@ -1816,6 +1842,7 @@ mod tests {
     use super::*;
     use crate::models::mock_telescope::{MockTelescope, direction, mock_info, observed_for};
     use crate::models::telescope_types::TelescopeStatus;
+    use std::future::Future;
     use tokio_util::sync::CancellationToken;
 
     /// What the mock telescope reports to the integration monitor. None of
@@ -1976,6 +2003,86 @@ mod tests {
     }
 
     /// Runs the monitor to completion against `telescope`, giving up after an
+    /// An in-memory archive with the user the observation is filed against.
+    async fn archive() -> Arc<Mutex<Connection>> {
+        let mut connection = Connection::open_in_memory().expect("in-memory sqlite");
+        crate::database::apply_migrations(&mut connection).expect("migrations should apply");
+        connection
+            .execute(
+                "INSERT INTO user (id, username, provider) VALUES (1, 'observer', 'local')",
+                [],
+            )
+            .expect("test user should insert");
+        Arc::new(Mutex::new(connection))
+    }
+
+    async fn rows(connection: &Arc<Mutex<Connection>>) -> i64 {
+        connection
+            .lock()
+            .await
+            .query_row("SELECT COUNT(*) FROM observation", [], |row| row.get(0))
+            .expect("count should be queryable")
+    }
+
+    fn observer() -> User {
+        User {
+            id: 1,
+            name: "observer".to_string(),
+            provider: "local".to_string(),
+            is_admin: false,
+            timezone: None,
+            language: None,
+        }
+    }
+
+    // The spectrum is lifted out of the telescope before the measurement task
+    // is awaited, so for a second or two it exists only inside the request's
+    // future. When that future was the request itself, a browser navigating
+    // away destroyed the observation and left the telescope stopped — silently,
+    // since the code never reached any path that logs. Seen on torre,
+    // 2026-08-13. The save has to outlive the request.
+    #[tokio::test]
+    async fn a_stop_whose_request_is_abandoned_still_saves() {
+        let connection = archive().await;
+        let mut info = mock_info();
+        info.current_target = Some(TelescopeTarget::Galactic {
+            longitude: 0.0,
+            latitude: 0.0,
+        });
+        // A stop that yields, as a real one does while it waits out the
+        // measurement task. Without that gap there is nothing to interrupt.
+        let telescope: Arc<dyn Telescope> =
+            MockTelescope::with_slow_stop(Ok(info), std::time::Duration::from_millis(50));
+
+        {
+            let mut stopping = Box::pin(stop_and_save_detached(
+                telescope.clone(),
+                connection.clone(),
+                observer(),
+                TleCacheHandle::new(),
+            ));
+            // Exactly one poll, by hand: enough to spawn the work, and no
+            // chance for the runtime to finish it. Awaiting anything here
+            // instead would hand control back to the runtime, the task would
+            // run to completion, and the test would prove nothing.
+            let progress = stopping
+                .as_mut()
+                .poll(&mut std::task::Context::from_waker(std::task::Waker::noop()));
+            assert!(
+                progress.is_pending(),
+                "the save should still be in flight when the request is dropped"
+            );
+        } // the request goes away here, taking its future with it
+
+        for _ in 0..200 {
+            if rows(&connection).await == 1 {
+                return;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+        panic!("the abandoned stop never saved its spectrum");
+    }
+
     fn series_with(next_start_unix_ms: Arc<AtomicI64>) -> RepeatSeries {
         RepeatSeries {
             token: CancellationToken::new(),
