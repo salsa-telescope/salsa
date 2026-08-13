@@ -16,7 +16,8 @@ Panels are chosen with --x, which takes any of time, azimuth and elevation:
     python3 solar_plot.py solar.csv --x time,azimuth,elevation
 
 Time is plotted as time of day, so runs that started at different hours still
-overlay. Power is the power_pct column, each day against its own baseline;
+overlay. --time HH:MM-HH:MM narrows every day to the same clock window, which
+is the way to line two evenings up on the part that matters. Power is the power_pct column, each day against its own baseline;
 --absolute plots the raw power instead, which is only worth doing within a
 single day since the scale drifts between runs.
 
@@ -84,6 +85,26 @@ def read_csv(path):
     for points in days.values():
         points.sort(key=lambda p: p["when"])
     return days
+
+
+def clock_window(text):
+    try:
+        start, end = text.split("-")
+        return (
+            datetime.strptime(start.strip(), "%H:%M").time(),
+            datetime.strptime(end.strip(), "%H:%M").time(),
+        )
+    except ValueError:
+        raise argparse.ArgumentTypeError("--time wants HH:MM-HH:MM, e.g. 17:00-20:00")
+
+
+def within(when, window):
+    """Whether a timestamp falls inside a clock window, midnight-safe."""
+    start, end = window
+    clock = when.time()
+    if start <= end:
+        return start <= clock <= end
+    return clock >= start or clock <= end
 
 
 def hhmm(hours, _pos=None):
@@ -162,6 +183,14 @@ def main():
         action="store_true",
         help="plot raw power rather than each day's percentage of its own baseline",
     )
+    parser.add_argument(
+        "--time",
+        type=clock_window,
+        metavar="HH:MM-HH:MM",
+        help="keep only observations inside this clock window, applied to every day. "
+        "The percentages keep the baseline they were exported with, so narrowing "
+        "the view does not move the 100%% line.",
+    )
     parser.add_argument("--save", metavar="FILE", help="write the figure here as well")
     parser.add_argument(
         "--no-show", action="store_true", help="skip the window; useful with --save"
@@ -178,6 +207,16 @@ def main():
     days = read_csv(args.csv)
     if not days:
         sys.exit(f"No rows in {args.csv}.")
+
+    if args.time:
+        days = OrderedDict(
+            (date, kept)
+            for date, points in days.items()
+            if (kept := [p for p in points if within(p["when"], args.time)])
+        )
+        if not days:
+            start, end = args.time
+            sys.exit(f"No observations between {start:%H:%M} and {end:%H:%M} on any day.")
 
     value_key = "power" if args.absolute else "power_pct"
     y_label = "Power (arb. units)" if args.absolute else "Power (% of each day's baseline)"
@@ -214,8 +253,12 @@ def main():
         if len(days) > 1:
             axes.legend(frameon=False, fontsize=9, labelcolor=MUTED)
 
+    window = ""
+    if args.time:
+        start, end = args.time
+        window = f"    {start:%H:%M}–{end:%H:%M}"
     axes_list[0].set_title(
-        f"{' · '.join(days)}    {sum(len(p) for p in days.values())} observations",
+        f"{' · '.join(days)}    {sum(len(p) for p in days.values())} observations{window}",
         color=INK,
         fontsize=11,
         loc="left",
