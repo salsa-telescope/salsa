@@ -43,6 +43,11 @@ i18n-embed-fl = "0.10.0"
 rust-embed = "8.12.0"
 unic-langid = "0.9.6"
 
+[build-dependencies]
+# Verifies the pinned SHA-256 of the Tailwind binary that build.rs downloads,
+# so a tampered download fails the build instead of being executed.
+sha2 = "0.10"
+
 [dev-dependencies]
 tempfile = "*"
 # Self-signed certificates for the cert_watcher tests, generated in-process so

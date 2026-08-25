@@ -22,11 +22,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Install libuhd
         run: sudo apt-get update && sudo apt-get install -y libuhd-dev
       - name: Cache target folder
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: target/release
           # Include the dependency lockfile in the key so the cache is
@@ -36,8 +36,8 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-rust-build-
       - name: Build
-        run: cargo build --verbose --release
-      - uses: actions/upload-artifact@v6
+        run: cargo build --locked --verbose --release
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: salsa
           path: |
@@ -45,11 +45,11 @@ jobs:
             sql_migrations/**
             assets/**
       - name: Run tests
-        run: cargo test --verbose --release
+        run: cargo test --locked --verbose --release
       - name: Check format
         run: cargo fmt --check --verbose
       - name: Clippy
-        run: cargo clippy --all-targets --release -- -D warnings
+        run: cargo clippy --locked --all-targets --release -- -D warnings
 
   deploy:
     needs: build
@@ -65,7 +65,7 @@ jobs:
       - name: Stop salsa
         run: |
           sudo systemctl stop salsa.service
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
           name: salsa
           path: /home/salsa/bin
