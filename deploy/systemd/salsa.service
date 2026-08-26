@@ -1,6 +1,11 @@
 [Unit]
 Description=Salsa
-After=network.target
+# network.target only means networking is starting, not that an address is
+# configured. Starting before then, every outbound fetch at boot (TLE, weather,
+# webcam) fails and the telescope controllers are unreachable until the retries
+# catch up.
+Wants=network-online.target
+After=network-online.target
 
 [Service]
 User=salsa
