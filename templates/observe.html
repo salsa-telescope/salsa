@@ -84,6 +84,10 @@
               <select id="satellite-select" class="border rounded px-2 py-1 bg-white w-full text-sm">
                 <option value="">{{ lang.t("observe-loading") }}</option>
               </select>
+              <p id="satellite-status" class="hidden mt-1 text-sm"
+                data-msg-unavailable="{{ lang.t("satellite-js-unavailable") }}"
+                data-msg-stale="{{ lang.t("satellite-js-stale") }}"
+                data-msg-none="{{ lang.t("satellite-js-none") }}"></p>
             </div>
             <button id="track-btn"
               hx-post="/observe/{{ info.id }}/set-target"
@@ -591,8 +595,39 @@
       return s.name + ' (az ' + s.azimuth_deg.toFixed(1) + '°, el ' + s.elevation_deg.toFixed(1) + '°)';
   }
 
+  // Reflect why the picker looks the way it does. An empty list alone cannot
+  // say whether nothing is up or nothing was ever downloaded, so the server
+  // sends the freshness of the elements along with the satellites.
+  function showSatelliteStatus(status, ageDays) {
+      const el = document.getElementById('satellite-status');
+      if (!el) return;
+      if (status === 'unavailable') {
+          el.textContent = el.dataset.msgUnavailable;
+          el.className = 'mt-1 text-sm text-danger';
+      } else if (status === 'stale') {
+          el.textContent = el.dataset.msgStale.replace('%n%', ageDays);
+          el.className = 'mt-1 text-sm text-warning';
+      } else {
+          el.className = 'hidden mt-1 text-sm';
+      }
+  }
+
   function rebuildSatelliteOptions(sel, sats) {
       sel.innerHTML = '';
+      if (sats.length === 0) {
+          // Leaving the dropdown completely blank reads as a broken page.
+          const opt = document.createElement('option');
+          opt.value = '';
+          const status = document.getElementById('satellite-status');
+          opt.textContent = status ? status.dataset.msgNone : '';
+          sel.appendChild(opt);
+          // Not disabled: a disabled sole option cannot become the selection,
+          // which leaves the closed dropdown rendering blank — the very thing
+          // the placeholder is here to avoid. set-target rejects the empty
+          // value anyway.
+          sel.selectedIndex = 0;
+          return;
+      }
       const groups = {};
       sats.forEach(s => {
           const grp = satConstellation(s.name);
@@ -619,7 +654,9 @@
   function fetchSatellites(initial) {
       fetch('/observe/{{ info.id }}/satellites')
           .then(r => r.json())
-          .then(sats => {
+          .then(data => {
+              const sats = data.satellites || [];
+              showSatelliteStatus(data.status, data.age_days);
               const sel = document.getElementById('satellite-select');
               const prev = sel.value || document.querySelector("form input[name='x']").value;
               const byId = new Map(sats.map(s => [String(s.norad_id), s]));

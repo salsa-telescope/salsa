@@ -308,6 +308,12 @@ webcam-unavailable = Webbkameran är inte tillgänglig — ingen bild från kame
 age-secs = { $n } s sedan
 age-mins = { $n } min sedan
 
+## Satellitväljaren. Varianterna med -js- fylls i av sidans JS med %n%.
+
+satellite-js-unavailable = Satellitpositioner otillgängliga — inga banelement har hämtats. Kontakta support om problemet kvarstår.
+satellite-js-stale = Banelementen är %n% dagar gamla — satellitpositionerna kan vara felaktiga.
+satellite-js-none = Inga satelliter tillgängliga
+
 ## Weather fragment. The -js- variants are filled in by page JS with %n%.
 
 weather-heading = Väder i Onsala

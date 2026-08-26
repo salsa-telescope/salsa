@@ -189,7 +189,7 @@ pub async fn create_app(config_dir: &Path, database_dir: &Path) -> (Router, AppS
     let guest_config = Arc::new(salsa_config.guests);
     let webcam_config = salsa_config.webcam;
 
-    let tle_cache = TleCacheHandle::new();
+    let tle_cache = TleCacheHandle::with_persistence(database_dir);
     start_tle_refresh(tle_cache.clone());
     let weather_cache = WeatherCacheHandle::new();
     start_weather_refresh(weather_cache.clone());

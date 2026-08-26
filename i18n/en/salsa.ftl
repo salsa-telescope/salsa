@@ -308,6 +308,12 @@ webcam-unavailable = Webcam unavailable — no image from camera. Please contact
 age-secs = { $n }s ago
 age-mins = { $n }min ago
 
+## Satellite picker. The -js- variants are filled in by page JS with %n%.
+
+satellite-js-unavailable = Satellite positions unavailable — no orbital elements have been downloaded. Please contact support if this problem persists.
+satellite-js-stale = Orbital elements are %n% days old — satellite positions may be inaccurate.
+satellite-js-none = No satellites available
+
 ## Weather fragment. The -js- variants are filled in by page JS with %n%.
 
 weather-heading = Weather at Onsala

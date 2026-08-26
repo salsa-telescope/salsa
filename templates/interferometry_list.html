@@ -39,6 +39,7 @@
         <select id="satellite-select" class="border rounded px-2 py-1 w-64" onchange="satelliteChanged()">
           <option value="">Loading…</option>
         </select>
+        <p id="satellite-status" class="hidden text-sm"></p>
       </div>
     </div>
 
@@ -319,8 +320,37 @@
     return s.name + ' (az ' + s.azimuth_deg.toFixed(1) + '°, el ' + s.elevation_deg.toFixed(1) + '°)';
   }
 
+  // Reflect why the picker looks the way it does. An empty list alone cannot
+  // say whether nothing is up or nothing was ever downloaded, so the server
+  // sends the freshness of the elements along with the satellites.
+  function showSatelliteStatus(status, ageDays) {
+    const el = document.getElementById('satellite-status');
+    if (!el) return;
+    if (status === 'unavailable') {
+      el.textContent = 'Satellite positions unavailable — no orbital elements have been downloaded. Please contact support if this problem persists.';
+      el.className = 'text-sm text-danger';
+    } else if (status === 'stale') {
+      el.textContent = 'Orbital elements are ' + ageDays + ' days old — satellite positions may be inaccurate.';
+      el.className = 'text-sm text-warning';
+    } else {
+      el.className = 'hidden text-sm';
+    }
+  }
+
   function rebuildSatelliteOptions(sel, sats) {
     sel.innerHTML = '';
+    if (sats.length === 0) {
+      // Leaving the dropdown completely blank reads as a broken page.
+      const opt = document.createElement('option');
+      opt.value = '';
+      opt.textContent = 'No satellites available';
+      sel.appendChild(opt);
+      // Not disabled: a disabled sole option cannot become the selection,
+      // which leaves the closed dropdown rendering blank — the very thing the
+      // placeholder is here to avoid. set-target rejects the empty value.
+      sel.selectedIndex = 0;
+      return;
+    }
     const groups = {};
     sats.forEach(s => {
       const grp = satConstellation(s.name);
@@ -347,7 +377,9 @@
   async function fetchSatellites(initial) {
     try {
       const res = await fetch('/interferometry/satellites');
-      const sats = await res.json();
+      const data = await res.json();
+      const sats = data.satellites || [];
+      showSatelliteStatus(data.status, data.age_days);
       const sel = document.getElementById('satellite-select');
       const prev = sel.value;
       const byId = new Map(sats.map(s => [String(s.norad_id), s]));

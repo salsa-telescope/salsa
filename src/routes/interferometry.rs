@@ -164,20 +164,7 @@ async fn get_satellites(State(state): State<AppState>) -> impl IntoResponse {
             latitude: 0.0,
         },
     };
-    let satellites = state.tle_cache.visible_satellites(location, Utc::now());
-    let json: Vec<_> = satellites
-        .iter()
-        .map(|s| {
-            serde_json::json!({
-                "norad_id": s.norad_id,
-                "name": s.name,
-                "elevation_deg": s.direction.elevation.to_degrees(),
-                "azimuth_deg": s.direction.azimuth.to_degrees(),
-                "freq_mhz": s.freq_mhz,
-            })
-        })
-        .collect();
-    Json(json)
+    Json(state.tle_cache.satellites_json(location, Utc::now()))
 }
 
 // ---------------------------------------------------------------------------
