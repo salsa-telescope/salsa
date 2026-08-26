@@ -40,7 +40,11 @@ impl TelescopeTracker {
             el_offset_rad: 0.0,
             commanded_horizontal: None,
             current_direction: None,
-            most_recent_error: None,
+            // Not connected until a connection attempt says otherwise. Left as
+            // `None`, "no error yet" was indistinguishable from "connected",
+            // so startup logged the controller as connected before the first
+            // attempt had even been made — and then immediately as lost.
+            most_recent_error: Some(TelescopeError::TelescopeNotConnected),
             should_restart: false,
             pending_calibration: None,
             quit: false,
