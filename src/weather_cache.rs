@@ -1,7 +1,7 @@
 use chrono::Utc;
 use std::sync::{Arc, RwLock};
 use tokio::time::{Duration, interval};
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 
 const WEATHER_REFRESH_INTERVAL: Duration = Duration::from_secs(5 * 60);
 const WEATHER_URL: &str = "https://www.oso.chalmers.se/weather/onsala.txt";
@@ -114,16 +114,39 @@ pub fn start_weather_refresh(cache: WeatherCacheHandle) {
                 .expect("Building reqwest client should not fail");
             // First tick fires immediately, then every 5 minutes
             let mut ticker = interval(WEATHER_REFRESH_INTERVAL);
+            // A successful refresh every five minutes is 288 lines a day that
+            // say nothing changed, and they buried the lines that do matter.
+            // Only the transitions are worth `info!`: the first reading after
+            // startup, and the one that ends a run of failures. The failures
+            // themselves already log for each attempt in `fetch_weather`, so
+            // an outage is still visible while it lasts.
+            let mut failures: u32 = 0;
+            let mut ever_succeeded = false;
             loop {
                 ticker.tick().await;
-                if let Some(data) = fetch_weather(&client).await {
-                    info!(
-                        "Weather cache updated: {:.1}°C, {:.1} m/s {}",
-                        data.temp_c,
-                        data.wind_avg_ms,
-                        data.wind_compass()
-                    );
-                    *cache.data.write().unwrap() = Some(data);
+                match fetch_weather(&client).await {
+                    Some(data) => {
+                        let summary = format!(
+                            "{:.1}°C, {:.1} m/s {}",
+                            data.temp_c,
+                            data.wind_avg_ms,
+                            data.wind_compass()
+                        );
+                        if !ever_succeeded {
+                            info!("Weather cache populated: {summary}");
+                        } else if failures > 0 {
+                            info!(
+                                "Weather cache updated: {summary} (recovered after {failures} \
+                                 failed attempt(s))"
+                            );
+                        } else {
+                            debug!("Weather cache updated: {summary}");
+                        }
+                        failures = 0;
+                        ever_succeeded = true;
+                        *cache.data.write().unwrap() = Some(data);
+                    }
+                    None => failures += 1,
                 }
             }
         }
