@@ -40,6 +40,83 @@ pub struct ActiveIntegration {
     kind: IntegrationKind,
 }
 
+/// One open UHD session per receiver, held across whole measurement tasks.
+///
+/// `stop_integration` marks the receiver idle and lifts the `ActiveIntegration`
+/// out of `Inner` *before* it awaits the measurement task, so for the 0.8–2.2 s
+/// that await lasts the telescope reports a free receiver while the old task
+/// still owns an open `Usrp`. A start arriving in that window — a user pressing
+/// Observe one second after End, vale 2026-08-28 — opened a second session on
+/// the same N210. The device serves one host at a time: the first session's
+/// control channel then timed out on the way out (`fifo ctrl timed out looking
+/// for acks`, thrown from `~usrp2_fifo_ctrl_impl`) and the process died with
+/// SIGSEGV inside UHD's teardown, taking the new integration with it.
+///
+/// Taking this before `Usrp::open` and holding it until the device has been
+/// dropped makes the second task wait for the first to let go instead. It is a
+/// `std::sync::Mutex` on purpose: only `spawn_blocking` tasks touch it, and it
+/// has to be held across the blocking FFI work, which an async mutex must not
+/// be.
+type DeviceLock = Arc<std::sync::Mutex<()>>;
+
+/// How long a starting integration waits for the previous one to release the
+/// receiver before giving up. Long enough to cover any legitimate handover —
+/// the old task can only exit at a cycle boundary, and the widest bandwidths
+/// make those the slowest — but bounded, so a wedged session surfaces as an
+/// error on the page instead of a start that never happens.
+const DEVICE_HANDOVER_TIMEOUT: Duration = Duration::from_secs(30);
+
+/// Wait for exclusive use of the receiver at `address`. See [`DeviceLock`].
+fn acquire_device<'a>(
+    lock: &'a DeviceLock,
+    address: &str,
+) -> Result<std::sync::MutexGuard<'a, ()>, TelescopeError> {
+    acquire_device_within(lock, address, DEVICE_HANDOVER_TIMEOUT)
+}
+
+/// [`acquire_device`] with the wait spelled out, so a test does not have to sit
+/// through the production timeout to see what happens when it expires.
+fn acquire_device_within<'a>(
+    lock: &'a DeviceLock,
+    address: &str,
+    timeout: Duration,
+) -> Result<std::sync::MutexGuard<'a, ()>, TelescopeError> {
+    let started = std::time::Instant::now();
+    let mut waited = false;
+    loop {
+        match lock.try_lock() {
+            Ok(guard) => {
+                if waited {
+                    info!(
+                        "Receiver at {address} released by the previous integration after {:?}",
+                        started.elapsed()
+                    );
+                }
+                return Ok(guard);
+            }
+            // A measurement task that panicked with the device open poisons the
+            // lock. The `Usrp` was dropped as the panic unwound, so the receiver
+            // is free regardless of what the flag says.
+            Err(std::sync::TryLockError::Poisoned(poisoned)) => return Ok(poisoned.into_inner()),
+            Err(std::sync::TryLockError::WouldBlock) => {
+                if !waited {
+                    info!(
+                        "Waiting for the previous integration to release the receiver at {address}"
+                    );
+                    waited = true;
+                }
+                if started.elapsed() >= timeout {
+                    return Err(TelescopeError::ReceiverFailed(format!(
+                        "the previous integration still holds the receiver at {address} after {:?}",
+                        timeout
+                    )));
+                }
+                std::thread::sleep(Duration::from_millis(50));
+            }
+        }
+    }
+}
+
 struct Inner {
     name: String,
     receiver_address: String,
@@ -61,6 +138,7 @@ struct Inner {
     wind_warning_ms: Option<f64>,
     receiver_connected: Arc<tokio::sync::Mutex<bool>>,
     controller_connected: bool,
+    device_lock: DeviceLock,
 }
 
 pub struct SalsaTelescope {
@@ -122,6 +200,7 @@ pub fn create(
         wind_warning_ms,
         receiver_connected,
         controller_connected: false,
+        device_lock: Arc::new(std::sync::Mutex::new(())),
     }));
 
     let task_inner = inner.clone();
@@ -243,6 +322,7 @@ impl Telescope for SalsaTelescope {
                 let measurements = inner.measurements.clone();
                 let cancellation_token = cancellation_token.clone();
                 let tsys_k = inner.tsys_k;
+                let device_lock = inner.device_lock.clone();
                 tokio::task::spawn_blocking(move || {
                     measure(
                         address,
@@ -250,6 +330,7 @@ impl Telescope for SalsaTelescope {
                         cancellation_token,
                         receiver_configuration,
                         tsys_k,
+                        device_lock,
                     )
                 })
             };
@@ -474,8 +555,9 @@ impl Telescope for SalsaTelescope {
             let address = inner.receiver_address.clone();
             let gpsdo_enabled = inner.gpsdo_enabled;
             let token = cancellation_token.clone();
+            let device_lock = inner.device_lock.clone();
             tokio::task::spawn_blocking(move || {
-                measure_iq(address, gpsdo_enabled, token, config, tx)
+                measure_iq(address, gpsdo_enabled, token, config, tx, device_lock)
             })
         };
         inner.receiver_configuration.integrate = true;
@@ -832,6 +914,7 @@ fn measure(
     cancellation_token: CancellationToken,
     config: ReceiverConfiguration,
     tsys_k: f64,
+    device_lock: DeviceLock,
 ) -> Result<(), TelescopeError> {
     let tint: f64 = 1.0; // integration time per cycle, seconds
     let srate: f64 = config.bandwidth_hz;
@@ -852,6 +935,14 @@ fn measure(
         return Ok(());
     }
     let args = format!("addr={}", address);
+    // Declared before `usrp` so it is released after it: locals drop in reverse
+    // declaration order, and the guard's whole job is to outlive the device
+    // handle it protects. Waiting here can consume most of a stop, so re-check
+    // the token once the receiver is ours.
+    let _device = acquire_device(&device_lock, &address)?;
+    if cancellation_token.is_cancelled() {
+        return Ok(());
+    }
     let mut usrp = Usrp::open(&args)
         .map_err(|e| TelescopeError::ReceiverFailed(format!("open USRP at {address}: {e}")))?;
 
@@ -976,8 +1067,14 @@ fn measure_iq(
     cancellation_token: CancellationToken,
     config: ReceiverConfiguration,
     tx: tokio::sync::mpsc::Sender<IqBlock>,
+    device_lock: DeviceLock,
 ) -> Result<(), TelescopeError> {
     let args = format!("addr={}", address);
+    // Before `usrp`, so it is released after the device — see `measure()`.
+    let _device = acquire_device(&device_lock, &address)?;
+    if cancellation_token.is_cancelled() {
+        return Ok(());
+    }
     let mut usrp = Usrp::open(&args).map_err(|e| {
         TelescopeError::ReceiverFailed(format!("IQ stream: open USRP at {address}: {e}"))
     })?;
@@ -1129,6 +1226,58 @@ mod test {
         assert!(
             hi_peak_after > hi_peak_before * 0.95,
             "HI feature degraded (peak was {hi_peak_before}, now {hi_peak_after})",
+        );
+    }
+
+    #[test]
+    fn second_integration_waits_for_the_receiver_to_be_released() {
+        // The vale crash of 2026-08-28: a start landing while the previous
+        // measurement task still holds the device must not open a second UHD
+        // session on it. See `DeviceLock`.
+        let lock: DeviceLock = Arc::new(std::sync::Mutex::new(()));
+
+        let held = lock.lock().unwrap();
+        let contender = lock.clone();
+        let waiter = std::thread::spawn(move || {
+            acquire_device_within(&contender, "192.168.1.1", Duration::from_secs(10)).is_ok()
+        });
+
+        // Long enough for the waiter to have gone round its poll loop several
+        // times while the device is still taken.
+        std::thread::sleep(Duration::from_millis(200));
+        assert!(!waiter.is_finished(), "took the receiver while it was held");
+
+        drop(held);
+        assert!(
+            waiter.join().expect("waiter panicked"),
+            "did not take the receiver once it was released"
+        );
+    }
+
+    #[test]
+    fn waiting_for_the_receiver_gives_up_rather_than_hanging() {
+        let lock: DeviceLock = Arc::new(std::sync::Mutex::new(()));
+        let _held = lock.lock().unwrap();
+        let result = acquire_device_within(&lock, "192.168.1.1", Duration::from_millis(100));
+        assert!(result.is_err(), "waited out a wedged session forever");
+    }
+
+    #[test]
+    fn a_panicked_measurement_does_not_lock_the_receiver_out() {
+        // A task that panics with the device open poisons the mutex, but the
+        // `Usrp` was dropped as the panic unwound, so the receiver is free.
+        let lock: DeviceLock = Arc::new(std::sync::Mutex::new(()));
+        let poisoner = lock.clone();
+        let _ = std::thread::spawn(move || {
+            let _guard = poisoner.lock().unwrap();
+            panic!("measurement task died holding the device");
+        })
+        .join();
+        assert!(lock.is_poisoned());
+
+        assert!(
+            acquire_device_within(&lock, "192.168.1.1", Duration::from_millis(100)).is_ok(),
+            "a poisoned lock left the receiver permanently unusable"
         );
     }
 
