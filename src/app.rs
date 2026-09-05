@@ -310,6 +310,12 @@ pub async fn create_app(config_dir: &Path, database_dir: &Path) -> (Router, AppS
         ))
         .route_layer(middleware::from_fn(cookies_middleware))
         .layer(middleware::from_fn(slow_request_middleware))
+        // Outside the session lookup, so a cross-origin write is refused
+        // before it costs a database round trip, and inside the security
+        // headers, so the refusal still carries them.
+        .layer(middleware::from_fn(
+            crate::middleware::csrf::origin_check_middleware,
+        ))
         .layer(middleware::from_fn(security_headers_middleware));
 
     (app, state)
