@@ -2,7 +2,9 @@
 max_upcoming_bookings = 6
 
 [admin]
-# User IDs (from the OAuth provider) that should have admin access.
+# SALSA user IDs that should have admin access. These are the ids from SALSA's
+# own database, not from the OAuth provider — a user finds theirs on their
+# account page, which is the easiest way to look one up.
 user_ids = [1]
 
 [guests]
