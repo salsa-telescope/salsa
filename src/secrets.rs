@@ -32,10 +32,15 @@ pub struct Secrets {
 }
 
 impl Secrets {
+    /// An unreadable file is an error, not an empty set of secrets. Swallowing
+    /// it meant a missing or wrongly-permissioned `.secrets.toml` started the
+    /// server anyway, with no auth providers and no webcam — a site that looks
+    /// healthy but that nobody can log in to. Startup should fail loudly
+    /// instead, which is what the caller's `expect` is there for.
     pub fn read(filename: &str) -> Result<Secrets, InternalError> {
-        let contents = read_to_string(filename)
-            .map_err(|err| InternalError::new(format!("Failed to read from '{filename}': {err}")))
-            .unwrap_or_default();
+        let contents = read_to_string(filename).map_err(|err| {
+            InternalError::new(format!("Failed to read from '{filename}': {err}"))
+        })?;
         let secrets: Secrets = toml::from_str(&contents).map_err(|err| {
             InternalError::new(format!("Failed to parse toml from {filename}: {err}"))
         })?;
