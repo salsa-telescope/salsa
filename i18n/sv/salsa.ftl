@@ -394,6 +394,7 @@ login-local-summary = Lokal inloggning (endast undantagsfall)
 login-local-help = Lokala konton är reserverade för demonstrationer och specialfall. Kontakta SALSA-supporten för att begära åtkomst.
 login-invalid-credentials = Fel användarnamn eller lösenord.
 login-rate-limited = För många misslyckade försök. Försök igen senare.
+login-too-many-starts = För många inloggningsförsök har startats från din adress. Vänta några minuter och försök igen.
 login-username = Användarnamn
 login-password = Lösenord
 login-submit = Logga in

@@ -65,6 +65,12 @@ struct SelectAuthProvider {
     providers: Vec<(String, Option<String>)>,
     error: bool,
     rate_limited: bool,
+    /// Too many OAuth2 login starts from this address. Unlike `rate_limited`,
+    /// which belongs to the local-login form, this one is about the provider
+    /// buttons — so it is rendered above them rather than inside the collapsed
+    /// local-login section, where a visitor who never opened that section
+    /// would never see it.
+    too_many_starts: bool,
 }
 
 #[derive(Deserialize)]
@@ -80,12 +86,14 @@ async fn login(
 ) -> Result<impl IntoResponse, InternalError> {
     let providers = state.secrets.get_auth_providers_for_login();
     let rate_limited = query.error.as_deref() == Some("rate_limited");
-    let error = !rate_limited && query.error.is_some();
+    let too_many_starts = query.error.as_deref() == Some("too_many_starts");
+    let error = !rate_limited && !too_many_starts && query.error.is_some();
     let content = SelectAuthProvider {
         lang,
         providers,
         error,
         rate_limited,
+        too_many_starts,
     }
     .render()
     .expect("Template rendering should always succeed");
@@ -159,9 +167,20 @@ async fn local_login(
 
 // 2. We redirect the user to auth provider (e.g. Discord) where they authorize our app.
 async fn redirect_to_auth_provider(
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
     Path(provider): Path<String>,
     State(state): State<AppState>,
-) -> Result<impl IntoResponse, InternalError> {
+) -> Result<Response, InternalError> {
+    // Checked before anything else in the handler: the row this writes is the
+    // point of the endpoint and the cost of abusing it, so the budget is spent
+    // on reaching the insert at all, not on whether the provider name happened
+    // to be one we know.
+    let ip = addr.ip();
+    if state.oauth_start_limiter.check_and_record(ip) {
+        info!(ip = ip.to_string(), "rate limiting oauth2 login start");
+        return Ok(Redirect::to("/auth/login?error=too_many_starts").into_response());
+    }
+
     // To know that we're the originator of the request when the user comes back from OAuth2 provider
 
     let auth_provider = state.secrets.get_auth_provider(&provider)?;
@@ -185,7 +204,7 @@ async fn redirect_to_auth_provider(
 
     info!("Sending user to {provider} to authenticate");
 
-    Ok(Redirect::to(url.as_ref()))
+    Ok(Redirect::to(url.as_ref()).into_response())
 }
 
 #[derive(Debug, Deserialize)]

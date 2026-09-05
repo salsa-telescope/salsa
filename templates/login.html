@@ -1,6 +1,9 @@
 <div class="section light">
   <div class="w-full flex-row justify-items-center">
     <div class="inline-flex flex-col gap-4">
+      {% if too_many_starts %}
+      <p class="text-danger text-sm font-medium max-w-xs">{{ lang.t("login-too-many-starts") }}</p>
+      {% endif %}
       <p class="text-gray-600">{{ lang.t("login-same-method-hint") }}</p>
       <div class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-2 items-center w-fit">
         {% for (provider, description) in providers %}

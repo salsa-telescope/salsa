@@ -15,6 +15,7 @@ pub mod logging;
 pub mod login_rate_limiter;
 pub mod middleware;
 pub mod models;
+pub mod oauth_rate_limiter;
 pub mod routes;
 pub mod secrets;
 pub mod session_monitor;

@@ -24,6 +24,7 @@ use crate::middleware::language::language_middleware;
 use crate::middleware::session::session_middleware;
 use crate::models::session::{purge_expired_pending_oauth2, purge_expired_sessions};
 use crate::models::telescope::{TelescopeCollectionHandle, create_telescope_collection};
+use crate::oauth_rate_limiter::OauthStartLimiterHandle;
 use crate::routes;
 use crate::secrets::Secrets;
 use crate::tle_cache::{TleCacheHandle, start_tle_refresh};
@@ -126,6 +127,7 @@ pub struct AppState {
     pub weather_cache: WeatherCacheHandle,
     pub login_rate_limiter: LoginRateLimiterHandle,
     pub guest_start_limiter: GuestStartLimiterHandle,
+    pub oauth_start_limiter: OauthStartLimiterHandle,
     /// At most one correlator session running at a time.
     pub active_correlator: Arc<Mutex<Option<CorrelatorHandle>>>,
     /// Running repeat series, keyed by telescope name.
@@ -195,6 +197,7 @@ pub async fn create_app(config_dir: &Path, database_dir: &Path) -> (Router, AppS
     start_weather_refresh(weather_cache.clone());
     let login_rate_limiter = LoginRateLimiterHandle::new();
     let guest_start_limiter = GuestStartLimiterHandle::new();
+    let oauth_start_limiter = OauthStartLimiterHandle::new();
     let telescopes = create_telescope_collection(
         config_path
             .to_str()
@@ -238,6 +241,7 @@ pub async fn create_app(config_dir: &Path, database_dir: &Path) -> (Router, AppS
         weather_cache,
         login_rate_limiter,
         guest_start_limiter,
+        oauth_start_limiter,
         active_correlator: Arc::new(Mutex::new(None)),
         active_repeats: Arc::new(Mutex::new(HashMap::new())),
     };
