@@ -263,9 +263,34 @@ impl Telescope for SalsaTelescope {
         el_offset_rad: f64,
     ) -> Result<TelescopeTarget, TelescopeError> {
         let mut inner = self.inner.lock().await;
-        inner
+        let result = inner
             .controller
-            .set_target(target, az_offset_rad, el_offset_rad)
+            .set_target(target, az_offset_rad, el_offset_rad);
+        // The only record that a dish was commanded somewhere. `FakeTelescope`
+        // has logged this since it was written, so on a development machine the
+        // line appears to exist — but the real path runs through
+        // `TelescopeTracker`, which logs nothing, and neither did this. A
+        // production journal held no trace of what was pointed where.
+        //
+        // Fires once per user action (a form submission), not once per tracking
+        // tick: the 1 Hz observe-page traffic is `GET /telescope/{id}/state`,
+        // and the continuous position updates happen inside the tracker's own
+        // loop. Three telescopes booked all day is tens of lines, in the same
+        // range as the "Starting integration" line just below.
+        match &result {
+            Ok(_) => info!(
+                "Setting target for telescope {} to {} (offsets az={:.2}°, el={:.2}°)",
+                inner.name,
+                target,
+                az_offset_rad.to_degrees(),
+                el_offset_rad.to_degrees()
+            ),
+            Err(err) => info!(
+                "Refusing to set target for telescope {} to {}: {}",
+                inner.name, target, err
+            ),
+        }
+        result
     }
 
     async fn stop(&self) -> Result<(), TelescopeError> {
