@@ -140,11 +140,20 @@ async fn local_login(
         // to extract info such as if the user exists.
         sleep(Duration::from_millis(random_delay)).await;
         state.login_rate_limiter.record_failure(ip);
-        info!(
-            username = form.username.clone(),
-            ip = ip.to_string(),
-            "rejecting local login with incorrect username/password combination"
-        );
+        // Deliberately carries neither the submitted username nor the address.
+        //
+        // The username, because this branch fires exactly when it was *not* a
+        // valid one — which makes it likelier than usual to be something typed
+        // into the wrong box, a stale autofill or a mistimed Tab putting the
+        // password in the username field, and a password in the journal
+        // outlives the mistake that made it.
+        //
+        // The address, because the attack it would help with is already
+        // reported: an address that crosses the limiter's threshold is named
+        // on the "rate limiting local login attempt" line above. Below that
+        // threshold a failed login is a typo, and whose typo it was is not
+        // worth retaining.
+        info!("rejecting local login with incorrect username/password combination");
         return Ok(Redirect::to("/auth/login?error=1").into_response());
     };
 
