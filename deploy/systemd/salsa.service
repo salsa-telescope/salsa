@@ -14,14 +14,139 @@ ExecStart=/home/salsa/bin/target/release/salsa --port 443 --log-to-journald --co
 Environment="RUST_LOG=info,rustls=error"
 Environment="KEY_FILE_PATH=/etc/letsencrypt/live/salsa.oso.chalmers.se/privkey.pem"
 Environment="CERT_FILE_PATH=/etc/letsencrypt/live/salsa.oso.chalmers.se/fullchain.pem"
-AmbientCapabilities=CAP_NET_BIND_SERVICE CAP_NET_RAW CAP_SYS_NICE
-CapabilityBoundingSet=CAP_NET_BIND_SERVICE CAP_NET_RAW CAP_SYS_NICE
 Restart=always
 # SALSA bounds its own stop at 5 s for connections plus 4 s of teardown. Set
 # this explicitly: a short DefaultTimeoutStopSec (10 s here) would SIGKILL the
 # process part-way through closing the telescope connections. Reaching 30 s
 # means teardown itself is wedged, which is worth finding out quickly.
 TimeoutStopSec=30
+
+# ── Capabilities ──────────────────────────────────────────────────────────
+#
+# All three are load-bearing; none of them is a leftover.
+#
+#   CAP_NET_BIND_SERVICE  binding :443 and the :80 redirect listener.
+#   CAP_NET_RAW           the receiver reachability check shells out to
+#                         /usr/bin/ping (61c496e). The USRP is a UDP device
+#                         with nothing listening on TCP, so ICMP is the only
+#                         probe available. NoNewPrivileges below makes this
+#                         capability *mandatory* rather than optional: with
+#                         NNP set the kernel stops honouring file
+#                         capabilities on exec, so ping cannot obtain
+#                         cap_net_raw for itself and inherits it from here or
+#                         not at all.
+#   CAP_SYS_NICE          UHD raises its receive thread to real-time priority
+#                         when a stream starts; without it every start logs a
+#                         pthread_setschedparam warning and the thread runs at
+#                         normal priority (821ba00).
+AmbientCapabilities=CAP_NET_BIND_SERVICE CAP_NET_RAW CAP_SYS_NICE
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE CAP_NET_RAW CAP_SYS_NICE
+
+# ── Sandboxing ────────────────────────────────────────────────────────────
+#
+# This is a dedicated host, so the usual co-tenancy argument for sandboxing
+# does not apply — there is no other service here to be isolated from. What
+# these directives protect is this machine specifically, and it is worth
+# protecting: it holds the Let's Encrypt private key, the config file that
+# decides who is admin, the service binary that runs on the next restart, and
+# a route to the telescope control LAN. The threat is not a neighbour, it is
+# escalation from the salsa user to root on the one box that can move the
+# dishes.
+#
+# Verify changes with: systemd-analyze security salsa.service
+
+# Blocks setuid binaries and file capabilities from granting anything new on
+# exec — the cheapest single directive here, and the one that most directly
+# closes local escalation. See the CAP_NET_RAW note above for its interaction
+# with ping.
+NoNewPrivileges=yes
+
+# The whole filesystem read-only except the data directory. This is what keeps
+# a compromised process from rewriting its own binary under
+# /home/salsa/bin/target/release/, editing admin.user_ids in
+# /home/salsa/config/config.toml, or touching the certbot key material it
+# still needs to read.
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/salsa/data
+
+# Kernel and host state the service has no business touching.
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+
+# User namespaces in particular are a long-running source of local privilege
+# escalation CVEs, and nothing here creates a namespace of any kind.
+RestrictNamespaces=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+SystemCallArchitectures=native
+RemoveIPC=yes
+PrivateTmp=yes
+
+# AF_INET/AF_INET6 for HTTP, the rotator, the USRP and the outbound fetches.
+# AF_UNIX for the journald socket. AF_NETLINK because getifaddrs() uses it,
+# and UHD enumerates interfaces when it looks for the receiver — dropping it
+# is the most likely way to break device discovery for a 0.1 exposure gain.
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK
+
+# @system-service already excludes @mount, @module, @reboot, @swap, @raw-io,
+# @debug, @clock, @cpu-emulation and @obsolete, which covers most of what
+# systemd-analyze lists individually. Note it deliberately does NOT add
+# ~@resources: sched_setscheduler lives there, and denying it would undo
+# CAP_SYS_NICE above.
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+
+# The SQLite database and the TLE cache hold user data; there is no reason for
+# them to be world-readable. Note this applies to files the *service* creates,
+# not to the deploy workflow's chgrp/chmod of the binary and assets.
+UMask=0077
+
+# ── Deliberately not set ──────────────────────────────────────────────────
+#
+# RestrictRealtime=yes
+#   Would block SCHED_FIFO and defeat CAP_SYS_NICE, reintroducing the UHD
+#   warning 821ba00 fixed. systemd-analyze flags this; ignore it here.
+#
+# SystemCallFilter=~@resources
+#   Same reason — sched_setscheduler and setpriority live in that set.
+#
+# PrivateUsers=yes
+#   Ambient capabilities do not map through a user namespace, so this breaks
+#   binding :443 and :80.
+#
+# PrivateNetwork=yes
+#   The service is a web server that also talks to telescopes. Self-evidently
+#   not applicable; it is the single largest item systemd-analyze will keep
+#   reporting (0.5) and it is not fixable.
+#
+# IPAddressDeny= with an allow list
+#   Would have to enumerate four OAuth providers, Celestrak, the weather host
+#   and the control LAN, and would fail silently and confusingly when any of
+#   them changes address. The maintenance cost outweighs the benefit on a
+#   host with no other egress.
+#
+# ProcSubset=pid
+#   Hides /proc/cpuinfo and /proc/meminfo. UHD may read them; untested, and a
+#   receiver that fails to initialise is a worse outcome than 0.1 exposure.
+#
+# The two below are plausible but must be tested against real hardware before
+# being enabled — with fake telescopes neither code path runs at all:
+#
+# PrivateDevices=yes
+#   The N210 is network-attached so no /dev access should be needed, but UHD's
+#   device discovery also probes USB transports via libusb. Expected to be a
+#   harmless warning; confirm the receiver still initialises before keeping it.
+#
+# MemoryDenyWriteExecute=yes
+#   Rust does not JIT, but UHD is a large C++ library and this is exactly the
+#   kind of directive that surfaces as a crash at stream start rather than at
+#   service start.
 
 [Install]
 WantedBy=multi-user.target
