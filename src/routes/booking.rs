@@ -1,7 +1,7 @@
 use crate::app::AppState;
 use crate::geoip::lookup_country;
 use crate::i18n::Language;
-use crate::models::booking::Booking;
+use crate::models::booking::{Booking, BookingGroup, group_adjacent};
 use crate::models::maintenance::fetch_maintenance_set;
 use crate::models::support_announcement::fetch_support_announcement;
 use crate::models::user::User;
@@ -27,6 +27,12 @@ use std::net::SocketAddr;
 /// Upper bound on the free-text booking description, to keep a single
 /// request from stuffing megabytes into the database.
 const MAX_DESCRIPTION_CHARS: usize = 500;
+
+/// How many booking groups the "upcoming bookings" list shows before
+/// folding the rest behind a toggle. A regular observer rarely has more
+/// than a couple of runs booked; the cap keeps a heavy user (or an admin
+/// looking at one) from pushing the calendar off the screen.
+const VISIBLE_BOOKING_GROUPS: usize = 4;
 
 pub fn routes(state: AppState) -> Router {
     Router::new()
@@ -161,7 +167,10 @@ struct WeekQuery {
 #[template(path = "bookings.html")]
 struct BookingsTemplate {
     lang: Language,
-    my_bookings: Vec<Booking>,
+    /// Upcoming bookings, with back-to-back runs collapsed into one item.
+    booking_groups: Vec<BookingGroup>,
+    /// How many of them the list shows before the "+ N more" toggle.
+    visible_groups: usize,
     telescope_names: Vec<String>,
     maintenance_telescopes: Vec<bool>,
     error: Option<String>,
@@ -401,18 +410,24 @@ async fn export_bookings_ical(
         .filter(|b| b.end_time > now)
         .collect::<Vec<_>>();
 
+    // One event per run of back-to-back bookings: an afternoon booked an
+    // hour at a time belongs in the subscriber's calendar as one entry,
+    // not as six abutting ones. The UID stays the first booking's id, so
+    // an unchanged run keeps its identity across exports.
+    let groups = group_adjacent(&bookings);
+
     let dtstamp = now.format("%Y%m%dT%H%M%SZ");
     let mut ical = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//SALSA//SALSA Telescope//EN\r\nCALSCALE:GREGORIAN\r\nMETHOD:PUBLISH\r\n".to_string();
-    for booking in &bookings {
+    for group in &groups {
         let mut vevent = format!(
             "BEGIN:VEVENT\r\nUID:salsa-booking-{}@salsa\r\nDTSTAMP:{}\r\nDTSTART:{}\r\nDTEND:{}\r\nSUMMARY:Telescope booking: {}\r\n",
-            booking.id,
+            group.ids[0],
             dtstamp,
-            booking.start_time.format("%Y%m%dT%H%M%SZ"),
-            booking.end_time.format("%Y%m%dT%H%M%SZ"),
-            booking.telescope_name,
+            group.start_time.format("%Y%m%dT%H%M%SZ"),
+            group.end_time.format("%Y%m%dT%H%M%SZ"),
+            group.telescope_name,
         );
-        if let Some(desc) = &booking.description {
+        if let Some(desc) = &group.description {
             vevent.push_str(&format!("DESCRIPTION:{}\r\n", desc));
         }
         vevent.push_str("END:VEVENT\r\n");
@@ -507,7 +522,10 @@ async fn build_bookings_page(
         off_min,
     );
 
+    // The quota counts hourly slots, not runs, so it stays on the
+    // ungrouped list.
     let upcoming_count = my_bookings.len();
+    let booking_groups = group_adjacent(&my_bookings);
     let max_upcoming_bookings = state.booking_config.max_upcoming_bookings;
     let at_limit = !user.is_admin
         && viewed_user_id == user.id
@@ -515,7 +533,8 @@ async fn build_bookings_page(
 
     let content = BookingsTemplate {
         lang,
-        my_bookings,
+        booking_groups,
+        visible_groups: VISIBLE_BOOKING_GROUPS,
         telescope_names,
         maintenance_telescopes,
         error,

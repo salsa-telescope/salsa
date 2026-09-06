@@ -24,7 +24,7 @@
     <span class="text-gray-400 text-xs">&larr; As admin: view any user's bookings, cancel any booking, unlimited slots.</span>
   </form>
   {% endif %}
-  {% if !my_bookings.is_empty() %}
+  {% if !booking_groups.is_empty() %}
   <div class="flex items-center gap-3 mb-3">
     <h2 class="text-xl font-semibold">{{ lang.t("bookings-upcoming") }}</h2>
     <a href="/bookings/export.ics" title="{{ lang.t("bookings-export-ics") }}" class="text-link hover:text-link-hover">
@@ -33,33 +33,43 @@
       </svg>
     </a>
   </div>
-  <div class="my-bookings-list">
-    {% for booking in my_bookings %}
-    <div class="my-booking-row">
+  <div class="my-bookings-list" id="my-bookings-list">
+    {% for group in booking_groups %}
+    <div class="my-booking-row{% if loop.index0 >= visible_groups %} my-booking-row-extra{% endif %}">
       <div class="my-booking-info">
-        <span class="my-booking-telescope">{{ booking.telescope_name }}</span>
-        <span class="my-booking-time">{{ booking.start_time.in_tz(tz).format("%Y-%m-%d %H:%M") }}&ndash;{{ booking.end_time.in_tz(tz).format("%H:%M %Z") }}</span>
-        {% if let Some(desc) = booking.description %}
+        <span class="my-booking-telescope">{{ group.telescope_name }}</span>
+        <span class="my-booking-time">{{ group.start_time.in_tz(tz).format("%Y-%m-%d %H:%M") }}&ndash;{% if group.crosses_local_day(tz) %}{{ group.end_time.in_tz(tz).format("%Y-%m-%d ") }}{% endif %}{{ group.end_time.in_tz(tz).format("%H:%M %Z") }}</span>
+        {% if group.slot_count() > 1 %}
+        <span class="my-booking-hours">{{ group.hours() }}&nbsp;{{ lang.t("bookings-hours-short") }}</span>
+        {% endif %}
+        {% if let Some(desc) = group.description %}
         <span class="my-booking-description">{{ desc }}</span>
         {% endif %}
       </div>
       <div class="my-booking-actions">
-        {% if booking.active_at(now) %}
-        <a href="observe/{{ booking.telescope_name }}" class="my-booking-btn my-booking-observe">{{ lang.t("bookings-observe") }}</a>
+        {% if group.active_at(now) %}
+        <a href="observe/{{ group.telescope_name }}" class="my-booking-btn my-booking-observe">{{ lang.t("bookings-observe") }}</a>
         {% else %}
-        <span class="my-booking-btn my-booking-observe my-booking-observe-pending" title="{{ lang.t("bookings-observe-opens") }} {{ booking.start_time.in_tz(tz).format("%Y-%m-%d %H:%M %Z") }}">{{ lang.t("bookings-observe") }}</span>
+        <span class="my-booking-btn my-booking-observe my-booking-observe-pending" title="{{ lang.t("bookings-observe-opens") }} {{ group.start_time.in_tz(tz).format("%Y-%m-%d %H:%M %Z") }}">{{ lang.t("bookings-observe") }}</span>
         {% endif %}
         <button
-          hx-delete="bookings/{{ booking.id }}?week={{ week_start }}{% if is_admin %}&user_id={{ viewed_user_id }}{% endif %}"
+          hx-delete="/bookings/{{ group.ids[0] }}?week={{ week_start }}{% if is_admin %}&user_id={{ viewed_user_id }}{% endif %}"
           hx-target="#page"
-          hx-confirm="{% if is_admin %}Delete booking by {{ booking.user_name }}?{% else %}{{ lang.t("bookings-delete-confirm") }}{% endif %}"
-          data-timestamp="{{ booking.start_time.timestamp() }}"
-          data-telescope="{{ booking.telescope_name }}"
+          hx-confirm="{% if is_admin %}Delete booking by {{ group.user_name }}?{% else %}{{ lang.t("bookings-delete-confirm") }}{% endif %}"
+          data-timestamp="{{ group.start_time.timestamp() }}"
+          data-telescope="{{ group.telescope_name }}"
+          data-ids="{{ group.id_list() }}"
           class="my-booking-btn my-booking-delete"
         >{{ lang.t("bookings-delete") }}</button>
       </div>
     </div>
     {% endfor %}
+    {% if booking_groups.len() > visible_groups %}
+    <button type="button" class="my-bookings-toggle" onclick="toggleAllBookings()">
+      <span class="my-bookings-toggle-more">+ {{ booking_groups.len() - visible_groups }} {{ lang.t("bookings-more") }}</span>
+      <span class="my-bookings-toggle-fewer">{{ lang.t("bookings-show-fewer") }}</span>
+    </button>
+    {% endif %}
   </div>
   {% endif %}
 
@@ -122,6 +132,12 @@
       sessionStorage.setItem('bookings.telescope', idx);
     }
     window.selectTelescope = selectTelescope;
+
+    // Fold the tail of the upcoming-bookings list in and out.
+    window.toggleAllBookings = function() {
+      var list = document.getElementById('my-bookings-list');
+      if (list) list.classList.toggle('expanded');
+    };
   })();
   </script>
 
@@ -378,14 +394,28 @@
         var tel = elt.dataset.telescope || '';
         var ts = elt.dataset.timestamp;
         var bookedBy = elt.dataset.bookedBy || '';
-        var adj = getConsecutiveAfter(elt, 'calendar-slot-mine');
-        slotData = [{ deleteUrl: elt.getAttribute('hx-delete'), ts: ts }];
-        adj.forEach(function(c) {
-          slotData.push({ deleteUrl: c.getAttribute('hx-delete'), ts: c.dataset.timestamp });
-        });
+        // A row in the upcoming-bookings list stands for a whole run and
+        // names its bookings outright; a calendar cell stands for one hour
+        // and the run has to be read off the column below it.
+        var ids = (elt.dataset.ids || '').split(',').filter(Boolean);
+        if (ids.length > 0) {
+          var deleteQuery = elt.getAttribute('hx-delete').split('?')[1];
+          slotData = ids.map(function(id, i) {
+            return {
+              deleteUrl: '/bookings/' + id + (deleteQuery ? '?' + deleteQuery : ''),
+              ts: String(parseInt(ts, 10) + i * 3600)
+            };
+          });
+        } else {
+          var adj = getConsecutiveAfter(elt, 'calendar-slot-mine');
+          slotData = [{ deleteUrl: elt.getAttribute('hx-delete'), ts: ts }];
+          adj.forEach(function(c) {
+            slotData.push({ deleteUrl: c.getAttribute('hx-delete'), ts: c.dataset.timestamp });
+          });
+        }
         ok.className = ok.dataset.clsDanger;
         var bookedBySuffix = bookedBy ? ' (' + I18N.bookedBy + ' ' + bookedBy + ')' : '';
-        if (adj.length > 0) {
+        if (slotData.length > 1) {
           document.getElementById('confirm-dialog-title').textContent = I18N.cancelTitle;
           document.getElementById('confirm-dialog-msg').innerHTML =
             fill(I18N.cancelFrom, strong(tel),

@@ -427,6 +427,14 @@ footer {
     font-size: 13px;
     color: var(--color-neutral-700);
 }
+/* Length of a merged run, e.g. "4 h". */
+.my-booking-hours {
+    font-size: 12px;
+    color: var(--color-brand);
+    background: var(--color-brand-bg);
+    border-radius: 3px;
+    padding: 1px 6px;
+}
 .my-booking-description {
     flex-basis: 100%;
     font-size: 13px;
@@ -473,6 +481,28 @@ footer {
 }
 .my-booking-delete:hover {
     background: var(--color-danger-bg);
+}
+/* Only the first few bookings show until the list is expanded. */
+.my-bookings-list:not(.expanded) .my-booking-row-extra {
+    display: none;
+}
+.my-bookings-toggle {
+    display: block;
+    width: 100%;
+    padding: 6px 14px;
+    border: 0;
+    border-top: 1px solid var(--color-brand-border);
+    background: var(--color-brand-bg);
+    color: var(--color-brand);
+    font-size: 13px;
+    cursor: pointer;
+}
+.my-bookings-toggle:hover {
+    background: var(--color-brand-border);
+}
+.my-bookings-list:not(.expanded) .my-bookings-toggle-fewer,
+.my-bookings-list.expanded .my-bookings-toggle-more {
+    display: none;
 }
 
 /* Calendar navigation */
