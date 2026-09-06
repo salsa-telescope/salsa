@@ -319,8 +319,11 @@
         .format(new Date(parseInt(ts, 10) * 1000));
     }
     function tsEndTime(ts) { return tsToLocalTime(parseInt(ts, 10) + 3600); }
-    var SALSA_TZ_ABBR = ((new Intl.DateTimeFormat('en', { timeZone: SALSA_TZ, timeZoneName: 'short' })
-      .formatToParts(new Date()).find(function(p) { return p.type === 'timeZoneName'; })) || {}).value || '';
+    // The same abbreviation the rest of the page shows, rendered by the
+    // server. Intl's short zone name would say GMT+2 where chrono says
+    // CEST, leaving this dialog disagreeing with the label beside its own
+    // Until dropdown.
+    var SALSA_TZ_ABBR = "{{ tz_abbr }}";
 
     function getConsecutiveAfter(td, cls) {
       var row = td.parentElement;
