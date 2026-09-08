@@ -59,6 +59,40 @@ fn request_authority<'a>(uri: &'a Uri, headers: &'a HeaderMap) -> Option<&'a str
         .or_else(|| headers.get(HOST).and_then(|value| value.to_str().ok()))
 }
 
+/// How much of an attacker-controlled string reaches the log.
+///
+/// The path, the `Origin` and the `Host` below are all written by whoever sent
+/// the request, and scanners send long ones: the Log4Shell probes that reach
+/// this host nest `${...}` substitutions into a 1.5 kB path and an equally long
+/// origin, and the 33 that arrived on 2026-09-07 and 09-08 wrote 27 kB into the
+/// journal in lines of up to 3.3 kB. A hundred characters is enough to
+/// recognise what was tried and to spot a genuinely misconfigured client,
+/// without letting a stranger decide how large the log grows.
+const MAX_LOGGED_LEN: usize = 100;
+
+/// `value` cut to [`MAX_LOGGED_LEN`] characters, with control characters
+/// escaped and the cut marked by a trailing `…`.
+///
+/// Escaping matters as much as the length. A raw newline in a header would
+/// otherwise begin what reads as a fresh journal entry, so anyone who can send
+/// a request could forge log lines; `escape_debug` renders it as `\n` on the
+/// one line it belongs to.
+fn for_log(value: &str) -> String {
+    let mut logged = String::new();
+    let mut chars = value.chars();
+    for character in chars.by_ref().take(MAX_LOGGED_LEN) {
+        if character.is_control() {
+            logged.extend(character.escape_debug());
+        } else {
+            logged.push(character);
+        }
+    }
+    if chars.next().is_some() {
+        logged.push('…');
+    }
+    logged
+}
+
 /// Whether this request may proceed: either it carries no `Origin`, or the one
 /// it carries names the host it was sent to.
 fn origin_is_trusted(uri: &Uri, headers: &HeaderMap) -> bool {
@@ -74,12 +108,20 @@ fn origin_is_trusted(uri: &Uri, headers: &HeaderMap) -> bool {
 
 pub async fn origin_check_middleware(request: Request, next: Next) -> Response {
     if is_state_changing(request.method()) && !origin_is_trusted(request.uri(), request.headers()) {
+        // `origin_is_trusted` only reaches this branch for an `Origin` that
+        // parsed as UTF-8, so the fallbacks here never appear in practice.
+        let origin = request
+            .headers()
+            .get(ORIGIN)
+            .and_then(|value| value.to_str().ok())
+            .unwrap_or("<none>");
+        let host = request_authority(request.uri(), request.headers()).unwrap_or("<none>");
         warn!(
-            "Rejecting cross-origin {} {}: Origin {:?} does not match host {:?}",
+            "Rejecting cross-origin {} {}: Origin {} does not match host {}",
             request.method(),
-            request.uri().path(),
-            request.headers().get(ORIGIN),
-            request_authority(request.uri(), request.headers()),
+            for_log(request.uri().path()),
+            for_log(origin),
+            for_log(host),
         );
         return StatusCode::FORBIDDEN.into_response();
     }
@@ -232,5 +274,47 @@ mod test {
 
         headers.insert(ORIGIN, "https://other.example".parse().unwrap());
         assert!(!origin_is_trusted(&uri, &headers));
+    }
+
+    /// An ordinary path or origin is short, and has to reach the log as it
+    /// was sent — the whole point of the line is to identify the caller.
+    #[test]
+    fn a_short_value_is_logged_verbatim() {
+        assert_eq!(for_log("/observe/vale/stop"), "/observe/vale/stop");
+    }
+
+    /// A scanner decides how long its own URL is; the journal entry it
+    /// produces is capped regardless.
+    #[test]
+    fn a_long_value_is_cut_and_marked() {
+        let logged = for_log(&"a".repeat(MAX_LOGGED_LEN * 40));
+        assert_eq!(logged.chars().count(), MAX_LOGGED_LEN + 1);
+        assert_eq!(logged, format!("{}…", "a".repeat(MAX_LOGGED_LEN)));
+    }
+
+    /// Exactly the limit is not truncation, so it carries no marker.
+    #[test]
+    fn a_value_at_the_limit_is_not_marked() {
+        let logged = for_log(&"a".repeat(MAX_LOGGED_LEN));
+        assert_eq!(logged, "a".repeat(MAX_LOGGED_LEN));
+    }
+
+    /// Without this, anything that can send a header can write what looks
+    /// like a separate journal entry.
+    #[test]
+    fn newlines_cannot_forge_a_log_line() {
+        assert_eq!(
+            for_log("/x\r\nRejecting cross-origin POST /y"),
+            "/x\\r\\nRejecting cross-origin POST /y"
+        );
+        assert!(!for_log("/x\nfake").contains('\n'));
+    }
+
+    /// The cut counts characters, not bytes, so a multi-byte path cannot
+    /// panic on a split code point.
+    #[test]
+    fn truncation_splits_on_a_character_boundary() {
+        let logged = for_log(&"ä".repeat(MAX_LOGGED_LEN * 2));
+        assert_eq!(logged, format!("{}…", "ä".repeat(MAX_LOGGED_LEN)));
     }
 }
