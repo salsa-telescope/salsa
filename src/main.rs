@@ -66,6 +66,12 @@ async fn main() {
     let args = Args::parse();
     logging::setup_logging(args.log_to_journald);
 
+    // The journal otherwise names only the database's migration version, which
+    // rarely changes, so reading back which build was running at the time of an
+    // incident meant lining log timestamps up against deploy times. Say it once
+    // at startup instead.
+    info!("starting salsa {}", env!("CARGO_PKG_VERSION"));
+
     let addr = if let Some(port) = args.port {
         SocketAddr::from(([0, 0, 0, 0], port))
     } else {
