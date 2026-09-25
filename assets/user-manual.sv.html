@@ -310,6 +310,30 @@ mål.</p>
       du bara vill anpassa gaussfunktionerna. Nivån är bara en konstant: subtrahera en
       baslinje först om spektrumet lutar eller är krökt.</p>
 
+      <p>Varje anpassat värde anges med sin 1σ-osäkerhet, till exempel
+      <em>Ctr: 9.8 ± 1.2 km/s</em>. Den uppskattas från spektrumets spridning kring den
+      anpassade modellen, så den växer med bruset och minskar med längre
+      integrationstid. Värdet avrundas så att osäkerheten behåller två värdesiffror.
+      Tänk på vad den <em>inte</em> tar med:</p>
+      <ul class="list-disc pl-6 space-y-1">
+        <li>Osäkerheten i den subtraherade baslinjen, och valet av hur många komponenter
+        som anpassas. En annan men lika rimlig baslinje, eller en komponent till, kan
+        flytta resultaten mer än det angivna ±.</li>
+        <li>Överlapp mellan komponenter. När två komponenter delar på en blandning kan
+        anpassningen flytta flöde mellan dem, och deras osäkerheter växer för att visa
+        det. En stor osäkerhet på en komponents amplitud eller bredd betyder oftast att
+        datan inte kan avgöra hur blandningen delas upp, inte att spektrumet är brusigt.</li>
+        <li>Korrelation mellan närliggande kanaler. Uppskattningen förutsätter att varje
+        kanal är oberoende. Om mottagaren eller RFI-filtret jämnar ut över kanaler är de
+        verkliga osäkerheterna något större.</li>
+      </ul>
+      <p>Ett värde märkt <em>(vid gräns)</em> hölls vid en av anpassningens gränser:
+      ett center vid kanten av sitt fönster, en bredd vid sitt minsta eller största
+      tillåtna värde, eller en amplitud som tryckts ner till noll. Det är inte ett
+      verkligt anpassningsresultat och har ingen osäkerhet. Det betyder oftast att den
+      valda punkten inte låg på en verklig topp, eller att komponenten inte behövs; flytta
+      eller ta bort den och anpassa igen.</p>
+
       <p>Byte mellan <em>Visa frekvens</em> och <em>Visa VLSR</em> rensar valda toppar och
       anpassningar, eftersom de är i enheterna för den axel de gjordes på. En
       subtraherad baslinje behålls.</p>

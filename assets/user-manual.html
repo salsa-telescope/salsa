@@ -308,6 +308,29 @@ target.</p>
       the Gaussians alone. The offset is only a constant: subtract a baseline first if
       the spectrum is sloped or curved.</p>
 
+      <p>Each fitted value is given with its 1σ uncertainty, for example
+      <em>Ctr: 9.8 ± 1.2 km/s</em>. It is estimated from the scatter of the spectrum
+      around the fitted model, so it grows with the noise and shrinks with longer
+      integrations. The value is rounded so the uncertainty keeps two significant
+      digits. Keep in mind what it does <em>not</em> include:</p>
+      <ul class="list-disc pl-6 space-y-1">
+        <li>The uncertainty of the subtracted baseline, and the choice of how many
+        components to fit. A different but equally reasonable baseline, or one more
+        component, can move the results by more than the quoted ±.</li>
+        <li>Overlap between components. When two components share a blend, the fit can
+        trade flux between them, and their uncertainties grow to show it. A large
+        uncertainty on one component's amplitude or width usually means the data cannot
+        tell how the blend is split, not that the spectrum is noisy.</li>
+        <li>Correlation between neighbouring channels. The estimate assumes each channel
+        is independent. If the receiver or the RFI filter smooths across channels, the
+        true uncertainties are somewhat larger.</li>
+      </ul>
+      <p>A value marked <em>(at limit)</em> was held at one of the fitter's limits:
+      a centre at the edge of its window, a width at its smallest or largest allowed
+      value, or an amplitude pushed to zero. It is not a real fit result and has no
+      uncertainty. It usually means the pick was not on a real peak, or that a
+      component is not needed; move or remove the pick and fit again.</p>
+
       <p>Switching between <em>Show frequency</em> and <em>Show VLSR</em> clears any
       picks and fits, as they are in the units of the axis they were made on. A
       subtracted baseline is kept.</p>

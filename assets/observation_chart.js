@@ -166,13 +166,52 @@ function lmFitGaussians(xs, ys, seeds, fitOffset) {
     }
   }
 
+  // 1-sigma uncertainties from the covariance s² (JᵀJ)⁻¹, with s² the
+  // residual variance per degree of freedom. A parameter held at one of the
+  // bounds above isn't a free fit result, so it is left out of the matrix and
+  // reported as at the limit instead of with an error bar that would only
+  // reflect where the bound happens to be.
+  const atLimit = new Array(m).fill(false);
+  const eq = (a, b) => Math.abs(a - b) <= 1e-9 * Math.max(Math.abs(a), Math.abs(b), 1e-300);
+  for (let k = 0; k < seeds.length; k++) {
+    const [lo, hi] = centerBounds[k];
+    atLimit[k * 3] = eq(params[k * 3], ampSign[k] * ampFloor);
+    atLimit[k * 3 + 1] = eq(params[k * 3 + 1], lo) || eq(params[k * 3 + 1], hi);
+    atLimit[k * 3 + 2] = eq(params[k * 3 + 2], sigmaBounds[0]) || eq(params[k * 3 + 2], sigmaBounds[1]);
+  }
+  const free = atLimit.map((a, j) => (a ? -1 : j)).filter((j) => j >= 0);
+  const errors = new Array(m).fill(null);
+  const dof = n - free.length;
+  if (free.length > 0 && dof > 0) {
+    const rss = residuals(params).reduce((a, v) => a + v * v, 0);
+    const s2 = rss / dof;
+    const J = jacobian(params);
+    const F = free.map((j) => free.map((l) => J.reduce((a, row) => a + row[j] * row[l], 0)));
+    free.forEach((j, idx) => {
+      const unit = free.map((_, q) => (q === idx ? 1 : 0));
+      const col = solveLinear(F, unit);
+      if (col && col[idx] > 0) errors[j] = Math.sqrt(s2 * col[idx]);
+    });
+  }
+
+  const fwhmFactor = 2 * Math.sqrt(2 * Math.log(2));
   const components = Array.from({ length: seeds.length }, (_, k) => ({
     amplitude: params[k * 3],
     center: params[k * 3 + 1],
     sigma: Math.abs(params[k * 3 + 2]),
-    fwhm: Math.abs(params[k * 3 + 2]) * 2 * Math.sqrt(2 * Math.log(2)),
+    fwhm: Math.abs(params[k * 3 + 2]) * fwhmFactor,
+    amplitudeErr: errors[k * 3],
+    centerErr: errors[k * 3 + 1],
+    fwhmErr: errors[k * 3 + 2] === null ? null : errors[k * 3 + 2] * fwhmFactor,
+    amplitudeAtLimit: atLimit[k * 3],
+    centerAtLimit: atLimit[k * 3 + 1],
+    fwhmAtLimit: atLimit[k * 3 + 2],
   }));
-  return { components, offset: fitOffset ? params[nG] : 0 };
+  return {
+    components,
+    offset: fitOffset ? params[nG] : 0,
+    offsetErr: fitOffset ? errors[nG] : null,
+  };
 }
 
 // --- Analysis UI functions (called from HTML) ---
@@ -342,29 +381,44 @@ function fitGaussians() {
   const fitOffset = offsetBox ? offsetBox.checked : true;
 
   try {
-    const { components, offset } = lmFitGaussians(xs, correctedAmps, seeds, fitOffset);
+    const { components, offset, offsetErr } = lmFitGaussians(xs, correctedAmps, seeds, fitOffset);
     analysisState.gaussianFits = components;
     analysisState.gaussianOffset = offset;
     updateOverlays();
-    renderGaussianResults(components, fitOffset ? offset : null);
+    renderGaussianResults(components, fitOffset ? { value: offset, err: offsetErr } : null);
   } catch (e) {
     alert(chartT("errGaussianFailed", "Gaussian fit failed:") + " " + e.message);
   }
+}
+
+// "value ± err unit", rounded so the error keeps two significant digits and
+// the value is given to the same decimal place. Without an error, the value
+// gets `fallbackDecimals`, marked as at the limit when the fitter held it there.
+function formatWithError(value, err, atLimit, fallbackDecimals, unit) {
+  const u = unit ? ` ${unit}` : "";
+  if (atLimit) {
+    return `${value.toFixed(fallbackDecimals)}${u} (${chartT("atLimit", "at limit")})`;
+  }
+  if (err === null || !isFinite(err) || err <= 0) return value.toFixed(fallbackDecimals) + u;
+  const decimals = Math.min(8, Math.max(0, 1 - Math.floor(Math.log10(err))));
+  return `${value.toFixed(decimals)} ± ${err.toFixed(decimals)}${u}`;
 }
 
 function renderGaussianResults(fits, offset) {
   const el = document.getElementById("gaussian-results");
   if (!el) return;
   const unit = chartRefs ? chartRefs.xUnit() : "MHz";
-  const offsetHtml = offset === null ? "" : `<div>Offset: ${offset.toFixed(3)}</div>`;
+  const offsetHtml = offset === null
+    ? ""
+    : `<div>Offset: ${formatWithError(offset.value, offset.err, false, 3)}</div>`;
   el.innerHTML = offsetHtml + fits
     .map(
       (f, i) =>
         `<div class="border-t pt-1 mt-1">` +
         `<span class="font-semibold">G${i + 1}</span><br>` +
-        `Ctr: ${f.center.toFixed(2)} ${unit}<br>` +
-        `Amp: ${f.amplitude.toFixed(3)}<br>` +
-        `FWHM: ${f.fwhm.toFixed(2)} ${unit}` +
+        `Ctr: ${formatWithError(f.center, f.centerErr, f.centerAtLimit, 2, unit)}<br>` +
+        `Amp: ${formatWithError(f.amplitude, f.amplitudeErr, f.amplitudeAtLimit, 3)}<br>` +
+        `FWHM: ${formatWithError(f.fwhm, f.fwhmErr, f.fwhmAtLimit, 2, unit)}` +
         `</div>`
     )
     .join("");
