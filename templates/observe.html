@@ -480,8 +480,19 @@
       if (hint && fixed) hint.classList.toggle('hidden', !fixed.checked);
   }
 
+  // Pointing offsets belong to the target they were dialled in for. An offset
+  // left over from the previous source silently shifts the next one, and the
+  // inputs sit in a collapsed <details> where the stale value is invisible, so
+  // every path that changes the commanded target zeroes them.
+  function clearPointingOffsets() {
+      document.querySelectorAll("input[name='az_offset_deg'], input[name='el_offset_deg']").forEach(el => {
+          el.value = '0';
+      });
+  }
+
   function coordinateSystemChanged(e) {
       stopSatelliteRefresh();
+      clearPointingOffsets();
       const x_label = document.querySelector("form label[for='x']");
       const y_label = document.querySelector("form label[for='y']");
       const inputX = document.querySelector("form input[name='x']");
@@ -697,6 +708,7 @@
       // Set norad_id into the hidden x field so set-target can read it
       const inputX = document.querySelector("form input[name='x']");
       inputX.value = opt.value;
+      clearPointingOffsets();
       // Auto-set receiver: Raw mode, 25 MHz bandwidth, constellation frequency
       const freqMhz = parseFloat(opt.dataset.freqMhz);
       if (!isNaN(freqMhz)) {
@@ -967,6 +979,12 @@
           document.getElementById('obs-mode-raw').checked = true;
           updateRefFreqVisibility();
       }
+      // Committing a new coordinate — 'change' fires on blur or Enter, not on
+      // every keystroke — is as much a target change as picking a different
+      // coordinate system, so it clears the offsets too.
+      document.querySelectorAll("form input[name='x'], form input[name='y']").forEach(el => {
+          el.addEventListener('change', clearPointingOffsets);
+      });
       const satSelect = document.getElementById('satellite-select');
       satSelect.addEventListener('change', satelliteChanged);
       if (isGnss) {
