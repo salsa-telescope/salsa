@@ -363,7 +363,7 @@ function resetAnalysis() {
 function updateOverlays() {
   if (!chartRefs || !analysisState) return;
   const { x, y, baselineDotsG, baselineCurveG, gaussianDotsG, gaussianCurvesG,
-          freqToDisplay, xUnit } = chartRefs;
+          gaussianSumG, legendG, freqToDisplay, xUnit } = chartRefs;
 
   // Baseline range shading
   baselineDotsG.selectAll("*").remove();
@@ -430,6 +430,8 @@ function updateOverlays() {
 
   // Fitted Gaussian curves
   gaussianCurvesG.selectAll("path").remove();
+  gaussianSumG.selectAll("path").remove();
+  legendG.selectAll("*").remove();
   if (analysisState.gaussianFits.length > 0) {
     const { freqsHz } = analysisState;
     const xs = freqsHz.map((f) => freqToDisplay(f));
@@ -449,6 +451,50 @@ function updateOverlays() {
         .attr("clip-path", "url(#plot-clip)")
         .attr("d", lineFn);
     });
+
+    // Total model: the sum of every component, which is what you actually
+    // compare against the spectrum when a blend was fitted. Dashed so it reads
+    // as a model rather than one more component. A single component *is* the
+    // sum, so drawing it there would only double the same curve.
+    if (analysisState.gaussianFits.length > 1) {
+      const sumPoints = xs.map((xd) => ({
+        x: xd,
+        y: analysisState.gaussianFits.reduce((acc, fit) => {
+          const dx = xd - fit.center;
+          return acc + fit.amplitude * Math.exp((-dx * dx) / (2 * fit.sigma * fit.sigma));
+        }, 0),
+      }));
+      gaussianSumG.append("path")
+        .datum(sumPoints)
+        .attr("fill", "none")
+        .attr("stroke", "black")
+        .attr("stroke-width", 2)
+        .attr("stroke-dasharray", "6,4")
+        .attr("clip-path", "url(#plot-clip)")
+        .attr("d", d3.line().x((d) => x(d.x)).y((d) => y(d.y)));
+
+      // Legend for that dashed line, top-left of the plot area — the tooltip
+      // owns the top-right corner. Positioned from the scale ranges so it
+      // needs no access to the chart's margins, and drawn inside the SVG so
+      // the PNG export picks it up. Nothing here should swallow brush or
+      // pick-mode clicks.
+      const lx = x.range()[0] + 12;
+      const ly = y.range()[1] + 14;
+      legendG.attr("pointer-events", "none");
+      legendG.append("line")
+        .attr("x1", lx).attr("x2", lx + 24)
+        .attr("y1", ly).attr("y2", ly)
+        .attr("stroke", "black")
+        .attr("stroke-width", 2)
+        .attr("stroke-dasharray", "6,4");
+      legendG.append("text")
+        .attr("x", lx + 30)
+        .attr("y", ly)
+        .attr("dominant-baseline", "middle")
+        .attr("font-size", "12px")
+        .attr("fill", "#374151")
+        .text(chartT("gaussianTotal", "Total of fitted components"));
+    }
   }
 }
 
@@ -765,6 +811,8 @@ function loadObservation(id) {
       const baselineCurveG = svg.append("g").attr("class", "baseline-curve");
       const gaussianDotsG = svg.append("g").attr("class", "gaussian-dots");
       const gaussianCurvesG = svg.append("g").attr("class", "gaussian-curves");
+      const gaussianSumG = svg.append("g").attr("class", "gaussian-sum");
+      const legendG = svg.append("g").attr("class", "chart-legend");
 
       // Tooltip
       const tooltip = svg
@@ -899,6 +947,7 @@ function loadObservation(id) {
       chartRefs = {
         x, y, brushG, clickOverlay,
         baselineDotsG, baselineCurveG, gaussianDotsG, gaussianCurvesG,
+        gaussianSumG, legendG,
         freqToDisplay, xUnit,
         refreshLine, rescaleAndRedraw,
       };

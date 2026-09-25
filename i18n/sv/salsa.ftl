@@ -389,6 +389,7 @@ chart-seed-singular = startgissning
 chart-seed-plural = startgissningar
 chart-picking = (väljer…)
 chart-sun-azel = Solen az/el
+chart-gaussian-total = Summa av anpassade komponenter
 
 ## Login page
 

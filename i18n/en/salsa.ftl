@@ -389,6 +389,7 @@ chart-seed-singular = seed
 chart-seed-plural = seeds
 chart-picking = (picking…)
 chart-sun-azel = Sun az/el
+chart-gaussian-total = Total of fitted components
 
 ## Login page
 
