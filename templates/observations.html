@@ -182,6 +182,10 @@
               <button id="btn-pick-gaussian" onclick="togglePickMode('gaussian')" class="text-xs px-2 py-1 bg-gray-200 rounded hover:bg-gray-300">{{ lang.t("chart-pick-peaks") }}</button>
               <span id="gaussian-count" class="text-xs text-gray-400">0 {{ lang.t("chart-seed-plural") }}</span>
             </div>
+            <label class="flex gap-1 items-center text-xs text-gray-500">
+              <input type="checkbox" id="gaussian-fit-offset" checked>
+              {{ lang.t("obs-fit-offset") }}
+            </label>
             <div class="flex gap-2">
               <button id="btn-fit-gaussian" onclick="fitGaussians()" disabled
                 class="text-xs px-2 py-1 bg-brand-bg text-link rounded hover:bg-brand-bg disabled:opacity-40 disabled:cursor-not-allowed">{{ lang.t("obs-fit") }}</button>

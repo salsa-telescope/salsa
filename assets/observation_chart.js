@@ -57,8 +57,12 @@ function evalPoly(coeffs, x) {
 // most halfway toward the next picked peak. This stops two seeds from
 // converging onto the same peak and prevents a peak from drifting outside
 // the visible data.
-function lmFitGaussians(xs, ys, seeds) {
+// Fits a sum of Gaussians, plus a constant offset when fitOffset is set, and
+// returns { components, offset }. Offset is 0 when it wasn't fitted.
+function lmFitGaussians(xs, ys, seeds, fitOffset) {
+  const nG = seeds.length * 3;
   let params = seeds.flatMap((s) => [s.amplitude, s.center, s.sigma]);
+  if (fitOffset) params.push(0);
   const n = xs.length;
   const m = params.length;
 
@@ -75,18 +79,36 @@ function lmFitGaussians(xs, ys, seeds) {
     const hi = pos === sortedIdx.length - 1 ? xMax : (c + seeds[sortedIdx[pos + 1]].center) / 2;
     centerBounds[i] = [lo, hi];
   }
-  function clampCenters(p) {
+
+  // Width and amplitude bounds. Left free, a component the data doesn't pin
+  // down can widen without limit until it is a flat line standing in for a
+  // pedestal or a neighbour, with an amplitude of either sign. Widths stay
+  // between half a channel and a quarter of the span; amplitudes keep the sign
+  // of their seed, so a seed on a dip can still fit an absorption line.
+  // Amplitudes stop just short of zero rather than at it: at exactly zero the
+  // component's center and width drop out of the Jacobian and the step solve
+  // goes singular.
+  const channel = Math.abs(xs[1] - xs[0]);
+  const sigmaBounds = [channel / 2, (xMax - xMin) / 4];
+  const ampFloor = 1e-6 * Math.max(...ys.map(Math.abs));
+  const ampSign = seeds.map((s) => (s.amplitude < 0 ? -1 : 1));
+
+  function clampParams(p) {
     for (let k = 0; k < seeds.length; k++) {
       const [lo, hi] = centerBounds[k];
       const idx = k * 3 + 1;
       if (p[idx] < lo) p[idx] = lo;
       else if (p[idx] > hi) p[idx] = hi;
+      const sig = Math.abs(p[k * 3 + 2]);
+      p[k * 3 + 2] = Math.min(Math.max(sig, sigmaBounds[0]), sigmaBounds[1]);
+      if (ampSign[k] * p[k * 3] < ampFloor) p[k * 3] = ampSign[k] * ampFloor;
     }
   }
+  clampParams(params);
 
   function model(p, x) {
-    let sum = 0;
-    for (let k = 0; k < p.length; k += 3) {
+    let sum = fitOffset ? p[nG] : 0;
+    for (let k = 0; k < nG; k += 3) {
       const dx = x - p[k + 1];
       sum += p[k] * Math.exp((-dx * dx) / (2 * p[k + 2] * p[k + 2]));
     }
@@ -100,7 +122,8 @@ function lmFitGaussians(xs, ys, seeds) {
   function jacobian(p) {
     return xs.map((x) => {
       const row = new Array(m).fill(0);
-      for (let k = 0; k < p.length; k += 3) {
+      if (fitOffset) row[nG] = -1;
+      for (let k = 0; k < nG; k += 3) {
         const A = p[k], mu = p[k + 1], sig = p[k + 2];
         const dx = x - mu;
         const g = Math.exp((-dx * dx) / (2 * sig * sig));
@@ -130,7 +153,7 @@ function lmFitGaussians(xs, ys, seeds) {
     const delta = solveLinear(Aug, Jtr);
     if (!delta) break;
     const newParams = params.map((p, j) => p + delta[j]);
-    clampCenters(newParams);
+    clampParams(newParams);
     const oldCost = r.reduce((s, v) => s + v * v, 0);
     const newCost = residuals(newParams).reduce((s, v) => s + v * v, 0);
     if (newCost < oldCost) {
@@ -143,12 +166,13 @@ function lmFitGaussians(xs, ys, seeds) {
     }
   }
 
-  return Array.from({ length: params.length / 3 }, (_, k) => ({
+  const components = Array.from({ length: seeds.length }, (_, k) => ({
     amplitude: params[k * 3],
     center: params[k * 3 + 1],
     sigma: Math.abs(params[k * 3 + 2]),
     fwhm: Math.abs(params[k * 3 + 2]) * 2 * Math.sqrt(2 * Math.log(2)),
   }));
+  return { components, offset: fitOffset ? params[nG] : 0 };
 }
 
 // --- Analysis UI functions (called from HTML) ---
@@ -300,28 +324,40 @@ function fitGaussians() {
   const xs = freqsHz.map((f) => chartRefs.freqToDisplay(f));
   const xRange = xs[xs.length - 1] - xs[0];
   const defaultSigma = Math.abs(xRange) / 20;
+  const centers = analysisState.gaussianSeeds.map((s) => s.xDisplay);
 
-  const seeds = analysisState.gaussianSeeds.map((s) => ({
-    amplitude: s.y,
-    center: s.xDisplay,
-    sigma: defaultSigma,
-  }));
+  // Start each width at a third of the distance to the nearest other seed, so
+  // neighbouring components begin mostly apart instead of already covering
+  // each other; a twentieth of the span is only the ceiling. Starting too
+  // wide is how two components of a blend end up swallowing the rest.
+  const seeds = analysisState.gaussianSeeds.map((s, i) => {
+    const nearest = Math.min(...centers.filter((_, j) => j !== i).map((c) => Math.abs(c - s.xDisplay)));
+    return {
+      amplitude: s.y,
+      center: s.xDisplay,
+      sigma: Math.min(defaultSigma, nearest / 3),
+    };
+  });
+  const offsetBox = document.getElementById("gaussian-fit-offset");
+  const fitOffset = offsetBox ? offsetBox.checked : true;
 
   try {
-    const fits = lmFitGaussians(xs, correctedAmps, seeds);
-    analysisState.gaussianFits = fits;
+    const { components, offset } = lmFitGaussians(xs, correctedAmps, seeds, fitOffset);
+    analysisState.gaussianFits = components;
+    analysisState.gaussianOffset = offset;
     updateOverlays();
-    renderGaussianResults(fits);
+    renderGaussianResults(components, fitOffset ? offset : null);
   } catch (e) {
     alert(chartT("errGaussianFailed", "Gaussian fit failed:") + " " + e.message);
   }
 }
 
-function renderGaussianResults(fits) {
+function renderGaussianResults(fits, offset) {
   const el = document.getElementById("gaussian-results");
   if (!el) return;
   const unit = chartRefs ? chartRefs.xUnit() : "MHz";
-  el.innerHTML = fits
+  const offsetHtml = offset === null ? "" : `<div>Offset: ${offset.toFixed(3)}</div>`;
+  el.innerHTML = offsetHtml + fits
     .map(
       (f, i) =>
         `<div class="border-t pt-1 mt-1">` +
@@ -338,6 +374,7 @@ function clearGaussians() {
   if (!analysisState) return;
   analysisState.gaussianSeeds = [];
   analysisState.gaussianFits = [];
+  analysisState.gaussianOffset = 0;
   document.getElementById("gaussian-results").innerHTML = "";
   updateAnalysisUI();
   updateOverlays();
@@ -350,6 +387,7 @@ function resetAnalysis() {
   analysisState.pendingRangeStart = null;
   analysisState.gaussianSeeds = [];
   analysisState.gaussianFits = [];
+  analysisState.gaussianOffset = 0;
   analysisState.pendingBaselineCoeffs = null;
   analysisState.baselineCoeffs = null;
   analysisState.clickMode = null;
@@ -436,11 +474,14 @@ function updateOverlays() {
     const { freqsHz } = analysisState;
     const xs = freqsHz.map((f) => freqToDisplay(f));
     const colors = ["crimson", "darkorchid", "teal", "chocolate", "steelblue"];
+    // Each component is drawn standing on the fitted offset, so it sits where
+    // it contributes to the model rather than below the data.
+    const offset = analysisState.gaussianOffset;
 
     analysisState.gaussianFits.forEach((fit, idx) => {
       const curvePoints = xs.map((xd) => {
         const dx = xd - fit.center;
-        return { x: xd, y: fit.amplitude * Math.exp((-dx * dx) / (2 * fit.sigma * fit.sigma)) };
+        return { x: xd, y: offset + fit.amplitude * Math.exp((-dx * dx) / (2 * fit.sigma * fit.sigma)) };
       });
       const lineFn = d3.line().x((d) => x(d.x)).y((d) => y(d.y));
       gaussianCurvesG.append("path")
@@ -452,17 +493,18 @@ function updateOverlays() {
         .attr("d", lineFn);
     });
 
-    // Total model: the sum of every component, which is what you actually
-    // compare against the spectrum when a blend was fitted. Dashed so it reads
-    // as a model rather than one more component. A single component *is* the
-    // sum, so drawing it there would only double the same curve.
+    // Total model: the sum of every component plus any fitted offset, which is
+    // what you actually compare against the spectrum when a blend was fitted.
+    // Dashed so it reads as a model rather than one more component. A single
+    // component drawn on the offset *is* the model, so drawing it there would
+    // only double the same curve.
     if (analysisState.gaussianFits.length > 1) {
       const sumPoints = xs.map((xd) => ({
         x: xd,
         y: analysisState.gaussianFits.reduce((acc, fit) => {
           const dx = xd - fit.center;
           return acc + fit.amplitude * Math.exp((-dx * dx) / (2 * fit.sigma * fit.sigma));
-        }, 0),
+        }, offset),
       }));
       gaussianSumG.append("path")
         .datum(sumPoints)
@@ -614,6 +656,8 @@ function loadObservation(id) {
         pendingRangeStart: null,
         gaussianSeeds: [],
         gaussianFits: [],
+        // Fitted constant offset under the Gaussians; 0 when none was fitted.
+        gaussianOffset: 0,
         // Most recent fit, drawn as a dashed preview line. Set by Fit, cleared
         // by Subtract or Clear.
         pendingBaselineCoeffs: null,

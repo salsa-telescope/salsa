@@ -287,13 +287,30 @@ target.</p>
       </figure>
 
       <h5 class="font-semibold text-gray-800">Gaussian fitting</h5>
-      <p>After baseline correction, click on a peak in the spectrum to select it, then
-      click <em>Fit Gaussian</em>. The fitted peak parameters (centre frequency, amplitude,
-      width) are displayed.</p>
+      <p>After baseline correction, click <em>Pick peaks</em> and click on each peak in
+      the spectrum, then click <em>Fit</em>. Each fitted component is drawn in its own
+      colour and its parameters (centre, amplitude, FWHM) are listed as G1, G2, and so
+      on. With two or more components, a dashed black line shows their sum, labelled
+      <em>Total of fitted components</em>: this is the curve to compare against the
+      spectrum.</p>
 
-      <p>Getting the fitter to converge on the right peaks can be tricky. For best results,
-      click as close as possible to the very centre of each peak — both horizontally and
-      vertically — during the peak-picking phase. See the example below.</p>
+      <p>Click as close as possible to the top of each peak, both horizontally and
+      vertically, since the fit starts from those points. Each component's centre stays
+      between the midpoints to its neighbouring picks, so two components cannot merge
+      into one. Each starting width is set from the distance to the nearest other pick,
+      so closely spaced peaks start narrow. A pick below zero fits an absorption line
+      (a dip) rather than an emission line.</p>
+
+      <p><em>Fit constant offset</em> (on by default) adds a flat level under all the
+      components and shows it as <em>Offset</em> above the results. It absorbs any level
+      the baseline correction left behind, which would otherwise pull the components
+      out of shape. Untick it if the spectrum is already corrected to zero and you want
+      the Gaussians alone. The offset is only a constant: subtract a baseline first if
+      the spectrum is sloped or curved.</p>
+
+      <p>Switching between <em>Show frequency</em> and <em>Show VLSR</em> clears any
+      picks and fits, as they are in the units of the axis they were made on. A
+      subtracted baseline is kept.</p>
 
       <figure class="my-2 max-w-xl">
         <img src="/gauss_example.png" alt="Three Gaussian components fitted to a spectrum" class="rounded-lg w-full">

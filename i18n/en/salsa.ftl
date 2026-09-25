@@ -294,6 +294,7 @@ obs-fit = Fit
 obs-subtract = Subtract
 obs-clear = Clear
 obs-gaussian = Gaussian fit
+obs-fit-offset = Fit constant offset
 
 ## Live status page and fragments
 

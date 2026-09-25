@@ -288,13 +288,31 @@ mål.</p>
       </figure>
 
       <h5 class="font-semibold text-gray-800">Gaussanpassning</h5>
-      <p>Efter baslinjekorrektionen, klicka på en topp i spektrumet för att välja den och
-      klicka sedan på <em>Anpassa</em>. Den anpassade toppens parametrar (centerfrekvens, amplitud,
-      bredd) visas.</p>
+      <p>Efter baslinjekorrektionen, klicka på <em>Välj toppar</em> och klicka på varje
+      topp i spektrumet, och klicka sedan på <em>Anpassa</em>. Varje anpassad komponent
+      ritas i en egen färg och dess parametrar (center, amplitud, FWHM) listas som G1,
+      G2 och så vidare. Med två eller fler komponenter visar en streckad svart linje
+      deras summa, märkt <em>Summa av anpassade komponenter</em>: det är den kurvan
+      som ska jämföras med spektrumet.</p>
 
-      <p>Att få anpassningen att konvergera mot rätt toppar kan vara knepigt. För bästa resultat,
-      klicka så nära varje topps mitt som möjligt — både horisontellt och
-      vertikalt — när du väljer toppar. Se exemplet nedan.</p>
+      <p>Klicka så nära varje topps högsta punkt som möjligt, både horisontellt och
+      vertikalt, eftersom anpassningen börjar från de punkterna. Varje komponents center
+      stannar mellan mittpunkterna till de närmaste valda topparna, så två komponenter
+      kan inte smälta ihop till en. Varje startbredd sätts utifrån avståndet till
+      närmaste andra valda topp, så tätt liggande toppar börjar smala. En topp som väljs
+      under noll anpassas som en absorptionslinje (en dal) i stället för en
+      emissionslinje.</p>
+
+      <p><em>Anpassa konstant nivå</em> (på som standard) lägger till en jämn nivå under
+      alla komponenter och visar den som <em>Offset</em> ovanför resultaten. Den tar upp
+      en nivå som baslinjekorrektionen lämnat kvar och som annars skulle dra
+      komponenterna ur form. Bocka ur den om spektrumet redan är korrigerat till noll och
+      du bara vill anpassa gaussfunktionerna. Nivån är bara en konstant: subtrahera en
+      baslinje först om spektrumet lutar eller är krökt.</p>
+
+      <p>Byte mellan <em>Visa frekvens</em> och <em>Visa VLSR</em> rensar valda toppar och
+      anpassningar, eftersom de är i enheterna för den axel de gjordes på. En
+      subtraherad baslinje behålls.</p>
 
       <figure class="my-2 max-w-xl">
         <img src="/gauss_example.png" alt="Tre gausskomponenter anpassade till ett spektrum" class="rounded-lg w-full">

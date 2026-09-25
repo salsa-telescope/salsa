@@ -294,6 +294,7 @@ obs-fit = Anpassa
 obs-subtract = Subtrahera
 obs-clear = Rensa
 obs-gaussian = Gaussanpassning
+obs-fit-offset = Anpassa konstant nivå
 
 ## Live status page and fragments
 
