@@ -1,5 +1,5 @@
 use axum::extract::{MatchedPath, State};
-use axum::http::{HeaderMap, Request, Uri};
+use axum::http::{HeaderMap, HeaderValue, Request, Uri, header};
 use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Redirect, Response};
 use axum::{Router, routing::get};
@@ -10,6 +10,7 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 use tower_http::services::ServeDir;
+use tower_http::set_header::SetResponseHeader;
 use tower_http::trace::TraceLayer;
 use tracing::{debug, debug_span, info, warn};
 
@@ -289,7 +290,18 @@ pub async fn create_app(config_dir: &Path, database_dir: &Path) -> (Router, AppS
         )
         // Registered before the layers below so assets get the security
         // headers too (a fallback added after layering would bypass them).
-        .fallback_service(ServeDir::new(assets_path))
+        //
+        // Assets keep their names across releases, and with no Cache-Control a
+        // browser guesses how long its copy stays fresh from Last-Modified —
+        // for a file untouched for weeks, that is days. After a deploy users
+        // then ran the new templates against the old JS until they cleared
+        // their cache. no-cache still lets the browser keep its copy, but it
+        // asks first, and ServeDir answers an unchanged file with a 304.
+        .fallback_service(SetResponseHeader::if_not_present(
+            ServeDir::new(assets_path),
+            header::CACHE_CONTROL,
+            HeaderValue::from_static("no-cache"),
+        ))
         .layer(
             TraceLayer::new_for_http().make_span_with(|request: &Request<_>| {
                 let matched_path = request

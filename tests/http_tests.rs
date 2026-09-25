@@ -588,3 +588,36 @@ fn observation_is_saved_against_the_position_it_was_taken_at() {
         saved[0].0
     );
 }
+
+#[test]
+fn static_assets_are_revalidated_rather_than_cached_blindly() {
+    // Without Cache-Control, browsers kept serving the previous release's JS
+    // for days after a deploy. no-cache makes them ask each time, and an
+    // unchanged file is answered with a cheap 304.
+    let server = SalsaTestServer::spawn();
+    let client = Client::new();
+
+    let res = client
+        .get(server.addr() + "/observation_chart.js")
+        .send()
+        .expect("Should be able to send request");
+    assert_eq!(StatusCode::OK, res.status());
+    assert_eq!(
+        Some("no-cache"),
+        res.headers()
+            .get("cache-control")
+            .and_then(|v| v.to_str().ok())
+    );
+    let last_modified = res
+        .headers()
+        .get("last-modified")
+        .expect("Assets should carry Last-Modified")
+        .clone();
+
+    let res = client
+        .get(server.addr() + "/observation_chart.js")
+        .header("if-modified-since", last_modified)
+        .send()
+        .expect("Should be able to send request");
+    assert_eq!(StatusCode::NOT_MODIFIED, res.status());
+}
