@@ -973,6 +973,16 @@ function loadObservation(id) {
           axisBtn.style.display = "";
           axisBtn.textContent = showVlsr ? chartT("showFrequency", "Show frequency") : chartT("showVlsr", "Show VLSR");
           axisBtn.onclick = function () {
+            // Fits, seeds and picked ranges live in display units, so on the
+            // new axis they'd be re-evaluated in the wrong ones (a km/s fit
+            // drawn on a MHz axis collapses to zero). An already-subtracted
+            // baseline is baked into correctedAmps and survives the toggle.
+            if (analysisState) {
+              analysisState.baselineRanges = [];
+              analysisState.pendingRangeStart = null;
+              analysisState.pendingBaselineCoeffs = null;
+              clearGaussians();
+            }
             showVlsr = !showVlsr;
             axisBtn.textContent = showVlsr ? chartT("showFrequency", "Show frequency") : chartT("showVlsr", "Show VLSR");
             const newData = getDisplayData();
