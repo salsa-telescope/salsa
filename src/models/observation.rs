@@ -40,12 +40,66 @@ pub struct Observation {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ObservationSummary {
     pub id: i64,
+    pub user_id: i64,
     pub telescope_id: String,
     pub start_time: DateTime<Utc>,
     pub coordinate_system: String,
     pub target_x: f64,
     pub target_y: f64,
     pub integration_time_secs: f64,
+}
+
+/// Narrows the archive list. Every field is optional; `None` matches all.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct ObservationFilter {
+    /// Inclusive lower bound on `start_time`, unix seconds.
+    pub start_after: Option<i64>,
+    /// Exclusive upper bound on `start_time`, unix seconds.
+    pub start_before: Option<i64>,
+    pub coordinate_system: Option<String>,
+    pub telescope_id: Option<String>,
+}
+
+impl ObservationFilter {
+    pub fn is_active(&self) -> bool {
+        *self != Self::default()
+    }
+
+    /// WHERE clause and its parameters for the list and count queries.
+    /// `user_id` of `None` means every user's observations (admin view).
+    ///
+    /// Built from only the conditions in use, rather than static
+    /// `(?n IS NULL OR ...)` terms, because SQLite plans a statement before
+    /// seeing its parameters: an optional user_id term would stop the common
+    /// per-user query from using idx_observation_user_start.
+    fn where_clause(&self, user_id: Option<i64>) -> (String, Vec<rusqlite::types::Value>) {
+        use rusqlite::types::Value;
+        let mut clauses = vec![];
+        let mut params = vec![];
+        let mut add = |clause: &str, value: Value| {
+            params.push(value);
+            clauses.push(format!("{clause} (?{})", params.len()));
+        };
+        if let Some(id) = user_id {
+            add("user_id =", Value::Integer(id));
+        }
+        if let Some(t) = self.start_after {
+            add("start_time >=", Value::Integer(t));
+        }
+        if let Some(t) = self.start_before {
+            add("start_time <", Value::Integer(t));
+        }
+        if let Some(c) = &self.coordinate_system {
+            add("coordinate_system =", Value::Text(c.clone()));
+        }
+        if let Some(t) = &self.telescope_id {
+            add("telescope_id =", Value::Text(t.clone()));
+        }
+        if clauses.is_empty() {
+            clauses.push("1".to_string());
+        }
+        (clauses.join(" AND "), params)
+    }
 }
 
 /// Every column of `observation`, in the order [`map_observation_row`] reads
@@ -137,30 +191,37 @@ impl Observation {
     /// are several tens of kilobytes of JSON per row that would be read off
     /// disk and parsed just to be dropped. The full row is only ever needed by
     /// the download endpoints, which go through [`Observation::fetch_one`].
-    pub async fn fetch_summaries_for_user_page(
+    pub async fn fetch_summaries_page(
         connection: Arc<Mutex<Connection>>,
-        user_id: i64,
+        user_id: Option<i64>,
+        filter: &ObservationFilter,
         page_size: i64,
         offset: i64,
     ) -> Result<Vec<ObservationSummary>, InternalError> {
+        let (where_clause, mut params) = filter.where_clause(user_id);
+        let n = params.len();
+        params.push(page_size.into());
+        params.push(offset.into());
         let conn = connection.lock().await;
-        let mut stmt = conn
-            .prepare(
-                "SELECT id, telescope_id, start_time, coordinate_system, target_x, target_y, integration_time_secs
-                 FROM observation
-                 WHERE user_id = (?1)
-                 ORDER BY start_time DESC
-                 LIMIT (?2) OFFSET (?3)",
-            )?;
-        let summaries = stmt.query_map(rusqlite::params![user_id, page_size, offset], |row| {
+        let mut stmt = conn.prepare(&format!(
+            "SELECT id, user_id, telescope_id, start_time, coordinate_system, target_x, target_y, integration_time_secs
+             FROM observation
+             WHERE {where_clause}
+             ORDER BY start_time DESC
+             LIMIT (?{}) OFFSET (?{})",
+            n + 1,
+            n + 2
+        ))?;
+        let summaries = stmt.query_map(rusqlite::params_from_iter(params), |row| {
             Ok(ObservationSummary {
                 id: row.get(0)?,
-                telescope_id: row.get(1)?,
-                start_time: DateTime::<Utc>::from_timestamp(row.get(2)?, 0).unwrap_or_default(),
-                coordinate_system: row.get(3)?,
-                target_x: row.get(4)?,
-                target_y: row.get(5)?,
-                integration_time_secs: row.get(6)?,
+                user_id: row.get(1)?,
+                telescope_id: row.get(2)?,
+                start_time: DateTime::<Utc>::from_timestamp(row.get(3)?, 0).unwrap_or_default(),
+                coordinate_system: row.get(4)?,
+                target_x: row.get(5)?,
+                target_y: row.get(6)?,
+                integration_time_secs: row.get(7)?,
             })
         })?;
 
@@ -169,17 +230,41 @@ impl Observation {
             .map_err(InternalError::from)
     }
 
-    pub async fn count_for_user(
+    /// `user_id` of `None` counts every user's observations.
+    pub async fn count(
         connection: Arc<Mutex<Connection>>,
-        user_id: i64,
+        user_id: Option<i64>,
+        filter: &ObservationFilter,
     ) -> Result<i64, InternalError> {
+        let (where_clause, params) = filter.where_clause(user_id);
         let conn = connection.lock().await;
         conn.query_row(
-            "SELECT COUNT(*) FROM observation WHERE user_id = (?1)",
-            [user_id],
+            &format!("SELECT COUNT(*) FROM observation WHERE {where_clause}"),
+            rusqlite::params_from_iter(params),
             |row| row.get(0),
         )
         .map_err(|err| InternalError::new(format!("Failed to count observations: {err}")))
+    }
+
+    /// The telescopes and coordinate systems there are observations for,
+    /// each sorted — the choices the archive filter offers. `user_id` of
+    /// `None` means across all users.
+    pub async fn filter_options(
+        connection: Arc<Mutex<Connection>>,
+        user_id: Option<i64>,
+    ) -> Result<(Vec<String>, Vec<String>), InternalError> {
+        let conn = connection.lock().await;
+        let distinct = |column: &str| -> Result<Vec<String>, InternalError> {
+            let mut stmt = conn.prepare(&format!(
+                "SELECT DISTINCT {column} FROM observation
+                 WHERE (?1) IS NULL OR user_id = (?1) ORDER BY {column}"
+            ))?;
+            let values = stmt.query_map([user_id], |row| row.get(0))?;
+            values
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(InternalError::from)
+        };
+        Ok((distinct("telescope_id")?, distinct("coordinate_system")?))
     }
 
     pub async fn delete(
@@ -188,9 +273,10 @@ impl Observation {
         user: &User,
     ) -> Result<(), InternalError> {
         let conn = connection.lock().await;
+        // Admins may delete anyone's observation; others only their own.
         conn.execute(
-            "DELETE FROM observation WHERE id = (?1) AND user_id = (?2)",
-            [&id, &user.id],
+            "DELETE FROM observation WHERE id = (?1) AND ((?2) OR user_id = (?3))",
+            rusqlite::params![id, user.is_admin, user.id],
         )
         .map_err(|err| InternalError::new(format!("Failed to delete observation: {err}")))?;
         Ok(())

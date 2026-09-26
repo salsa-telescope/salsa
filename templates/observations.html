@@ -4,8 +4,9 @@
   <form hx-get="/observations" hx-target="#page" hx-push-url="true" class="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-4 text-sm">
     <input type="hidden" name="mode" value="{{ mode }}" />
     <select name="user_id" class="border rounded px-2 py-1">
+      <option value="all" {% if viewed_user_id.is_none() %}selected{% endif %}>{{ lang.t("obs-all-users") }}</option>
       {% for u in all_users %}
-      <option value="{{ u.id }}" {% if u.id == viewed_user_id %}selected{% endif %}>{{ u.id }} &ndash; {{ u.name }} ({{ u.provider }})</option>
+      <option value="{{ u.id }}" {% if u.id.to_string() == viewed_user %}selected{% endif %}>{{ u.id }} &ndash; {{ u.name }} ({{ u.provider }})</option>
       {% endfor %}
     </select>
     <button type="submit" class="btn">View</button>
@@ -16,13 +17,13 @@
   {% if show_interferometry_tab %}
   <div class="telescope-tabs mb-4">
     <button
-      hx-get="/observations?mode=single&user_id={{ viewed_user_id }}"
+      hx-get="/observations?mode=single&user_id={{ viewed_user }}"
       hx-target="#page" hx-push-url="true"
       class="telescope-tab-btn {% if mode == "single" %}active{% endif %}">
       {{ lang.t("obs-tab-single") }}
     </button>
     <button
-      hx-get="/observations?mode=interferometry&user_id={{ viewed_user_id }}"
+      hx-get="/observations?mode=interferometry&user_id={{ viewed_user }}"
       hx-target="#page" hx-push-url="true"
       class="telescope-tab-btn {% if mode == "interferometry" %}active{% endif %}">
       {{ lang.t("observe-landing-interferometry") }}
@@ -52,7 +53,7 @@
       </a>
       <button
         class="ml-2 text-gray-400 hover:text-danger-hover text-xs px-1 flex-shrink-0"
-        hx-delete="/observations/interferometry/{{ s.id }}?user_id={{ viewed_user_id }}"
+        hx-delete="/observations/interferometry/{{ s.id }}?user_id={{ viewed_user }}"
         hx-target="#page"
         hx-confirm="{{ lang.t("obs-inter-delete-confirm") }}">✕</button>
     </div>
@@ -60,14 +61,67 @@
   </div>
   {% endif %}
   {% else %}
-  {% if observations.is_empty() && current_page == 1 %}
+  {% if unfiltered_count == 0 %}
   <h2 class="text-xl font-semibold mb-3">{{ lang.t("obs-my") }}</h2>
   <p>{{ lang.t("obs-none") }}</p>
   {% else %}
   <div class="flex flex-col lg:flex-row gap-4">
     <div class="lg:w-1/3">
-      <h2 class="text-xl font-semibold mb-3">{{ lang.t("obs-my") }}</h2>
-      <p class="text-xs text-gray-400 mb-2">{{ total_count }} {{ lang.t("obs-list-hint") }}</p>
+      <div class="flex items-baseline justify-between gap-2 mb-3">
+        <h2 class="text-xl font-semibold">{% if viewed_user_id.is_none() %}{{ lang.t("obs-all-users") }}{% else %}{{ lang.t("obs-my") }}{% endif %}</h2>
+        {% if show_filter() %}
+        <button type="button"
+          onclick="document.getElementById('obs-filter').classList.toggle('hidden')"
+          class="text-xs px-2 py-0.5 rounded {% if filter_active %}bg-info-bg text-info border border-info-border{% else %}border border-gray-300 text-gray-600 hover:bg-gray-100{% endif %}">
+          {{ lang.t("obs-filter") }}{% if filter_active %} &#9679;{% endif %}
+        </button>
+        {% endif %}
+      </div>
+      {% if show_filter() %}
+      <form id="obs-filter" hx-get="/observations" hx-target="#page" hx-push-url="true"
+        class="{% if !filter_active && !is_admin %}hidden {% endif %}grid grid-cols-2 gap-x-2 gap-y-1 text-xs mb-3 p-2 border rounded">
+        <input type="hidden" name="mode" value="single" />
+        <input type="hidden" name="user_id" value="{{ viewed_user }}" />
+        <label class="flex flex-col text-gray-500">{{ lang.t("obs-filter-from") }}
+          <input type="date" name="from" value="{{ filter.from }}" class="border rounded px-1 py-0.5 text-gray-900" />
+        </label>
+        <label class="flex flex-col text-gray-500">{{ lang.t("obs-filter-to") }}
+          <input type="date" name="to" value="{{ filter.to }}" class="border rounded px-1 py-0.5 text-gray-900" />
+        </label>
+        {% if telescope_options.len() > 1 || !filter.telescope.is_empty() %}
+        <label class="flex flex-col text-gray-500">{{ lang.t("obs-filter-telescope") }}
+          <select name="telescope" class="border rounded px-1 py-0.5 text-gray-900">
+            <option value="">{{ lang.t("obs-filter-all") }}</option>
+            {% for t in telescope_options %}
+            <option value="{{ t }}" {% if *t == filter.telescope %}selected{% endif %}>{{ t }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        {% endif %}
+        {% if coord_options.len() > 1 || !filter.coord.is_empty() %}
+        <label class="flex flex-col text-gray-500">{{ lang.t("obs-filter-coord") }}
+          <select name="coord" class="border rounded px-1 py-0.5 text-gray-900">
+            <option value="">{{ lang.t("obs-filter-all") }}</option>
+            {% for c in coord_options %}
+            <option value="{{ c }}" {% if *c == filter.coord %}selected{% endif %}>{{ coord_label(c) }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        {% endif %}
+        <div class="col-span-2 flex items-center gap-2 mt-1">
+          <button type="submit" class="btn text-xs px-2 py-0.5">{{ lang.t("obs-filter-apply") }}</button>
+          {% if filter_active %}
+          <button type="button" class="text-xs px-2 py-0.5 bg-gray-100 rounded hover:bg-gray-200"
+            hx-get="/observations?mode=single&user_id={{ viewed_user }}"
+            hx-target="#page" hx-push-url="true">{{ lang.t("obs-clear") }}</button>
+          {% endif %}
+        </div>
+      </form>
+      {% endif %}
+      <p class="text-xs text-gray-400 mb-2">{% if filter_active %}{{ total_count }} / {{ unfiltered_count }}{% else %}{{ total_count }}{% endif %} {{ lang.t("obs-list-hint") }}</p>
+      {% if observations.is_empty() %}
+      <p class="text-sm text-gray-500">{{ lang.t("obs-filter-none") }}</p>
+      {% endif %}
       <div class="space-y-1">
           {% for obs in observations %}
           <div
@@ -75,6 +129,7 @@
             class="hover:bg-gray-100 p-2 rounded border border-transparent text-sm flex flex-col sm:flex-row justify-between items-start sm:items-center"
           >
             <span class="cursor-pointer" onclick="loadObservation({{ obs.id }})">
+              {% if viewed_user_id.is_none() %}<span class="inline-block min-w-8 text-xs font-mono text-gray-500" title="{{ lang.t("obs-user-id") }}">u{{ obs.user_id }}</span>{% endif %}
               {{ obs.start_time.in_tz(tz).format("%Y-%m-%d %H:%M %Z") }} &mdash;
               {{ obs.telescope_id }},
               {{ obs.coordinate_system }} ({{ obs.target_x|fmt("{:.1}") }}, {{ obs.target_y|fmt("{:.1}") }}),
@@ -83,7 +138,7 @@
             <button
               id="del-btn-{{ obs.id }}"
               class="ml-2 text-gray-400 hover:text-danger-hover text-xs px-1 flex-shrink-0 hidden"
-              hx-delete="/observations/{{ obs.id }}?page={{ current_page }}&user_id={{ viewed_user_id }}"
+              hx-delete="/observations/{{ obs.id }}?page={{ current_page }}&user_id={{ viewed_user }}{{ filter_qs }}"
               hx-target="#page"
               hx-confirm="{{ lang.t("obs-delete-confirm") }}"
             >✕</button>
@@ -92,10 +147,20 @@
         </div>
       {% if total_pages > 1 %}
       <div class="flex items-center gap-2 mt-3 text-sm">
+        {% if let Some(p) = jump_back_page %}
+        <button
+          class="px-2 py-1 bg-gray-200 rounded hover:bg-gray-300"
+          title="{{ lang.t("obs-back-pages") }}"
+          hx-get="/observations?page={{ p }}&user_id={{ viewed_user }}{{ filter_qs }}"
+          hx-target="#page"
+        >&laquo;</button>
+        {% else %}
+        <button class="px-2 py-1 bg-gray-100 rounded text-gray-400 cursor-default" disabled>&laquo;</button>
+        {% endif %}
         {% if let Some(p) = prev_page %}
         <button
           class="px-3 py-1 bg-gray-200 rounded hover:bg-gray-300"
-          hx-get="/observations?page={{ p }}&user_id={{ viewed_user_id }}"
+          hx-get="/observations?page={{ p }}&user_id={{ viewed_user }}{{ filter_qs }}"
           hx-target="#page"
         >&larr; {{ lang.t("bookings-prev") }}</button>
         {% else %}
@@ -105,11 +170,21 @@
         {% if let Some(p) = next_page %}
         <button
           class="px-3 py-1 bg-gray-200 rounded hover:bg-gray-300"
-          hx-get="/observations?page={{ p }}&user_id={{ viewed_user_id }}"
+          hx-get="/observations?page={{ p }}&user_id={{ viewed_user }}{{ filter_qs }}"
           hx-target="#page"
         >{{ lang.t("bookings-next") }} &rarr;</button>
         {% else %}
         <button class="px-3 py-1 bg-gray-100 rounded text-gray-400 cursor-default" disabled>{{ lang.t("bookings-next") }} &rarr;</button>
+        {% endif %}
+        {% if let Some(p) = jump_forward_page %}
+        <button
+          class="px-2 py-1 bg-gray-200 rounded hover:bg-gray-300"
+          title="{{ lang.t("obs-forward-pages") }}"
+          hx-get="/observations?page={{ p }}&user_id={{ viewed_user }}{{ filter_qs }}"
+          hx-target="#page"
+        >&raquo;</button>
+        {% else %}
+        <button class="px-2 py-1 bg-gray-100 rounded text-gray-400 cursor-default" disabled>&raquo;</button>
         {% endif %}
       </div>
       {% endif %}
