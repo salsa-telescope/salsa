@@ -2,7 +2,7 @@ use crate::app::AppState;
 use crate::fits::{SpectrumMeta, write_spectrum_fits};
 use crate::i18n::Language;
 use crate::models::interferometry::InterferometrySession;
-use crate::models::observation::{Observation, ObservationSummary};
+use crate::models::observation::{Observation, ObservationFilter, ObservationSummary};
 use crate::models::user::User;
 use crate::routes::index::render_main;
 use crate::timefmt::InTz;
@@ -12,11 +12,13 @@ use axum::http::header;
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::{Html, IntoResponse, Json, Redirect, Response};
 use axum::{Extension, Router, routing::get};
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, NaiveDate, NaiveTime, TimeZone, Utc};
 use chrono_tz::Tz;
 use serde::{Deserialize, Serialize};
 
 const PAGE_SIZE: i64 = 10;
+/// How many pages the « and » buttons skip.
+const PAGE_JUMP: usize = 5;
 
 pub fn routes(state: AppState) -> Router {
     Router::new()
@@ -37,8 +39,92 @@ pub fn routes(state: AppState) -> Router {
 #[derive(Deserialize)]
 struct PageQuery {
     page: Option<usize>,
-    user_id: Option<i64>,
+    /// A user id, or "all" for every user's observations (admins only).
+    /// Kept as a string so "all" doesn't fail deserialization.
+    user_id: Option<String>,
     mode: Option<String>,
+    /// Filter fields, as submitted by the filter form. Empty strings mean
+    /// "no filter", since that is what an untouched form field sends.
+    from: Option<String>,
+    to: Option<String>,
+    coord: Option<String>,
+    telescope: Option<String>,
+}
+
+/// The archive filter as the form shows it, plus its parsed query form.
+struct FilterForm {
+    from: String,
+    to: String,
+    coord: String,
+    telescope: String,
+    filter: ObservationFilter,
+}
+
+impl FilterForm {
+    /// Parse the filter from the query. Dates are calendar days in the
+    /// viewer's timezone; `to` is inclusive. Unparseable values are dropped
+    /// rather than rejected, so a mangled URL just shows a wider list.
+    fn parse(query: &PageQuery, tz: Tz) -> Self {
+        let date = |s: &Option<String>| {
+            s.as_deref()
+                .and_then(|s| NaiveDate::parse_from_str(s.trim(), "%Y-%m-%d").ok())
+        };
+        let text = |s: &Option<String>| {
+            s.as_deref()
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .map(str::to_string)
+        };
+        let midnight = |d: NaiveDate| {
+            let naive = d.and_time(NaiveTime::MIN);
+            tz.from_local_datetime(&naive)
+                .earliest()
+                .map(|t| t.timestamp())
+                .unwrap_or_else(|| naive.and_utc().timestamp())
+        };
+        let from = date(&query.from);
+        let to = date(&query.to);
+        let coord = text(&query.coord);
+        let telescope = text(&query.telescope);
+        FilterForm {
+            from: from.map(|d| d.to_string()).unwrap_or_default(),
+            to: to.map(|d| d.to_string()).unwrap_or_default(),
+            coord: coord.clone().unwrap_or_default(),
+            telescope: telescope.clone().unwrap_or_default(),
+            filter: ObservationFilter {
+                start_after: from.map(midnight),
+                start_before: to.and_then(|d| d.succ_opt()).map(midnight),
+                coordinate_system: coord,
+                telescope_id: telescope,
+            },
+        }
+    }
+
+    /// `&key=value` pairs for the active fields, appended to the page and
+    /// delete links so they keep the filter.
+    fn query_string(&self) -> String {
+        [
+            ("from", &self.from),
+            ("to", &self.to),
+            ("coord", &self.coord),
+            ("telescope", &self.telescope),
+        ]
+        .iter()
+        .filter(|(_, v)| !v.is_empty())
+        .map(|(k, v)| format!("&{k}={}", url_encode(v)))
+        .collect()
+    }
+}
+
+fn url_encode(s: &str) -> String {
+    s.bytes()
+        .map(|b| match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                (b as char).to_string()
+            }
+            _ => format!("%{b:02X}"),
+        })
+        .collect()
 }
 
 struct InterfSessionRow {
@@ -57,7 +143,10 @@ struct ObservationsTemplate {
     lang: Language,
     mode: String,
     is_admin: bool,
-    viewed_user_id: i64,
+    /// The `user_id` query value for links: a user id, or "all".
+    viewed_user: String,
+    /// `None` when an admin views all users' observations.
+    viewed_user_id: Option<i64>,
     all_users: Vec<User>,
     show_interferometry_tab: bool,
     // single-dish fields
@@ -66,11 +155,40 @@ struct ObservationsTemplate {
     total_pages: usize,
     prev_page: Option<usize>,
     next_page: Option<usize>,
+    /// Targets of the jump buttons, `None` when already on the first/last page.
+    jump_back_page: Option<usize>,
+    jump_forward_page: Option<usize>,
+    /// Observations matching the filter.
     total_count: i64,
+    /// Observations the user has in all, ignoring the filter.
+    unfiltered_count: i64,
+    filter: FilterForm,
+    filter_active: bool,
+    /// Built by [`FilterForm::query_string`].
+    filter_qs: String,
+    telescope_options: Vec<String>,
+    coord_options: Vec<String>,
     // interferometry fields
     interferometry_sessions: Vec<InterfSessionRow>,
     /// Display timezone, used by `.in_tz(tz)` calls in the template.
     tz: Tz,
+}
+
+impl ObservationsTemplate {
+    /// Whether to offer the filter at all. A student with a page or less of
+    /// observations has nothing to filter, so they don't see the control.
+    fn show_filter(&self) -> bool {
+        self.is_admin || self.filter_active || self.unfiltered_count > PAGE_SIZE
+    }
+
+    fn coord_label(&self, coord: &str) -> String {
+        match coord {
+            "galactic" | "equatorial" | "horizontal" | "sun" => {
+                self.lang.t(&format!("observe-coord-{coord}"))
+            }
+            other => other.to_string(),
+        }
+    }
 }
 
 fn make_interf_rows(
@@ -95,48 +213,124 @@ fn make_interf_rows(
         .collect()
 }
 
-#[allow(clippy::too_many_arguments)]
-fn build_observations_template(
+/// Which user's archive the request is about: admins may pick anyone, or
+/// everyone (`None`). Anything unparseable falls back to the user's own.
+fn viewed_user_id(user: &User, query: &PageQuery) -> Option<i64> {
+    if !user.is_admin {
+        return Some(user.id);
+    }
+    match query.user_id.as_deref().map(str::trim) {
+        Some("all") => None,
+        Some(id) => Some(id.parse().unwrap_or(user.id)),
+        None => Some(user.id),
+    }
+}
+
+/// Render the archive page body. Shared by the list view and the delete
+/// handlers, which re-render in place after deleting. `mode` is the tab
+/// asked for; it falls back to single-dish when there are no interferometry
+/// sessions to show.
+async fn render_observations(
+    state: &AppState,
     lang: Language,
-    mode: String,
-    observations: Vec<ObservationSummary>,
-    total_count: i64,
-    current_page: usize,
-    is_admin: bool,
-    viewed_user_id: i64,
-    all_users: Vec<User>,
-    show_interferometry_tab: bool,
-    interferometry_sessions: Vec<InterfSessionRow>,
-    tz: Tz,
-) -> ObservationsTemplate {
+    user: &User,
+    query: &PageQuery,
+    mode: Option<&str>,
+) -> Result<String, StatusCode> {
+    let db = || state.database_connection.clone();
+    let viewed_user_id = viewed_user_id(user, query);
+    let tz = user.tz();
+    let all_users = if user.is_admin {
+        User::fetch_all_non_guest(db())
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+    } else {
+        vec![]
+    };
+    // The all-users view is single-dish only.
+    let interf_count = match viewed_user_id {
+        Some(id) => InterferometrySession::count_for_user(db(), id)
+            .await
+            .unwrap_or(0),
+        None => 0,
+    };
+    let show_interferometry_tab = interf_count > 0;
+    let mode = if mode == Some("interferometry") && show_interferometry_tab {
+        "interferometry"
+    } else {
+        "single"
+    };
+    let filter = FilterForm::parse(query, tz);
+    let filter_active = filter.filter.is_active();
+    let filter_qs = filter.query_string();
+
+    let mut observations = vec![];
+    let mut total_count = 0;
+    let mut unfiltered_count = 0;
+    let mut current_page = 1;
+    let mut telescope_options = vec![];
+    let mut coord_options = vec![];
+    let mut interferometry_sessions = vec![];
+    if mode == "interferometry" {
+        let sessions =
+            InterferometrySession::fetch_for_user(db(), viewed_user_id.unwrap_or(user.id))
+                .await
+                .unwrap_or_default();
+        interferometry_sessions = make_interf_rows(sessions, state);
+    } else {
+        total_count = Observation::count(db(), viewed_user_id, &filter.filter).await?;
+        unfiltered_count = if filter_active {
+            Observation::count(db(), viewed_user_id, &ObservationFilter::default()).await?
+        } else {
+            total_count
+        };
+        let total_pages = ((total_count as usize).saturating_sub(1) / PAGE_SIZE as usize) + 1;
+        current_page = query.page.unwrap_or(1).clamp(1, total_pages);
+        let offset = ((current_page - 1) as i64) * PAGE_SIZE;
+        observations = Observation::fetch_summaries_page(
+            db(),
+            viewed_user_id,
+            &filter.filter,
+            PAGE_SIZE,
+            offset,
+        )
+        .await?;
+        (telescope_options, coord_options) =
+            Observation::filter_options(db(), viewed_user_id).await?;
+    }
+
     let total_pages = ((total_count as usize).saturating_sub(1) / PAGE_SIZE as usize) + 1;
-    let current_page = current_page.min(total_pages.max(1));
-    let prev_page = if current_page > 1 {
-        Some(current_page - 1)
-    } else {
-        None
-    };
-    let next_page = if current_page < total_pages {
-        Some(current_page + 1)
-    } else {
-        None
-    };
-    ObservationsTemplate {
+    let prev_page = (current_page > 1).then(|| current_page - 1);
+    let next_page = (current_page < total_pages).then(|| current_page + 1);
+    let jump_back_page = prev_page.map(|_| current_page.saturating_sub(PAGE_JUMP).max(1));
+    let jump_forward_page = next_page.map(|_| (current_page + PAGE_JUMP).min(total_pages));
+    Ok(ObservationsTemplate {
         lang,
-        mode,
+        mode: mode.to_string(),
+        is_admin: user.is_admin,
+        viewed_user: viewed_user_id.map_or("all".to_string(), |id| id.to_string()),
+        viewed_user_id,
+        all_users,
+        show_interferometry_tab,
         observations,
         current_page,
         total_pages,
         prev_page,
         next_page,
+        jump_back_page,
+        jump_forward_page,
         total_count,
-        is_admin,
-        viewed_user_id,
-        all_users,
-        show_interferometry_tab,
+        unfiltered_count,
+        filter,
+        filter_active,
+        filter_qs,
+        telescope_options,
+        coord_options,
         interferometry_sessions,
         tz,
     }
+    .render()
+    .expect("Template rendering should always succeed"))
 }
 
 async fn get_observations(
@@ -153,70 +347,7 @@ async fn get_observations(
             Redirect::to("/auth/login").into_response()
         });
     };
-    let viewed_user_id = if user.is_admin {
-        query.user_id.unwrap_or(user.id)
-    } else {
-        user.id
-    };
-    let all_users = if user.is_admin {
-        User::fetch_all_non_guest(state.database_connection.clone())
-            .await
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
-    } else {
-        vec![]
-    };
-    let interf_count =
-        InterferometrySession::count_for_user(state.database_connection.clone(), viewed_user_id)
-            .await
-            .unwrap_or(0);
-    let show_interferometry_tab = interf_count > 0;
-    let mode = if query.mode.as_deref() == Some("interferometry") && show_interferometry_tab {
-        "interferometry".to_string()
-    } else {
-        "single".to_string()
-    };
-    let (observations, total_count, current_page, interferometry_sessions) = if mode
-        == "interferometry"
-    {
-        let sessions = InterferometrySession::fetch_for_user(
-            state.database_connection.clone(),
-            viewed_user_id,
-        )
-        .await
-        .unwrap_or_default();
-        let rows = make_interf_rows(sessions, &state);
-        (vec![], 0, 1, rows)
-    } else {
-        let current_page = query.page.unwrap_or(1).max(1);
-        let total_count =
-            Observation::count_for_user(state.database_connection.clone(), viewed_user_id).await?;
-        let total_pages = ((total_count as usize).saturating_sub(1) / PAGE_SIZE as usize) + 1;
-        let current_page = current_page.min(total_pages.max(1));
-        let offset = ((current_page - 1) as i64) * PAGE_SIZE;
-        let obs = Observation::fetch_summaries_for_user_page(
-            state.database_connection.clone(),
-            viewed_user_id,
-            PAGE_SIZE,
-            offset,
-        )
-        .await?;
-        (obs, total_count, current_page, vec![])
-    };
-    let content = build_observations_template(
-        lang,
-        mode,
-        observations,
-        total_count,
-        current_page,
-        user.is_admin,
-        viewed_user_id,
-        all_users,
-        show_interferometry_tab,
-        interferometry_sessions,
-        user.tz(),
-    )
-    .render()
-    .expect("Template rendering should always succeed");
+    let content = render_observations(&state, lang, &user, &query, query.mode.as_deref()).await?;
     let content = if headers.get("hx-request").is_some() {
         content
     } else {
@@ -233,44 +364,8 @@ async fn delete_observation(
     State(state): State<AppState>,
 ) -> Result<Response, StatusCode> {
     let user = user.ok_or(StatusCode::UNAUTHORIZED)?;
-    let viewed_user_id = if user.is_admin {
-        query.user_id.unwrap_or(user.id)
-    } else {
-        user.id
-    };
     Observation::delete(state.database_connection.clone(), observation_id, &user).await?;
-    let current_page = query.page.unwrap_or(1).max(1);
-    let total_count =
-        Observation::count_for_user(state.database_connection.clone(), viewed_user_id).await?;
-    let total_pages = ((total_count as usize).saturating_sub(1) / PAGE_SIZE as usize) + 1;
-    let current_page = current_page.min(total_pages.max(1));
-    let offset = ((current_page - 1) as i64) * PAGE_SIZE;
-    let observations = Observation::fetch_summaries_for_user_page(
-        state.database_connection.clone(),
-        viewed_user_id,
-        PAGE_SIZE,
-        offset,
-    )
-    .await?;
-    let interf_count =
-        InterferometrySession::count_for_user(state.database_connection.clone(), viewed_user_id)
-            .await
-            .unwrap_or(0);
-    let content = build_observations_template(
-        lang,
-        "single".to_string(),
-        observations,
-        total_count,
-        current_page,
-        user.is_admin,
-        viewed_user_id,
-        vec![],
-        interf_count > 0,
-        vec![],
-        user.tz(),
-    )
-    .render()
-    .expect("Template rendering should always succeed");
+    let content = render_observations(&state, lang, &user, &query, Some("single")).await?;
     Ok(Html(content).into_response())
 }
 
@@ -282,11 +377,6 @@ async fn delete_interferometry_session(
     State(state): State<AppState>,
 ) -> Result<Response, StatusCode> {
     let user = user.ok_or(StatusCode::UNAUTHORIZED)?;
-    let viewed_user_id = if user.is_admin {
-        query.user_id.unwrap_or(user.id)
-    } else {
-        user.id
-    };
     let is_running = state
         .active_correlator
         .lock()
@@ -303,45 +393,7 @@ async fn delete_interferometry_session(
     if !deleted {
         return Err(StatusCode::NOT_FOUND);
     }
-    let sessions =
-        InterferometrySession::fetch_for_user(state.database_connection.clone(), viewed_user_id)
-            .await
-            .unwrap_or_default();
-    let show_interferometry_tab = !sessions.is_empty();
-    let mode = if show_interferometry_tab {
-        "interferometry".to_string()
-    } else {
-        "single".to_string()
-    };
-    let (observations, total_count, interferometry_sessions) = if show_interferometry_tab {
-        (vec![], 0, make_interf_rows(sessions, &state))
-    } else {
-        let total_count =
-            Observation::count_for_user(state.database_connection.clone(), viewed_user_id).await?;
-        let obs = Observation::fetch_summaries_for_user_page(
-            state.database_connection.clone(),
-            viewed_user_id,
-            PAGE_SIZE,
-            0,
-        )
-        .await?;
-        (obs, total_count, vec![])
-    };
-    let content = build_observations_template(
-        lang,
-        mode,
-        observations,
-        total_count,
-        1,
-        user.is_admin,
-        viewed_user_id,
-        vec![],
-        show_interferometry_tab,
-        interferometry_sessions,
-        user.tz(),
-    )
-    .render()
-    .expect("Template rendering should always succeed");
+    let content = render_observations(&state, lang, &user, &query, Some("interferometry")).await?;
     Ok(Html(content).into_response())
 }
 
@@ -550,4 +602,51 @@ async fn get_observation_fits(
         fits_bytes,
     )
         .into_response())
+}
+
+#[cfg(test)]
+mod filter_tests {
+    use super::*;
+
+    fn query(from: &str, to: &str, coord: &str, telescope: &str) -> PageQuery {
+        PageQuery {
+            page: None,
+            user_id: None,
+            mode: None,
+            from: Some(from.to_string()),
+            to: Some(to.to_string()),
+            coord: Some(coord.to_string()),
+            telescope: Some(telescope.to_string()),
+        }
+    }
+
+    #[test]
+    fn empty_form_is_no_filter() {
+        let form = FilterForm::parse(&query("", "", "", " "), chrono_tz::UTC);
+        assert!(!form.filter.is_active());
+        assert_eq!(form.query_string(), "");
+    }
+
+    #[test]
+    fn dates_are_local_days_with_inclusive_end() {
+        let tz: Tz = "Europe/Stockholm".parse().unwrap();
+        let form = FilterForm::parse(&query("2026-09-20", "2026-09-21", "", ""), tz);
+        // Stockholm is UTC+2 in September: local midnight is 22:00 UTC the day before.
+        let expect = |s: &str| DateTime::parse_from_rfc3339(s).unwrap().timestamp();
+        assert_eq!(
+            form.filter.start_after,
+            Some(expect("2026-09-19T22:00:00Z"))
+        );
+        assert_eq!(
+            form.filter.start_before,
+            Some(expect("2026-09-21T22:00:00Z"))
+        );
+    }
+
+    #[test]
+    fn garbage_dates_are_ignored_and_values_are_encoded() {
+        let form = FilterForm::parse(&query("yesterday", "", "sun", "salsa a&b"), chrono_tz::UTC);
+        assert_eq!(form.filter.start_after, None);
+        assert_eq!(form.query_string(), "&coord=sun&telescope=salsa%20a%26b");
+    }
 }
