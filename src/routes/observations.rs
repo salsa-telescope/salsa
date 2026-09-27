@@ -183,7 +183,7 @@ impl ObservationsTemplate {
 
     fn coord_label(&self, coord: &str) -> String {
         match coord {
-            "galactic" | "equatorial" | "horizontal" | "sun" => {
+            "galactic" | "equatorial" | "horizontal" | "sun" | "gnss" => {
                 self.lang.t(&format!("observe-coord-{coord}"))
             }
             other => other.to_string(),

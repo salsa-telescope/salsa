@@ -49,6 +49,11 @@ pub struct ObservationSummary {
     pub integration_time_secs: f64,
 }
 
+/// Satellite observations store `gnss:<satellite name>` as their coordinate
+/// system. The archive filter offers them all as this one choice, since a
+/// choice per satellite would bury the others.
+pub const GNSS: &str = "gnss";
+
 /// Narrows the archive list. Every field is optional; `None` matches all.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct ObservationFilter {
@@ -90,7 +95,14 @@ impl ObservationFilter {
             add("start_time <", Value::Integer(t));
         }
         if let Some(c) = &self.coordinate_system {
-            add("coordinate_system =", Value::Text(c.clone()));
+            if c == GNSS {
+                add(
+                    "substr(coordinate_system, 1, 5) =",
+                    Value::Text(format!("{GNSS}:")),
+                );
+            } else {
+                add("coordinate_system =", Value::Text(c.clone()));
+            }
         }
         if let Some(t) = &self.telescope_id {
             add("telescope_id =", Value::Text(t.clone()));
@@ -247,8 +259,9 @@ impl Observation {
     }
 
     /// The telescopes and coordinate systems there are observations for,
-    /// each sorted — the choices the archive filter offers. `user_id` of
-    /// `None` means across all users.
+    /// each sorted — the choices the archive filter offers, with every
+    /// satellite folded into [`GNSS`]. `user_id` of `None` means across all
+    /// users.
     pub async fn filter_options(
         connection: Arc<Mutex<Connection>>,
         user_id: Option<i64>,
@@ -264,7 +277,15 @@ impl Observation {
                 .collect::<Result<Vec<_>, _>>()
                 .map_err(InternalError::from)
         };
-        Ok((distinct("telescope_id")?, distinct("coordinate_system")?))
+        let mut coords = distinct("coordinate_system")?;
+        for c in &mut coords {
+            if c.starts_with(&format!("{GNSS}:")) {
+                *c = GNSS.to_string();
+            }
+        }
+        // Still sorted: "gnss:…" values all sort together.
+        coords.dedup();
+        Ok((distinct("telescope_id")?, coords))
     }
 
     pub async fn delete(
@@ -395,6 +416,41 @@ mod tests {
         obs.az_offset_deg = Some(2.0);
         let (az, _) = obs.horizontal().unwrap();
         assert!((az - 1.0).abs() < 1e-9);
+    }
+
+    #[tokio::test]
+    async fn satellites_are_one_filter_choice() {
+        let mut connection = Connection::open_in_memory().unwrap();
+        crate::database::apply_migrations(&mut connection).unwrap();
+        let db = Arc::new(Mutex::new(connection));
+        let user = User::create_from_external(db.clone(), "Anna".into(), "github".into(), "gh-1")
+            .await
+            .unwrap();
+        for coord in ["galactic", "gnss:GPS BIII-6", "gnss:GSAT0101", "sun"] {
+            db.lock()
+                .await
+                .execute(
+                    "INSERT INTO observation (user_id, telescope_id, start_time, coordinate_system,
+                     target_x, target_y, integration_time_secs, frequencies_json, amplitudes_json)
+                     VALUES (?1, 'test', 0, ?2, 0, 0, 60, '[]', '[]')",
+                    rusqlite::params![user.id, coord],
+                )
+                .unwrap();
+        }
+        let (_, coords) = Observation::filter_options(db.clone(), Some(user.id))
+            .await
+            .unwrap();
+        assert_eq!(coords, ["galactic", "gnss", "sun"]);
+        let filter = ObservationFilter {
+            coordinate_system: Some(GNSS.to_string()),
+            ..Default::default()
+        };
+        assert_eq!(
+            Observation::count(db.clone(), Some(user.id), &filter)
+                .await
+                .unwrap(),
+            2
+        );
     }
 
     #[test]
