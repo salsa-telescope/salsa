@@ -203,6 +203,17 @@
                     lb.classList.add('flex');
                 }
             });
+            // Elements marked role="button" that are not real buttons (the
+            // booking calendar's cells) activate on Enter and Space, like a
+            // button, so they work without a mouse.
+            document.addEventListener('keydown', function(e) {
+                var el = e.target;
+                if ((e.key === 'Enter' || e.key === ' ') && el.getAttribute
+                        && el.getAttribute('role') === 'button' && el.tagName !== 'BUTTON') {
+                    e.preventDefault();
+                    el.click();
+                }
+            });
             document.addEventListener('keydown', function(e) {
                 if (e.key === 'Escape') {
                     var lb = document.getElementById('lightbox');

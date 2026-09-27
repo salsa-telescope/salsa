@@ -14,7 +14,7 @@
   <form method="get" action="/visibility" class="space-y-3 text-sm bg-gray-50 border border-gray-200 rounded-lg p-4">
     <div class="flex flex-wrap gap-3 items-end">
       <div>
-        <label class="block text-gray-600 mb-1">{{ lang.t("vis-coord-system") }}</label>
+        <label for="coord-select" class="block text-gray-600 mb-1">{{ lang.t("vis-coord-system") }}</label>
         <select id="coord-select" name="coord" onchange="updateXYVisibility()" class="border rounded px-2 py-1 bg-white">
           <option value="galactic" {% if coord == "galactic" %}selected{% endif %}>{{ lang.t("observe-coord-galactic") }}</option>
           <option value="equatorial" {% if coord == "equatorial" %}selected{% endif %}>{{ lang.t("vis-coord-equatorial") }}</option>
@@ -22,16 +22,16 @@
         </select>
       </div>
       <div id="x-field">
-        <label class="block text-gray-600 mb-1" id="x-label">X</label>
-        <input type="number" name="x" value="{{ x }}" step="0.01" class="border rounded px-2 py-1 bg-white w-32" />
+        <label for="vis-x" class="block text-gray-600 mb-1" id="x-label">X</label>
+        <input id="vis-x" type="number" name="x" value="{{ x }}" step="0.01" class="border rounded px-2 py-1 bg-white w-32" />
       </div>
       <div id="y-field">
-        <label class="block text-gray-600 mb-1" id="y-label">Y</label>
-        <input type="number" name="y" value="{{ y }}" step="0.01" class="border rounded px-2 py-1 bg-white w-32" />
+        <label for="vis-y" class="block text-gray-600 mb-1" id="y-label">Y</label>
+        <input id="vis-y" type="number" name="y" value="{{ y }}" step="0.01" class="border rounded px-2 py-1 bg-white w-32" />
       </div>
       <div>
-        <label class="block text-gray-600 mb-1">{{ lang.t("vis-date") }} ({{ tz_name }})</label>
-        <input type="date" name="date" value="{{ date }}" class="border rounded px-2 py-1 bg-white" />
+        <label for="vis-date" class="block text-gray-600 mb-1">{{ lang.t("vis-date") }} ({{ tz_name }})</label>
+        <input id="vis-date" type="date" name="date" value="{{ date }}" class="border rounded px-2 py-1 bg-white" />
       </div>
       <button type="submit" class="btn">{{ lang.t("vis-compute") }}</button>
     </div>

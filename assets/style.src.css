@@ -16,7 +16,7 @@
   --color-focus:        #3b9bbf;  /* focus ring · visible on light + dark */
 
   /* ── Semantic · 4-step scale per role ─────────────────────── */
-  --color-success:        #15803d;
+  --color-success:        #137035;  /* 5.5:1 on success-bg (AA) */
   --color-success-hover:  #16a34a;
   --color-success-bg:     #e7f5ec;
   --color-success-border: #a7d8b6;
@@ -38,7 +38,7 @@
   /* ── Neutral ramp · 5 steps · cool to harmonise with teal ── */
   --color-neutral-900: #1a1d1f;  /* body text */
   --color-neutral-700: #4b5258;  /* muted text */
-  --color-neutral-500: #7a8088;  /* tertiary text · ≥14px only (AA) */
+  --color-neutral-500: #7a8088;  /* tertiary text on dark only (4.6:1 on brand-dark; 4:1 on white fails AA) */
   --color-neutral-300: #cfd4d8;  /* borders */
   --color-neutral-100: #eef1f3;  /* subtle borders, slot-past, slot-disabled */
 
@@ -49,6 +49,14 @@
   --color-slot-mine-hover:  #8eb1e0;
   --color-slot-other:       #e8b3b3;  /* = danger-border */
   --color-slot-maint:       #f3dca0;  /* warning hue */
+
+  /* ── Tailwind grays, darkened for AA contrast ─────────────────
+     Templates use raw text-gray-400/500 for hint text in many places.
+     The stock values (#99a1af, #6a7282) fall below 4.5:1 on the page
+     background; these keep ≥4.5:1 on white, gray-50/100 and brand-bg,
+     and gray-500 also on gray-200. */
+  --color-gray-400: #656c7c;
+  --color-gray-500: #5f6775;
 }
 
 body {
@@ -94,6 +102,13 @@ body {
 }
 .section a:not(.btn):hover {
     text-decoration: underline;
+}
+/* Links inside running text are always underlined, so they can be told
+   apart without relying on color (WCAG 1.4.1). Navigation, buttons and
+   standalone links keep the hover-only underline. */
+.section :is(p, li, dd) a:not(.btn) {
+    text-decoration: underline;
+    text-underline-offset: 2px;
 }
 
 .welcome {
@@ -584,7 +599,7 @@ footer {
     font-family: 'Roboto Mono', monospace;
 }
 .calendar-help {
-    color: var(--color-neutral-500);
+    color: var(--color-neutral-700);
     margin: 4px 0 0;
 }
 .calendar-legend {
@@ -686,6 +701,12 @@ footer {
 .calendar-slot-disabled {
     background: var(--color-neutral-100);
     cursor: not-allowed;
+}
+
+/* Keyboard focus on bookable/cancellable cells (they are role="button"). */
+.calendar-slot:focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: -2px;
 }
 
 /* Past — gray */

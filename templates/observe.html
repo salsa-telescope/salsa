@@ -48,8 +48,8 @@
         <form class="space-y-2">
           <div class="flex gap-2 items-end">
             <div class="w-28 flex-shrink-0">
-              <label class="block text-sm text-gray-600">{{ lang.t("observe-target") }}</label>
-              <select name="coordinate_system" class="border rounded px-2 py-1 bg-white w-full text-sm">
+              <label for="target-coord" class="block text-sm text-gray-600">{{ lang.t("observe-target") }}</label>
+              <select id="target-coord" name="coordinate_system" class="border rounded px-2 py-1 bg-white w-full text-sm">
                 <option value="galactic" {% if target_mode=="galactic" %}selected="selected"{% endif %}>{{ lang.t("observe-coord-galactic") }}</option>
                 <option value="equatorial" {% if target_mode=="equatorial" %}selected="selected"{% endif %}>{{ lang.t("observe-coord-equatorial") }}</option>
                 <option value="horizontal" {% if target_mode=="horizontal" %}selected="selected"{% endif %}>{{ lang.t("observe-coord-horizontal") }}</option>

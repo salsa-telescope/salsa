@@ -52,7 +52,7 @@
         {% if group.active_at(now) %}
         <a href="observe/{{ group.telescope_name }}" class="my-booking-btn my-booking-observe">{{ lang.t("bookings-observe") }}</a>
         {% else %}
-        <span class="my-booking-btn my-booking-observe my-booking-observe-pending" title="{{ lang.t("bookings-observe-opens") }} {{ group.start_time.in_tz(tz).format("%Y-%m-%d %H:%M %Z") }}">{{ lang.t("bookings-observe") }}</span>
+        <span class="my-booking-btn my-booking-observe my-booking-observe-pending" aria-disabled="true" title="{{ lang.t("bookings-observe-opens") }} {{ group.start_time.in_tz(tz).format("%Y-%m-%d %H:%M %Z") }}">{{ lang.t("bookings-observe") }}</span>
         {% endif %}
         <button
           hx-delete="/bookings/{{ group.ids[0] }}?week={{ week_start }}{% if is_admin %}&user_id={{ viewed_user }}{% endif %}"
@@ -185,7 +185,7 @@
           {% match slot.status %}
           {% when SlotStatus::Free %}
           {% if maintenance_telescopes[tel_idx] && is_admin %}
-          <td class="calendar-slot calendar-slot-maintenance{% if slot.is_current_hour %} calendar-slot-current{% endif %}"
+          <td tabindex="0" role="button" class="calendar-slot calendar-slot-maintenance{% if slot.is_current_hour %} calendar-slot-current{% endif %}"
               hx-post="/bookings"
               hx-target="#page"
               hx-confirm="book"
@@ -202,7 +202,7 @@
               title="{{ lang.t("bookings-limit-reached") }}">
           </td>
           {% else %}
-          <td class="calendar-slot calendar-slot-free{% if slot.is_current_hour %} calendar-slot-current{% endif %}"
+          <td tabindex="0" role="button" class="calendar-slot calendar-slot-free{% if slot.is_current_hour %} calendar-slot-current{% endif %}"
               hx-post="/bookings"
               hx-target="#page"
               hx-confirm="book"
@@ -211,7 +211,7 @@
           </td>
           {% endif %}
           {% when SlotStatus::Mine %}
-          <td class="calendar-slot calendar-slot-mine{% if slot.is_current_hour %} calendar-slot-current{% endif %}"
+          <td tabindex="0" role="button" class="calendar-slot calendar-slot-mine{% if slot.is_current_hour %} calendar-slot-current{% endif %}"
               hx-delete="/bookings/{{ slot.booking_id.unwrap() }}?week={{ week_start }}{% if is_admin %}&user_id={{ viewed_user }}{% endif %}"
               hx-target="#page"
               hx-confirm="Cancel this booking?"
@@ -220,7 +220,7 @@
               title="{{ lang.t("bookings-mine-title") }}">
           </td>
           {% when SlotStatus::MineActive %}
-          <td class="calendar-slot calendar-slot-mine{% if slot.is_current_hour %} calendar-slot-current{% endif %}"
+          <td tabindex="0" role="button" class="calendar-slot calendar-slot-mine{% if slot.is_current_hour %} calendar-slot-current{% endif %}"
               hx-delete="/bookings/{{ slot.booking_id.unwrap() }}?week={{ week_start }}{% if is_admin %}&user_id={{ viewed_user }}{% endif %}"
               hx-target="#page"
               hx-confirm="Cancel this booking?"
@@ -230,7 +230,7 @@
           </td>
           {% when SlotStatus::OtherUser %}
           {% if is_admin %}
-          <td class="calendar-slot calendar-slot-other"
+          <td tabindex="0" role="button" class="calendar-slot calendar-slot-other"
               hx-delete="/bookings/{{ slot.booking_id.unwrap() }}?week={{ week_start }}&user_id={{ viewed_user }}"
               hx-target="#page"
               hx-confirm="Cancel this booking?"
