@@ -186,8 +186,12 @@ pub struct BookingGroup {
     pub start_time: DateTime<Utc>,
     pub end_time: DateTime<Utc>,
     pub telescope_name: String,
+    pub user_id: i64,
     pub user_name: String,
     pub description: Option<String>,
+    /// Country the run was booked from, shown to the user in their past
+    /// bookings. A run only spans bookings with the same country.
+    pub country: Option<String>,
 }
 
 impl BookingGroup {
@@ -239,8 +243,9 @@ pub fn group_adjacent(bookings: &[Booking]) -> Vec<BookingGroup> {
         // the group added last.
         let extendable = groups.iter_mut().find(|group| {
             group.telescope_name == booking.telescope_name
-                && group.user_name == booking.user_name
+                && group.user_id == booking.user_id
                 && group.description == booking.description
+                && group.country == booking.country
                 && group.end_time == booking.start_time
         });
         match extendable {
@@ -253,8 +258,10 @@ pub fn group_adjacent(bookings: &[Booking]) -> Vec<BookingGroup> {
                 start_time: booking.start_time,
                 end_time: booking.end_time,
                 telescope_name: booking.telescope_name.clone(),
+                user_id: booking.user_id,
                 user_name: booking.user_name.clone(),
                 description: booking.description.clone(),
+                country: booking.country.clone(),
             }),
         }
     }
@@ -364,6 +371,17 @@ mod test {
             description: description.map(str::to_string),
             country: None,
         }
+    }
+
+    #[test]
+    fn a_run_only_spans_bookings_from_the_same_country() {
+        let mut a = create_slot(1, 10, "fake1", None);
+        let mut b = create_slot(2, 11, "fake1", None);
+        a.country = Some("SE".into());
+        b.country = Some("NO".into());
+        let groups = group_adjacent(&[a, b]);
+        assert_eq!(groups.len(), 2);
+        assert_eq!(groups[0].country.as_deref(), Some("SE"));
     }
 
     #[test]

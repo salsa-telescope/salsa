@@ -15,8 +15,9 @@
   {% if is_admin %}
   <form hx-get="/bookings" hx-target="#page" hx-push-url="true" class="flex items-center gap-3 mb-4 text-sm">
     <select name="user_id" class="border rounded px-2 py-1">
+      <option value="all" {% if viewed_user_id.is_none() %}selected{% endif %}>{{ lang.t("obs-all-users") }}</option>
       {% for u in all_users %}
-      <option value="{{ u.id }}" {% if u.id == viewed_user_id %}selected{% endif %}>{{ u.id }}: {{ u.name }} ({{ u.provider }})</option>
+      <option value="{{ u.id }}" {% if u.id.to_string() == viewed_user %}selected{% endif %}>{{ u.id }}: {{ u.name }} ({{ u.provider }})</option>
       {% endfor %}
     </select>
     <input type="hidden" name="week" value="{{ week_start }}" />
@@ -37,6 +38,7 @@
     {% for group in booking_groups %}
     <div class="my-booking-row{% if loop.index0 >= visible_groups %} my-booking-row-extra{% endif %}">
       <div class="my-booking-info">
+        {% if viewed_user_id.is_none() %}<span class="font-mono text-xs text-gray-600" title="{{ lang.t("obs-user-id") }}">u{{ group.user_id }}</span>{% endif %}
         <span class="my-booking-telescope">{{ group.telescope_name }}</span>
         <span class="my-booking-time">{{ group.start_time.in_tz(tz).format("%Y-%m-%d %H:%M") }}&ndash;{% if group.crosses_local_day(tz) %}{{ group.end_time.in_tz(tz).format("%Y-%m-%d ") }}{% endif %}{{ group.end_time.in_tz(tz).format("%H:%M %Z") }}</span>
         {% if group.slot_count() > 1 %}
@@ -53,7 +55,7 @@
         <span class="my-booking-btn my-booking-observe my-booking-observe-pending" title="{{ lang.t("bookings-observe-opens") }} {{ group.start_time.in_tz(tz).format("%Y-%m-%d %H:%M %Z") }}">{{ lang.t("bookings-observe") }}</span>
         {% endif %}
         <button
-          hx-delete="/bookings/{{ group.ids[0] }}?week={{ week_start }}{% if is_admin %}&user_id={{ viewed_user_id }}{% endif %}"
+          hx-delete="/bookings/{{ group.ids[0] }}?week={{ week_start }}{% if is_admin %}&user_id={{ viewed_user }}{% endif %}"
           hx-target="#page"
           hx-confirm="{% if is_admin %}Delete booking by {{ group.user_name }}?{% else %}{{ lang.t("bookings-delete-confirm") }}{% endif %}"
           data-timestamp="{{ group.start_time.timestamp() }}"
@@ -73,24 +75,45 @@
   </div>
   {% endif %}
 
+  {% if !past_booking_groups.is_empty() %}
+  <details class="mt-2 mb-4 text-sm">
+    <summary class="cursor-pointer text-gray-600 select-none">{{ lang.t("bookings-past") }} ({{ past_booking_groups.len() }})</summary>
+    <ul class="mt-2 max-h-64 overflow-y-auto space-y-1">
+      {% for group in past_booking_groups %}
+      <li class="flex flex-wrap gap-x-3 text-gray-700">
+        {% if viewed_user_id.is_none() %}<span class="font-mono text-xs text-gray-600 self-center" title="{{ lang.t("obs-user-id") }}">u{{ group.user_id }}</span>{% endif %}
+        <span class="font-medium">{{ group.telescope_name }}</span>
+        <span>{{ group.start_time.in_tz(tz).format("%Y-%m-%d %H:%M") }}&ndash;{% if group.crosses_local_day(tz) %}{{ group.end_time.in_tz(tz).format("%Y-%m-%d ") }}{% endif %}{{ group.end_time.in_tz(tz).format("%H:%M %Z") }}</span>
+        {% if let Some(desc) = group.description %}<span class="text-gray-600">{{ desc }}</span>{% endif %}
+        {% if let Some(country) = group.country %}<span class="text-gray-600" title="{{ lang.t("bookings-country-hint") }}">{{ lang.t("bookings-country") }}: {{ country }}</span>{% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+  </details>
+  {% endif %}
+
   <div class="calendar-nav">
     <span class="calendar-nav-title">{{ lang.t("bookings-weekly-title") }}</span>
-    <button hx-get="/bookings?week={{ prev_week }}{% if is_admin %}&user_id={{ viewed_user_id }}{% endif %}" hx-target="#page" class="calendar-nav-btn">&larr; {{ lang.t("bookings-prev") }}</button>
-    <button hx-get="/bookings{% if is_admin %}?user_id={{ viewed_user_id }}{% endif %}" hx-target="#page" class="calendar-nav-btn calendar-today-btn">{{ lang.t("bookings-today") }}</button>
+    <button hx-get="/bookings?week={{ prev_week }}{% if is_admin %}&user_id={{ viewed_user }}{% endif %}" hx-target="#page" class="calendar-nav-btn">&larr; {{ lang.t("bookings-prev") }}</button>
+    <button hx-get="/bookings{% if is_admin %}?user_id={{ viewed_user }}{% endif %}" hx-target="#page" class="calendar-nav-btn calendar-today-btn">{{ lang.t("bookings-today") }}</button>
     <span class="calendar-nav-label">{{ week_start.format_localized(lang.t("fmt-week-short").as_str(), lang.chrono_locale()) }} &ndash; {{ week_end.format_localized(lang.t("fmt-week-full").as_str(), lang.chrono_locale()) }}</span>
-    <button hx-get="/bookings?week={{ next_week }}{% if is_admin %}&user_id={{ viewed_user_id }}{% endif %}" hx-target="#page" class="calendar-nav-btn">{{ lang.t("bookings-next") }} &rarr;</button>
+    <button hx-get="/bookings?week={{ next_week }}{% if is_admin %}&user_id={{ viewed_user }}{% endif %}" hx-target="#page" class="calendar-nav-btn">{{ lang.t("bookings-next") }} &rarr;</button>
   </div>
 
   <div class="calendar-info">
     <div class="calendar-info-row">
+      {% if viewed_user_id.is_some() %}
       <span>{{ upcoming_count }} / {{ max_upcoming_bookings }} {{ lang.t("bookings-slots-used") }}</span>
       <span>&middot;</span>
+      {% endif %}
       <span>{{ lang.t("bookings-current-time") }} <span id="utc-clock" class="utc-clock"></span></span>
     </div>
     <div class="calendar-legend">
       <span class="legend-item"><span class="legend-swatch calendar-slot-free"></span> {{ lang.t("bookings-legend-free") }}</span>
       <span class="legend-item"><span class="legend-swatch calendar-slot-mine"></span> {{ lang.t("bookings-legend-mine") }}</span>
       <span class="legend-item"><span class="legend-swatch calendar-slot-other"></span> {{ lang.t("bookings-legend-booked") }}{% if is_admin %} (hover to see user){% endif %}</span>
+      <span class="legend-item"><span class="legend-swatch calendar-slot-mine-past"></span> {{ lang.t("bookings-legend-mine-past") }}</span>
+      {% if is_admin %}<span class="legend-item"><span class="legend-swatch calendar-slot-other-past"></span> Past, booked by others</span>{% endif %}
       <span class="legend-item"><span class="legend-swatch calendar-slot-past"></span> {{ lang.t("bookings-legend-past") }}</span>
       <span class="legend-item"><span class="legend-swatch calendar-slot-maintenance"></span> {{ lang.t("bookings-legend-maintenance") }}</span>
     </div>
@@ -189,7 +212,7 @@
           {% endif %}
           {% when SlotStatus::Mine %}
           <td class="calendar-slot calendar-slot-mine{% if slot.is_current_hour %} calendar-slot-current{% endif %}"
-              hx-delete="/bookings/{{ slot.booking_id.unwrap() }}?week={{ week_start }}{% if is_admin %}&user_id={{ viewed_user_id }}{% endif %}"
+              hx-delete="/bookings/{{ slot.booking_id.unwrap() }}?week={{ week_start }}{% if is_admin %}&user_id={{ viewed_user }}{% endif %}"
               hx-target="#page"
               hx-confirm="Cancel this booking?"
               data-timestamp="{{ slot.start_time.timestamp() }}"
@@ -198,7 +221,7 @@
           </td>
           {% when SlotStatus::MineActive %}
           <td class="calendar-slot calendar-slot-mine{% if slot.is_current_hour %} calendar-slot-current{% endif %}"
-              hx-delete="/bookings/{{ slot.booking_id.unwrap() }}?week={{ week_start }}{% if is_admin %}&user_id={{ viewed_user_id }}{% endif %}"
+              hx-delete="/bookings/{{ slot.booking_id.unwrap() }}?week={{ week_start }}{% if is_admin %}&user_id={{ viewed_user }}{% endif %}"
               hx-target="#page"
               hx-confirm="Cancel this booking?"
               data-timestamp="{{ slot.start_time.timestamp() }}"
@@ -208,7 +231,7 @@
           {% when SlotStatus::OtherUser %}
           {% if is_admin %}
           <td class="calendar-slot calendar-slot-other"
-              hx-delete="/bookings/{{ slot.booking_id.unwrap() }}?week={{ week_start }}&user_id={{ viewed_user_id }}"
+              hx-delete="/bookings/{{ slot.booking_id.unwrap() }}?week={{ week_start }}&user_id={{ viewed_user }}"
               hx-target="#page"
               hx-confirm="Cancel this booking?"
               data-timestamp="{{ slot.start_time.timestamp() }}"
@@ -224,6 +247,13 @@
           {% endif %}
           {% when SlotStatus::Past %}
           <td class="calendar-slot calendar-slot-past">
+          </td>
+          {% when SlotStatus::OtherPast %}
+          <td class="calendar-slot calendar-slot-other-past"
+              title="Booked by {{ slot.booked_by.as_deref().unwrap_or("unknown") }}">
+          </td>
+          {% when SlotStatus::MinePast %}
+          <td class="calendar-slot calendar-slot-mine-past" title="{{ lang.t("bookings-legend-mine-past") }}">
           </td>
           {% when SlotStatus::Unavailable %}
           <td class="calendar-slot calendar-slot-past" title="{{ lang.t("bookings-dst-gap") }}">

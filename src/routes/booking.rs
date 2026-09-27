@@ -49,6 +49,12 @@ pub enum SlotStatus {
     MineActive,
     OtherUser,
     Past,
+    /// A past slot the user had booked, so they can look back at their own
+    /// bookings in the calendar.
+    MinePast,
+    /// A past slot someone else had booked. Only admins see these; for
+    /// everyone else another user's past booking is plain `Past`.
+    OtherPast,
     /// A local-time grid cell that maps to no bookable hour because the
     /// user's clocks skipped it on a DST spring-forward day.
     Unavailable,
@@ -121,7 +127,13 @@ fn build_calendar_slots(
                 });
 
                 let (status, booking_id, booked_by) = if end_time <= now {
-                    (SlotStatus::Past, overlapping.map(|b| b.id), None)
+                    match overlapping {
+                        Some(b) if b.user_id == user.id => (SlotStatus::MinePast, Some(b.id), None),
+                        Some(b) if user.is_admin => {
+                            (SlotStatus::OtherPast, Some(b.id), Some(b.user_name.clone()))
+                        }
+                        _ => (SlotStatus::Past, overlapping.map(|b| b.id), None),
+                    }
                 } else if let Some(b) = overlapping {
                     if b.user_name == user.name && b.user_provider == user.provider {
                         if b.active_at(&now) {
@@ -160,7 +172,21 @@ fn week_monday(date: NaiveDate) -> NaiveDate {
 #[derive(Deserialize)]
 struct WeekQuery {
     week: Option<NaiveDate>,
-    user_id: Option<i64>,
+    /// A user id, or "all" (admins only). A string so "all" parses.
+    user_id: Option<String>,
+}
+
+/// Whose bookings the page lists: admins may pick anyone, or everyone
+/// (`None`). Anything unparseable falls back to the user's own.
+fn viewed_user_id(user: &User, user_id: Option<&str>) -> Option<i64> {
+    if !user.is_admin {
+        return Some(user.id);
+    }
+    match user_id.map(str::trim) {
+        Some("all") => None,
+        Some(id) => Some(id.parse().unwrap_or(user.id)),
+        None => Some(user.id),
+    }
 }
 
 #[derive(Template)]
@@ -169,6 +195,8 @@ struct BookingsTemplate {
     lang: Language,
     /// Upcoming bookings, with back-to-back runs collapsed into one item.
     booking_groups: Vec<BookingGroup>,
+    /// The viewed user's past bookings, newest first.
+    past_booking_groups: Vec<BookingGroup>,
     /// How many of them the list shows before the "+ N more" toggle.
     visible_groups: usize,
     telescope_names: Vec<String>,
@@ -189,7 +217,10 @@ struct BookingsTemplate {
     max_upcoming_bookings: u32,
     at_limit: bool,
     is_admin: bool,
-    viewed_user_id: i64,
+    /// The `user_id` query value for links: a user id, or "all".
+    viewed_user: String,
+    /// `None` when an admin views all users' bookings.
+    viewed_user_id: Option<i64>,
     all_users: Vec<User>,
     announcement: Option<String>,
     /// Display timezone, used by `.in_tz(tz)` calls in the template.
@@ -215,11 +246,7 @@ async fn get_bookings(
         });
     };
 
-    let viewed_user_id = if user.is_admin {
-        query.user_id.unwrap_or(user.id)
-    } else {
-        user.id
-    };
+    let viewed_user_id = viewed_user_id(&user, query.user_id.as_deref());
     let now = Utc::now();
     let week_start = week_monday(
         query
@@ -336,7 +363,8 @@ async fn create_booking(
         form.week
             .unwrap_or(now.with_timezone(&user.tz()).date_naive()),
     );
-    let content = build_bookings_page(&state, &user, user.id, now, week_start, error, lang).await?;
+    let content =
+        build_bookings_page(&state, &user, Some(user.id), now, week_start, error, lang).await?;
 
     let content = if headers.get("hx-request").is_some() {
         content
@@ -349,7 +377,7 @@ async fn create_booking(
 #[derive(Deserialize)]
 struct DeleteQuery {
     week: Option<NaiveDate>,
-    user_id: Option<i64>,
+    user_id: Option<String>,
 }
 
 async fn delete_booking(
@@ -379,11 +407,7 @@ async fn delete_booking(
             .week
             .unwrap_or(now.with_timezone(&user.tz()).date_naive()),
     );
-    let viewed_user_id = if user.is_admin {
-        query.user_id.unwrap_or(user.id)
-    } else {
-        user.id
-    };
+    let viewed_user_id = viewed_user_id(&user, query.user_id.as_deref());
     let content =
         build_bookings_page(&state, &user, viewed_user_id, now, week_start, None, lang).await?;
 
@@ -454,7 +478,7 @@ async fn export_bookings_ical(
 async fn build_bookings_page(
     state: &AppState,
     user: &User,
-    viewed_user_id: i64,
+    viewed_user_id: Option<i64>,
     now: DateTime<Utc>,
     week_start: NaiveDate,
     error: Option<String>,
@@ -494,12 +518,12 @@ async fn build_bookings_page(
         .map(|name| maintenance_set.contains(name.as_str()))
         .collect();
     let all_bookings = Booking::fetch_all(state.database_connection.clone()).await?;
-    let my_bookings: Vec<Booking> =
-        Booking::fetch_for_user_id(state.database_connection.clone(), viewed_user_id)
-            .await?
-            .into_iter()
-            .filter(|b| b.end_time > now)
-            .collect();
+    let listed = match viewed_user_id {
+        Some(id) => Booking::fetch_for_user_id(state.database_connection.clone(), id).await?,
+        None => all_bookings.clone(),
+    };
+    let (my_bookings, my_past_bookings): (Vec<Booking>, Vec<Booking>) =
+        listed.into_iter().partition(|b| b.end_time > now);
     let all_users = if user.is_admin {
         User::fetch_all_non_guest(state.database_connection.clone())
             .await
@@ -526,14 +550,18 @@ async fn build_bookings_page(
     // ungrouped list.
     let upcoming_count = my_bookings.len();
     let booking_groups = group_adjacent(&my_bookings);
+    // Newest first: the list is for looking back.
+    let mut past_booking_groups = group_adjacent(&my_past_bookings);
+    past_booking_groups.reverse();
     let max_upcoming_bookings = state.booking_config.max_upcoming_bookings;
     let at_limit = !user.is_admin
-        && viewed_user_id == user.id
+        && viewed_user_id == Some(user.id)
         && upcoming_count as u32 >= max_upcoming_bookings;
 
     let content = BookingsTemplate {
         lang,
         booking_groups,
+        past_booking_groups,
         visible_groups: VISIBLE_BOOKING_GROUPS,
         telescope_names,
         maintenance_telescopes,
@@ -551,6 +579,7 @@ async fn build_bookings_page(
         max_upcoming_bookings,
         at_limit,
         is_admin: user.is_admin,
+        viewed_user: viewed_user_id.map_or("all".to_string(), |id| id.to_string()),
         viewed_user_id,
         all_users,
         announcement,
@@ -562,4 +591,76 @@ async fn build_bookings_page(
     .expect("Template rendering should always succeed");
 
     Ok(content)
+}
+
+#[cfg(test)]
+mod calendar_tests {
+    use super::*;
+
+    fn user(id: i64) -> User {
+        User {
+            id,
+            name: format!("user{id}"),
+            provider: "test".into(),
+            is_admin: false,
+            timezone: None,
+            language: None,
+        }
+    }
+
+    fn booking(user_id: i64, start: DateTime<Utc>) -> Booking {
+        Booking {
+            id: user_id,
+            start_time: start,
+            end_time: start + Duration::hours(1),
+            telescope_name: "fake1".into(),
+            user_id,
+            user_name: format!("user{user_id}"),
+            user_provider: "test".into(),
+            description: None,
+            country: None,
+        }
+    }
+
+    #[test]
+    fn own_past_bookings_are_marked_but_others_stay_plain_past() {
+        let week_start = NaiveDate::from_ymd_opt(2026, 9, 21).unwrap();
+        let at = |day: i64, hour: u32| {
+            (week_start + Duration::days(day))
+                .and_hms_opt(hour, 0, 0)
+                .unwrap()
+                .and_utc()
+        };
+        let bookings = [booking(1, at(0, 10)), booking(2, at(0, 12))];
+        let slots = build_calendar_slots(
+            week_start,
+            &["fake1".to_string()],
+            &bookings,
+            &user(1),
+            at(3, 0),
+            chrono_tz::UTC,
+            0,
+        );
+        let monday = &slots[0][0];
+        assert!(matches!(monday[10].status, SlotStatus::MinePast));
+        assert!(matches!(monday[12].status, SlotStatus::Past));
+        assert!(matches!(monday[11].status, SlotStatus::Past));
+
+        // Admins also see other users' past bookings, with the name.
+        let mut admin = user(3);
+        admin.is_admin = true;
+        let slots = build_calendar_slots(
+            week_start,
+            &["fake1".to_string()],
+            &bookings,
+            &admin,
+            at(3, 0),
+            chrono_tz::UTC,
+            0,
+        );
+        let monday = &slots[0][0];
+        assert!(matches!(monday[10].status, SlotStatus::OtherPast));
+        assert_eq!(monday[10].booked_by.as_deref(), Some("user1"));
+        assert!(matches!(monday[11].status, SlotStatus::Past));
+    }
 }
