@@ -12,6 +12,7 @@ nav-end-session = End session
 nav-account = Account
 nav-logout = Log out
 footer-privacy = Privacy
+footer-accessibility = Accessibility
 
 ## Account page
 

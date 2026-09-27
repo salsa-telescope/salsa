@@ -1,0 +1,65 @@
+<div class="section light space-y-6">
+  <h2 class="text-3xl font-semibold">Accessibility</h2>
+  <p class="text-sm text-gray-500">Published 27 September 2026</p>
+
+  <div class="space-y-6 text-gray-700 max-w-3xl">
+
+    <div class="space-y-3">
+      <p>SALSA is run by
+      <a href="https://www.chalmers.se/en/infrastructure/oso/">Onsala Space Observatory</a>,
+      hosted by Chalmers University of Technology. We want as many people as possible to be
+      able to use it. This page describes how SALSA meets the Swedish law on accessibility
+      to digital public services, the known problems, and how to report problems to us.</p>
+    </div>
+
+    <div class="space-y-3">
+      <h3 class="text-2xl font-semibold text-gray-800">How accessible is SALSA?</h3>
+      <p>SALSA partially meets the Web Content Accessibility Guidelines (WCAG) 2.1 at level
+      AA, because of the problems listed below. Pages can be used with a keyboard, including
+      booking a telescope and opening your observations, and all text meets the contrast
+      requirements.</p>
+    </div>
+
+    <div class="space-y-3">
+      <h3 class="text-2xl font-semibold text-gray-800">Known problems</h3>
+      <ul class="list-disc list-inside space-y-2">
+        <li><strong>Spectrum charts</strong> on the observe and archive pages are drawn
+        graphics, so a screen reader cannot read the data in them. The same data can be
+        downloaded from the <a href="/observations">Observation archive</a> as CSV or FITS
+        files.</li>
+        <li><strong>The chart analysis tools</strong> (zooming, picking baseline ranges and
+        peaks for Gaussian fits) need a mouse or touch screen. Making them fully usable with
+        a keyboard would be a disproportionate burden for a small educational service; the
+        downloaded data can be analysed in any tool instead.</li>
+        <li><strong>Webcam images and the sky map</strong> on the observe and live pages are
+        visual only. The telescope's position is also shown as text.</li>
+        <li><strong>Testing so far</strong> has been automated checks and keyboard testing.
+        SALSA has not yet been tested with a screen reader, so there may be problems we do
+        not know about.</li>
+      </ul>
+    </div>
+
+    <div class="space-y-3">
+      <h3 class="text-2xl font-semibold text-gray-800">Report a problem</h3>
+      <p>If you find something on SALSA that you cannot use, or that you think does not meet
+      the law, email <a href="mailto:salsa.onsala@gmail.com">salsa.onsala@gmail.com</a>.
+      Tell us which page it is and what the problem is, and we will do our best to fix it
+      or find another way for you to get the information.</p>
+    </div>
+
+    <div class="space-y-3">
+      <h3 class="text-2xl font-semibold text-gray-800">Supervision</h3>
+      <p>The Agency for Digital Government (DIGG) supervises the law on accessibility to
+      digital public services. If you are not satisfied with how we handle your report, you
+      can <a href="https://www.digg.se/tdosanmalan">report it to DIGG</a>.</p>
+    </div>
+
+    <div class="space-y-3">
+      <h3 class="text-2xl font-semibold text-gray-800">How we tested</h3>
+      <p>We assessed SALSA ourselves in September 2026: an automated check (axe-core,
+      WCAG 2.1 A and AA rules) of the main pages, and manual keyboard testing of booking and the
+      archive.</p>
+    </div>
+
+  </div>
+</div>

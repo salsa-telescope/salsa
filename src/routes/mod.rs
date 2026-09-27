@@ -41,6 +41,7 @@ pub fn read_content_page(name: &str, lang: Language, fallback: &str) -> String {
 }
 
 pub mod about;
+pub mod accessibility;
 pub mod account;
 pub mod admin;
 pub mod authentication;

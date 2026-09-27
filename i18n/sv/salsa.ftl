@@ -12,6 +12,7 @@ nav-end-session = Avsluta session
 nav-account = Konto
 nav-logout = Logga ut
 footer-privacy = Integritet
+footer-accessibility = Tillgänglighet
 
 ## Account page
 
