@@ -79,14 +79,14 @@
       </div>
       {% if show_filter() %}
       <form id="obs-filter" hx-get="/observations" hx-target="#page" hx-push-url="true"
-        class="{% if !filter_active && !is_admin %}hidden {% endif %}grid grid-cols-2 gap-x-2 gap-y-1 text-xs mb-3 p-2 border rounded">
+        class="{% if !filter_active %}hidden {% endif %}grid grid-cols-2 gap-x-2 gap-y-1 text-xs mb-3 p-2 border rounded">
         <input type="hidden" name="mode" value="single" />
         <input type="hidden" name="user_id" value="{{ viewed_user }}" />
         <label class="flex flex-col text-gray-500">{{ lang.t("obs-filter-from") }}
-          <input type="date" name="from" value="{{ filter.from }}" class="border rounded px-1 py-0.5 text-gray-900" />
+          <input type="{% if filter.from.is_empty() %}text{% else %}date{% endif %}" name="from" value="{{ filter.from }}" placeholder="{{ lang.t("obs-filter-any-date") }}" onfocus="this.type='date'" onblur="if (!this.value) this.type='text'" class="border rounded px-1 py-0.5 text-gray-900" />
         </label>
         <label class="flex flex-col text-gray-500">{{ lang.t("obs-filter-to") }}
-          <input type="date" name="to" value="{{ filter.to }}" class="border rounded px-1 py-0.5 text-gray-900" />
+          <input type="{% if filter.to.is_empty() %}text{% else %}date{% endif %}" name="to" value="{{ filter.to }}" placeholder="{{ lang.t("obs-filter-any-date") }}" onfocus="this.type='date'" onblur="if (!this.value) this.type='text'" class="border rounded px-1 py-0.5 text-gray-900" />
         </label>
         {% if telescope_options.len() > 1 || !filter.telescope.is_empty() %}
         <label class="flex flex-col text-gray-500">{{ lang.t("obs-filter-telescope") }}

@@ -286,6 +286,7 @@ obs-list-hint = observations · click to view spectrum · ✕ to delete selected
 obs-filter = Filter
 obs-filter-from = From
 obs-filter-to = To
+obs-filter-any-date = All dates
 obs-filter-telescope = Telescope
 obs-filter-coord = Coordinates
 obs-filter-all = All

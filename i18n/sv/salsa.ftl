@@ -286,6 +286,7 @@ obs-list-hint = observationer · klicka för att visa spektrum · ✕ för att r
 obs-filter = Filtrera
 obs-filter-from = Från
 obs-filter-to = Till
+obs-filter-any-date = Alla datum
 obs-filter-telescope = Teleskop
 obs-filter-coord = Koordinater
 obs-filter-all = Alla
