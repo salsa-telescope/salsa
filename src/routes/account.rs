@@ -171,10 +171,9 @@ async fn delete_account(
     State(state): State<AppState>,
 ) -> Result<impl IntoResponse, StatusCode> {
     let user = user.ok_or(StatusCode::UNAUTHORIZED)?;
-    info!(
-        "Deleting account for user {} ({}, provider: {})",
-        user.id, user.name, user.provider
-    );
+    // Only the id: the name would tie the anonymized rows back to the person
+    // for as long as the journal keeps this line.
+    info!("Deleting account for user {}", user.id);
     user.delete(state.database_connection)
         .await
         .map_err(|err| {

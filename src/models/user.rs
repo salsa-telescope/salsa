@@ -283,7 +283,6 @@ impl User {
         connection: Arc<Mutex<Connection>>,
         user_id: i64,
     ) -> Result<(), InternalError> {
-        let now = chrono::Utc::now().timestamp();
         let conn = connection.lock().await;
         let is_local: bool = conn
             .query_row(
@@ -296,39 +295,12 @@ impl User {
         if !is_local {
             return Err(InternalError::new("Not a local user".to_string()));
         }
-        conn.execute("DELETE FROM local_user WHERE user_id = ?1", [user_id])
-            .map_err(|e| InternalError::new(format!("Failed to delete local_user: {e}")))?;
-        conn.execute(
-            "UPDATE user SET username = 'Deleted account', provider = '', external_id = '' WHERE id = ?1",
-            [user_id],
-        )
-        .map_err(|e| InternalError::new(format!("Failed to anonymize user: {e}")))?;
-        conn.execute(
-            "DELETE FROM booking WHERE user_id = ?1 AND end_timestamp > ?2",
-            (user_id, now),
-        )
-        .map_err(|e| InternalError::new(format!("Failed to delete bookings: {e}")))?;
-        conn.execute("DELETE FROM session WHERE user_id = ?1", [user_id])
-            .map_err(|e| InternalError::new(format!("Failed to delete sessions: {e}")))?;
-        Ok(())
+        anonymize(&conn, user_id)
     }
 
     pub async fn delete(self, connection: Arc<Mutex<Connection>>) -> Result<(), InternalError> {
-        let now = chrono::Utc::now().timestamp();
         let conn = connection.lock().await;
-        conn.execute(
-            "UPDATE user SET username = 'Deleted account', provider = '', external_id = '' WHERE id = (?1)",
-            (self.id,),
-        )
-        .map_err(|err| InternalError::new(format!("Failed to anonymize user: {err}")))?;
-        conn.execute(
-            "DELETE FROM booking WHERE user_id = (?1) AND end_timestamp > (?2)",
-            (self.id, now),
-        )
-        .map_err(|err| InternalError::new(format!("Failed to delete upcoming bookings: {err}")))?;
-        conn.execute("DELETE FROM session WHERE user_id = (?1)", (self.id,))
-            .map_err(|err| InternalError::new(format!("Failed to delete sessions: {err}")))?;
-        Ok(())
+        anonymize(&conn, self.id)
     }
 
     /// Count registered (non-guest) users grouped by authentication
@@ -417,5 +389,146 @@ impl User {
                 "Failed to fetch user from db: {err}"
             ))),
         }
+    }
+}
+
+/// Delete an account, whether the user asked or an admin did.
+///
+/// Past bookings, guest sessions and observations are kept, because they
+/// are how usage is measured, but nothing left on them leads back to the
+/// person: the user row keeps only its id, and free-text booking
+/// descriptions (which can name people) are cleared. The country on
+/// bookings and guest sessions stays, for the same usage statistics.
+/// Upcoming bookings are cancelled and all sessions are logged out.
+fn anonymize(conn: &Connection, user_id: i64) -> Result<(), InternalError> {
+    let now = chrono::Utc::now().timestamp();
+    let run = |what: &str, sql: &str, params: &[&dyn rusqlite::ToSql]| {
+        conn.execute(sql, params)
+            .map(|_| ())
+            .map_err(|e| InternalError::new(format!("Failed to {what}: {e}")))
+    };
+    run(
+        "delete local login",
+        "DELETE FROM local_user WHERE user_id = ?1",
+        &[&user_id],
+    )?;
+    run(
+        "anonymize user",
+        "UPDATE user SET username = 'Deleted account', provider = '', external_id = '',
+             timezone = NULL, language = NULL
+         WHERE id = ?1",
+        &[&user_id],
+    )?;
+    run(
+        "delete upcoming bookings",
+        "DELETE FROM booking WHERE user_id = ?1 AND end_timestamp > ?2",
+        &[&user_id, &now],
+    )?;
+    run(
+        "clear booking descriptions",
+        "UPDATE booking SET description = NULL WHERE user_id = ?1",
+        &[&user_id],
+    )?;
+    run(
+        "delete sessions",
+        "DELETE FROM session WHERE user_id = ?1",
+        &[&user_id],
+    )
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::database::apply_migrations;
+    use crate::models::booking::Booking;
+    use chrono::{Duration, Utc};
+
+    fn create_connection() -> Arc<Mutex<Connection>> {
+        let mut connection = Connection::open_in_memory().unwrap();
+        apply_migrations(&mut connection).unwrap();
+        Arc::new(Mutex::new(connection))
+    }
+
+    #[tokio::test]
+    async fn deleting_an_account_leaves_nothing_that_identifies_the_user() {
+        let db = create_connection();
+        let user = User::create_from_external(db.clone(), "Anna".into(), "github".into(), "gh-1")
+            .await
+            .unwrap();
+        User::set_timezone(db.clone(), user.id, "Europe/Stockholm")
+            .await
+            .unwrap();
+        let now = Utc::now();
+        let past = (
+            now - Duration::days(2),
+            now - Duration::days(2) + Duration::hours(1),
+        );
+        let future = (
+            now + Duration::days(2),
+            now + Duration::days(2) + Duration::hours(1),
+        );
+        for (start, end) in [past, future] {
+            Booking::create(
+                db.clone(),
+                user.clone(),
+                "fake1".into(),
+                start,
+                end,
+                Some("Lab for Anna's group".into()),
+                Some("SE".into()),
+            )
+            .await
+            .unwrap();
+        }
+        let id = user.id;
+        user.delete(db.clone()).await.unwrap();
+
+        let conn = db.lock().await;
+        let row: (String, String, String, Option<String>, Option<String>) = conn
+            .query_row(
+                "SELECT username, provider, external_id, timezone, language FROM user WHERE id = ?1",
+                [id],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?)),
+            )
+            .unwrap();
+        assert_eq!(
+            row,
+            ("Deleted account".into(), "".into(), "".into(), None, None)
+        );
+        // The past booking stays for usage statistics, country included, but
+        // without its description; the upcoming one is cancelled.
+        let bookings: Vec<(Option<String>, Option<String>)> = conn
+            .prepare("SELECT description, country FROM booking WHERE user_id = ?1")
+            .unwrap()
+            .query_map([id], |r| Ok((r.get(0)?, r.get(1)?)))
+            .unwrap()
+            .collect::<Result<_, _>>()
+            .unwrap();
+        assert_eq!(bookings, vec![(None, Some("SE".to_string()))]);
+    }
+
+    #[tokio::test]
+    async fn a_local_user_deleting_their_account_removes_their_login() {
+        let db = create_connection();
+        let user = User::create_local(
+            db.clone(),
+            "anna".into(),
+            "hunter22hunter22".into(),
+            "".into(),
+        )
+        .await
+        .unwrap();
+        let id = user.id;
+        user.delete(db.clone()).await.unwrap();
+        let logins: i64 = db
+            .lock()
+            .await
+            .query_row(
+                "SELECT COUNT(*) FROM local_user WHERE user_id = ?1",
+                [id],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(logins, 0);
     }
 }

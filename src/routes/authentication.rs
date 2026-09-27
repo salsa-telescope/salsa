@@ -113,7 +113,9 @@ async fn local_login(
 ) -> Result<Response, InternalError> {
     let ip = addr.ip();
     if state.login_rate_limiter.is_blocked(ip) {
-        info!(ip = ip.to_string(), "rate limiting local login attempt");
+        // No address in the log: the limiter keeps its own short-lived
+        // in-memory record, and the journal would keep it far longer.
+        info!("rate limiting local login attempt");
         return Ok(Redirect::to("/auth/login?error=rate_limited").into_response());
     }
 
@@ -158,11 +160,9 @@ async fn local_login(
     };
 
     state.login_rate_limiter.record_success(ip);
-    info!(
-        username = form.username.clone(),
-        ip = ip.to_string(),
-        "successful local login"
-    );
+    // The id only: a name or address here would stay in the journal after
+    // the account is deleted and anonymized.
+    info!(user_id = user.id, "successful local login");
 
     let session = Session::create(state.database_connection.clone(), &user).await?;
     let cookie = session_cookie(&session.token);
@@ -186,7 +186,7 @@ async fn redirect_to_auth_provider(
     // to be one we know.
     let ip = addr.ip();
     if state.oauth_start_limiter.check_and_record(ip) {
-        info!(ip = ip.to_string(), "rate limiting oauth2 login start");
+        info!("rate limiting oauth2 login start");
         return Ok(Redirect::to("/auth/login?error=too_many_starts").into_response());
     }
 
@@ -346,7 +346,7 @@ async fn authenticate_from_oauth2(
     };
 
     info!(
-        username = user.name.clone(),
+        user_id = user.id,
         provider = provider_name,
         "successful OAuth2 login"
     );
