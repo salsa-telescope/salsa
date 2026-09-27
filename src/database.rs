@@ -1,7 +1,7 @@
 use rusqlite::Connection;
 use std::path::PathBuf;
 use thiserror::Error;
-use tracing::debug;
+use tracing::{debug, info};
 
 #[derive(Debug, Error)]
 pub enum SqliteDatabaseError {
@@ -18,8 +18,22 @@ mod embedded {
 }
 
 pub fn apply_migrations(connection: &mut Connection) -> Result<(), SqliteDatabaseError> {
-    let report = embedded::migrations::runner().run(connection).unwrap();
+    let runner = embedded::migrations::runner();
+    let report = runner.run(connection).unwrap();
     debug!("Applied migrations\n{:?}", report);
+    // refinery's own info lines are filtered out in `logging` because they
+    // call the schema version just "version", easily mistaken for the
+    // release. These say what the number is.
+    for migration in report.applied_migrations() {
+        info!(
+            "applied database migration V{}__{}",
+            migration.version(),
+            migration.name()
+        );
+    }
+    if let Some(last) = runner.get_last_applied_migration(connection).unwrap() {
+        info!("database schema at migration V{}", last.version());
+    }
     Ok(())
 }
 
