@@ -52,6 +52,7 @@ pub mod language;
 pub mod live;
 pub mod observations;
 pub mod observe;
+pub mod privacy;
 pub mod support;
 pub mod technical;
 pub mod telescope;

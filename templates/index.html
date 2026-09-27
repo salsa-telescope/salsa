@@ -134,6 +134,7 @@
         </div>
         <footer>
             Made by weirdos 🦆 ({% if build_url == "" %} {{version_description}} {% else %} <a href="{{ build_url }}">{{version_description}}</a> {% endif %})
+            &middot; <a href="/privacy">{{ lang.t("footer-privacy") }}</a>
         </footer>
         {% if detect_timezone %}
         <script>
