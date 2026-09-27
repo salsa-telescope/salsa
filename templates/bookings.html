@@ -78,9 +78,9 @@
   {% if !past_booking_groups.is_empty() %}
   <details class="mt-2 mb-4 text-sm">
     <summary class="cursor-pointer text-gray-600 select-none">{{ lang.t("bookings-past") }} ({{ past_booking_groups.len() }})</summary>
-    <ul class="mt-2 max-h-64 overflow-y-auto space-y-1">
+    <ul id="past-bookings-list" class="mt-2 space-y-1" data-page-size="{{ past_page_size }}">
       {% for group in past_booking_groups %}
-      <li class="flex flex-wrap gap-x-3 text-gray-700">
+      <li class="flex flex-wrap gap-x-3 text-gray-700"{% if loop.index0 >= past_page_size %} hidden{% endif %}>
         {% if viewed_user_id.is_none() %}<span class="font-mono text-xs text-gray-600 self-center" title="{{ lang.t("obs-user-id") }}">u{{ group.user_id }}</span>{% endif %}
         <span class="font-medium">{{ group.telescope_name }}</span>
         <span>{{ group.start_time.in_tz(tz).format("%Y-%m-%d %H:%M") }}&ndash;{% if group.crosses_local_day(tz) %}{{ group.end_time.in_tz(tz).format("%Y-%m-%d ") }}{% endif %}{{ group.end_time.in_tz(tz).format("%H:%M %Z") }}</span>
@@ -89,6 +89,15 @@
       </li>
       {% endfor %}
     </ul>
+    {% if past_page_count() > 1 %}
+    <div class="flex items-center gap-2 mt-2">
+      <button type="button" id="past-bookings-prev" onclick="pastBookingsPage(-1)" disabled
+        class="px-3 py-1 bg-gray-200 rounded hover:bg-gray-300 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-default">&larr; {{ lang.t("bookings-prev") }}</button>
+      <span id="past-bookings-page" class="text-gray-500" aria-live="polite">1 / {{ past_page_count() }}</span>
+      <button type="button" id="past-bookings-next" onclick="pastBookingsPage(1)"
+        class="px-3 py-1 bg-gray-200 rounded hover:bg-gray-300 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-default">{{ lang.t("bookings-next") }} &rarr;</button>
+    </div>
+    {% endif %}
   </details>
   {% endif %}
 
@@ -160,6 +169,24 @@
     window.toggleAllBookings = function() {
       var list = document.getElementById('my-bookings-list');
       if (list) list.classList.toggle('expanded');
+    };
+
+    // Step the past-bookings list a page back or forward. All rows are
+    // rendered; paging only shows one slice of them at a time.
+    window.pastBookingsPage = function(step) {
+      var list = document.getElementById('past-bookings-list');
+      if (!list) return;
+      var rows = list.children;
+      var size = parseInt(list.dataset.pageSize, 10);
+      var pages = Math.ceil(rows.length / size);
+      var page = Math.min(Math.max((parseInt(list.dataset.page, 10) || 0) + step, 0), pages - 1);
+      list.dataset.page = page;
+      for (var i = 0; i < rows.length; i++) {
+        rows[i].hidden = Math.floor(i / size) !== page;
+      }
+      document.getElementById('past-bookings-page').textContent = (page + 1) + ' / ' + pages;
+      document.getElementById('past-bookings-prev').disabled = page === 0;
+      document.getElementById('past-bookings-next').disabled = page === pages - 1;
     };
   })();
   </script>

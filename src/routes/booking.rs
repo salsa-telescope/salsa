@@ -34,6 +34,9 @@ const MAX_DESCRIPTION_CHARS: usize = 500;
 /// looking at one) from pushing the calendar off the screen.
 const VISIBLE_BOOKING_GROUPS: usize = 4;
 
+/// How many past booking groups the "past bookings" list shows per page.
+const PAST_BOOKINGS_PAGE_SIZE: usize = 10;
+
 pub fn routes(state: AppState) -> Router {
     Router::new()
         .route("/", get(get_bookings).post(create_booking))
@@ -199,6 +202,8 @@ struct BookingsTemplate {
     past_booking_groups: Vec<BookingGroup>,
     /// How many of them the list shows before the "+ N more" toggle.
     visible_groups: usize,
+    /// How many past groups each page of that list shows.
+    past_page_size: usize,
     telescope_names: Vec<String>,
     maintenance_telescopes: Vec<bool>,
     error: Option<String>,
@@ -229,6 +234,12 @@ struct BookingsTemplate {
     tz_name: String,
     /// Current zone abbreviation (e.g. "CEST") for column/label headers.
     tz_abbr: String,
+}
+
+impl BookingsTemplate {
+    fn past_page_count(&self) -> usize {
+        self.past_booking_groups.len().div_ceil(self.past_page_size)
+    }
 }
 
 async fn get_bookings(
@@ -563,6 +574,7 @@ async fn build_bookings_page(
         booking_groups,
         past_booking_groups,
         visible_groups: VISIBLE_BOOKING_GROUPS,
+        past_page_size: PAST_BOOKINGS_PAGE_SIZE,
         telescope_names,
         maintenance_telescopes,
         error,
