@@ -68,43 +68,40 @@
     </p>
   </div>
 
-  <!-- Alternative analysis tools -->
+  <!-- Data analysis tools -->
   <div class="space-y-3 text-gray-700">
-    <h3 id="analysis-tools" class="text-xl font-semibold text-gray-800">Alternativa analysverktyg</h3>
-    <p>Sidan <a href="/observations">observationsarkiv</a> har inbyggda verktyg
-    för baslinjesubtraktion och gaussanpassning som täcker de flesta analysbehov.
-    Verktygen nedan finns kvar för användare som hellre arbetar i sin egen
-    miljö med FITS-filerna som SALSA exporterar.</p>
+    <h3 id="analysis-tools" class="text-xl font-semibold text-gray-800">Verktyg för dataanalys</h3>
+    <p>Enklast är att analysera dina spektra i
+    <a href="/observations">observationsarkivet</a>, som har inbyggd
+    baslinjesubtraktion och gaussanpassning (se
+    <a href="/support/manual#analysis">användarmanualen</a>). För att arbeta vidare
+    med FITS- eller CSV-filerna som SALSA exporterar kan du använda verktygen nedan.
+    SalsaTS och Pythonporteringen underhålls av andra, så deras funktioner och stöd
+    för filformat kan skilja sig från SALSA:s egna verktyg.</p>
 
     <ul class="space-y-3 list-disc list-inside">
-      <li><strong>SalsaSpectrum (MATLAB-klass)</strong> — en MATLAB-verktygslåda för
-      att analysera SALSA:s FITS-filer. Användbar när du vill bearbeta många spektra
-      programmatiskt eller stanna i ett befintligt MATLAB-arbetsflöde. Källkod:
-      <a href="https://raw.githubusercontent.com/salsa-telescope/salsa/main/SalsaSpectrum/SalsaSpectrum.m">SalsaSpectrum.m</a>
-      (högerklicka → Spara länk som). Dokumentation:
-      <a href="https://github.com/salsa-telescope/salsa/raw/main/SalsaSpectrum/Documentation/SalsaSpectrum_documentation.pdf" target="_blank">SalsaSpectrum_documentation.pdf</a>.
-      Klassen har anpassats (version 2.3, se kommentaren i filhuvudet) för att
-      fungera med FITS-filer skrivna av den nuvarande SALSA-styrmjukvaran;
-      för arkivfiler från det tidigare styrsystemet, använd den äldre
-      versionen 2.2 från det historiska varenius/salsa-repositoriet. Dess
-      funktion <code>readLab</code> fungerar inte längre, eftersom
-      <a href="/technical#tsys-calibration">Bonns HI-kartläggningsserver</a> stängdes
-      för extern åtkomst i september 2026.</li>
+      <li><strong>SalsaTS</strong> — ett analysverktyg som körs i webbläsaren, utan
+      installation:
+      <a href="https://appolloford.github.io/salsa-ts/" target="_blank">appolloford.github.io/salsa-ts</a>.</li>
 
-      <li><strong>SalsaSpectrum (Python)</strong> — en tredjeparts-Pythonportering
-      av MATLAB-klassen, byggd på scipy och astropy, med utökad baslinjemodellering,
+      <li><strong>SalsaSpectrum (MATLAB)</strong> — en MATLAB-klass för att analysera
+      SALSA:s FITS-filer, användbar för att bearbeta många spektra i ett skript. Hämta
+      <a href="https://github.com/salsa-telescope/salsa/blob/main/SalsaSpectrum/SalsaSpectrum.m" target="_blank">SalsaSpectrum.m</a>
+      och
+      <a href="https://github.com/salsa-telescope/salsa/raw/main/SalsaSpectrum/Documentation/SalsaSpectrum_documentation.pdf" target="_blank">dokumentationen (PDF)</a>.
+      Den aktuella versionen läser filer från den nuvarande styrmjukvaran; för filer
+      från före 2026, använd version 2.2 från det historiska varenius/salsa-repositoriet.
+      Funktionen <code>readLab</code> fungerar inte längre, eftersom
+      <a href="/technical#tsys-calibration">Bonns HI-kartläggningsserver</a> stängdes i
+      september 2026.</li>
+
+      <li><strong>SalsaSpectrum (Python)</strong> — en Pythonportering av
+      MATLAB-klassen, byggd på scipy och astropy, med utökad baslinjemodellering,
       brusuppskattning och diagnostik av anpassningskvalitet:
-      <a href="https://github.com/tiagobaroni/SalsaSpectrum" target="_blank">github.com/tiagobaroni/SalsaSpectrum</a>.
-      Underhålls utanför SALSA.</li>
+      <a href="https://github.com/tiagobaroni/SalsaSpectrum" target="_blank">github.com/tiagobaroni/SalsaSpectrum</a>.</li>
 
-      <li><strong>SalsaTS</strong> — ett tredjeparts webbläsarbaserat analysverktyg.
-      Körs helt i webbläsaren, ingen installation:
-      <a href="https://appolloford.github.io/salsa-ts/" target="_blank">appolloford.github.io/salsa-ts</a>.
-      Underhålls utanför SALSA, så funktioner och FITS-formatkompatibilitet
-      kan skilja sig från de inbyggda verktygen.</li>
-
-      <li><strong>Google Kalkylark</strong> — för snabb visuell inspektion av en
-      exporterad CSV utan att installera något: se den korta
+      <li><strong>Google Kalkylark</strong> — för en snabb titt på en exporterad
+      CSV-fil utan att installera något; se
       <a href="/support/google-sheets-guide">guiden för Google Kalkylark</a>.</li>
     </ul>
   </div>

@@ -69,43 +69,40 @@
     </p>
   </div>
 
-  <!-- Alternative analysis tools -->
+  <!-- Data analysis tools -->
   <div class="space-y-3 text-gray-700">
-    <h3 id="analysis-tools" class="text-xl font-semibold text-gray-800">Alternative analysis tools</h3>
-    <p>The <a href="/observations">observation archive</a> page has built-in
-    baseline-subtraction and Gaussian-fitting tools that cover most analysis
-    workflows. The tools below are kept around for users who prefer to
-    work in their own environment with the FITS files SALSA exports.</p>
+    <h3 id="analysis-tools" class="text-xl font-semibold text-gray-800">Data analysis tools</h3>
+    <p>The simplest way to analyse your spectra is in the
+    <a href="/observations">observation archive</a>, which has built-in baseline
+    subtraction and Gaussian fitting (see the
+    <a href="/support/manual#analysis">User's manual</a>). To work further with the
+    FITS or CSV files SALSA exports, you can use the tools below. SalsaTS and the
+    Python port are maintained by others, so their features and file-format support
+    may differ from SALSA's own tools.</p>
 
     <ul class="space-y-3 list-disc list-inside">
-      <li><strong>SalsaSpectrum (MATLAB class)</strong> — a MATLAB toolbox for
-      analysing SALSA FITS files. Useful when you want to process many spectra
-      programmatically or stay inside an existing MATLAB workflow. Source:
-      <a href="https://raw.githubusercontent.com/salsa-telescope/salsa/main/SalsaSpectrum/SalsaSpectrum.m">SalsaSpectrum.m</a>
-      (right-click → Save Link As). Documentation:
-      <a href="https://github.com/salsa-telescope/salsa/raw/main/SalsaSpectrum/Documentation/SalsaSpectrum_documentation.pdf" target="_blank">SalsaSpectrum_documentation.pdf</a>.
-      The class has been adapted (version 2.3, see the header comment) to
-      work with FITS files written by the current SALSA control software;
-      for archival files from the previous control system use the older
-      version 2.2 from the historical varenius/salsa repository. Its
-      <code>readLab</code> function no longer works, since the
-      <a href="/technical#tsys-calibration">Bonn HI survey server</a> was closed
-      to external access in September 2026.</li>
+      <li><strong>SalsaTS</strong> — an analysis tool that runs in the browser, with
+      nothing to install:
+      <a href="https://appolloford.github.io/salsa-ts/" target="_blank">appolloford.github.io/salsa-ts</a>.</li>
 
-      <li><strong>SalsaSpectrum (Python)</strong> — a third-party Python port
-      of the MATLAB class, built on scipy and astropy, with extended baseline
-      modelling, noise estimation and fit-quality diagnostics:
-      <a href="https://github.com/tiagobaroni/SalsaSpectrum" target="_blank">github.com/tiagobaroni/SalsaSpectrum</a>.
-      Maintained outside SALSA.</li>
+      <li><strong>SalsaSpectrum (MATLAB)</strong> — a MATLAB class for analysing
+      SALSA FITS files, useful for processing many spectra in a script. Download
+      <a href="https://github.com/salsa-telescope/salsa/blob/main/SalsaSpectrum/SalsaSpectrum.m" target="_blank">SalsaSpectrum.m</a>
+      and the
+      <a href="https://github.com/salsa-telescope/salsa/raw/main/SalsaSpectrum/Documentation/SalsaSpectrum_documentation.pdf" target="_blank">documentation (PDF)</a>.
+      The current version reads files from the present control software; for files
+      from before 2026, use version 2.2 from the historical varenius/salsa
+      repository. The <code>readLab</code> function no longer works, since the
+      <a href="/technical#tsys-calibration">Bonn HI survey server</a> closed in
+      September 2026.</li>
 
-      <li><strong>SalsaTS</strong> — a third-party browser-based analysis
-      tool. Runs entirely in the browser, no installation:
-      <a href="https://appolloford.github.io/salsa-ts/" target="_blank">appolloford.github.io/salsa-ts</a>.
-      Maintained outside SALSA, so feature support and FITS-format compatibility
-      may differ from the built-in tools.</li>
+      <li><strong>SalsaSpectrum (Python)</strong> — a Python port of the MATLAB
+      class, built on scipy and astropy, with extended baseline modelling, noise
+      estimation and fit-quality diagnostics:
+      <a href="https://github.com/tiagobaroni/SalsaSpectrum" target="_blank">github.com/tiagobaroni/SalsaSpectrum</a>.</li>
 
-      <li><strong>Google Sheets</strong> — for quick visual inspection of an
-      exported CSV without installing anything: see the short
+      <li><strong>Google Sheets</strong> — for a quick look at an exported CSV file
+      without installing anything; see the
       <a href="/support/google-sheets-guide">Google Sheets guide</a>.</li>
     </ul>
   </div>
