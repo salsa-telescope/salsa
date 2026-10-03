@@ -701,6 +701,14 @@ which are intended for more advanced users. They are listed here.
 \subsection{Download data from the LAB survey}
 \label{sec:download-data-from}
 
+\emph{Note: this function no longer works.} On 13 September 2026 the
+University of Bonn suspended external access to its HI survey server,
+after it was flooded by automated queries from AI bots, so
+\texttt{readLab} can no longer download LAB spectra. According to the
+notice at \url{https://www.astro.uni-bonn.de/hisurvey/AllSky_profiles/},
+the surveys remain available at AIfA in Bonn and spectra can still be
+provided on request. The description below is kept for reference.
+
 The LAB survey is a compilation of three major HI surveys performed
 with telescopes in the Netherlands, Argentina and Australia. It covers
 the entire sky and has a resolution of $30$ arcminutes. It can be
@@ -1088,6 +1096,8 @@ class follows, along with the information in each functions's help file.
   
   convolved to Salsa's angular resolution
 \end{lstlisting}
+No longer works: the server has been closed to external access since
+13 September 2026 (see section~\ref{sec:download-data-from}).
 
 \subsubsection*{clipSpectrum}
 \label{sec:clipspectrum}
@@ -1139,6 +1149,13 @@ class follows, along with the information in each functions's help file.
 \label{sec:changes}
 Change log for this document. Code changes are described in the code.
 
+\vspace{2ex}
+\noindent 
+\emph{version 1.92}
+\begin{itemize}
+\item 2026-10-03: Noted that \texttt{readLab} no longer works, since the
+  Bonn HI survey server was closed to external access on 13 September 2026.
+\end{itemize}
 \vspace{2ex}
 \noindent 
 \emph{version 1.91}

@@ -27,7 +27,7 @@ Onsala Space Observatory, 57°24'N, 11°55'E, approximately 5 m above sea level.
       </div>
 
       <div class="space-y-2">
-        <h3 class="text-lg font-semibold text-gray-800">System temperature calibration</h3>
+        <h3 id="tsys-calibration" class="text-lg font-semibold text-gray-800">System temperature calibration</h3>
         <p>SALSA can observe in two modes: a raw total-power mode, and a
 frequency-switched mode in which a reference spectrum at an offset frequency is
 subtracted. In frequency-switched mode the output is the normalized difference
@@ -48,6 +48,13 @@ the convolution itself: the Bonn server specifies that the requested effective
 FWHM should be below 1°, so asking for SALSA's 6° beam goes outside the survey's
 intended range — the resulting profile may miss flux or rest on an unreliable
 spatial mapping, adding further uncertainty to the comparison.</p>
+        <p><strong>Note:</strong> On 13 September 2026 the University of Bonn
+suspended external access to the HI survey server, after it was flooded by
+automated queries from AI bots. It is therefore no longer possible to download
+comparison spectra from it yourself. According to the
+<a href="https://www.astro.uni-bonn.de/hisurvey/AllSky_profiles/">notice on the server</a>,
+the surveys (EBHIS, HI4PI, GASS, LAB) remain available at AIfA in Bonn, and
+spectra can still be provided to interested users on request.</p>
       </div>
 
       <div class="space-y-2">

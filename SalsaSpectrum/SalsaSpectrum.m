@@ -13,6 +13,13 @@ classdef SalsaSpectrum<handle
     % tested, but there may still be bugs. It can be downloaded on the
     % SALSA onsala Web site at vale.oso.chalmers.se.
 
+	% version 2.4
+	% 3 october, 2026
+    % - readLab no longer works: the Bonn HI survey server was closed to
+    %   external access on 13 September 2026, after being flooded by AI
+    %   bots. readLab now explains this and returns if the download fails,
+    %   instead of failing on a missing lab.txt.
+
 	% version 2.3
 	% 9 may, 2026
     % - Adapted for FITS files written by the new salsa-telescope/salsa
@@ -961,6 +968,10 @@ classdef SalsaSpectrum<handle
             % by default, convolved to Salsa's angular resolution. If you
             % want higher angular resolution, supply the value (in
             % degrees) as an argument
+            %
+            % NOTE: no longer works. The Bonn HI survey server was closed to
+            % external access on 13 September 2026 after being flooded by
+            % AI bots. Previously downloaded lab.txt files still load.
             
             %             if ispc
             %                 disp('Sorry, dowloading LAB data does not work on Windows.')
@@ -1033,7 +1044,13 @@ classdef SalsaSpectrum<handle
                 try
                     [a, status] = urlwrite(url, 'lab.txt');
                 catch me
-                    disp('Could not download LAB data');
+                    status = 0;
+                end
+                if ~status
+                    disp(['Could not download LAB data. The Bonn HI survey ' ...
+                        'server has been closed to external access since ' ...
+                        '13 September 2026.']);
+                    return
                 end
         
             end
