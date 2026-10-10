@@ -9,32 +9,32 @@ argon2 = "0.6"
 db_ip = { version = "0.3", features = ["include-country-code-lite"] }
 image = { version = "0.25", default-features = false, features = ["jpeg"] }
 askama = "0.16"
-async-trait = "0.1.*"
-axum = { version = "0.8.*", features = ["json", "ws"] }
+async-trait = "0.1"
+axum = { version = "0.8", features = ["json", "ws"] }
 axum-server = { version = "0.8", features = ["tls-rustls"] }
-base64 = { version = "0.23" }
-chrono = { version = "0.4.*", features = ["serde", "unstable-locales"] }
+base64 = "0.23"
+chrono = { version = "0.4", features = ["serde", "unstable-locales"] }
 chrono-tz = "0.10"
-clap = { version = "4.*", features = ["derive", "env"] }
-oauth2 = "5.*"
+clap = { version = "4", features = ["derive", "env"] }
+oauth2 = "5"
 rand = "0.10"
 rand_distr = "0.6"
 refinery = { version = "0.10", features = ["rusqlite"] }
-reqwest = { version = "0.12.*", default-features = false, features = ["rustls-tls", "json", "blocking", "cookies"] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "blocking", "cookies"] }
 rusqlite = { version = "0.40", features = ["bundled"] }
-rustls="0.23"
-rustfft="6.*"
-serde = {version = "1.*", features = ["derive"] }
-sgp4 = { version = "2.*", default-features = false, features = ["std", "serde"] }
-serde_json = "1.*"
-thiserror = "2.*"
-tokio = { version = "1.*", features = ["macros", "rt-multi-thread", "signal"] }
-tokio-util = "0.7.*"
+rustls = "0.23"
+rustfft = "6"
+serde = { version = "1", features = ["derive"] }
+sgp4 = { version = "2", default-features = false, features = ["std", "serde"] }
+serde_json = "1"
+thiserror = "2"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal"] }
+tokio-util = "0.7"
 toml = "1"
-tower-http = { version = "0.6.*", features = ["full"] }
+tower-http = { version = "0.6", features = ["full"] }
 tracing = "0.1.44"
 tracing-journald = "0.3.2"
-tracing-subscriber = {version = "0.3.22", features = ["env-filter"]}
+tracing-subscriber = { version = "0.3.22", features = ["env-filter"]}
 uhd = "0.4.1"
 i18n-embed = { version = "0.16.0", features = ["fluent-system"] }
 i18n-embed-fl = "0.10.0"
@@ -47,7 +47,7 @@ unic-langid = "0.9.6"
 sha2 = "0.10"
 
 [dev-dependencies]
-tempfile = "*"
+tempfile = "3"
 # Self-signed certificates for the cert_watcher tests, generated in-process so
 # the suite does not shell out to openssl or carry committed key material.
 rcgen = "0.14"
@@ -60,4 +60,4 @@ filetime = "0.2"
 tower = { version = "0.5", features = ["util"] }
 # `start_paused` for the integration-monitor tests: they wait out one-second
 # poll ticks and a minute-long backstop, which on a paused clock cost nothing.
-tokio = { version = "1.*", features = ["test-util"] }
+tokio = { version = "1", features = ["test-util"] }
