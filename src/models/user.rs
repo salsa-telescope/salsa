@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use argon2::{
     Argon2,
-    password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString, rand_core::OsRng},
+    password_hash::{PasswordHasher, PasswordVerifier, phc::PasswordHash},
 };
 use rusqlite::{Connection, Error, OptionalExtension};
 use tokio::sync::Mutex;
@@ -27,9 +27,9 @@ pub struct User {
 
 async fn hash_password(password: String) -> Result<String, InternalError> {
     tokio::task::spawn_blocking(move || {
-        let salt = SaltString::generate(&mut OsRng);
+        // Generates a random salt from the OS.
         Argon2::default()
-            .hash_password(password.as_bytes(), &salt)
+            .hash_password(password.as_bytes())
             .map(|h| h.to_string())
             .map_err(|e| InternalError::new(format!("Failed to hash password: {e}")))
     })

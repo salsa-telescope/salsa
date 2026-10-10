@@ -1,7 +1,7 @@
 use base64::{Engine, prelude::BASE64_STANDARD};
 use chrono::Utc;
 use oauth2::CsrfToken;
-use rand::Rng;
+use rand::RngExt;
 use rusqlite::Connection;
 use std::sync::Arc;
 use tokio::sync::Mutex;

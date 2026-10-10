@@ -12,7 +12,7 @@ use oauth2::{
     AuthUrl, AuthorizationCode, ClientId, ClientSecret, CsrfToken, RedirectUrl, Scope,
     TokenResponse, TokenUrl, basic::BasicClient,
 };
-use rand::Rng;
+use rand::RngExt;
 use reqwest::header::USER_AGENT;
 use rusqlite::Result;
 use serde::Deserialize;

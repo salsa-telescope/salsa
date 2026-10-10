@@ -8,7 +8,7 @@ use crate::models::telescope_types::{
 use crate::tle_cache::TleCacheHandle;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use rand::Rng;
+use rand::RngExt;
 use rand_distr::StandardNormal;
 use rustfft::num_complex::Complex;
 use std::f64::consts::PI;
