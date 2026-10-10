@@ -103,6 +103,9 @@ async fn main() {
     });
 
     let listener = TcpListener::bind(addr).unwrap();
+    // axum-server hands the listener straight to tokio, which needs it
+    // non-blocking; before 0.8 axum-server set this itself.
+    listener.set_nonblocking(true).unwrap();
     info!("listening on {}", listener.local_addr().unwrap());
     if let Some(port) = args.port
         && port == 0
@@ -111,7 +114,7 @@ async fn main() {
         println!("port:{}", listener.local_addr().unwrap().port());
     }
 
-    let handle = axum_server::Handle::new();
+    let handle = axum_server::Handle::<SocketAddr>::new();
     let shutdown_handle = handle.clone();
     tokio::spawn(handle_shutdown_signal(handle.clone()));
 
@@ -141,11 +144,19 @@ async fn main() {
 
         let https_port = addr.port();
         let redirect_listener = TcpListener::bind(SocketAddr::from(([0, 0, 0, 0], 80))).unwrap();
+        redirect_listener.set_nonblocking(true).unwrap();
         info!("listening for HTTP->HTTPS redirect on port 80");
         let redirect_app = app::create_redirect_app(https_port, args.acme_webroot);
         let redirect_handle = handle.clone();
         tokio::spawn(async move {
-            if let Err(e) = axum_server::from_tcp(redirect_listener)
+            let server = match axum_server::from_tcp(redirect_listener) {
+                Ok(server) => server,
+                Err(e) => {
+                    error!("HTTP redirect server error: {e}");
+                    return;
+                }
+            };
+            if let Err(e) = server
                 .handle(redirect_handle)
                 .serve(redirect_app.into_make_service())
                 .await
@@ -157,19 +168,31 @@ async fn main() {
         // Errors are logged rather than unwrapped: a panic here would skip the
         // teardown below, which is the one thing that must happen on the way
         // out.
-        if let Err(e) = axum_server::from_tcp_rustls(listener, tls_config)
-            .handle(shutdown_handle.clone())
-            .serve(app.into_make_service_with_connect_info::<SocketAddr>())
-            .await
-        {
+        let result = match axum_server::from_tcp_rustls(listener, tls_config) {
+            Ok(server) => {
+                server
+                    .handle(shutdown_handle.clone())
+                    .serve(app.into_make_service_with_connect_info::<SocketAddr>())
+                    .await
+            }
+            Err(e) => Err(e),
+        };
+        if let Err(e) = result {
             error!("HTTPS server error: {e}");
         }
-    } else if let Err(e) = axum_server::from_tcp(listener)
-        .handle(shutdown_handle.clone())
-        .serve(app.into_make_service_with_connect_info::<SocketAddr>())
-        .await
-    {
-        error!("HTTP server error: {e}");
+    } else {
+        let result = match axum_server::from_tcp(listener) {
+            Ok(server) => {
+                server
+                    .handle(shutdown_handle.clone())
+                    .serve(app.into_make_service_with_connect_info::<SocketAddr>())
+                    .await
+            }
+            Err(e) => Err(e),
+        };
+        if let Err(e) = result {
+            error!("HTTP server error: {e}");
+        }
     }
 
     // Unconditional, so the journal always shows where the boundary between
@@ -210,7 +233,7 @@ async fn main() {
     std::process::exit(0);
 }
 
-async fn handle_shutdown_signal(handle: axum_server::Handle) {
+async fn handle_shutdown_signal(handle: axum_server::Handle<SocketAddr>) {
     let interrupt = async {
         signal::unix::signal(signal::unix::SignalKind::interrupt())
             .expect("Should succeed installing interrupt signal handler.")
