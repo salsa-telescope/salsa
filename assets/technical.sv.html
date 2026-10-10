@@ -130,17 +130,22 @@ rotationskurvan och kartan i <a href="/experiments/hi">laborationen om
 Vintergatan</a>, är bidragen från själva gasen och från metoden oftast mycket
 större än de instrumentella bidragen ovan:</p>
         <ul class="list-disc pl-6 space-y-1">
-          <li><strong>Gasens rörelser och loben.</strong> HI-gasen har
-en hastighetsspridning på cirka 9 km/s (<a href="https://ui.adsabs.harvard.edu/abs/1995ApJ...448..138M">Malhotra 1995</a>), och storskaliga
-strömningsrörelser gör att den avviker från ren cirkulär rotation
-med upp till cirka 10 km/s mellan topp och dal (<a href="https://doi.org/10.1086/522297">McClure-Griffiths &amp; Dickey 2007</a>). Den 6° breda loben tar dessutom ett medelvärde över ett
-intervall av longituder. Varje komponent i ett spektrum är därför bred, och dess
-hastighet kan skilja sig från ren cirkulär rotation med flera km/s. För
-rotationskurvan kan mitten av gausskomponenten med högst hastighet och profilens
-yttre kant skilja sig med 10 km/s eller mer: välj en definition, använd den för
-alla longituder och ange vilken du har valt. För kartan blir ett hastighetsfel ett
-avståndsfel. Det är störst mot l ≈ 0° och 180°, där gasen rör sig nästan tvärs mot
-siktlinjen, så att dess radialhastighet säger lite om avståndet.</li>
+          <li><strong>Linjebredd och gasens rörelser.</strong> En HI-linje är aldrig en
+skarp topp: gasens rörelser breddar den genom dopplereffekten. Atomernas termiska
+rörelse ger ensam en hastighetsspridning på cirka 1 km/s i kall HI (runt 100 K)
+och cirka 8 km/s i varm HI (runt 8000 K), och turbulens och molnens slumpmässiga
+rörelser bidrar ytterligare. Totalt har HI-gasen en hastighetsspridning på cirka
+9 km/s (<a href="https://ui.adsabs.harvard.edu/abs/1995ApJ...448..138M">Malhotra 1995</a>). Den 6° breda loben breddar också linjen, eftersom den samlar in
+gas från ett intervall av longituder. Den här breddningen gör en topp bredare
+utan att flytta dess mitt, så mät hastigheter vid mitten av varje topp, till
+exempel med en gaussanpassning. För rotationskurvan är V<sub>r,max</sub> mitten
+av komponenten med högst hastighet. Profilens yttre kant skulle ge värden som ligger
+10 km/s eller mer högre, eftersom den innehåller linjens bredd. Det som däremot flyttar
+mitten är storskaliga strömningsrörelser, som gör att gasen avviker från ren
+cirkulär rotation med upp till cirka 10 km/s mellan topp och dal (<a href="https://doi.org/10.1086/522297">McClure-Griffiths &amp; Dickey 2007</a>). För
+kartan blir ett hastighetsfel ett avståndsfel. Det är störst mot l ≈ 0° och 180°,
+där gasen rör sig nästan tvärs mot siktlinjen, så att dess radialhastighet säger
+lite om avståndet.</li>
           <li><strong>Galaktiska konstanter.</strong> Laborationen ger två uppsättningar
 värden för R₀ och V₀ att välja mellan. Den första är R₀ = 8,5 kpc och
 V₀ = 220 km/s, de standardvärden som IAU:s kommission 33 antog 1985
@@ -196,10 +201,17 @@ V = 220 ± 1,7 km/s vid R = 4,25 kpc.</li>
 från 1986 (±1,1 kpc och ±20 km/s) kan R vara fel med 0,5 × 1,1 = 0,55 kpc och V
 med 0,5 × 20 = 10 km/s, så hela resultatet blir R = 4,25 ± 0,55 kpc och
 V = 220 ± 1,7 (slumpmässigt) ± 10 (systematiskt) km/s.</li>
-          <li>Med de moderna värdena (R₀ = 8,15 ± 0,15 kpc, V₀ = 236 ± 7 km/s) ger
-samma mätning R = 4,08 ± 0,08 kpc och
+          <li>Med de moderna värdena (R₀ = 8,15 ± 0,15 kpc, V₀ = 236 ± 7 km/s) kan R
+vara fel med 0,5 × 0,15 ≈ 0,08 kpc och V med 0,5 × 7 = 3,5 km/s, så samma
+mätning ger R = 4,08 ± 0,08 kpc och
 V = 228 ± 1,7 (slumpmässigt) ± 3,5 (systematiskt) km/s.</li>
         </ul>
+        <p>Konstanterna multipliceras med sin l eftersom de kommer in via
+R = R₀ sin l och V₀ sin l (ekvation 2.6 och 2.7 i laborationen). Bara den del av
+solens rörelse som ligger längs siktlinjen påverkar den uppmätta hastigheten, och
+vid tangentpunkten är R en sida i en rätvinklig triangel med R₀ som hypotenusa.
+Deras effekt växer därför med longituden: vid l = 60° ger samma ±7 km/s i V₀
+cirka ±6 km/s i V.</p>
         <p>Ange den slumpmässiga och den systematiska delen var för sig, som ovan.
 Bara den slumpmässiga delen hör hemma i felstaplarna: den systematiska delen
 flyttar alla punkter åt samma håll, så den förskjuter eller sträcker ut hela

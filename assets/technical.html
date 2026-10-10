@@ -128,16 +128,22 @@ curve and map in the <a href="/experiments/hi">Milky Way lab</a>, the terms that
 come from the gas itself and from the method are usually much larger than the
 instrumental terms above:</p>
         <ul class="list-disc pl-6 space-y-1">
-          <li><strong>Gas motions and the beam.</strong> HI gas has a velocity dispersion of about 9 km/s (<a href="https://ui.adsabs.harvard.edu/abs/1995ApJ...448..138M">Malhotra 1995</a>), and large-scale
-streaming motions make it depart from pure circular rotation
-by up to about 10 km/s peak to peak (<a href="https://doi.org/10.1086/522297">McClure-Griffiths &amp; Dickey 2007</a>). The 6° beam also averages over a range of longitudes. Each component in a
-spectrum is therefore broad, and its velocity can differ from that of pure
-circular rotation by several km/s. For the rotation curve, the centre of the
-highest-velocity Gaussian component and the outer edge of the profile can differ
-by 10 km/s or more: choose one definition, use it for all longitudes, and state
-which one you used. For the map, a velocity error becomes a distance error. This
-is largest towards l ≈ 0° and 180°, where the gas moves almost across the line of
-sight, so its radial velocity says little about its distance.</li>
+          <li><strong>Line width and gas motions.</strong> An HI line is never a sharp
+spike: the motions of the gas broaden it through the Doppler effect. The thermal
+motion of the atoms alone gives a velocity spread of about 1 km/s in cold HI
+(around 100 K) and about 8 km/s in warm HI (around 8000 K), and turbulence and
+the random motions of clouds add to this. In total the HI has a velocity
+dispersion of about 9 km/s (<a href="https://ui.adsabs.harvard.edu/abs/1995ApJ...448..138M">Malhotra 1995</a>). The 6° beam also widens the line, because it
+collects gas from a range of longitudes. This broadening widens a peak without
+moving its centre, so measure velocities at the centre of each peak, for example
+with a Gaussian fit. For the rotation curve, V<sub>r,max</sub> is the centre of
+the highest-velocity component. The outer edge of the profile would come out
+higher, by 10 km/s or more, because it includes the width of the line. What does
+move the centre is large-scale streaming motions, which make the gas depart from
+pure circular rotation by up to about 10 km/s peak to peak (<a href="https://doi.org/10.1086/522297">McClure-Griffiths &amp; Dickey 2007</a>). For the map, a
+velocity error becomes a distance error. This is largest towards l ≈ 0° and
+180°, where the gas moves almost across the line of sight, so its radial velocity
+says little about its distance.</li>
           <li><strong>Galactic constants.</strong> The lab gives two sets of values for
 R₀ and V₀ to choose from. The first is R₀ = 8.5 kpc and V₀ = 220 km/s, the
 standard values adopted by IAU Commission 33 in 1985
@@ -191,10 +197,17 @@ V = 220 ± 1.7 km/s at R = 4.25 kpc.</li>
 from 1986 (±1.1 kpc and ±20 km/s), R can be off by 0.5 × 1.1 = 0.55 kpc and V by
 0.5 × 20 = 10 km/s, so the full result is R = 4.25 ± 0.55 kpc and
 V = 220 ± 1.7 (random) ± 10 (systematic) km/s.</li>
-          <li>With the modern values (R₀ = 8.15 ± 0.15 kpc, V₀ = 236 ± 7 km/s) the
-same measurement gives R = 4.08 ± 0.08 kpc and
+          <li>With the modern values (R₀ = 8.15 ± 0.15 kpc, V₀ = 236 ± 7 km/s), R can
+be off by 0.5 × 0.15 ≈ 0.08 kpc and V by 0.5 × 7 = 3.5 km/s, so the same
+measurement gives R = 4.08 ± 0.08 kpc and
 V = 228 ± 1.7 (random) ± 3.5 (systematic) km/s.</li>
         </ul>
+        <p>The constants are multiplied by sin l because they enter through
+R = R₀ sin l and V₀ sin l (equations 2.6 and 2.7 in the lab). Only the part of
+the Sun's motion along the line of sight affects the measured velocity, and at the
+tangent point R is a side of a right-angled triangle with R₀ as its hypotenuse.
+Their effect therefore grows with longitude: at l = 60°, the same ±7 km/s in V₀
+gives about ±6 km/s in V.</p>
         <p>Quote the random and systematic parts separately, as above. Only the
 random part belongs in the error bars: the systematic part moves every point in
 the same direction, so it shifts or stretches the whole curve rather than
