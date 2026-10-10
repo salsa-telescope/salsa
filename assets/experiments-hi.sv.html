@@ -98,10 +98,10 @@
     <div class="space-y-3">
       <h4 id="s1-1" class="text-lg font-semibold text-gray-800">1.1 Vår plats i Vintergatan</h4>
       <p>Vår stjärna, solen, ligger i Galaxens yttre del, på ett avstånd
-      av cirka 8,5 kpc<sup>1</sup> (ungefär 25 000 ljusår<sup>2</sup>) från
+      av cirka 8 kpc<sup>1</sup> (ungefär 26 000 ljusår<sup>2</sup>) från
       det galaktiska centrumet. De flesta stjärnorna och gasen ligger i en tunn skiva och roterar
-      runt det galaktiska centrumet. Solen har en cirkulär hastighet på cirka 220 km/s och
-      fullbordar ett helt varv runt Galaxens centrum på ungefär 240 miljoner
+      runt det galaktiska centrumet. Solen har en cirkulär hastighet på cirka 230 km/s och
+      fullbordar ett helt varv runt Galaxens centrum på drygt 200 miljoner
       år.</p>
       <p class="text-sm text-gray-500">
         <sup>1</sup> 1 kpc = 1 kiloparsec = 10<sup>3</sup> pc; 1 parallaxsekund
@@ -277,13 +277,21 @@
           </tr>
         </thead>
         <tbody>
-          <tr><td class="border border-gray-300 px-3 py-1 font-mono">V₀</td><td class="border border-gray-300 px-3 py-1">Solens hastighet runt det galaktiska centrumet, dvs. 220 km/s</td></tr>
-          <tr><td class="border border-gray-300 px-3 py-1 font-mono">R₀</td><td class="border border-gray-300 px-3 py-1">Solens avstånd till det galaktiska centrumet, dvs. 8,5 kpc</td></tr>
+          <tr><td class="border border-gray-300 px-3 py-1 font-mono">V₀</td><td class="border border-gray-300 px-3 py-1">Solens hastighet runt det galaktiska centrumet: 220 km/s (IAU 1985) eller 236 km/s (modernt)</td></tr>
+          <tr><td class="border border-gray-300 px-3 py-1 font-mono">R₀</td><td class="border border-gray-300 px-3 py-1">Solens avstånd till det galaktiska centrumet: 8,5 kpc (IAU 1985) eller 8,15 kpc (modernt)</td></tr>
           <tr><td class="border border-gray-300 px-3 py-1 font-mono">l</td><td class="border border-gray-300 px-3 py-1">Observationens galaktiska longitud</td></tr>
           <tr><td class="border border-gray-300 px-3 py-1 font-mono">V</td><td class="border border-gray-300 px-3 py-1">Ett gasmolns hastighet</td></tr>
           <tr><td class="border border-gray-300 px-3 py-1 font-mono">R</td><td class="border border-gray-300 px-3 py-1">Molnets avstånd till det galaktiska centrumet</td></tr>
         </tbody>
       </table>
+      <p>Två uppsättningar värden för R₀ och V₀ används. IAU:s standardvärden
+      från 1985, R₀ = 8,5 kpc och V₀ = 220 km/s (<a href="https://ui.adsabs.harvard.edu/abs/1986MNRAS.221.1023K">Kerr &amp; Lynden-Bell 1986</a>), används
+      fortfarande ofta för jämförelser mellan studier. Moderna mätningar ger
+      R₀ = 8,15 ± 0,15 kpc och V₀ = 236 ± 7 km/s (<a href="https://doi.org/10.3847/1538-4357/ab4a11">Reid m.fl. 2019</a>). Du kan använda
+      vilken uppsättning du vill, men använd samma genom hela arbetet och ange vilken
+      du har valt. Exempelfigurerna med SALSA-data i den här laborationen (Fig. 2.3
+      och 2.5) använder IAU-värdena. Hur valet påverkar dina resultat beskrivs under
+      <a href="/technical#uncertainties">Mätosäkerheter</a>.</p>
 
       <figure class="my-4 max-w-md">
         <img src="/experiments-hi/galgeom.png" alt="Galaxens geometri" class="rounded border border-gray-200 w-full">
@@ -381,7 +389,9 @@
         likna Fig. 2.3. Notera att rotationskurvan är nästan platt! Det är
         ett indirekt belägg för mörk materia i vår galax. Du kan också jämföra
         med resultaten i appendix A, och jämföra dina uppmätta spektra med referensdata
-        från storskaliga HI-kartläggningar (se <a href="/technical#tsys-calibration">Tekniska specifikationer</a>).</p>
+        från storskaliga HI-kartläggningar (se <a href="/technical#tsys-calibration">Tekniska specifikationer</a>).
+        Råd om felstaplar för V och R finns under
+        <a href="/technical#uncertainties">Mätosäkerheter</a>.</p>
         <figure class="my-4 max-w-md">
           <img src="/experiments-hi/SALSA_rotcurve.png" alt="Exempel på rotationskurva uppmätt med SALSA" class="rounded border border-gray-200 w-full">
           <figcaption class="text-sm text-gray-500 mt-1"><strong>Fig. 2.3.</strong> Exempel på en rotationskurva uppmätt med SALSA.</figcaption>
@@ -632,9 +642,11 @@
       <li>Cohen-Tannoudji, C., Diu, B., Laloë, F., 1986, <em>Quantum Mechanics</em>, vol. 1 och 2, Wiley-VCH. (Se kapitel VII.C och XII.D om väteatomen.)</li>
       <li>Ewen, H.I., Purcell, E.M., 1951, <em>Nature</em> 168, 356, "Radiation from galactic hydrogen at 1420 Mc/s".</li>
       <li>Hulst, H.C. van de, Muller, C.A., Oort, J.H., 1954, <em>B.A.N.</em> 12, 117, "The spiral structure of the outer part of the galactic system derived from the hydrogen emission at 21-cm wavelength".</li>
+      <li>Kerr, F.J., Lynden-Bell, D., 1986, <em>MNRAS</em> 221, 1023, "Review of galactic constants".</li>
       <li>Lang, K.R., 1999, <em>Astrophysical Formulae, Volume II: Space, Time, Matter, and Cosmology</em>, Springer-Verlag.</li>
       <li>Muller, C.A., Oort, J.H., 1951, <em>Nature</em> 168, 357, "The interstellar hydrogen line at 1420 Mc/s, and an estimate of galactic rotation".</li>
       <li>Peebles, P.J.E., 1992, <em>Quantum Mechanics</em>, Princeton University Press, s. 273–303.</li>
+      <li>Reid, M.J., et al., 2019, <em>ApJ</em> 885, 131, "Trigonometric parallaxes of high-mass star-forming regions: our view of the Milky Way".</li>
       <li>Rigden, J.S., 2003, <em>Hydrogen, The Essential Element</em>, kap. 7, Harvard University Press.</li>
       <li>Shklovsky, I.S., 1960, <em>Cosmic Radio Waves</em>, översatt av R.B. Rodman och C.M. Varsavsky, Harvard University Press.</li>
       <li>Sofue, Y., Honma, M., Omodaka, T. (2009). "Unified Rotation Curve of the Galaxy — Decomposition into de Vaucouleurs Bulge, Disk, Dark Halo, and the 9-kpc Rotation Dip." <em>PASJ</em>, 61:227.</li>

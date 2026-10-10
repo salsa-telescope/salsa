@@ -69,8 +69,150 @@ banrörelse runt solen, approximerad som en cirkulär hastighet på 30 km/s. Ing
 korrektion görs för icke-galaktiska mål (solen, satelliter).</p>
         <p>SALSA använder den klassiska "Standard Solar Motion" för att definiera LSR — samma
 konvention som äldre HI-kartläggningar som LAB — så hastigheterna är direkt
-jämförbara med de kartorna. Modellen är noggrann till långt inom standardupplösningen
-på ~1 km/s.</p>
+jämförbara med de kartorna. Modellen är noggrann inom standardupplösningen
+på ~1 km/s (se <a href="#uncertainties">Mätosäkerheter</a>).</p>
+      </div>
+
+      <div class="space-y-2">
+        <h3 id="uncertainties" class="text-lg font-semibold text-gray-800">Mätosäkerheter</h3>
+        <p>Det finns ingen samlad publicerad felbudget för SALSA, men de viktigaste
+bidragen är kända och sammanfattas här. Det hjälper att dela in dem i två sorter.
+<em>Slumpmässiga</em> fel varierar från en mätning till nästa och jämnas ut över
+många mätningar; brus minskar dessutom med längre integrationstid. <em>Systematiska</em> fel förskjuter
+varje mätning på samma sätt och försvinner inte i medelvärdet, hur länge du än
+integrerar.</p>
+
+        <h4 class="font-semibold text-gray-800">Hastighet: upplösning är inte noggrannhet</h4>
+        <p>Vid standardinställningen 2,5 MHz bandbredd och 512 kanaler är varje kanal
+4,88 kHz bred, vilket motsvarar 1,03 km/s vid HI-linjen. Kanalbredden begränsar hur
+väl två strukturer kan särskiljas. Den begränsar inte hur noggrant mitten av en
+enskild topp kan bestämmas. En gaussanpassning till en tydlig topp kan bestämma
+dess läge till en bråkdel av en kanal, och anpassningen anger detta som en
+1σ-osäkerhet (se
+<a href="/support/manual#analysis">Spektralanalysverktyg</a> i
+användarmanualen). Den osäkerheten är slumpmässig: den kommer från bruset i
+spektrumet.</p>
+
+        <h4 class="font-semibold text-gray-800">Hastighet: mottagarens frekvensreferens</h4>
+        <p>USRP N210 ställer in frekvensen och samplar med hjälp av sin interna
+kristalloscillator. SALSA kör den för närvarande utan extern 10 MHz-referens.
+Tillverkaren anger oscillatorns noggrannhet till 2,5 ppm (miljondelar). Ett
+relativt frekvensfel ger direkt ett hastighetsfel, δv = c · δf / f, så 2,5 ppm
+motsvarar <strong>högst cirka 0,75 km/s</strong> (3,6 kHz vid 1420,4 MHz). Den
+verkliga avvikelsen är okänd inom den gränsen. Den skiljer sig mellan
+teleskopen och driver långsamt med temperaturen. Inom ett spektrum är felet i
+praktiken systematiskt: alla toppar förskjuts lika mycket. I princip kan
+avvikelsen också driva under en integration, vilket skulle smeta ut linjerna
+något i stället för att förskjuta dem, men gränsen 2,5 ppm gäller över
+oscillatorns hela temperaturområde, och under några minuter ändras temperaturen
+mycket mindre än så. Det tar alltså ut sig när du
+jämför hastigheter inom ett spektrum, men inte i absolut V<sub>LSR</sub>. I en
+serie spektra tagna vid olika tidpunkter, eller med olika teleskop, gör driften
+att avvikelsen varierar från spektrum till spektrum, så den kan då behandlas som
+ett extra slumpmässigt fel i varje spektrum. Spektra tagna tätt inpå varandra med
+samma teleskop har nästan samma avvikelse. För starka HI-toppar, där anpassningens
+osäkerhet är klart under 1 km/s, är detta ofta det största instrumentella
+bidraget.</p>
+        <p>Resten av observatoriet låser sina mottagare till en vätemaser, som är
+mycket stabilare. Det finns planer på att i framtiden ansluta SALSA:s mottagare
+till den referensen, vilket skulle göra det här bidraget försumbart.</p>
+
+        <h4 class="font-semibold text-gray-800">Hastighet: LSR-korrektionen</h4>
+        <p>LSR-korrektionen som beskrivs ovan tar inte med jordens rotation, som
+bidrar med högst 0,25 km/s i Onsala. Den behandlar också jordbanan som en cirkel,
+vilket ger upp till 0,7 km/s. Båda bidragen beror på observationens riktning och
+datum. Båda är mindre än en kanal, och liksom mottagarens avvikelse förskjuter de
+alla toppar i ett spektrum lika mycket.</p>
+
+        <h4 class="font-semibold text-gray-800">Att tolka HI-spektra</h4>
+        <p>När du tolkar HI-spektra, oavsett om det gäller ett enskilt spektrum eller
+rotationskurvan och kartan i <a href="/experiments/hi">laborationen om
+Vintergatan</a>, är bidragen från själva gasen och från metoden oftast mycket
+större än de instrumentella bidragen ovan:</p>
+        <ul class="list-disc pl-6 space-y-1">
+          <li><strong>Gasens rörelser och loben.</strong> HI-gasen har
+en hastighetsspridning på cirka 9 km/s (<a href="https://ui.adsabs.harvard.edu/abs/1995ApJ...448..138M">Malhotra 1995</a>), och storskaliga
+strömningsrörelser gör att den avviker från ren cirkulär rotation
+med upp till cirka 10 km/s mellan topp och dal (<a href="https://doi.org/10.1086/522297">McClure-Griffiths &amp; Dickey 2007</a>). Den 6° breda loben tar dessutom ett medelvärde över ett
+intervall av longituder. Varje komponent i ett spektrum är därför bred, och dess
+hastighet kan skilja sig från ren cirkulär rotation med flera km/s. För
+rotationskurvan kan mitten av gausskomponenten med högst hastighet och profilens
+yttre kant skilja sig med 10 km/s eller mer: välj en definition, använd den för
+alla longituder och ange vilken du har valt. För kartan blir ett hastighetsfel ett
+avståndsfel. Det är störst mot l ≈ 0° och 180°, där gasen rör sig nästan tvärs mot
+siktlinjen, så att dess radialhastighet säger lite om avståndet.</li>
+          <li><strong>Galaktiska konstanter.</strong> Laborationen ger två uppsättningar
+värden för R₀ och V₀ att välja mellan. Den första är R₀ = 8,5 kpc och
+V₀ = 220 km/s, de standardvärden som IAU:s kommission 33 antog 1985
+(<a href="https://ui.adsabs.harvard.edu/abs/1986MNRAS.221.1023K">Kerr &amp; Lynden-Bell 1986</a>). Översikten bakom dem tog
+raka medelvärden av de bestämningar som publicerats under det föregående
+decenniet och fann R₀ = 8,54 ± 1,1 kpc och V₀ = 222 ± 20 km/s. Här är ±
+spridningen (standardavvikelsen) hos de enskilda bestämningarna, som författarna
+föredrog framför medelvärdets mycket mindre formella fel eftersom de systematiska
+felen dominerade. De avrundade värdena valdes sedan som en praktisk
+konvention. De används fortfarande ofta som
+referens och följer samma konvention som äldre HI-kartläggningar som LAB.
+Den andra,
+R₀ = 8,15 ± 0,15 kpc och V₀ = 236 ± 7 km/s (<a href="https://doi.org/10.3847/1538-4357/ab4a11">Reid m.fl. 2019</a>), kommer
+från moderna mätningar, som ligger inom den spridningen. Stjärnbanor runt det
+centrala svarta hålet ger ett förenligt R₀ = 8,18 kpc
+(<a href="https://doi.org/10.1051/0004-6361/201935656">GRAVITY Collaboration 2019</a>). Alla avstånd, både i
+rotationskurvan och i kartan, skalar med R₀ (cirka 4 % mellan de gamla och de
+moderna värdena). I rotationskurvan förskjuts dessutom
+V = V<sub>r,max</sub> + V₀ sin l med ΔV₀ sin l (upp till cirka 16 km/s). Detta är
+systematiskt och flyttar alla punkter på en gång. Ange vilka värden du har
+använt, i stället för att lägga till det i varje felstapel. Du kan också göra
+diagrammet för båda uppsättningarna konstanter.</li>
+          <li><strong>Riktning och avrundning.</strong> Rotorn läser av sin position
+med 0,1° upplösning, mycket finare än den 6° breda loben. I rotationskurvan ändrar
+det R med högst 0,015 kpc och V med högst 0,4 km/s. Behåll tre värdesiffror i
+dina resultat, så blir avrundningen försumbar.</li>
+        </ul>
+
+        <h4 class="font-semibold text-gray-800">Rotationskurvan (tangentpunktsmetoden)</h4>
+        <p>Tangentpunktsmetoden i
+<a href="/experiments/hi#s2-1">laborationen om Vintergatan</a> fungerar bara i
+första kvadranten (0° &lt; l &lt; 90°), där det finns en tangentpunkt. Nära
+l = 90° ligger tangentpunkten nära solen, så V<sub>r,max</sub> är liten, lokal gas
+dominerar spektrumet och V bestäms mest av det antagna V₀. Inom cirka 3 kpc från
+centrum (l ≲ 20°) gör den galaktiska stången och "3 kpc-armen" att gasen rör sig
+i elliptiska banor, så antagandet om cirkulär rotation gäller inte där;
+professionella studier av terminalhastigheter utelämnar därför det området
+(<a href="https://doi.org/10.1086/522297">McClure-Griffiths &amp; Dickey 2007</a>).</p>
+        <p>I praktiken ger du varje V en felstapel som kombinerar osäkerheten i
+V<sub>r,max</sub> med mottagarbidraget:
+σ<sub>V</sub> = √(σ<sub>anp</sub>² + (0,75 km/s)²). Att använda värsta fallet
+0,75 km/s är ett försiktigt val. R har nästan inget slumpmässigt fel och behöver
+därför ingen egen felstapel; dess osäkerhet kommer från valet av R₀.</p>
+        <p>Anta till exempel att du vid l = 30° mäter
+V<sub>r,max</sub> = 110 km/s och att gaussanpassningen ger ±1,5 km/s. Med
+R₀ = 8,5 kpc och V₀ = 220 km/s (sin 30° = 0,5):</p>
+        <ul class="list-disc pl-6 space-y-1">
+          <li>R = 8,5 × 0,5 = 4,25 kpc</li>
+          <li>V = 110 + 220 × 0,5 = 220 km/s</li>
+          <li>σ<sub>V</sub> = √(1,5² + 0,75²) ≈ 1,7 km/s, så du ritar
+V = 220 ± 1,7 km/s vid R = 4,25 kpc.</li>
+          <li>Konstanterna ger en systematisk osäkerhet utöver detta. Med spridningen
+från 1986 (±1,1 kpc och ±20 km/s) kan R vara fel med 0,5 × 1,1 = 0,55 kpc och V
+med 0,5 × 20 = 10 km/s, så hela resultatet blir R = 4,25 ± 0,55 kpc och
+V = 220 ± 1,7 (slumpmässigt) ± 10 (systematiskt) km/s.</li>
+          <li>Med de moderna värdena (R₀ = 8,15 ± 0,15 kpc, V₀ = 236 ± 7 km/s) ger
+samma mätning R = 4,08 ± 0,08 kpc och
+V = 228 ± 1,7 (slumpmässigt) ± 3,5 (systematiskt) km/s.</li>
+        </ul>
+        <p>Ange den slumpmässiga och den systematiska delen var för sig, som ovan.
+Bara den slumpmässiga delen hör hemma i felstaplarna: den systematiska delen
+flyttar alla punkter åt samma håll, så den förskjuter eller sträcker ut hela
+kurvan i stället för att sprida punkterna.</p>
+
+        <h4 class="font-semibold text-gray-800">Amplitud</h4>
+        <p>Laborationerna använder bara relativa amplituder, till exempel när
+<a href="/experiments/sun">lobmätningen</a> jämför solens effekt vid olika
+förskjutningar. Relativa amplituder är tillförlitliga mellan spektra tagna under
+ett pass med samma teleskop och förstärkning. Att ändra förstärkningen ändrar
+nivån mer än det nominella steget (se <a href="#signal-path">Signalväg och sampler</a>).
+Den absoluta skalan i kelvin är mycket osäkrare (se
+<a href="#tsys-calibration">Kalibrering av systemtemperaturen</a>).</p>
       </div>
 
       <div class="space-y-2">
@@ -86,7 +228,7 @@ nedan.</p>
       </div>
 
       <div class="space-y-2">
-        <h3 class="text-lg font-semibold text-gray-800">Signalväg och sampler</h3>
+        <h3 id="signal-path" class="text-lg font-semibold text-gray-800">Signalväg och sampler</h3>
         <p>De inkommande elektromagnetiska vågorna reflekteras i parabolen och summeras koherent (i fas för våglängden 21 cm) vid matarhornet. Inuti hornet sitter en liten (5 cm) metallprob som är själva antennen, känslig för en enda linjär polarisation. Proben har en N-kontakt på hornets utsida, och en kort (30 cm) CNT-400-kabel ansluter den till en liten låda monterad på hornet. Lådan innehåller en lågbrusförstärkare (LNA) med en Bias-T som matar LNA:n med 12 V likspänning genom koaxialkabeln. LNA:n är specialbyggd av Tommy Henderson vid AGO i USA.</p>
         <p>Efter LNA:n går signalen ner längs teleskopet genom cirka 10 m RG-400-kabel till en kopplingsbox. Här matar en andra Bias-T in 12 V-försörjningen på kabeln till LNA:n ovanför. Efter kopplingsboxen fortsätter signalen via cirka 30 m CNT-400-koax in i byggnaden där samplern finns. I racket, omedelbart före samplern, passerar signalen ett andra förstärkarsteg: en bredbandig lågbrusförstärkare (WBLNA) från <a href="https://www.radioastronomysupplies.com/">Radio Astronomy Supplies</a> som täcker 1–2 GHz, av tillverkaren specificerad till 15 dB förstärkning och 0,6 dB brusfaktor, med N-kontakter och matad med 12 V likspänning. Den extra förstärkningen före samplern gör att USRP:n kan köras med lägre förstärkningsinställning, där de störsignaler den själv genererar internt hamnar under brusnivån. Bredbandsförstärkaren har inget eget filter, men den sitter efter bandpassfiltret i hornets LNA, så störningarna utanför bandet är redan dämpade när de når den. Samplern är en <a href="https://files.ettus.com/manual/page_usrp2.html">USRP N210</a> utrustad med ett <a href="https://kb.ettus.com/DBSRX2">DBSRX2</a>-dotterkort, som digitaliserar vågformen och skickar sampel via 1 Gbps Ethernet till styrdatorn. DBSRX2-kortet täcker 0,8–2,3 GHz, men på grund av starka störningar över 1,8 GHz har LNA:erna extra filter som begränsar det användbara området till 1350–1620 MHz. USRP:n stöder upp till 25 MHz momentan bandbredd; för vanliga HI-observationer räcker standardvärdet 2,5 MHz. Både bandbredd och kanalupplösning kan väljas av användaren. DBSRX2 har ett mjukvarustyrt förstärkningsområde på 0–88 dB (73 dB RF-förstärkning plus 15 dB basbandsförstärkning); AD-omvandlaren mättas vid ungefär −10 till 0 dBm vid SMA-ingången beroende på förstärkningsinställning, så den totala effekten i bandet bör hållas runt −20 till −30 dBm för ren linjär drift. Förstärkningsinställningen är nominell snarare än exakt: mätningar 2026-07-27 ger omkring 1,14 dB verklig förstärkningsändring per nominell dB — ett nominellt steg på 10 dB uppmättes till 11,25 dB på Vale och ett nominellt steg på 20 dB till 23,0 dB på Brage. Nivåer tagna vid olika förstärkningsinställningar bör därför jämföras med det uppmätta steget, inte det nominella.</p>
       </div>

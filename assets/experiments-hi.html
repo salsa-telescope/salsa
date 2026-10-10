@@ -99,11 +99,11 @@
     <div class="space-y-3">
       <h4 id="s1-1" class="text-lg font-semibold text-gray-800">1.1 Our place in the Milky Way</h4>
       <p>Our star, the Sun, is located in the outer part of the Galaxy, at a distance
-      of about 8.5 kpc<sup>1</sup> (about 25 000 light years<sup>2</sup>) from the
+      of about 8 kpc<sup>1</sup> (about 26 000 light years<sup>2</sup>) from the
       Galactic center. Most of the stars and the gas lie in a thin disk and rotate
-      around the Galactic center. The Sun has a circular speed of about 220 km/s, and
-      performs a full revolution around the center of the Galaxy in about 240 million
-      years.</p>
+      around the Galactic center. The Sun has a circular speed of about 230 km/s, and
+      performs a full revolution around the center of the Galaxy in a little over
+      200 million years.</p>
       <p class="text-sm text-gray-500">
         <sup>1</sup> 1 kpc = 1 kiloparsec = 10<sup>3</sup> pc; 1 parallax-second
         (parsec, pc) = 3.086·10<sup>16</sup> m. A parsec is the distance
@@ -278,13 +278,22 @@
           </tr>
         </thead>
         <tbody>
-          <tr><td class="border border-gray-300 px-3 py-1 font-mono">V₀</td><td class="border border-gray-300 px-3 py-1">Sun's velocity around the Galactic center, i.e. 220 km/s</td></tr>
-          <tr><td class="border border-gray-300 px-3 py-1 font-mono">R₀</td><td class="border border-gray-300 px-3 py-1">Distance of the Sun to the Galactic center, i.e. 8.5 kpc</td></tr>
+          <tr><td class="border border-gray-300 px-3 py-1 font-mono">V₀</td><td class="border border-gray-300 px-3 py-1">Sun's velocity around the Galactic center: 220 km/s (IAU 1985) or 236 km/s (modern)</td></tr>
+          <tr><td class="border border-gray-300 px-3 py-1 font-mono">R₀</td><td class="border border-gray-300 px-3 py-1">Distance of the Sun to the Galactic center: 8.5 kpc (IAU 1985) or 8.15 kpc (modern)</td></tr>
           <tr><td class="border border-gray-300 px-3 py-1 font-mono">l</td><td class="border border-gray-300 px-3 py-1">Galactic longitude of observation</td></tr>
           <tr><td class="border border-gray-300 px-3 py-1 font-mono">V</td><td class="border border-gray-300 px-3 py-1">Velocity of a cloud of gas</td></tr>
           <tr><td class="border border-gray-300 px-3 py-1 font-mono">R</td><td class="border border-gray-300 px-3 py-1">Cloud's distance to the Galactic center</td></tr>
         </tbody>
       </table>
+      <p>Two sets of values for R₀ and V₀ are in use. The IAU standard values
+      from 1985, R₀ = 8.5 kpc and V₀ = 220 km/s (<a href="https://ui.adsabs.harvard.edu/abs/1986MNRAS.221.1023K">Kerr &amp; Lynden-Bell 1986</a>), are still
+      widely used for comparisons between studies. Modern measurements give
+      R₀ = 8.15 ± 0.15 kpc and V₀ = 236 ± 7 km/s (<a href="https://doi.org/10.3847/1538-4357/ab4a11">Reid et al. 2019</a>). You may use
+      either set, but use the same one throughout and state which one you chose.
+      The example figures made with SALSA data in this lab (Fig. 2.3 and 2.5) use the
+      IAU values. How
+      the choice affects your results is described under
+      <a href="/technical#uncertainties">Measurement uncertainties</a>.</p>
 
       <figure class="my-4 max-w-md">
         <img src="/experiments-hi/galgeom.png" alt="Geometry of the Galaxy" class="rounded border border-gray-200 w-full">
@@ -382,7 +391,9 @@
         look similar to Fig. 2.3. Note that the rotation curve is almost flat! This is
         an indirect evidence for dark matter in our galaxy. You may also want to compare
         with the results in Appendix A, and compare your measured spectra with reference
-        data from large-scale HI surveys (see <a href="/technical#tsys-calibration">Technical specifications</a>).</p>
+        data from large-scale HI surveys (see <a href="/technical#tsys-calibration">Technical specifications</a>).
+        For advice on error bars for V and R, see
+        <a href="/technical#uncertainties">Measurement uncertainties</a>.</p>
         <figure class="my-4 max-w-md">
           <img src="/experiments-hi/SALSA_rotcurve.png" alt="Example rotation curve measured with SALSA" class="rounded border border-gray-200 w-full">
           <figcaption class="text-sm text-gray-500 mt-1"><strong>Fig. 2.3.</strong> Example of a rotation curve measured with SALSA.</figcaption>
@@ -633,9 +644,11 @@
       <li>Cohen-Tannoudji, C., Diu, B., Laloë, F., 1986, <em>Quantum Mechanics</em>, Vol. 1 and 2, Wiley-VCH. (See Chapters VII.C and XII.D about the hydrogen atom.)</li>
       <li>Ewen, H.I., Purcell, E.M., 1951, <em>Nature</em> 168, 356, "Radiation from galactic hydrogen at 1420 Mc/s".</li>
       <li>Hulst, H.C. van de, Muller, C.A., Oort, J.H., 1954, <em>B.A.N.</em> 12, 117, "The spiral structure of the outer part of the galactic system derived from the hydrogen emission at 21-cm wavelength".</li>
+      <li>Kerr, F.J., Lynden-Bell, D., 1986, <em>MNRAS</em> 221, 1023, "Review of galactic constants".</li>
       <li>Lang, K.R., 1999, <em>Astrophysical Formulae, Volume II: Space, Time, Matter, and Cosmology</em>, Springer-Verlag.</li>
       <li>Muller, C.A., Oort, J.H., 1951, <em>Nature</em> 168, 357, "The interstellar hydrogen line at 1420 Mc/s, and an estimate of galactic rotation".</li>
       <li>Peebles, P.J.E., 1992, <em>Quantum Mechanics</em>, Princeton University Press, p. 273–303.</li>
+      <li>Reid, M.J., et al., 2019, <em>ApJ</em> 885, 131, "Trigonometric parallaxes of high-mass star-forming regions: our view of the Milky Way".</li>
       <li>Rigden, J.S., 2003, <em>Hydrogen, The Essential Element</em>, chap. 7, Harvard University Press.</li>
       <li>Shklovsky, I.S., 1960, <em>Cosmic Radio Waves</em>, translated by R.B. Rodman and C.M. Varsavsky, Harvard University Press.</li>
       <li>Sofue, Y., Honma, M., Omodaka, T. (2009). "Unified Rotation Curve of the Galaxy — Decomposition into de Vaucouleurs Bulge, Disk, Dark Halo, and the 9-kpc Rotation Dip." <em>PASJ</em>, 61:227.</li>

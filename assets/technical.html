@@ -69,8 +69,145 @@ orbital motion about the Sun, approximated as a 30 km/s circular velocity. No
 correction is applied to non-galactic targets (Sun, satellites).</p>
         <p>SALSA uses the classical "Standard Solar Motion" to define the LSR — the
 same convention as legacy HI surveys such as LAB — so velocities are directly
-comparable with those maps. The model is accurate to well within the standard
-~1 km/s resolution.</p>
+comparable with those maps. The model is accurate to within the standard
+~1 km/s resolution (see <a href="#uncertainties">Measurement uncertainties</a>).</p>
+      </div>
+
+      <div class="space-y-2">
+        <h3 id="uncertainties" class="text-lg font-semibold text-gray-800">Measurement uncertainties</h3>
+        <p>There is no single published error budget for SALSA, but the main terms
+are known and are summarised here. It helps to sort them into two kinds.
+<em>Random</em> errors differ from one measurement to the next and average out
+over many measurements; noise, for example, also shrinks with longer
+integrations. <em>Systematic</em> errors shift every
+measurement in the same way and do not average out, however long you
+integrate.</p>
+
+        <h4 class="font-semibold text-gray-800">Velocity: resolution is not accuracy</h4>
+        <p>At the standard 2.5 MHz bandwidth and 512 channels, each channel is
+4.88 kHz wide, which is 1.03 km/s at the HI line. This channel width limits how well
+two features can be told apart. It does not limit how precisely the centre of one
+feature can be found. A Gaussian fitted to a clear peak can locate it to a
+fraction of a channel, and the fit reports this as a 1σ uncertainty (see
+<a href="/support/manual#analysis">Spectral analysis tools</a> in the User's
+manual). That uncertainty is random: it comes from the noise in the spectrum.</p>
+
+        <h4 class="font-semibold text-gray-800">Velocity: receiver frequency reference</h4>
+        <p>The USRP N210 tunes and samples using its internal crystal oscillator.
+SALSA currently runs it without an external 10 MHz reference. The manufacturer
+specifies the oscillator's accuracy as 2.5 ppm (parts per million). A fractional
+frequency error turns directly into a velocity error,
+δv = c · δf / f, so 2.5 ppm corresponds to <strong>at most about
+0.75 km/s</strong> (3.6 kHz at 1420.4 MHz). The real offset is
+unknown within that bound. It differs between the telescopes and drifts slowly
+with temperature. Within one spectrum it is in practice systematic: it shifts
+every peak by the same amount. In principle the offset can also drift during an
+integration, which would smear the lines slightly rather than shift them, but the
+2.5 ppm bound covers the oscillator's full temperature range, and over a few
+minutes the temperature changes far less than that. So it cancels when you compare velocities within a spectrum, but
+not in absolute V<sub>LSR</sub>. Over a set of spectra taken at different times,
+or with different telescopes, the drift makes the offset vary from spectrum to
+spectrum, so it can then be treated as an extra random error on each one.
+Spectra taken close together in time with the same telescope will share nearly
+the same offset. For strong HI peaks, where the fit uncertainty is well below
+1 km/s, this is often the largest instrumental term.</p>
+        <p>The rest of the observatory locks its receivers to a hydrogen maser, which
+is far more stable. Connecting the SALSA receivers to that reference is planned for
+the future, and would make this term negligible.</p>
+
+        <h4 class="font-semibold text-gray-800">Velocity: LSR correction</h4>
+        <p>The LSR correction described above leaves out the Earth's rotation, which
+contributes at most 0.25 km/s at Onsala. It also treats the Earth's orbit as a
+circle, which adds up to 0.7 km/s. Both terms depend on the direction and the
+date of the observation. Both are smaller than one channel, and like the receiver
+offset they shift all peaks in a spectrum equally.</p>
+
+        <h4 class="font-semibold text-gray-800">Interpreting HI spectra</h4>
+        <p>When you interpret HI spectra, whether a single spectrum or the rotation
+curve and map in the <a href="/experiments/hi">Milky Way lab</a>, the terms that
+come from the gas itself and from the method are usually much larger than the
+instrumental terms above:</p>
+        <ul class="list-disc pl-6 space-y-1">
+          <li><strong>Gas motions and the beam.</strong> HI gas has a velocity dispersion of about 9 km/s (<a href="https://ui.adsabs.harvard.edu/abs/1995ApJ...448..138M">Malhotra 1995</a>), and large-scale
+streaming motions make it depart from pure circular rotation
+by up to about 10 km/s peak to peak (<a href="https://doi.org/10.1086/522297">McClure-Griffiths &amp; Dickey 2007</a>). The 6° beam also averages over a range of longitudes. Each component in a
+spectrum is therefore broad, and its velocity can differ from that of pure
+circular rotation by several km/s. For the rotation curve, the centre of the
+highest-velocity Gaussian component and the outer edge of the profile can differ
+by 10 km/s or more: choose one definition, use it for all longitudes, and state
+which one you used. For the map, a velocity error becomes a distance error. This
+is largest towards l ≈ 0° and 180°, where the gas moves almost across the line of
+sight, so its radial velocity says little about its distance.</li>
+          <li><strong>Galactic constants.</strong> The lab gives two sets of values for
+R₀ and V₀ to choose from. The first is R₀ = 8.5 kpc and V₀ = 220 km/s, the
+standard values adopted by IAU Commission 33 in 1985
+(<a href="https://ui.adsabs.harvard.edu/abs/1986MNRAS.221.1023K">Kerr &amp; Lynden-Bell 1986</a>). The review behind them took
+straight means of the determinations published in the preceding decade and found
+R₀ = 8.54 ± 1.1 kpc and V₀ = 222 ± 20 km/s. Here ± is the spread (standard
+deviation) of the individual determinations, which the authors preferred over the
+much smaller formal error of the mean because systematic errors dominated. The
+round values were then chosen as a practical convention. They are still
+widely used as a reference, and they match the convention of legacy HI surveys
+such as LAB. The second set,
+R₀ = 8.15 ± 0.15 kpc and V₀ = 236 ± 7 km/s (<a href="https://doi.org/10.3847/1538-4357/ab4a11">Reid et al. 2019</a>), comes
+from modern measurements, which fall within that spread. Stellar orbits around the
+central black hole give a consistent R₀ = 8.18 kpc
+(<a href="https://doi.org/10.1051/0004-6361/201935656">GRAVITY Collaboration 2019</a>). All distances, in both the
+rotation curve and the map, scale with R₀ (about 4 % between the old and modern
+values). In the rotation curve, V = V<sub>r,max</sub> + V₀ sin l also shifts by
+ΔV₀ sin l (up to about 16 km/s). This is systematic and moves all points
+together. State which values you used, rather than adding this to each error
+bar. You can also make the plot for both sets of constants.</li>
+          <li><strong>Pointing and rounding.</strong> The rotor reads its position to
+0.1°, far finer than the 6° beam. In the rotation curve this changes R by at most
+0.015 kpc and V by at most 0.4 km/s. Keep three significant figures in your
+results and rounding becomes negligible.</li>
+        </ul>
+
+        <h4 class="font-semibold text-gray-800">Rotation curve (tangent-point method)</h4>
+        <p>The tangent-point method in the
+<a href="/experiments/hi#s2-1">Milky Way lab</a> only works in the first
+quadrant (0° &lt; l &lt; 90°), where there is a tangent point. Close to
+l = 90° the tangent point lies close to the Sun, so V<sub>r,max</sub> is small,
+local gas dominates the spectrum, and V is set mostly by the assumed V₀.
+Within about 3 kpc of the centre (l ≲ 20°), the Galactic bar and the
+"3 kpc arm" make the gas move on elliptical orbits, so the assumption of circular
+rotation does not hold there; professional terminal-velocity studies leave this
+region out for that reason (<a href="https://doi.org/10.1086/522297">McClure-Griffiths &amp; Dickey 2007</a>).</p>
+        <p>In practice, give each V an error bar that combines the uncertainty of
+V<sub>r,max</sub> with the receiver term:
+σ<sub>V</sub> = √(σ<sub>fit</sub>² + (0.75 km/s)²). Using the worst-case
+0.75 km/s is a conservative choice. R has almost no random error, so it
+needs no error bar of its own; its uncertainty comes from the choice of R₀.</p>
+        <p>For example, suppose that at l = 30° you measure
+V<sub>r,max</sub> = 110 km/s, and the Gaussian fit gives ±1.5 km/s. With
+R₀ = 8.5 kpc and V₀ = 220 km/s (sin 30° = 0.5):</p>
+        <ul class="list-disc pl-6 space-y-1">
+          <li>R = 8.5 × 0.5 = 4.25 kpc</li>
+          <li>V = 110 + 220 × 0.5 = 220 km/s</li>
+          <li>σ<sub>V</sub> = √(1.5² + 0.75²) ≈ 1.7 km/s, so you plot
+V = 220 ± 1.7 km/s at R = 4.25 kpc.</li>
+          <li>The constants add a systematic uncertainty on top. Using the spread
+from 1986 (±1.1 kpc and ±20 km/s), R can be off by 0.5 × 1.1 = 0.55 kpc and V by
+0.5 × 20 = 10 km/s, so the full result is R = 4.25 ± 0.55 kpc and
+V = 220 ± 1.7 (random) ± 10 (systematic) km/s.</li>
+          <li>With the modern values (R₀ = 8.15 ± 0.15 kpc, V₀ = 236 ± 7 km/s) the
+same measurement gives R = 4.08 ± 0.08 kpc and
+V = 228 ± 1.7 (random) ± 3.5 (systematic) km/s.</li>
+        </ul>
+        <p>Quote the random and systematic parts separately, as above. Only the
+random part belongs in the error bars: the systematic part moves every point in
+the same direction, so it shifts or stretches the whole curve rather than
+scattering the points.</p>
+
+        <h4 class="font-semibold text-gray-800">Amplitude</h4>
+        <p>The labs use only relative amplitudes, for example when the
+<a href="/experiments/sun">beam measurement</a> compares the Sun's power at
+different offsets. Relative amplitudes are reliable between spectra taken in one
+session with the same telescope and gain. Changing the gain changes the level by
+more than the nominal step (see <a href="#signal-path">Signal path and sampler</a>).
+The absolute scale in kelvin is much less certain (see
+<a href="#tsys-calibration">System temperature calibration</a>).</p>
       </div>
 
       <div class="space-y-2">
@@ -86,7 +223,7 @@ below.</p>
       </div>
 
       <div class="space-y-2">
-        <h3 class="text-lg font-semibold text-gray-800">Signal path and sampler</h3>
+        <h3 id="signal-path" class="text-lg font-semibold text-gray-800">Signal path and sampler</h3>
         <p>The incoming electromagnetic waves are reflected in the parabolic dish and summed coherently (in-phase for 21 cm wavelength) at the feed horn. Inside the horn is a small (5 cm) metal probe which is the actual antenna, sensitive to a single linear polarisation. The probe has an N-type connector on the outside of the horn, and a short (30 cm) CNT-400 cable connects it to a small box mounted on the horn. This box contains a Low Noise Amplifier (LNA) with a Bias-T that feeds the LNA 12 V DC through the coax. The LNA is custom built by Tommy Henderson at AGO in the US. </p>
         <p>After the LNA, the signal travels down the telescope through approximately 10 m of RG-400 cable to a junction box. Here a second Bias-T injects the 12 V supply onto the cable feeding the LNA above. After the junction box, the signal continues via approximately 30 m of CNT-400 coax into the building where the sampler is located. In the rack, immediately before the sampler, the signal passes through a second amplification stage: a <a href="https://www.radioastronomysupplies.com/">Radio Astronomy Supplies</a> wide-band LNA (WBLNA) covering 1–2 GHz, specified by the manufacturer at 15 dB gain and 0.6 dB noise figure, with N-type connectors and powered from 12 V DC. This extra gain ahead of the sampler allows the USRP to be run at a lower gain setting, where the spurious signals it generates internally stay below the noise. The wide-band LNA has no filtering of its own, but it sits behind the bandpass filter in the horn LNA, so the out-of-band interference reaching it has already been suppressed. The sampler is a <a href="https://files.ettus.com/manual/page_usrp2.html">USRP N210</a> equipped with a <a href="https://kb.ettus.com/DBSRX2">DBSRX2</a> daughter board, which digitizes the waveform and sends samples via 1 Gbps Ethernet to the control computer. The DBSRX2 card covers 0.8–2.3 GHz, but due to strong interference above 1.8 GHz the LNAs include additional filters limiting the usable range to 1350–1620 MHz. The USRP supports up to 25 MHz instantaneous bandwidth; for standard HI observations the default 2.5 MHz is sufficient. Both bandwidth and channel resolution are selectable by the user. The DBSRX2 has a software-controlled gain range of 0–88 dB (73 dB RF gain plus 15 dB baseband gain); the ADC saturates at roughly −10 to 0 dBm at the SMA input depending on gain setting, so the total in-band power should be kept around −20 to −30 dBm for clean linear operation. The gain setting is nominal rather than exact: measurements on 2026-07-27 give about 1.14 dB of realised gain change per nominal dB — a nominal 10 dB step measured 11.25 dB on Vale and a nominal 20 dB step measured 23.0 dB on Brage. Levels taken at different gain settings should therefore be compared using the measured step, not the nominal one.</p>
       </div>
