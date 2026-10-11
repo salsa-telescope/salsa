@@ -66,11 +66,14 @@ struct AdminTemplate {
     telescopes: Vec<(String, bool, bool, bool, Option<bool>)>, // (name, in_maintenance, is_booked_now, controller_connected, receiver_connected)
     usage_from: NaiveDate,
     usage_to: NaiveDate,
-    /// Whether the booking figures below leave out admin-made bookings, so
-    /// the checkbox can be re-rendered in the state that produced them.
-    exclude_admins: bool,
+    /// Whether the booking figures below count admin-made bookings, so the
+    /// checkbox can be re-rendered in the state that produced them.
+    include_admins: bool,
     total_bookings: usize,
     total_hours: i64,
+    /// Total booked hours averaged over the weeks in the report range,
+    /// preformatted to one decimal.
+    hours_per_week: String,
     unique_users: usize,
     countries: Vec<(String, usize)>, // (country code, booking count), sorted by count desc
     guest_sessions_total: usize,
@@ -147,17 +150,20 @@ async fn get_admin(
     // Admin bookings are often long maintenance and test slots, which swamp
     // the science usage they sit alongside. Dropped before anything is
     // counted, so every booking figure below reflects the same set.
-    let exclude_admins = query.exclude_admins.unwrap_or(false);
-    let bookings = if exclude_admins {
-        without_admin_bookings(bookings, &state.admin_config.user_ids)
-    } else {
+    let include_admins = query.include_admins.unwrap_or(false);
+    let bookings = if include_admins {
         bookings
+    } else {
+        without_admin_bookings(bookings, &state.admin_config.user_ids)
     };
     let total_bookings = count_booking_segments(&bookings);
     let total_hours = bookings
         .iter()
         .map(|b| (b.end_time - b.start_time).num_hours())
         .sum();
+    // Clamped so a reversed range (to before from) can't divide by zero.
+    let weeks_in_range = (to_dt - from_dt).num_days().max(1) as f64 / 7.0;
+    let hours_per_week = format!("{:.1}", total_hours as f64 / weeks_in_range);
     let unique_users = bookings
         .iter()
         .map(|b| b.user_id)
@@ -228,9 +234,10 @@ async fn get_admin(
         telescopes,
         usage_from,
         usage_to,
-        exclude_admins,
+        include_admins,
         total_bookings,
         total_hours,
+        hours_per_week,
         unique_users,
         countries,
         guest_sessions_total,
@@ -260,11 +267,11 @@ struct AdminQuery {
     from: Option<NaiveDate>,
     to: Option<NaiveDate>,
     error: Option<String>,
-    /// Set by the usage-report checkbox. Phrased as "exclude" rather than
-    /// "include" so that its absence — an unticked box, or a bare /admin with
-    /// no query string at all — means the report covers everyone, which is
-    /// the total the page is expected to show by default.
-    exclude_admins: Option<bool>,
+    /// Set by the usage-report checkbox. Phrased as "include" rather than
+    /// "exclude" so that its absence — an unticked box, or a bare /admin with
+    /// no query string at all — means admin bookings are left out, which is
+    /// what the page shows by default.
+    include_admins: Option<bool>,
 }
 
 #[derive(Deserialize)]
