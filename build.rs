@@ -17,7 +17,7 @@ fn get_git_branch_name() -> Option<String> {
     }
 }
 
-const TAILWIND_VERSION: &str = "v4.2.1";
+const TAILWIND_VERSION: &str = "v4.3.3";
 
 /// Binary name plus its SHA-256, taken from the release's sha256sums.txt.
 /// Pinning the hash means a tampered or truncated download fails the build
@@ -26,19 +26,19 @@ fn tailwind_binary() -> (&'static str, &'static str) {
     match (std::env::consts::OS, std::env::consts::ARCH) {
         ("linux", "x86_64") => (
             "tailwindcss-linux-x64",
-            "39e8d4e24b3c83b0a6e69e100a972fbc75d5fef8dce47b3ddac3cf92dea81fe3",
+            "dc61b3ac6b8c9ca874c0cc4c57b2409791a64c5540404ca5f5367360babc313a",
         ),
         ("linux", "aarch64") => (
             "tailwindcss-linux-arm64",
-            "d87e6486bb3f70b04ef1dcaacc4ee6548a5a15fbf521b31bc24d2c774f68a951",
+            "55fd0b241214eff3de1e8ee4f22796662f2d2e7a49bcfca7477cfd0bac398195",
         ),
         ("macos", "x86_64") => (
             "tailwindcss-macos-x64",
-            "019e5cfa441992ede2772c6faaeb8d7fb1726aab50b1138c0aa38e88f4b7bd44",
+            "7922e0953f2110c05976e3bf58f14e643d90427575e766b7d433f5f80cbee7e1",
         ),
         ("macos", "aarch64") => (
             "tailwindcss-macos-arm64",
-            "e510af7928750c9ee8d5ff2e5e98088bd5b99a8a8e2c554668621c7e151fa91f",
+            "cdf646702987a743464dff4d9c60fd4480d1c1e73dd819a9a67f1078815dce9d",
         ),
         (os, arch) => panic!("Unsupported platform: {os}/{arch}"),
     }
