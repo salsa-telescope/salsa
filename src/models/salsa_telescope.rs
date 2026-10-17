@@ -117,6 +117,87 @@ fn acquire_device_within<'a>(
     }
 }
 
+/// Guards UHD's process-wide registry of open devices.
+///
+/// UHD's C API, which the `uhd` crate wraps, keeps every open device in one
+/// global `std::map` (`get_usrp_ptrs()` in `host/lib/usrp/usrp_c.cpp`).
+/// `uhd_usrp_make` inserts into it and `uhd_usrp_free` erases from it, but
+/// under two *different* mutexes, and every device call (`USRP(h)`) looks the
+/// device up with no lock at all. One telescope opening its receiver while
+/// another closes its own can therefore corrupt the map or have it read
+/// mid-update. That is what killed the process on 2026-10-02 (brage opening
+/// as vale closed) and 2026-10-09 (vale opening as brage closed): both cores
+/// show SIGSEGV in `uhd_usrp_set_rx_freq`, the first device call of the next
+/// integration cycle. UHD 4.6 and master both have this. [`DeviceLock`]
+/// cannot help, as it is per receiver and this race is between receivers.
+///
+/// Opening and freeing take this exclusively; every other device call takes it
+/// shared, so running telescopes do not wait on each other. Streamer calls
+/// (`receive_simple`, stream commands) go through the streamer handle and never
+/// touch the map, so the sample loop runs unlocked and an open never waits out
+/// another telescope's integration cycle. It does wait out a whole open or
+/// free (about a second on an N210), which can delay another telescope's next
+/// cycle by that much; the integrated time is counted in cycles, so no data
+/// is misreported.
+static UHD_REGISTRY: std::sync::RwLock<()> = std::sync::RwLock::new(());
+
+/// A UHD device that touches UHD's global registry only under
+/// [`UHD_REGISTRY`]: open and free exclusively, every device call through
+/// [`UhdDevice::with`] shared. Generic so the locking can be tested without
+/// hardware; production always uses `Usrp`.
+struct UhdDevice<D = Usrp> {
+    device: std::mem::ManuallyDrop<D>,
+    address: String,
+}
+
+impl UhdDevice<Usrp> {
+    fn open(address: &str) -> Result<Self, uhd::Error> {
+        Self::open_with(address, || Usrp::open(&format!("addr={address}")))
+    }
+}
+
+impl<D> UhdDevice<D> {
+    fn open_with<E>(address: &str, open: impl FnOnce() -> Result<D, E>) -> Result<Self, E> {
+        // A panic while holding the lock leaves the registry no worse than UHD
+        // left it, so a poisoned lock is still usable.
+        let _registry = UHD_REGISTRY
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        Ok(UhdDevice {
+            device: std::mem::ManuallyDrop::new(open()?),
+            address: address.to_string(),
+        })
+    }
+
+    /// Run one device call. The result may borrow the device (a receive
+    /// streamer does) and outlive the lock, which is fine because streamer
+    /// calls do not touch the registry.
+    fn with<'a, R>(&'a mut self, call: impl FnOnce(&'a mut D) -> R) -> R {
+        let _registry = UHD_REGISTRY
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        call(&mut self.device)
+    }
+}
+
+impl<D> Drop for UhdDevice<D> {
+    fn drop(&mut self) {
+        let started = std::time::Instant::now();
+        {
+            let _registry = UHD_REGISTRY
+                .write()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            // SAFETY: dropped exactly once, here, and never touched again.
+            unsafe { std::mem::ManuallyDrop::drop(&mut self.device) };
+        }
+        info!(
+            "Released receiver at {} after {} ms",
+            self.address,
+            started.elapsed().as_millis()
+        );
+    }
+}
+
 struct Inner {
     name: String,
     receiver_address: String,
@@ -662,7 +743,7 @@ fn rot2prog_bytes_to_angle_documented(bytes: &[u8]) -> f64 {
 
 #[allow(clippy::too_many_arguments)]
 fn measure_switched(
-    usrp: &mut Usrp,
+    usrp: &mut UhdDevice,
     sfreq: f64,
     rfreq: f64,
     fft_pts: usize,
@@ -748,7 +829,7 @@ const DBSRX2_BANDWIDTH_HZ: f64 = 80e6;
 
 #[allow(clippy::too_many_arguments)]
 fn measure_single(
-    usrp: &mut Usrp,
+    usrp: &mut UhdDevice,
     cfreq: f64,
     fft_pts: usize,
     tint: f64,
@@ -768,14 +849,16 @@ fn measure_single(
     // offset, the RF LO parks outside the kept passband and the DDC
     // shifts back. See issue #311; requires the wide-open analog filter
     // set at receiver setup.
-    usrp.set_rx_frequency(
-        &TuneRequest::with_frequency_lo(cfreq, lo_offset_hz(srate)),
-        0,
-    )
+    usrp.with(|u| {
+        u.set_rx_frequency(
+            &TuneRequest::with_frequency_lo(cfreq, lo_offset_hz(srate)),
+            0,
+        )
+    })
     .map_err(|e| TelescopeError::ReceiverFailed(format!("set_rx_frequency: {e}")))?;
 
     let mut receiver = usrp
-        .get_rx_stream(&uhd::StreamArgs::<Complex<i16>>::new("sc16"))
+        .with(|u| u.get_rx_stream(&uhd::StreamArgs::<Complex<i16>>::new("sc16")))
         .map_err(|e| TelescopeError::ReceiverFailed(format!("get_rx_stream: {e}")))?;
 
     let mut buffer = vec![Complex::<i16>::default(); nsamp as usize];
@@ -959,7 +1042,6 @@ fn measure(
     if cancellation_token.is_cancelled() {
         return Ok(());
     }
-    let args = format!("addr={}", address);
     // Declared before `usrp` so it is released after it: locals drop in reverse
     // declaration order, and the guard's whole job is to outlive the device
     // handle it protects. Waiting here can consume most of a stop, so re-check
@@ -968,22 +1050,22 @@ fn measure(
     if cancellation_token.is_cancelled() {
         return Ok(());
     }
-    let mut usrp = Usrp::open(&args)
+    let mut usrp = UhdDevice::open(&address)
         .map_err(|e| TelescopeError::ReceiverFailed(format!("open USRP at {address}: {e}")))?;
 
     // The N210 only has one input channel 0. Empty string sets all gains.
-    usrp.set_rx_gain(gain, 0, "")
+    usrp.with(|u| u.set_rx_gain(gain, 0, ""))
         .map_err(|e| TelescopeError::ReceiverFailed(format!("set_rx_gain: {e}")))?;
-    usrp.set_rx_antenna("TX/RX", 0)
+    usrp.with(|u| u.set_rx_antenna("TX/RX", 0))
         .map_err(|e| TelescopeError::ReceiverFailed(format!("set_rx_antenna: {e}")))?;
-    usrp.set_rx_dc_offset_enabled(true, 0)
+    usrp.with(|u| u.set_rx_dc_offset_enabled(true, 0))
         .map_err(|e| TelescopeError::ReceiverFailed(format!("set_rx_dc_offset_enabled: {e}")))?;
-    usrp.set_rx_sample_rate(srate, 0)
+    usrp.with(|u| u.set_rx_sample_rate(srate, 0))
         .map_err(|e| TelescopeError::ReceiverFailed(format!("set_rx_sample_rate: {e}")))?;
     // LO-offset tuning (see measure_single) moves the wanted band away
     // from the analog baseband centre; open the DBSRX2 filter fully so
     // the band sits on the flat part of its response.
-    usrp.set_rx_bandwidth(DBSRX2_BANDWIDTH_HZ, 0)
+    usrp.with(|u| u.set_rx_bandwidth(DBSRX2_BANDWIDTH_HZ, 0))
         .map_err(|e| TelescopeError::ReceiverFailed(format!("set_rx_bandwidth: {e}")))?;
 
     let tsys = tsys_k;
@@ -1094,55 +1176,59 @@ fn measure_iq(
     tx: tokio::sync::mpsc::Sender<IqBlock>,
     device_lock: DeviceLock,
 ) -> Result<(), TelescopeError> {
-    let args = format!("addr={}", address);
     // Before `usrp`, so it is released after the device — see `measure()`.
     let _device = acquire_device(&device_lock, &address)?;
     if cancellation_token.is_cancelled() {
         return Ok(());
     }
-    let mut usrp = Usrp::open(&args).map_err(|e| {
+    let mut usrp = UhdDevice::open(&address).map_err(|e| {
         TelescopeError::ReceiverFailed(format!("IQ stream: open USRP at {address}: {e}"))
     })?;
 
     if gpsdo_enabled {
         info!("Configuring external clock/PPS sync for {}", address);
-        usrp.set_clock_source("external", 0)
+        usrp.with(|u| u.set_clock_source("external", 0))
             .map_err(|e| TelescopeError::ReceiverFailed(format!("set_clock_source: {e}")))?;
-        usrp.set_time_source("external", 0)
+        usrp.with(|u| u.set_time_source("external", 0))
             .map_err(|e| TelescopeError::ReceiverFailed(format!("set_time_source: {e}")))?;
         // Latch t=0 on the next PPS edge, then wait for it to settle.
-        usrp.set_time_next_pps(0, 0.0, 0)
+        usrp.with(|u| u.set_time_next_pps(0, 0.0, 0))
             .map_err(|e| TelescopeError::ReceiverFailed(format!("set_time_next_pps: {e}")))?;
         std::thread::sleep(Duration::from_secs(2));
         info!("External time sync complete for {}", address);
     }
 
-    usrp.set_rx_gain(config.gain_db, 0, "")
+    usrp.with(|u| u.set_rx_gain(config.gain_db, 0, ""))
         .map_err(|e| TelescopeError::ReceiverFailed(format!("set_rx_gain: {e}")))?;
-    usrp.set_rx_antenna("TX/RX", 0)
+    usrp.with(|u| u.set_rx_antenna("TX/RX", 0))
         .map_err(|e| TelescopeError::ReceiverFailed(format!("set_rx_antenna: {e}")))?;
-    usrp.set_rx_dc_offset_enabled(true, 0)
+    usrp.with(|u| u.set_rx_dc_offset_enabled(true, 0))
         .map_err(|e| TelescopeError::ReceiverFailed(format!("set_rx_dc_offset_enabled: {e}")))?;
-    usrp.set_rx_sample_rate(config.bandwidth_hz, 0)
+    usrp.with(|u| u.set_rx_sample_rate(config.bandwidth_hz, 0))
         .map_err(|e| TelescopeError::ReceiverFailed(format!("set_rx_sample_rate: {e}")))?;
     // Same LO-offset tuning and wide-open analog filter as the
     // single-dish path (see measure_single): keeps the direct-conversion
     // DC artifact out of the correlated band. Both telescopes in a session
     // get the identical offset, so the inter-device phase relation is
     // unchanged.
-    usrp.set_rx_bandwidth(DBSRX2_BANDWIDTH_HZ, 0)
+    usrp.with(|u| u.set_rx_bandwidth(DBSRX2_BANDWIDTH_HZ, 0))
         .map_err(|e| TelescopeError::ReceiverFailed(format!("set_rx_bandwidth: {e}")))?;
-    usrp.set_rx_frequency(
-        &TuneRequest::with_frequency_lo(config.center_freq_hz, lo_offset_hz(config.bandwidth_hz)),
-        0,
-    )
+    usrp.with(|u| {
+        u.set_rx_frequency(
+            &TuneRequest::with_frequency_lo(
+                config.center_freq_hz,
+                lo_offset_hz(config.bandwidth_hz),
+            ),
+            0,
+        )
+    })
     .map_err(|e| TelescopeError::ReceiverFailed(format!("set_rx_frequency: {e}")))?;
 
     // Open a single continuous stream once and pull IQ_BLOCK_SIZE samples at a time.
     // Re-tuning / reopening the stream per block would invalidate cross-correlation
     // because each setup introduces a fresh, uncorrelated time gap between telescopes.
     let mut receiver = usrp
-        .get_rx_stream(&uhd::StreamArgs::<Complex<i16>>::new("sc16"))
+        .with(|u| u.get_rx_stream(&uhd::StreamArgs::<Complex<i16>>::new("sc16")))
         .map_err(|e| TelescopeError::ReceiverFailed(format!("get_rx_stream: {e}")))?;
     receiver
         .send_command(&StreamCommand {
@@ -1276,6 +1362,55 @@ mod test {
         assert!(
             waiter.join().expect("waiter panicked"),
             "did not take the receiver once it was released"
+        );
+    }
+
+    #[test]
+    fn uhd_registry_is_held_exclusively_to_open_and_free_and_shared_for_calls() {
+        // The crashes of 2026-10-02 and 2026-10-09: one receiver opening while
+        // another was freed raced on UHD's global device map. See
+        // `UHD_REGISTRY`. One test, not three, because the lock is a process
+        // global and parallel tests holding it would make the probes flaky.
+        let registry_is_exclusive = || UHD_REGISTRY.try_read().is_err();
+        let registry_is_shared =
+            || UHD_REGISTRY.try_read().is_ok() && UHD_REGISTRY.try_write().is_err();
+
+        struct FakeDevice(Arc<std::sync::atomic::AtomicBool>);
+        impl Drop for FakeDevice {
+            fn drop(&mut self) {
+                self.0.store(
+                    UHD_REGISTRY.try_read().is_err(),
+                    std::sync::atomic::Ordering::SeqCst,
+                );
+            }
+        }
+
+        let freed_exclusively = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let mut opened_exclusively = false;
+        let mut device = UhdDevice::open_with("192.168.1.1", || {
+            opened_exclusively = registry_is_exclusive();
+            Ok::<_, ()>(FakeDevice(freed_exclusively.clone()))
+        })
+        .unwrap();
+        assert!(
+            opened_exclusively,
+            "opened a device without the exclusive lock"
+        );
+        assert!(UHD_REGISTRY.try_write().is_ok(), "open kept the lock");
+
+        assert!(
+            device.with(|_| registry_is_shared()),
+            "made a device call without the shared lock"
+        );
+        assert!(
+            UHD_REGISTRY.try_write().is_ok(),
+            "a device call kept the lock"
+        );
+
+        drop(device);
+        assert!(
+            freed_exclusively.load(std::sync::atomic::Ordering::SeqCst),
+            "freed a device without the exclusive lock"
         );
     }
 
