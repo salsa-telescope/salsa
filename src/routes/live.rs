@@ -21,9 +21,10 @@ use crate::i18n::Language;
 use crate::models::booking::Booking;
 use crate::models::guest::GuestSession;
 use crate::models::maintenance::fetch_maintenance_set;
-use crate::models::telescope_types::{TelescopeStatus, TelescopeTarget};
+use crate::models::telescope_types::{TelescopeError, TelescopeStatus, TelescopeTarget};
 use crate::models::user::User;
 use crate::routes::index::render_main;
+use crate::routes::telescope::translate_error;
 use crate::secrets::WebcamCredentials;
 
 /// Age past which we treat the cached webcam image as definitely broken.
@@ -587,7 +588,17 @@ async fn get_telescopes_status(
         let (status, target, position, error, controller_connected, receiver_connected) =
             match telescope.get_info().await {
                 Ok(info) => {
+                    // A lost controller connection is shown as just the Offline
+                    // badge; the full error is on the admin page.
+                    let offline = matches!(
+                        info.most_recent_error,
+                        Some(
+                            TelescopeError::TelescopeIOError(_)
+                                | TelescopeError::TelescopeNotConnected
+                        )
+                    );
                     let status = match info.status {
+                        _ if offline => "Offline",
                         TelescopeStatus::Idle => "Idle",
                         TelescopeStatus::Slewing => "Slewing",
                         TelescopeStatus::Tracking => "Tracking",
@@ -606,9 +617,9 @@ async fn get_telescopes_status(
                             format!("{:.1}°", d.elevation.to_degrees()),
                         )
                     });
-                    let error = match info.most_recent_error {
-                        Some(err) => format!("{err}"),
-                        None => String::new(),
+                    let error = match &info.most_recent_error {
+                        Some(err) if !offline => translate_error(&lang, err),
+                        _ => String::new(),
                     };
                     (
                         status,

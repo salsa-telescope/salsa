@@ -63,7 +63,7 @@ fn require_admin(user: Option<User>) -> Result<User, StatusCode> {
 #[derive(Template)]
 #[template(path = "admin.html")]
 struct AdminTemplate {
-    telescopes: Vec<(String, bool, bool, bool, Option<bool>)>, // (name, in_maintenance, is_booked_now, controller_connected, receiver_connected)
+    telescopes: Vec<(String, bool, bool, bool, Option<bool>, String)>, // (name, in_maintenance, is_booked_now, controller_connected, receiver_connected, most_recent_error)
     usage_from: NaiveDate,
     usage_to: NaiveDate,
     /// Whether the booking figures below count admin-made bookings, so the
@@ -134,6 +134,13 @@ async fn get_admin(
                 Some(TelescopeError::TelescopeIOError(_) | TelescopeError::TelescopeNotConnected)
             )
         });
+        // The full error text, transport detail included, is shown only
+        // here; public pages show a short summary.
+        let error = info
+            .as_ref()
+            .and_then(|i| i.most_recent_error.as_ref())
+            .map(|e| e.to_string())
+            .unwrap_or_default();
         let receiver_connected = info.and_then(|i| i.receiver_connected);
         telescopes.push((
             name,
@@ -141,6 +148,7 @@ async fn get_admin(
             is_booked_now,
             is_connected,
             receiver_connected,
+            error,
         ));
     }
 

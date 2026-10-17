@@ -198,6 +198,32 @@ impl TelescopeOfflineTemplate {
     }
 }
 
+/// Short, translated description of a telescope error for display to
+/// users. The raw `Display` text can carry long transport-level detail
+/// (e.g. a full reqwest source chain), which is meant for admins only.
+pub fn translate_error(lang: &Language, err: &TelescopeError) -> String {
+    match err {
+        TelescopeError::TargetOutOfElevationRange { min_deg, max_deg } => {
+            fl!(
+                lang.loader(),
+                "state-error-elevation-range",
+                min = format!("{min_deg:.0}"),
+                max = format!("{max_deg:.0}")
+            )
+        }
+        TelescopeError::TelescopeIOError(_) => fl!(lang.loader(), "state-error-io"),
+        TelescopeError::TelescopeNotConnected => {
+            fl!(lang.loader(), "state-error-not-connected")
+        }
+        TelescopeError::ReceiverFailed(msg) => {
+            fl!(lang.loader(), "state-error-receiver", msg = msg.as_str())
+        }
+        // Calibration rejections are reported synchronously to the
+        // admin page and never stored in most_recent_error.
+        TelescopeError::TelescopeBusy => err.to_string(),
+    }
+}
+
 pub async fn telescope_state(
     telescope_id: &str,
     telescope: &dyn Telescope,
@@ -237,29 +263,11 @@ pub async fn telescope_state(
                 TelescopeStatus::Slewing => "Slewing".to_string(),
                 TelescopeStatus::Tracking => "Tracking".to_string(),
             },
-            error: match &info.most_recent_error {
-                Some(err) => match err {
-                    TelescopeError::TargetOutOfElevationRange { min_deg, max_deg } => {
-                        fl!(
-                            lang.loader(),
-                            "state-error-elevation-range",
-                            min = format!("{min_deg:.0}"),
-                            max = format!("{max_deg:.0}")
-                        )
-                    }
-                    TelescopeError::TelescopeIOError(_) => fl!(lang.loader(), "state-error-io"),
-                    TelescopeError::TelescopeNotConnected => {
-                        fl!(lang.loader(), "state-error-not-connected")
-                    }
-                    TelescopeError::ReceiverFailed(msg) => {
-                        fl!(lang.loader(), "state-error-receiver", msg = msg.as_str())
-                    }
-                    // Calibration rejections are reported synchronously to the
-                    // admin page and never stored in most_recent_error.
-                    TelescopeError::TelescopeBusy => err.to_string(),
-                },
-                None => "".to_string(),
-            },
+            error: info
+                .most_recent_error
+                .as_ref()
+                .map(|err| translate_error(&lang, err))
+                .unwrap_or_default(),
             error_kind: match &info.most_recent_error {
                 Some(TelescopeError::TargetOutOfElevationRange { .. }) => "elevation",
                 Some(TelescopeError::TelescopeIOError(_)) => "io",

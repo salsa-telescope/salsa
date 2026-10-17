@@ -21,7 +21,7 @@
       </tr>
     </thead>
     <tbody>
-      {% for (name, in_maintenance, is_booked_now, is_connected, receiver_connected) in telescopes %}
+      {% for (name, in_maintenance, is_booked_now, is_connected, receiver_connected, error) in telescopes %}
       <tr class="border-b last:border-0">
         <td class="py-2 pr-8 font-medium">{{ name }}</td>
         <td class="py-2 pr-8">
@@ -68,6 +68,11 @@
           </button>
         </td>
       </tr>
+      {% if !error.is_empty() %}
+      <tr class="border-b last:border-0">
+        <td colspan="6" class="pb-2 text-xs text-danger break-words">{{ error }}</td>
+      </tr>
+      {% endif %}
       {% endfor %}
     </tbody>
   </table>
@@ -82,7 +87,7 @@
     booked. See the <a href="/technical/rot2prog">ROT2PROG protocol reference</a>
     for details on the calibration command.
   </p>
-  {% for (name, in_maintenance, is_booked_now, is_connected, receiver_connected) in telescopes %}
+  {% for (name, in_maintenance, is_booked_now, is_connected, receiver_connected, error) in telescopes %}
   <div class="mb-4">
     <form
       hx-post="/admin/telescope/{{ name }}/calibrate/preview"
