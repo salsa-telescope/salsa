@@ -87,6 +87,7 @@ struct AdminTemplate {
     announcement: String,
     users_by_provider: Vec<(String, usize)>, // (provider, count) sorted by count desc, guests excluded
     users_total: usize,
+    users_deleted: usize, // anonymised accounts, not counted in users_total
 }
 
 async fn get_admin(
@@ -229,9 +230,15 @@ async fn get_admin(
     let local_users = User::fetch_all_local(state.database_connection.clone())
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    let users_by_provider = User::count_by_provider_non_guest(state.database_connection.clone())
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    // Deleting an account blanks its provider, so the empty group is the
+    // deleted accounts. Show them separately and keep them out of the total.
+    let (deleted, users_by_provider): (Vec<_>, Vec<_>) =
+        User::count_by_provider_non_guest(state.database_connection.clone())
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+            .into_iter()
+            .partition(|(provider, _)| provider.is_empty());
+    let users_deleted = deleted.iter().map(|(_, c)| c).sum();
     let users_total = users_by_provider.iter().map(|(_, c)| c).sum();
     let announcement = fetch_support_announcement(state.database_connection)
         .await
@@ -259,6 +266,7 @@ async fn get_admin(
         announcement,
         users_by_provider,
         users_total,
+        users_deleted,
     }
     .render()
     .expect("Template rendering should always succeed");

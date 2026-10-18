@@ -235,6 +235,12 @@
         <td class="py-2 pr-8 font-semibold text-gray-700">Total</td>
         <td class="py-2 font-semibold">{{ users_total }}</td>
       </tr>
+      {% if users_deleted > 0 %}
+      <tr>
+        <td class="py-2 pr-8 text-gray-500">Deleted accounts (not in total)</td>
+        <td class="py-2 text-gray-500">{{ users_deleted }}</td>
+      </tr>
+      {% endif %}
     </tbody>
   </table>
   </div>
