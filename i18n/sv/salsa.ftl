@@ -480,4 +480,3 @@ stats-note-observations = spektra sparade av inloggade användare. Gästsessione
 stats-note-hours-per-week = bokade timmar delat med antalet veckor i perioden, så att korta och långa månader går att jämföra.
 stats-note-guests = anonym användning via ”Observera nu”, räknas separat från bokningar. Gästtimmar räknar bara avslutade sessioner, som är högst 30 minuter långa.
 stats-note-months = Månaderna följer UTC.
-stats-note-privacy = Vad SALSA sparar och varför

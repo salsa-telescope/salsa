@@ -480,4 +480,3 @@ stats-note-observations = spectra saved by logged-in users. Guest sessions do no
 stats-note-hours-per-week = booked hours divided by the number of weeks in the period, so short and long months compare fairly.
 stats-note-guests = anonymous “Observe now” use, counted separately from bookings. Guest hours count finished sessions only, each at most 30 minutes long.
 stats-note-months = Months follow UTC.
-stats-note-privacy = What SALSA stores and why

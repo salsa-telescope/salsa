@@ -309,6 +309,24 @@ struct Bar {
     height_pct: String,
 }
 
+/// A labelled gridline on the chart's hour scale.
+struct Tick {
+    label: String,
+    bottom_pct: String,
+}
+
+/// A round step (1, 2 or 5 times a power of ten) giving about three
+/// gridlines up to `max`.
+fn nice_step(max: f64) -> f64 {
+    let rough = (max / 3.0).max(1.0);
+    let magnitude = 10f64.powf(rough.log10().floor());
+    [1.0, 2.0, 5.0, 10.0]
+        .into_iter()
+        .map(|f| f * magnitude)
+        .find(|&s| s >= rough)
+        .unwrap_or(10.0 * magnitude)
+}
+
 struct CountryRow {
     /// ISO 3166 code; the page script swaps in the localized name.
     code: String,
@@ -387,6 +405,7 @@ struct StatsTemplate {
     range_label: String,
     // Selected period
     bars: Vec<Bar>,
+    ticks: Vec<Tick>,
     /// More than a year of bars: only years are labelled.
     long_chart: bool,
     user_countries: CountryList,
@@ -511,12 +530,30 @@ fn render(
         ),
     };
 
-    let max_seconds = selected
+    // The scale tops out at the first round number at or above the busiest
+    // month, so bars are drawn against the same hours the axis labels show.
+    let max_hours = selected
         .iter()
         .map(|m| data[m].booked_seconds)
         .max()
-        .unwrap_or(0)
-        .max(1) as f64;
+        .unwrap_or(0) as f64
+        / 3600.0;
+    let step = nice_step(max_hours);
+    let top = (max_hours / step).ceil().max(1.0) * step;
+    let tick_count = (top / step).round() as i64;
+    let ticks = (0..=tick_count)
+        .map(|i| {
+            let value = step * i as f64;
+            let mut label = fmt_int(value.round() as i64, lang);
+            if i == tick_count {
+                label.push_str(" h");
+            }
+            Tick {
+                label,
+                bottom_pct: format!("{:.1}", value / top * 100.0),
+            }
+        })
+        .collect();
     let bars = selected
         .iter()
         .enumerate()
@@ -531,7 +568,10 @@ fn render(
                     fmt_dec(f.hours_per_week(), lang),
                     lang.t("stats-week")
                 ),
-                height_pct: format!("{:.1}", data[m].booked_seconds as f64 / max_seconds * 100.0),
+                height_pct: format!(
+                    "{:.1}",
+                    data[m].booked_seconds as f64 / 3600.0 / top * 100.0
+                ),
             }
         })
         .collect();
@@ -572,6 +612,7 @@ fn render(
         range_label,
         long_chart: selected.len() > 12,
         bars,
+        ticks,
         user_countries: country_list(user_counts, lang),
         guest_countries: country_list(guest_counts, lang),
         rows,
@@ -637,6 +678,16 @@ mod test {
             ),
             (0, 4)
         );
+    }
+
+    #[test]
+    fn scale_steps_are_round_numbers() {
+        assert_eq!(nice_step(230.0), 100.0);
+        assert_eq!(nice_step(140.0), 50.0);
+        assert_eq!(nice_step(40.0), 20.0);
+        assert_eq!(nice_step(9.0), 5.0);
+        // An empty period still gets a usable scale.
+        assert_eq!(nice_step(0.0), 1.0);
     }
 
     #[test]

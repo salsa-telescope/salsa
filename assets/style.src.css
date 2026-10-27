@@ -860,8 +860,39 @@ figure img {
     cursor: not-allowed;
 }
 
-/* Column chart: one bar per month, tooltip from data-tip on hover/focus. */
+/* Column chart: one bar per month, tooltip from data-tip on hover/focus.
+   The hour scale sits in its own column to the left; its labels and the
+   gridlines share the same bottom percentages. */
+.stats-chart-wrap {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+}
+.stats-yaxis {
+    position: relative;
+    flex: none;
+    height: 180px;
+    min-width: 2.5rem;
+}
+.stats-yaxis span {
+    position: absolute;
+    right: 0;
+    transform: translateY(50%);
+    font-size: 0.75rem;
+    white-space: nowrap;
+    color: var(--color-neutral-700);
+    font-variant-numeric: tabular-nums;
+}
+.stats-grid {
+    position: absolute;
+    left: 0;
+    right: 0;
+    border-top: 1px solid var(--color-neutral-100);
+}
 .stats-chart {
+    position: relative;
+    flex: 1;
+    min-width: 0;
     display: flex;
     align-items: flex-end;
     /* Narrower gaps once there are many bars, so they stay visible on a phone. */
@@ -871,6 +902,7 @@ figure img {
     border-bottom: 1px solid var(--color-neutral-300);
 }
 .stats-col {
+    z-index: 1;
     flex: 0 1 64px;
     min-width: 0;
     height: 100%;

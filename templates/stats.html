@@ -103,13 +103,19 @@
   <h3>{{ lang.t("stats-hours-per-month") }}</h3>
   <p class="stats-help">{{ lang.t("stats-hours-per-month-help") }}</p>
   <div class="stats-card">
+    <div class="stats-chart-wrap">
+    <div class="stats-yaxis" aria-hidden="true">
+      {% for t in ticks %}<span style="bottom: {{ t.bottom_pct }}%">{{ t.label }}</span>{% endfor %}
+    </div>
     <div class="stats-chart{% if long_chart %} stats-chart-long{% endif %}" role="img" aria-label="{{ lang.t("stats-hours-per-month") }}">
+      {% for t in ticks.iter().skip(1) %}<div class="stats-grid" style="bottom: {{ t.bottom_pct }}%"></div>{% endfor %}
       {% for bar in bars %}
       <div class="stats-col" tabindex="0" data-tip="{{ bar.tip }}" title="{{ bar.tip }}">
         <div class="stats-col-bar" style="height: {{ bar.height_pct }}%"></div>
         <div class="stats-col-label">{{ bar.label }}</div>
       </div>
       {% endfor %}
+    </div>
     </div>
   </div>
 
@@ -161,7 +167,6 @@
     <li><strong>{{ lang.t("stats-col-hours-per-week") }}:</strong> {{ lang.t("stats-note-hours-per-week") }}</li>
     <li><strong>{{ lang.t("stats-guest-sessions") }}:</strong> {{ lang.t("stats-note-guests") }}</li>
     <li>{{ lang.t("stats-note-months") }}</li>
-    <li><a href="/privacy">{{ lang.t("stats-note-privacy") }}</a></li>
   </ul>
  </div>
 </div>
