@@ -23,7 +23,6 @@
     <div class="flex-1">
       <p class="text-sm font-medium text-gray-600 mb-1">{{ lang.t("live-telescope-status") }}</p>
       <div hx-get="/live/telescopes" hx-trigger="load, every 2s" hx-swap="innerHTML"></div>
-      <p class="text-sm text-gray-500 mt-4">{{ lang.t("live-stats-intro") }} <a href="/stats">{{ lang.t("live-stats-link") }}</a></p>
     </div>
 
   </div>
