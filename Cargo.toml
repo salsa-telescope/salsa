@@ -1,6 +1,6 @@
 [package]
 name = "salsa"
-version = "1.5.26"
+version = "1.5.27"
 edition = "2024"
 default-run = "salsa"
 
