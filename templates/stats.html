@@ -1,0 +1,180 @@
+{% macro country_card(title, sub, list, other_label, empty_label) %}
+    <div class="stats-card">
+      <h4 class="font-semibold">{{ title }}</h4>
+      <p class="stats-note mb-3">{{ sub }}{% if !list.top.is_empty() %} · {{ list.country_count }}{% endif %}</p>
+      {% if list.top.is_empty() %}
+      <p class="stats-note">{{ empty_label }}</p>
+      {% endif %}
+      {% for row in list.top %}
+      <div class="stats-hrow">
+        <span class="stats-hname" data-region="{{ row.code }}">{{ row.code }}</span>
+        <span class="stats-htrack"><span class="stats-hbar" style="width: {{ row.width_pct }}%"></span></span>
+        <span class="stats-hval">{{ row.count }}</span>
+      </div>
+      {% endfor %}
+      {% if !list.other.is_empty() %}
+      <details class="stats-other">
+        <summary class="stats-hrow">
+          <span class="stats-hname">{{ other_label }} ({{ list.other.len() }})</span>
+          <span class="stats-htrack"><span class="stats-hbar" style="width: {{ list.other_width_pct }}%"></span></span>
+          <span class="stats-hval">{{ list.other_total }}</span>
+        </summary>
+        {% for row in list.other %}
+        <div class="stats-hrow">
+          <span class="stats-hname" data-region="{{ row.code }}">{{ row.code }}</span>
+          <span class="stats-htrack"><span class="stats-hbar" style="width: {{ row.width_pct }}%"></span></span>
+          <span class="stats-hval">{{ row.count }}</span>
+        </div>
+        {% endfor %}
+      </details>
+      {% endif %}
+    </div>
+{% endmacro %}
+<div class="section light" id="stats">
+ <div class="stats">
+  <h2 class="text-3xl font-semibold">{{ lang.t("stats-heading") }}</h2>
+  <p class="stats-help mt-2">{{ lang.t("stats-intro") }}</p>
+
+  <h3>{{ lang.t("stats-since-start") }}</h3>
+  <p class="stats-help">{{ lang.t("stats-since-start-help") }}</p>
+  <div class="stats-tiles">
+    <div class="stats-tile">
+      <div class="stats-tile-value">{{ registered_users }}</div>
+      <div class="stats-tile-label">{{ lang.t("stats-registered-users") }}</div>
+      <div class="stats-tile-sub">{{ lang.t("stats-registered-users-sub") }}</div>
+    </div>
+    <div class="stats-tile">
+      <div class="stats-tile-value">{{ total_hours }}</div>
+      <div class="stats-tile-label">{{ lang.t("stats-hours-booked") }}</div>
+      <div class="stats-tile-sub">{{ total_hours_per_week }} {{ lang.t("stats-hours-per-week-average") }}</div>
+    </div>
+    <div class="stats-tile">
+      <div class="stats-tile-value">{{ total_guest_sessions }}</div>
+      <div class="stats-tile-label">{{ lang.t("stats-guest-sessions") }}</div>
+      <div class="stats-tile-sub">{{ total_guest_hours }} {{ lang.t("stats-guest-sessions-sub") }}</div>
+    </div>
+    <div class="stats-tile">
+      <div class="stats-tile-value">{{ total_observations }}</div>
+      <div class="stats-tile-label">{{ lang.t("stats-observations-saved") }}</div>
+      <div class="stats-tile-sub">{{ lang.t("stats-observations-sub") }}</div>
+    </div>
+  </div>
+
+  {% if !has_data %}
+  <p class="stats-help mt-8">{{ lang.t("stats-no-months-yet") }}</p>
+  {% else %}
+
+  <div class="stats-card stats-picker">
+    <div class="stats-picker-row">
+      <span class="font-semibold">{{ lang.t("stats-period") }}</span>
+      <div class="stats-shortcuts">
+        {% for s in shortcuts %}
+        {% if s.enabled %}
+        <a href="{{ s.href }}" hx-get="{{ s.href }}" hx-target="#page" hx-push-url="true"
+          {% if s.active %}aria-current="true"{% endif %}>{{ s.label }}</a>
+        {% else %}
+        <span aria-disabled="true" title="{{ s.disabled_title }}">{{ s.label }}</span>
+        {% endif %}
+        {% endfor %}
+      </div>
+    </div>
+    <form action="/stats" method="get" class="stats-picker-row"
+      hx-get="/stats" hx-target="#page" hx-push-url="true" hx-trigger="change">
+      <label>{{ lang.t("stats-from") }}
+        <select name="from">
+          {% for m in month_options %}
+          <option value="{{ m.value }}"{% if m.value == from %} selected{% endif %}>{{ m.label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>{{ lang.t("stats-to") }}
+        <select name="to">
+          {% for m in month_options %}
+          <option value="{{ m.value }}"{% if m.value == to %} selected{% endif %}>{{ m.label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <noscript><button type="submit" class="btn">{{ lang.t("stats-show") }}</button></noscript>
+      <span class="text-gray-500">{{ range_label }}</span>
+    </form>
+    <p class="stats-note">{{ lang.t("stats-period-help") }}</p>
+  </div>
+
+  <h3>{{ lang.t("stats-hours-per-month") }}</h3>
+  <p class="stats-help">{{ lang.t("stats-hours-per-month-help") }}</p>
+  <div class="stats-card">
+    <div class="stats-chart{% if long_chart %} stats-chart-long{% endif %}" role="img" aria-label="{{ lang.t("stats-hours-per-month") }}">
+      {% for bar in bars %}
+      <div class="stats-col" tabindex="0" data-tip="{{ bar.tip }}" title="{{ bar.tip }}">
+        <div class="stats-col-bar" style="height: {{ bar.height_pct }}%"></div>
+        <div class="stats-col-label">{{ bar.label }}</div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <h3>{{ lang.t("stats-countries-heading") }}</h3>
+  <p class="stats-help">{{ lang.t("stats-countries-help") }}</p>
+  <div class="stats-two">
+    {% call country_card(lang.t("stats-users-with-bookings"), lang.t("stats-users-per-country"), user_countries, lang.t("stats-other"), lang.t("stats-no-data")) %}{% endcall %}
+    {% call country_card(lang.t("stats-guest-sessions"), lang.t("stats-guest-sessions-per-country"), guest_countries, lang.t("stats-other"), lang.t("stats-no-data")) %}{% endcall %}
+  </div>
+
+  <h3>{{ lang.t("stats-month-by-month") }}</h3>
+  <div class="stats-card p-0 overflow-x-auto">
+    <table class="stats-table">
+      <thead>
+        <tr>
+          <th>{{ lang.t("stats-col-month") }}</th>
+          <th>{{ lang.t("stats-col-observations") }}</th>
+          <th>{{ lang.t("stats-col-bookings") }}</th>
+          <th>{{ lang.t("stats-col-hours") }}</th>
+          <th>{{ lang.t("stats-col-hours-per-week") }}</th>
+          <th>{{ lang.t("stats-col-users") }}</th>
+          <th>{{ lang.t("stats-col-guest-sessions") }}</th>
+          <th>{{ lang.t("stats-col-guest-hours") }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+        <tr>
+          <td>{{ r.label }}</td><td>{{ r.observations }}</td><td>{{ r.bookings }}</td><td>{{ r.hours }}</td>
+          <td>{{ r.hours_per_week }}</td><td>{{ r.users }}</td><td>{{ r.guest_sessions }}</td><td>{{ r.guest_hours }}</td>
+        </tr>
+        {% endfor %}
+        {% if let Some(r) = total %}
+        <tr class="stats-total">
+          <td>{{ r.label }}</td><td>{{ r.observations }}</td><td>{{ r.bookings }}</td><td>{{ r.hours }}</td>
+          <td>{{ r.hours_per_week }}</td><td>{{ r.users }}</td><td>{{ r.guest_sessions }}</td><td>{{ r.guest_hours }}</td>
+        </tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+  <ul class="stats-notes">
+    <li><strong>{{ lang.t("stats-note-admins-title") }}</strong> {{ lang.t("stats-note-admins") }}</li>
+    <li><strong>{{ lang.t("stats-col-bookings") }}:</strong> {{ lang.t("stats-note-bookings") }}</li>
+    <li><strong>{{ lang.t("stats-col-users") }}:</strong> {{ lang.t("stats-note-users") }}</li>
+    <li><strong>{{ lang.t("stats-col-observations") }}:</strong> {{ lang.t("stats-note-observations") }}</li>
+    <li><strong>{{ lang.t("stats-col-hours-per-week") }}:</strong> {{ lang.t("stats-note-hours-per-week") }}</li>
+    <li><strong>{{ lang.t("stats-guest-sessions") }}:</strong> {{ lang.t("stats-note-guests") }}</li>
+    <li>{{ lang.t("stats-note-months") }}</li>
+    <li><a href="/privacy">{{ lang.t("stats-note-privacy") }}</a></li>
+  </ul>
+ </div>
+</div>
+<script>
+  // Country codes are swapped for names in the page language. Without
+  // Intl.DisplayNames the two-letter codes stay, which still reads fine.
+  (function () {
+    try {
+      var names = new Intl.DisplayNames(["{{ lang.code() }}"], { type: "region" });
+      document.querySelectorAll("#stats [data-region]").forEach(function (el) {
+        var name = names.of(el.dataset.region);
+        if (name) el.textContent = name;
+      });
+    } catch (e) {}
+  })();
+</script>

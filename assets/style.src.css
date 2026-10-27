@@ -771,3 +771,253 @@ footer {
 figure img {
     cursor: zoom-in;
 }
+
+/* Statistics page (/stats) */
+.stats {
+    max-width: 960px;
+}
+.stats h3 {
+    @apply text-lg font-semibold text-gray-800 mt-10 mb-1;
+}
+.stats-help {
+    @apply text-sm mb-4;
+    color: var(--color-neutral-700);
+}
+.stats-note {
+    @apply text-xs;
+    color: var(--color-neutral-700);
+}
+.stats-card {
+    @apply rounded-lg p-4;
+    background: white;
+    border: 1px solid var(--color-brand-border);
+}
+.stats-tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 12px;
+}
+.stats-tile {
+    @apply rounded-lg px-4 py-3;
+    background: white;
+    border: 1px solid var(--color-brand-border);
+}
+.stats-tile-value {
+    @apply text-3xl font-semibold leading-tight;
+    color: var(--color-brand);
+    font-variant-numeric: tabular-nums;
+}
+.stats-tile-label {
+    @apply text-sm font-medium mt-1;
+    color: var(--color-neutral-900);
+}
+.stats-tile-sub {
+    @apply text-xs;
+    color: var(--color-neutral-700);
+}
+
+.stats-picker {
+    @apply mt-10;
+}
+.stats-picker-row {
+    @apply flex flex-wrap items-center text-sm;
+    gap: 10px 16px;
+}
+.stats-picker-row + .stats-picker-row {
+    @apply mt-3;
+}
+.stats-picker select {
+    @apply rounded px-2 py-1 ml-1;
+    border: 1px solid var(--color-neutral-300);
+    background: white;
+}
+.stats-picker .stats-note {
+    @apply mt-2;
+}
+.stats-shortcuts {
+    @apply flex flex-wrap gap-1.5;
+}
+.section .stats-shortcuts a,
+.stats-shortcuts span {
+    @apply rounded-full px-3 py-1 text-xs no-underline;
+    border: 1px solid var(--color-brand-border);
+    background: var(--color-brand-bg);
+    color: var(--color-brand);
+}
+.section .stats-shortcuts a:hover {
+    border-color: var(--color-link);
+    text-decoration: none;
+}
+.section .stats-shortcuts a[aria-current] {
+    background: var(--color-brand);
+    border-color: var(--color-brand);
+    color: white;
+}
+.stats-shortcuts span[aria-disabled] {
+    background: transparent;
+    border-style: dashed;
+    color: var(--color-neutral-700);
+    cursor: not-allowed;
+}
+
+/* Column chart: one bar per month, tooltip from data-tip on hover/focus. */
+.stats-chart {
+    display: flex;
+    align-items: flex-end;
+    /* Narrower gaps once there are many bars, so they stay visible on a phone. */
+    gap: clamp(2px, 1%, 6px);
+    height: 180px;
+    margin-bottom: 26px;
+    border-bottom: 1px solid var(--color-neutral-300);
+}
+.stats-col {
+    flex: 0 1 64px;
+    min-width: 0;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    align-items: center;
+    position: relative;
+    outline: none;
+}
+.stats-col-bar {
+    width: 100%;
+    max-width: 44px;
+    min-height: 1px;
+    background: var(--color-link);
+    border-radius: 4px 4px 0 0;
+}
+.stats-col:hover .stats-col-bar,
+.stats-col:focus-visible .stats-col-bar {
+    background: var(--color-brand);
+}
+.stats-col:focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
+}
+.stats-col-label {
+    position: absolute;
+    bottom: -22px;
+    font-size: 0.75rem;
+    white-space: nowrap;
+    color: var(--color-neutral-700);
+}
+/* The first label on a long chart is a whole "May 2026" under a thin bar;
+   centred it would stick out past the left edge. */
+.stats-chart-long .stats-col:first-child .stats-col-label {
+    left: 0;
+}
+.stats-col:hover::before,
+.stats-col:focus-visible::before {
+    content: attr(data-tip);
+    position: absolute;
+    bottom: calc(100% + 4px);
+    white-space: nowrap;
+    background: var(--color-neutral-900);
+    color: white;
+    font-size: 0.75rem;
+    padding: 3px 7px;
+    border-radius: 4px;
+    z-index: 2;
+}
+
+/* Country lists */
+.stats-two {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 16px;
+}
+@media (min-width: 768px) {
+    .stats-two {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+.stats-hrow {
+    display: grid;
+    grid-template-columns: 9.5rem 1fr 3.5rem;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.85rem;
+    padding: 3px 0;
+}
+.stats-hname {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.stats-htrack {
+    height: 12px;
+}
+.stats-hbar {
+    display: block;
+    height: 100%;
+    background: var(--color-link);
+    border-radius: 0 4px 4px 0;
+}
+.stats-hval {
+    text-align: right;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+}
+.stats-other summary {
+    cursor: pointer;
+    list-style: none;
+}
+.stats-other summary::-webkit-details-marker {
+    display: none;
+}
+.stats-other summary .stats-hname {
+    color: var(--color-link);
+    font-style: italic;
+}
+.stats-other summary .stats-hname::before {
+    content: "▸ ";
+    display: inline-block;
+    font-style: normal;
+}
+.stats-other[open] summary .stats-hname::before {
+    content: "▾ ";
+}
+.stats-other summary:hover .stats-hname {
+    text-decoration: underline;
+}
+.stats-other summary .stats-hbar {
+    background: var(--color-neutral-300);
+}
+
+/* Month table */
+.stats-table {
+    width: 100%;
+    font-size: 0.85rem;
+    border-collapse: collapse;
+}
+.stats-table th {
+    @apply font-semibold;
+    text-align: right;
+    color: var(--color-neutral-700);
+    padding: 8px 10px;
+    border-bottom: 2px solid var(--color-neutral-300);
+    white-space: nowrap;
+}
+.stats-table td {
+    text-align: right;
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--color-neutral-100);
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+.stats-table th:first-child,
+.stats-table td:first-child {
+    text-align: left;
+}
+.stats-table .stats-total td {
+    font-weight: 600;
+    border-top: 2px solid var(--color-neutral-300);
+    border-bottom: none;
+}
+.stats-notes {
+    @apply list-disc list-inside text-xs mt-10 pt-4 space-y-1;
+    color: var(--color-neutral-700);
+    border-top: 1px solid var(--color-brand-border);
+}

@@ -631,7 +631,7 @@ async fn toggle_maintenance(
 /// telescope into a single booking. Since the calendar UI stores each slot
 /// as its own row, the raw row count tracks total booked hours, not how
 /// many distinct reservations users made.
-fn count_booking_segments(bookings: &[Booking]) -> usize {
+pub(crate) fn count_booking_segments(bookings: &[Booking]) -> usize {
     if bookings.is_empty() {
         return 0;
     }
@@ -664,7 +664,10 @@ fn count_booking_segments(bookings: &[Booking]) -> usize {
 /// in the server config, applied to a `User` when the session loads. So the
 /// caller passes that list in rather than this reading anything from the
 /// booking rows themselves.
-fn without_admin_bookings(bookings: Vec<Booking>, admin_user_ids: &[i64]) -> Vec<Booking> {
+pub(crate) fn without_admin_bookings(
+    bookings: Vec<Booking>,
+    admin_user_ids: &[i64],
+) -> Vec<Booking> {
     bookings
         .into_iter()
         .filter(|booking| !admin_user_ids.contains(&booking.user_id))
