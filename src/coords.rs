@@ -188,7 +188,10 @@ pub fn horizontal_from_galactic(
 
 fn ecliptic_from_equatorial(ra: f64, dec: f64) -> (f64, f64) {
     // From javascript code behind calculations at https://frostydrew.org/utilities.dc/convert/tool-eq_coordinates/
-    let l = (ra.tan() * EC.cos() + dec.tan() * EC.sin() / ra.cos()).atan();
+    // atan2, not atan: atan only returns -90°..90°, which put targets with
+    // R.A. between 6h and 18h 180° off and flipped the sign of the Earth's
+    // orbital term in the VLSR correction.
+    let l = (ra.sin() * EC.cos() + dec.tan() * EC.sin()).atan2(ra.cos());
     let b = (dec.sin() * EC.cos() - dec.cos() * EC.sin() * ra.sin()).asin();
     (l, b)
 }
@@ -322,6 +325,17 @@ mod test {
         // Expected VLSR correction in m/s
         let expected_vlsrcorr = -15443.385967834394;
         assert_similar!(vlsrcorr, expected_vlsrcorr, 1e-6);
+    }
+
+    #[test]
+    fn test_vlsrcorr_target_between_6h_and_18h() {
+        // l = 210° lies at R.A. ≈ 6.8h. On 2026-10-26 the Earth moves
+        // towards it at ~26 km/s, and the solar motion adds ~-16.5 km/s,
+        // so the correction is ≈ +9.8 km/s (independent calculation).
+        // Before the atan2 fix this returned ≈ -42.7 km/s.
+        let when = Utc.with_ymd_and_hms(2026, 10, 26, 7, 38, 6).unwrap();
+        let vlsrcorr = vlsrcorr_from_galactic(210.0_f64.to_radians(), 0.0, when);
+        assert_similar!(vlsrcorr, 9800.0, 300.0);
     }
 
     #[test]
