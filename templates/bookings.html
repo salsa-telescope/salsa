@@ -122,7 +122,7 @@
       <span class="legend-item"><span class="legend-swatch calendar-slot-mine"></span> {{ lang.t("bookings-legend-mine") }}</span>
       <span class="legend-item"><span class="legend-swatch calendar-slot-other"></span> {{ lang.t("bookings-legend-booked") }}{% if is_admin %} (hover to see user){% endif %}</span>
       <span class="legend-item"><span class="legend-swatch calendar-slot-mine-past"></span> {{ lang.t("bookings-legend-mine-past") }}</span>
-      {% if is_admin %}<span class="legend-item"><span class="legend-swatch calendar-slot-other-past"></span> Past, booked by others</span>{% endif %}
+      <span class="legend-item"><span class="legend-swatch calendar-slot-other-past"></span> {{ lang.t("bookings-legend-other-past") }}</span>
       <span class="legend-item"><span class="legend-swatch calendar-slot-past"></span> {{ lang.t("bookings-legend-past") }}</span>
       <span class="legend-item"><span class="legend-swatch calendar-slot-maintenance"></span> {{ lang.t("bookings-legend-maintenance") }}</span>
     </div>
@@ -277,7 +277,7 @@
           </td>
           {% when SlotStatus::OtherPast %}
           <td class="calendar-slot calendar-slot-other-past"
-              title="Booked by {{ slot.booked_by.as_deref().unwrap_or("unknown") }}">
+              title="{% if let Some(name) = slot.booked_by %}Booked by {{ name }}{% else %}{{ lang.t("bookings-legend-other-past") }}{% endif %}">
           </td>
           {% when SlotStatus::MinePast %}
           <td class="calendar-slot calendar-slot-mine-past" title="{{ lang.t("bookings-legend-mine-past") }}">

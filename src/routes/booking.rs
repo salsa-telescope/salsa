@@ -55,8 +55,8 @@ pub enum SlotStatus {
     /// A past slot the user had booked, so they can look back at their own
     /// bookings in the calendar.
     MinePast,
-    /// A past slot someone else had booked. Only admins see these; for
-    /// everyone else another user's past booking is plain `Past`.
+    /// A past slot someone else had booked. Everyone sees these, but only
+    /// admins get the name.
     OtherPast,
     /// A local-time grid cell that maps to no bookable hour because the
     /// user's clocks skipped it on a DST spring-forward day.
@@ -132,10 +132,12 @@ fn build_calendar_slots(
                 let (status, booking_id, booked_by) = if end_time <= now {
                     match overlapping {
                         Some(b) if b.user_id == user.id => (SlotStatus::MinePast, Some(b.id), None),
-                        Some(b) if user.is_admin => {
-                            (SlotStatus::OtherPast, Some(b.id), Some(b.user_name.clone()))
-                        }
-                        _ => (SlotStatus::Past, overlapping.map(|b| b.id), None),
+                        Some(b) => (
+                            SlotStatus::OtherPast,
+                            Some(b.id),
+                            user.is_admin.then(|| b.user_name.clone()),
+                        ),
+                        None => (SlotStatus::Past, None, None),
                     }
                 } else if let Some(b) = overlapping {
                     if b.user_name == user.name && b.user_provider == user.provider {
@@ -635,7 +637,7 @@ mod calendar_tests {
     }
 
     #[test]
-    fn own_past_bookings_are_marked_but_others_stay_plain_past() {
+    fn past_bookings_are_shown_with_the_name_for_admins_only() {
         let week_start = NaiveDate::from_ymd_opt(2026, 9, 21).unwrap();
         let at = |day: i64, hour: u32| {
             (week_start + Duration::days(day))
@@ -655,7 +657,8 @@ mod calendar_tests {
         );
         let monday = &slots[0][0];
         assert!(matches!(monday[10].status, SlotStatus::MinePast));
-        assert!(matches!(monday[12].status, SlotStatus::Past));
+        assert!(matches!(monday[12].status, SlotStatus::OtherPast));
+        assert_eq!(monday[12].booked_by, None);
         assert!(matches!(monday[11].status, SlotStatus::Past));
 
         // Admins also see other users' past bookings, with the name.

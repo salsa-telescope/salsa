@@ -93,6 +93,7 @@ bookings-legend-booked = Bokad
 bookings-legend-past = Passerad
 bookings-past = Tidigare bokningar
 bookings-legend-mine-past = Mina tidigare bokningar
+bookings-legend-other-past = Passerad, bokad av andra
 bookings-country = Land
 bookings-country-hint = Slogs upp från din IP-adress när du bokade; själva adressen sparas inte.
 bookings-legend-maintenance = Underhåll

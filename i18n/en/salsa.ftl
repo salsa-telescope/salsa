@@ -93,6 +93,7 @@ bookings-legend-booked = Booked
 bookings-legend-past = Past
 bookings-past = Past bookings
 bookings-legend-mine-past = My past bookings
+bookings-legend-other-past = Past, booked by others
 bookings-country = Country
 bookings-country-hint = Looked up from your IP address when you booked; the address itself is not stored.
 bookings-legend-maintenance = Maintenance
