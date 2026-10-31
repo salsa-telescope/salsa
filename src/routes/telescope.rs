@@ -356,12 +356,18 @@ mod tests {
     async fn tracking_while_measuring_reads_observing() {
         let measuring = MockTelescope::returning(Ok(info_with(None, true, Duration::from_secs(5))));
         let rendered = telescope_state("vale", measuring.as_ref(), Language::default(), None).await;
-        assert!(rendered.contains(r#"data-status="Tracking""#), "got: {rendered}");
+        assert!(
+            rendered.contains(r#"data-status="Tracking""#),
+            "got: {rendered}"
+        );
         assert!(rendered.contains("Observing"), "got: {rendered}");
 
         let idle = MockTelescope::returning(Ok(info_with(None, false, Duration::from_secs(0))));
         let rendered = telescope_state("vale", idle.as_ref(), Language::default(), None).await;
-        assert!(rendered.contains(r#"data-status="Tracking""#), "got: {rendered}");
+        assert!(
+            rendered.contains(r#"data-status="Tracking""#),
+            "got: {rendered}"
+        );
         assert!(!rendered.contains("Observing"), "got: {rendered}");
 
         // Between cycles of a repeat series nothing is integrating, but the

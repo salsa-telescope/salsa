@@ -691,8 +691,17 @@ mod tests {
 
     #[test]
     fn other_states_are_unaffected_by_measuring() {
-        assert_eq!(card_status(&info(TelescopeStatus::Idle, true), false, true), "Idle");
-        assert_eq!(card_status(&info(TelescopeStatus::Slewing, true), false, true), "Slewing");
-        assert_eq!(card_status(&info(TelescopeStatus::Tracking, true), true, true), "Offline");
+        assert_eq!(
+            card_status(&info(TelescopeStatus::Idle, true), false, true),
+            "Idle"
+        );
+        assert_eq!(
+            card_status(&info(TelescopeStatus::Slewing, true), false, true),
+            "Slewing"
+        );
+        assert_eq!(
+            card_status(&info(TelescopeStatus::Tracking, true), true, true),
+            "Offline"
+        );
     }
 }
