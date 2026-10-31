@@ -64,6 +64,12 @@ struct Args {
 #[tokio::main]
 async fn main() {
     let args = Args::parse();
+    // reqwest is built without a crypto provider of its own, so every outgoing
+    // HTTPS client (OAuth, TLE, weather, live) uses this one. Install it before
+    // anything builds a client, whether or not we serve TLS ourselves.
+    rustls::crypto::aws_lc_rs::default_provider()
+        .install_default()
+        .expect("Should succeed in setting default crypto provider");
     logging::setup_logging(args.log_to_journald);
 
     // The journal otherwise names only the database's migration version, which
@@ -119,11 +125,6 @@ async fn main() {
     tokio::spawn(handle_shutdown_signal(handle.clone()));
 
     if let Some(key_file_path) = args.key_file_path {
-        // This is needed because rustls tries to magically figure out which provider
-        // to use. Our deps require multiple providers so we must pick one.
-        rustls::crypto::aws_lc_rs::default_provider()
-            .install_default()
-            .expect("Should succeed in setting default crypto provider");
         let cert_file_path = args.cert_file_path.unwrap();
         info!(
             "using tls with key file {} and cert file {}",
