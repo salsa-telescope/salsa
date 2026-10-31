@@ -15,6 +15,11 @@
   <span class="text-info" data-status="Idle">{{ lang.t("state-idle") }}</span>
   {% else if status == "Slewing" %}
   <span class="text-warning" data-status="Slewing">{{ lang.t("state-slewing") }}</span>
+  {% else if status == "Tracking" && (info.measurement_in_progress || repeating) %}
+  {# Still Tracking for the JS; only the label changes while data is being
+     integrated. A repeat series counts throughout, gaps between cycles
+     included, so the label does not flicker back to Tracking. #}
+  <span class="text-link" data-status="Tracking">{{ lang.t("state-observing") }}</span>
   {% else if status == "Tracking" %}
   <span class="text-success" data-status="Tracking">{{ lang.t("state-tracking") }}</span>
   {% else %}

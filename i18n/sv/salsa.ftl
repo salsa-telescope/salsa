@@ -240,6 +240,7 @@ state-telescope = Teleskop
 state-idle = Vilande
 state-slewing = Rör sig
 state-tracking = Följer
+state-observing = Observerar
 state-offline = Offline
 state-offline-error = Kan inte ansluta till teleskopets styrenhet.
 state-low-elevation-1 = Låg elevation: teleskopet pekar bara

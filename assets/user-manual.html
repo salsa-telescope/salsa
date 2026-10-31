@@ -106,6 +106,19 @@
     current telescope status, pointing controls, receiver settings, and a live spectrum
     display.</p>
 
+    <p id="status">The telescope status is shown next to the telescope name, both on this
+    page and on the <a href="/live">live page</a>:</p>
+    <ul class="list-disc list-inside space-y-1 text-sm">
+      <li><strong>Idle</strong> — the telescope is not pointed at any target.</li>
+      <li><strong>Slewing</strong> — the telescope is moving towards its target.</li>
+      <li><strong>Tracking</strong> — the telescope is on target and follows it across the
+      sky. It is ready to observe.</li>
+      <li><strong>Observing</strong> — the telescope is on target and data is being
+      recorded.</li>
+      <li><strong>Offline</strong> — SALSA cannot reach the telescope's controller. See
+      <a href="#troubleshooting">Troubleshooting</a>.</li>
+    </ul>
+
     <p>A countdown timer at the top of the page shows how much time remains in your booking.
     You will receive a warning five minutes before your slot ends.</p>
 

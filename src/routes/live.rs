@@ -21,7 +21,9 @@ use crate::i18n::Language;
 use crate::models::booking::Booking;
 use crate::models::guest::GuestSession;
 use crate::models::maintenance::fetch_maintenance_set;
-use crate::models::telescope_types::{TelescopeError, TelescopeStatus, TelescopeTarget};
+use crate::models::telescope_types::{
+    TelescopeError, TelescopeInfo, TelescopeStatus, TelescopeTarget,
+};
 use crate::models::user::User;
 use crate::routes::index::render_main;
 use crate::routes::telescope::translate_error;
@@ -558,6 +560,19 @@ struct LiveTelescopesTemplate {
     telescopes: Vec<TelescopeStatusCard>,
 }
 
+/// The badge on a live-page card. Observing is Tracking while data is being
+/// integrated; a repeat series counts throughout, gaps between cycles
+/// included, so the badge does not flicker back to Tracking.
+fn card_status(info: &TelescopeInfo, offline: bool, repeating: bool) -> &'static str {
+    match info.status {
+        _ if offline => "Offline",
+        TelescopeStatus::Idle => "Idle",
+        TelescopeStatus::Slewing => "Slewing",
+        TelescopeStatus::Tracking if info.measurement_in_progress || repeating => "Observing",
+        TelescopeStatus::Tracking => "Tracking",
+    }
+}
+
 async fn get_telescopes_status(
     Extension(lang): Extension<Language>,
     State(state): State<WebcamState>,
@@ -585,6 +600,12 @@ async fn get_telescopes_status(
         } else {
             "Free"
         };
+        let repeating = state
+            .app_state
+            .active_repeats
+            .lock()
+            .await
+            .contains_key(&name);
         let (status, target, position, error, controller_connected, receiver_connected) =
             match telescope.get_info().await {
                 Ok(info) => {
@@ -597,13 +618,7 @@ async fn get_telescopes_status(
                                 | TelescopeError::TelescopeNotConnected
                         )
                     );
-                    let status = match info.status {
-                        _ if offline => "Offline",
-                        TelescopeStatus::Idle => "Idle",
-                        TelescopeStatus::Slewing => "Slewing",
-                        TelescopeStatus::Tracking => "Tracking",
-                    }
-                    .to_string();
+                    let status = card_status(&info, offline, repeating).to_string();
                     let target = info.current_target.map(|t| match t {
                         TelescopeTarget::Sun => "Sun".to_string(),
                         TelescopeTarget::Satellite { .. } => "GNSS".to_string(),
@@ -649,4 +664,35 @@ async fn get_telescopes_status(
             .render()
             .expect("Template rendering should always succeed"),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::models::mock_telescope::mock_info;
+
+    fn info(status: TelescopeStatus, measuring: bool) -> TelescopeInfo {
+        TelescopeInfo {
+            status,
+            measurement_in_progress: measuring,
+            ..mock_info()
+        }
+    }
+
+    #[test]
+    fn tracking_reads_observing_only_while_integrating() {
+        let t = TelescopeStatus::Tracking;
+        assert_eq!(card_status(&info(t, false), false, false), "Tracking");
+        assert_eq!(card_status(&info(t, true), false, false), "Observing");
+        // Between cycles of a repeat series nothing is integrating, but the
+        // series is still running.
+        assert_eq!(card_status(&info(t, false), false, true), "Observing");
+    }
+
+    #[test]
+    fn other_states_are_unaffected_by_measuring() {
+        assert_eq!(card_status(&info(TelescopeStatus::Idle, true), false, true), "Idle");
+        assert_eq!(card_status(&info(TelescopeStatus::Slewing, true), false, true), "Slewing");
+        assert_eq!(card_status(&info(TelescopeStatus::Tracking, true), true, true), "Offline");
+    }
 }

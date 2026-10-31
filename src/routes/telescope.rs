@@ -350,6 +350,31 @@ mod tests {
         assert!(rendered.contains(r#"data-obs-secs="0""#));
     }
 
+    /// While data is being integrated the header says Observing, but
+    /// data-status stays Tracking: the observe-page JS keys off it.
+    #[tokio::test]
+    async fn tracking_while_measuring_reads_observing() {
+        let measuring = MockTelescope::returning(Ok(info_with(None, true, Duration::from_secs(5))));
+        let rendered = telescope_state("vale", measuring.as_ref(), Language::default(), None).await;
+        assert!(rendered.contains(r#"data-status="Tracking""#), "got: {rendered}");
+        assert!(rendered.contains("Observing"), "got: {rendered}");
+
+        let idle = MockTelescope::returning(Ok(info_with(None, false, Duration::from_secs(0))));
+        let rendered = telescope_state("vale", idle.as_ref(), Language::default(), None).await;
+        assert!(rendered.contains(r#"data-status="Tracking""#), "got: {rendered}");
+        assert!(!rendered.contains("Observing"), "got: {rendered}");
+
+        // Between cycles of a repeat series nothing is integrating, but the
+        // series is still running.
+        let series = crate::app::RepeatSeries {
+            token: tokio_util::sync::CancellationToken::new(),
+            next_start_unix_ms: std::sync::Arc::new(std::sync::atomic::AtomicI64::new(0)),
+        };
+        let rendered =
+            telescope_state("vale", idle.as_ref(), Language::default(), Some(&series)).await;
+        assert!(rendered.contains("Observing"), "got: {rendered}");
+    }
+
     /// `get_info()` itself failed, so there is no receiver state to report.
     /// Idle is the safe assumption: it keeps Begin available rather than
     /// stranding the page on a Stop button for an integration we cannot see.

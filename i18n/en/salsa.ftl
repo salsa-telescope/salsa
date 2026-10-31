@@ -240,6 +240,7 @@ state-telescope = Telescope
 state-idle = Idle
 state-slewing = Slewing
 state-tracking = Tracking
+state-observing = Observing
 state-offline = Offline
 state-offline-error = Cannot connect to telescope controller.
 state-low-elevation-1 = Low elevation: the telescope is pointed only
