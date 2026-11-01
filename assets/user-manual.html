@@ -214,7 +214,10 @@ you may also change the settings if you want.</p>
         be left on. It builds a baseline tracking the bandpass shape and any broad
         real signal (such as the HI line), then flags channels deviating more than
         a few MAD-σ above that baseline and replaces them with the baseline value
-        — narrow spikes go away, broad emission is preserved. Disable only if you
+        — narrow spikes go away, broad emission is preserved. It works on the
+        full 8192-point spectrum before that is averaged down to the number of
+        channels you chose, so it treats a line the same whatever channel count
+        you pick. Disable only if you
         specifically want to inspect raw, unfiltered data.</li>
       </ul>
     </div>

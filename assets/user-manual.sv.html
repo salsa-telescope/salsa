@@ -214,7 +214,10 @@ om du vill.</p>
         lämnas på. Det bygger en baslinje som följer bandpassformen och eventuell bred
         verklig signal (som HI-linjen), flaggar sedan kanaler som avviker mer än
         några MAD-σ över baslinjen och ersätter dem med baslinjens värde
-        — smala spikar försvinner, bred emission bevaras. Stäng bara av om du
+        — smala spikar försvinner, bred emission bevaras. Det arbetar på hela
+        spektrumet med 8192 punkter innan det medelvärdesbildas ner till det antal
+        kanaler du valt, så det behandlar en linje likadant oavsett vilket
+        kanalantal du väljer. Stäng bara av om du
         specifikt vill inspektera rå, ofiltrerad data.</li>
       </ul>
     </div>

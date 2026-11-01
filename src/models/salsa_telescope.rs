@@ -1010,15 +1010,19 @@ impl SpectrumProcessor {
             *val /= nstack as f64;
         }
 
-        // Average spectrum to save data
-        let mut fft_avg: Vec<f64> = (0..self.avg_pts)
-            .map(|i| self.fft_abs.iter().skip(navg * i).take(navg).sum::<f64>() / navg as f64)
-            .collect();
-
+        // Clip RFI at the full FFT resolution, before averaging down. The
+        // filter then always sees the same 8192 bins, where a spectral line
+        // spans hundreds of them at any bandwidth. Run on the averaged output
+        // instead, it erased the whole HI line at 12.5 MHz / 512 channels
+        // (brage, 2026-11-01), where the line covers only ~20 channels.
         if self.rfi_filter {
-            clip_rfi_spikes(&mut fft_avg);
+            clip_rfi_spikes(&mut self.fft_abs);
         }
-        fft_avg
+
+        // Average spectrum to save data
+        (0..self.avg_pts)
+            .map(|i| self.fft_abs.iter().skip(navg * i).take(navg).sum::<f64>() / navg as f64)
+            .collect()
     }
 }
 
@@ -1103,7 +1107,8 @@ fn process_cycles<T: RawSample>(
 /// about once in 10⁹ values, so this only trips on a real problem.
 const CLIPPING_WARN_FRACTION: f64 = 1e-4;
 
-/// Robust narrow-band RFI clipper for an averaged power spectrum.
+/// Robust narrow-band RFI clipper for a power spectrum, run on the full
+/// 8192-bin FFT before it is averaged down (see `SpectrumProcessor`).
 ///
 /// The previous chunk-aligned, percentage-of-median clip had three failure
 /// modes: a 32-channel chunk centred on a spike could shift its own median;
@@ -1112,10 +1117,10 @@ const CLIPPING_WARN_FRACTION: f64 = 1e-4;
 /// bins unfiltered, producing a residual lump after averaging.
 ///
 /// This version, in two passes:
-///   1. Compute a wide running-median baseline. The window is set well
-///      beyond any expected real emission (HI is at most ~20 channels
-///      wide on the default 512-channel / 2.5 MHz output) so the median
-///      is dominated by continuum even inside an emission feature.
+///   1. Compute a wide running-median baseline (129 bins). HI spans
+///      several hundred of the 8192 bins at every selectable bandwidth, so
+///      the filter's ~24-bin neighbourhood always sits inside the line and
+///      never mistakes it for a spike.
 ///   2. For each channel, compute the residual against the baseline,
 ///      then estimate the local noise from an annular neighbourhood
 ///      (channels at distance `STAT_INNER..=STAT_OUTER`). Excluding the
@@ -1123,7 +1128,8 @@ const CLIPPING_WARN_FRACTION: f64 = 1e-4;
 ///      its own noise estimate.
 ///   3. Flag channels with residual > K_SIGMA * MAD-σ. Replace the
 ///      channel and ±REPLACE_PAD neighbours (leakage) with the baseline
-///      value at that bin.
+///      value at that bin. At 8192 bins a strong spike leaks into ~3
+///      bins either side (2.5 MHz, brage, 2026-11-01), hence a pad of 3.
 ///
 /// Two passes catch small spikes whose statistics were masked by larger
 /// ones cleaned in pass one.
@@ -1132,7 +1138,7 @@ fn clip_rfi_spikes(spec: &mut [f64]) {
     const STAT_INNER: usize = 4;
     const STAT_OUTER: usize = 24;
     const K_SIGMA: f64 = 4.5;
-    const REPLACE_PAD: usize = 1;
+    const REPLACE_PAD: usize = 3;
     const PASSES: usize = 2;
 
     let n = spec.len();
@@ -1773,6 +1779,49 @@ mod test {
     fn component_rms_is_per_i_or_q() {
         let samples = [Complex::new(3i16, 4), Complex::new(-3, -4)];
         assert!((component_rms(&samples) - (12.5f64).sqrt()).abs() < 1e-12);
+    }
+
+    // HI at l = 140° on brage, 12.5 MHz with the RFI filter off (2026-11-01),
+    // stored at the full 8192 bins. Averaged to 512 channels the line spans
+    // only channels 257–278, and filtering the averaged output used to erase
+    // it whole. Filtering the 8192 bins first must leave the line alone and
+    // still remove the narrow RFI at 512-channel 239, 441, 444 and 445.
+    #[test]
+    fn clip_rfi_at_full_resolution_keeps_a_narrow_line_and_removes_rfi() {
+        let original: Vec<f64> = include_str!("testdata/brage-hi-12.5mhz-8192ch-rfi-off.txt")
+            .lines()
+            .filter(|l| !l.starts_with('#'))
+            .map(|l| l.parse().unwrap())
+            .collect();
+        assert_eq!(original.len(), 8192);
+        let mut cleaned = original.clone();
+        clip_rfi_spikes(&mut cleaned);
+        let to_512 = |s: &[f64]| -> Vec<f64> {
+            s.as_chunks::<16>()
+                .0
+                .iter()
+                .map(|c| c.iter().sum::<f64>() / 16.0)
+                .collect()
+        };
+        let (raw, out) = (to_512(&original), to_512(&cleaned));
+
+        for ch in 257..=278 {
+            assert!(
+                (out[ch] - raw[ch]).abs() < 0.002 * raw[ch],
+                "HI channel {ch} changed: {} -> {}",
+                raw[ch],
+                out[ch]
+            );
+        }
+        for spike in [239, 441, 444, 445] {
+            let local = median(raw[spike - 12..spike - 4].to_vec());
+            assert!(
+                out[spike] - local < 0.1 * (raw[spike] - local),
+                "RFI at channel {spike} not removed: {} -> {} (local {local})",
+                raw[spike],
+                out[spike]
+            );
+        }
     }
 
     #[test]
