@@ -945,13 +945,19 @@ async fn deregister_series(
     }
 }
 
-/// How long past `max_duration` the monitor waits before stopping the
-/// integration regardless of what the telescope reports. Only reached when
-/// `get_info()` stops being readable or the measurement loop dies early — the
-/// normal path stops as soon as the reported `observation_time` covers the
-/// request. Generous on purpose: it must never pre-empt a healthy run, whose
-/// per-cycle overhead makes it take longer in wall clock than in sample time.
-const DURATION_BACKSTOP: std::time::Duration = std::time::Duration::from_secs(60);
+/// How long the monitor waits for the reported `observation_time` to grow
+/// before deciding the integration is stuck and stopping it. Only reached when
+/// `get_info()` stops being readable or the measurement loop dies — a healthy
+/// run adds a cycle about every second.
+///
+/// This watches progress rather than total wall-clock time on purpose. The old
+/// backstop fired at `max_duration + 60 s`, which cut healthy runs short
+/// whenever per-cycle overhead exceeded 10 %: 8192-channel frequency-switched
+/// runs on torre and vale (2026-10-30) collected ~565 s of a 600 s request and
+/// were stopped as if broken. Long enough to cover the startup wait for a
+/// receiver still held by the previous run (`DEVICE_HANDOVER_TIMEOUT`, 30 s)
+/// plus opening the USRP and the first cycle.
+const PROGRESS_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(60);
 
 /// Watch a running integration and stop+save it once it is done, or early if
 /// the antenna leaves Tracking (a cable-unwrap slew, or the target sinking out
@@ -970,7 +976,9 @@ const DURATION_BACKSTOP: std::time::Duration = std::time::Duration::from_secs(60
 /// result and stops the receiver.
 ///
 /// Because that check reads `get_info()`, a telescope whose info goes unreadable
-/// would otherwise never auto-stop, so a wall-clock backstop bounds the failure.
+/// would otherwise never auto-stop. So the monitor also stops a run whose
+/// integrated time has not grown for `PROGRESS_TIMEOUT`, however long it has
+/// been running: slow is fine, stuck is not.
 #[allow(clippy::too_many_arguments)]
 async fn monitor_integration(
     telescope: Arc<dyn Telescope>,
@@ -981,16 +989,20 @@ async fn monitor_integration(
     tle_cache: TleCacheHandle,
     telescope_id: String,
 ) {
-    let backstop = tokio::time::Instant::now() + max_duration + DURATION_BACKSTOP;
+    let mut integrated = std::time::Duration::ZERO;
+    let mut stall_deadline = tokio::time::Instant::now() + PROGRESS_TIMEOUT;
     let mut ticker = tokio::time::interval(std::time::Duration::from_secs(1));
     ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
     loop {
         tokio::select! {
             _ = token.cancelled() => break,
-            _ = tokio::time::sleep_until(backstop) => {
+            _ = tokio::time::sleep_until(stall_deadline) => {
                 warn!(
-                    "Stopping integration on {telescope_id}: backstop fired, the telescope \
-                     never reported reaching the requested integration time"
+                    "Stopping integration on {telescope_id}: no progress for {} s, stuck at \
+                     {} s of the requested {} s",
+                    PROGRESS_TIMEOUT.as_secs(),
+                    integrated.as_secs(),
+                    max_duration.as_secs()
                 );
                 stop_and_save_observation(telescope.as_ref(), db.clone(), &user, &tle_cache).await;
                 break;
@@ -1006,11 +1018,15 @@ async fn monitor_integration(
                         break;
                     }
                     Ok(info) => {
-                        let reached = info
+                        let now_integrated = info
                             .latest_observation
                             .as_ref()
-                            .is_some_and(|obs| obs.observation_time >= max_duration);
-                        if reached {
+                            .map_or(std::time::Duration::ZERO, |obs| obs.observation_time);
+                        if now_integrated > integrated {
+                            integrated = now_integrated;
+                            stall_deadline = tokio::time::Instant::now() + PROGRESS_TIMEOUT;
+                        }
+                        if integrated >= max_duration {
                             stop_and_save_observation(telescope.as_ref(), db.clone(), &user, &tle_cache).await;
                             break;
                         }
@@ -1845,6 +1861,12 @@ mod tests {
         /// stand-in for `measure()`'s cycle loop, which is what actually
         /// decides a run has reached its requested length.
         Tracking,
+        /// Holds track but gains only one second per two polls: per-cycle
+        /// overhead doubling the wall-clock time, far worse than anything seen.
+        SlowTracking,
+        /// Holds track and integrates normally until `after` seconds, then
+        /// stops gaining, as when the measurement loop dies mid-run.
+        StallsAfter(u64),
         /// `get_info` always fails, as when the controller connection drops.
         Nothing,
     }
@@ -1860,6 +1882,11 @@ mod tests {
             // First poll reports nothing integrated yet, then one second more
             // each time — so a request for N seconds cannot be satisfied
             // before poll N + 1.
+            let integrated = match reports {
+                Reports::SlowTracking => polls / 2,
+                Reports::StallsAfter(after) => polls.min(after),
+                _ => polls,
+            };
             Ok(TelescopeInfo {
                 status: match reports {
                     Reports::Slewing => TelescopeStatus::Slewing,
@@ -1868,7 +1895,7 @@ mod tests {
                 commanded_horizontal: Some(direction(0.0, 1.0)),
                 current_horizontal: Some(direction(3.0, 1.0)),
                 measurement_in_progress: true,
-                latest_observation: Some(observed_for(std::time::Duration::from_secs(polls))),
+                latest_observation: Some(observed_for(std::time::Duration::from_secs(integrated))),
                 ..mock_info()
             })
         })
@@ -2263,17 +2290,60 @@ mod tests {
 
     // The duration check reads get_info(), so a telescope whose info goes
     // unreadable would never reach its target and would integrate until the
-    // booking ended. The backstop bounds that.
+    // booking ended. The progress timeout bounds that.
     #[tokio::test(start_paused = true)]
-    async fn monitor_backstop_stops_integration_when_info_is_unreadable() {
+    async fn monitor_stops_integration_when_info_is_unreadable() {
         let telescope = reporting(Reports::Nothing);
         assert!(
             run_monitor(telescope.clone(), std::time::Duration::from_secs(5)).await,
-            "backstop should stop an integration whose telescope never reports progress"
+            "monitor should stop an integration whose telescope never reports progress"
         );
         assert!(
             telescope.stopped(),
-            "backstop should have called stop_integration"
+            "monitor should have called stop_integration"
+        );
+    }
+
+    // A run that is slow but still gaining time must be left to finish. The old
+    // fixed backstop at the requested time + 60 s cut 8192-channel runs on
+    // torre and vale off at ~565 s of 600 (2026-10-30).
+    #[tokio::test(start_paused = true)]
+    async fn monitor_lets_a_slow_but_healthy_run_finish() {
+        let telescope = reporting(Reports::SlowTracking);
+        let target_secs = 600;
+        assert!(
+            run_monitor(
+                telescope.clone(),
+                std::time::Duration::from_secs(target_secs)
+            )
+            .await,
+            "monitor should stop once the requested duration is covered, not loop"
+        );
+        let polls_at_stop = telescope.polls_at_stop();
+        assert!(
+            polls_at_stop >= 2 * target_secs,
+            "monitor stopped after {polls_at_stop} polls, before {target_secs} s had been \
+             integrated at half speed"
+        );
+    }
+
+    // A run that stops gaining time partway is stuck, and must be stopped
+    // rather than left running until the booking ends.
+    #[tokio::test(start_paused = true)]
+    async fn monitor_stops_integration_that_stalls_midway() {
+        let telescope = reporting(Reports::StallsAfter(100));
+        assert!(
+            run_monitor(telescope.clone(), std::time::Duration::from_secs(600)).await,
+            "monitor should stop a stalled integration and return, not loop"
+        );
+        assert!(
+            telescope.stopped(),
+            "monitor should have called stop_integration"
+        );
+        let polls_at_stop = telescope.polls_at_stop();
+        assert!(
+            polls_at_stop > 100 + PROGRESS_TIMEOUT.as_secs() - 5,
+            "monitor gave up after {polls_at_stop} polls, before the progress timeout ran out"
         );
     }
 }
