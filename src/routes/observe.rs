@@ -1490,7 +1490,10 @@ async fn get_observe_maintenance(
 }
 
 pub const FREQ_MIN_USER_MHZ: u32 = 1350;
-pub const FREQ_MAX_USER_MHZ: u32 = 1620;
+// Above the LNA's 1620 MHz recommended range the gain falls steeply (~19 dB
+// at 1612, ~5 dB at 1700), but strong sources such as the Sun are still
+// visible, and this takes in the OH main lines and all of the Iridium band.
+pub const FREQ_MAX_USER_MHZ: u32 = 1700;
 pub const FREQ_MIN_ADMIN_MHZ: u32 = 800;
 pub const FREQ_MAX_ADMIN_MHZ: u32 = 2300;
 
