@@ -552,6 +552,30 @@ async fn post_start(
     let center_freq_hz = form.center_freq_mhz * 1e6;
     let bandwidth_hz = form.bandwidth_mhz * 1e6;
 
+    // Both receivers stream at the full bandwidth over the shared link. Their
+    // own receivers have to be idle for the streams to start at all, so only
+    // the other telescopes count.
+    let in_use_mbps = crate::routes::observe::link_load_in_use_mbps(
+        &state.telescopes,
+        &[form.telescope_a.as_str(), form.telescope_b.as_str()],
+    )
+    .await;
+    if !crate::routes::observe::fits_link_budget(
+        2.0 * crate::models::telescope_types::link_load_mbps(bandwidth_hz),
+        in_use_mbps,
+    ) {
+        return (
+            StatusCode::BAD_REQUEST,
+            format!(
+                "All receivers share one network link, and the observations running on other \
+                 telescopes leave no room for two {} MHz streams right now. Please try again \
+                 later.",
+                form.bandwidth_mhz
+            ),
+        )
+            .into_response();
+    }
+
     // Stop any running correlator first
     let previous = state.active_correlator.lock().await.take();
     if let Some(old) = previous {

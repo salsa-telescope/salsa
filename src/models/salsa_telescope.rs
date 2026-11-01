@@ -3,6 +3,7 @@ use crate::models::telescope::Telescope;
 use crate::models::telescope_types::{
     CalibrationResult, IQ_BLOCK_SIZE, IqBlock, Measurement, ObservationMode, ObservedSpectra,
     ReceiverConfiguration, ReceiverError, TelescopeError, TelescopeInfo, TelescopeTarget,
+    sample_bits,
 };
 use crate::telescope_tracker::TelescopeTracker;
 use crate::tle_cache::TleCacheHandle;
@@ -666,7 +667,13 @@ impl Telescope for SalsaTelescope {
                 measure_iq(address, gpsdo_enabled, token, config, tx, device_lock)
             })
         };
-        inner.receiver_configuration.integrate = true;
+        // Keep the whole configuration, not just the flag, so `get_info`
+        // reports the bandwidth this stream is using. The network-link budget
+        // (see `link_load_in_use_mbps`) counts it from there.
+        inner.receiver_configuration = ReceiverConfiguration {
+            integrate: true,
+            ..config
+        };
         inner.active_integration = Some(ActiveIntegration {
             cancellation_token,
             measurement_task: Some(measurement_task),
@@ -741,12 +748,36 @@ fn rot2prog_bytes_to_angle_documented(bytes: &[u8]) -> f64 {
     (rot2prog_bytes_to_int_documented(bytes) as f64 / 100.0 - 360.0).to_radians()
 }
 
+/// One raw I or Q component as the receiver delivers it: `i16` for 16-bit
+/// samples, `i8` for 8-bit (see `sample_bits`).
+trait RawSample: Copy + Default + Send + 'static + Into<f64> {
+    /// UHD's name for this format, used both on the wire and on the host so
+    /// the values arrive exactly as sent.
+    const FORMAT: &'static str;
+    /// True at the format's limits, where the value may have been clipped.
+    fn at_limit(self) -> bool;
+}
+
+impl RawSample for i16 {
+    const FORMAT: &'static str = "sc16";
+    fn at_limit(self) -> bool {
+        self == i16::MAX || self == i16::MIN
+    }
+}
+
+impl RawSample for i8 {
+    const FORMAT: &'static str = "sc8";
+    fn at_limit(self) -> bool {
+        self == i8::MAX || self == i8::MIN
+    }
+}
+
 /// One measurement cycle's raw samples, handed from the receiving thread to
 /// the processing thread: the signal block and, when frequency-switched, the
 /// reference block.
-struct CycleSamples {
-    sig: Vec<Complex<i16>>,
-    reference: Option<Vec<Complex<i16>>>,
+struct CycleSamples<T> {
+    sig: Vec<Complex<T>>,
+    reference: Option<Vec<Complex<T>>>,
 }
 
 /// How many received cycles may wait for processing. Processing normally keeps
@@ -793,12 +824,18 @@ const DBSRX2_BANDWIDTH_HZ: f64 = 80e6;
 /// Tune to `cfreq` and fill `buffer` with that many fresh samples. Runs on the
 /// receiving thread, which owns the device; the CPU work happens elsewhere
 /// (see [`SpectrumProcessor`]) so the receiver is never idle waiting for it.
-fn receive_block(
+/// `stream_args` carries extra UHD stream arguments, such as the 8-bit
+/// scaling `peak=…`; empty for 16-bit.
+fn receive_block<T: RawSample>(
     usrp: &mut UhdDevice,
     cfreq: f64,
     srate: f64,
-    buffer: &mut [Complex<i16>],
-) -> Result<(), TelescopeError> {
+    stream_args: &str,
+    buffer: &mut [Complex<T>],
+) -> Result<(), TelescopeError>
+where
+    Complex<T>: uhd::Item,
+{
     // The N210 only has one input channel 0. Tune with an LO offset: the
     // DBSRX2 is direct-conversion, so tuning the LO exactly to cfreq puts
     // its leakage/DC artifact in the centre of the band (visible as a
@@ -814,9 +851,13 @@ fn receive_block(
     })
     .map_err(|e| TelescopeError::ReceiverFailed(format!("set_rx_frequency: {e}")))?;
 
-    let mut receiver = usrp
-        .with(|u| u.get_rx_stream(&uhd::StreamArgs::<Complex<i16>>::new("sc16")))
-        .map_err(|e| TelescopeError::ReceiverFailed(format!("get_rx_stream: {e}")))?;
+    let args = uhd::StreamArgs::<Complex<T>>::builder()
+        .wire_format(T::FORMAT.to_string())
+        .args(stream_args.to_string())
+        .build();
+    let mut receiver = usrp.with(|u| u.get_rx_stream(&args)).map_err(|e| {
+        TelescopeError::ReceiverFailed(format!("get_rx_stream ({}): {e}", T::FORMAT))
+    })?;
 
     receiver
         .send_command(&StreamCommand {
@@ -828,6 +869,99 @@ fn receive_block(
         .receive_simple(buffer)
         .map_err(|e| TelescopeError::ReceiverFailed(format!("receive_simple: {e}")))?;
     Ok(())
+}
+
+/// RMS of one I or Q component, in the sample's own counts.
+fn component_rms<T: RawSample>(samples: &[Complex<T>]) -> f64 {
+    if samples.is_empty() {
+        return 0.0;
+    }
+    let power: f64 = samples
+        .iter()
+        .map(|x| {
+            let (re, im): (f64, f64) = (x.re.into(), x.im.into());
+            re * re + im * im
+        })
+        .sum();
+    (power / (2 * samples.len()) as f64).sqrt()
+}
+
+/// How many I and Q values in `samples` sit at the format's limits.
+fn count_at_limit<T: RawSample>(samples: &[Complex<T>]) -> usize {
+    samples
+        .iter()
+        .map(|x| x.re.at_limit() as usize + x.im.at_limit() as usize)
+        .sum()
+}
+
+/// Target level for 8-bit samples, in counts RMS per component, out of ±127.
+/// Coarse enough levels add quantization noise (1/12 count² against 400 for
+/// the signal: 37 dB down), fine enough leave 6× headroom before clipping, so
+/// a reference half a few dB louder than the signal half still fits.
+const EIGHT_BIT_TARGET_RMS: f64 = 20.0;
+
+/// Length of each level-measuring snapshot taken before an 8-bit run.
+const AUTO_LEVEL_SECS: f64 = 0.1;
+
+/// UHD's 8-bit scaling, `peak`: the fraction of 16-bit full scale that maps to
+/// 8-bit full scale, so 8-bit counts are 16-bit counts / (peak · 256). Chosen
+/// to put a signal of `rms16` counts (16-bit) at [`EIGHT_BIT_TARGET_RMS`].
+/// UHD refuses anything below 1/256.
+fn eight_bit_peak(rms16: f64) -> f64 {
+    (rms16 / (256.0 * EIGHT_BIT_TARGET_RMS)).clamp(1.0 / 256.0, 1.0)
+}
+
+/// How an 8-bit run is received and scaled back.
+struct EightBitLevel {
+    /// UHD stream arguments setting the scaling.
+    stream_args: String,
+    /// 8-bit counts corresponding to ADC full scale, so spectra come out on the
+    /// same absolute scale as 16-bit ones.
+    full_scale: f64,
+}
+
+/// Set the 8-bit scaling from the signal itself. The level varies far too much
+/// between targets for one fixed scaling: a strong GNSS satellite at 25 MHz
+/// sits ~16× higher than blank sky. Takes a short 16-bit snapshot at the
+/// signal frequency to measure the level, picks the scaling, then a short
+/// 8-bit snapshot to measure what it actually gives. The ratio of the two is
+/// the scale back to 16-bit units, measured rather than taken from UHD's
+/// documentation. The reference half of a frequency-switched run uses the
+/// same scaling, so any error in it cancels in the sig/ref ratio.
+fn auto_level(
+    usrp: &mut UhdDevice,
+    address: &str,
+    sfreq: f64,
+    srate: f64,
+) -> Result<EightBitLevel, TelescopeError> {
+    let len = (AUTO_LEVEL_SECS * srate) as usize;
+    let mut wide = vec![Complex::<i16>::default(); len];
+    receive_block(usrp, sfreq, srate, "", &mut wide)?;
+    let rms16 = component_rms(&wide);
+
+    let peak = eight_bit_peak(rms16);
+    let stream_args = format!("peak={peak}");
+    let mut narrow = vec![Complex::<i8>::default(); len];
+    receive_block(usrp, sfreq, srate, &stream_args, &mut narrow)?;
+    let rms8 = component_rms(&narrow);
+
+    // UHD's documented relation, used only if the measurement cannot be:
+    // no signal at all in the 8-bit snapshot.
+    let expected_scale = peak * 256.0;
+    let scale = if rms8 > 0.0 && rms16 > 0.0 {
+        rms16 / rms8
+    } else {
+        warn!("8-bit level at {address}: no signal to measure, assuming UHD's scaling");
+        expected_scale
+    };
+    info!(
+        "8-bit level at {address}: {rms16:.0} counts RMS in 16-bit, peak {peak:.4}, \
+         {rms8:.1} counts RMS in 8-bit; scale {scale:.2} (UHD's {expected_scale:.2})"
+    );
+    Ok(EightBitLevel {
+        stream_args,
+        full_scale: 32768.0 / scale,
+    })
 }
 
 /// Turns a block of raw samples into a power spectrum of `avg_pts` channels,
@@ -855,22 +989,24 @@ impl SpectrumProcessor {
         }
     }
 
-    fn spectrum(&mut self, samples: &[Complex<i16>]) -> Vec<f64> {
+    /// `full_scale` is the count value corresponding to ADC full scale:
+    /// 32768 for 16-bit samples, and the measured equivalent for 8-bit ones
+    /// (see [`auto_level`]).
+    fn spectrum<T: RawSample>(&mut self, samples: &[Complex<T>], full_scale: f64) -> Vec<f64> {
         let fft_pts = self.fft_pts;
         let nstack: usize = samples.len() / fft_pts;
         let navg: usize = fft_pts / self.avg_pts;
 
         // Accumulate power spectrum (|FFT|^2) across stacked blocks
         self.fft_abs.fill(0.0);
-        // Loop through the samples, taking fft_pts each time. Samples come from
-        // the USRP as i16 (sc16), so we rescale to ±1.0 (fraction of ADC full
-        // scale) before the FFT — otherwise |FFT|² lands in the 10⁹+ range purely
-        // from the digitiser's count scale, which is not a physical unit.
-        const ADC_FULL_SCALE: f64 = 32768.0;
+        // Loop through the samples, taking fft_pts each time. We rescale to
+        // ±1.0 (fraction of ADC full scale) before the FFT — otherwise |FFT|²
+        // lands in the 10⁹+ range purely from the digitiser's count scale,
+        // which is not a physical unit.
         for block in samples.chunks_exact(fft_pts).take(nstack) {
             for (out, x) in zip(self.fft_buffer.iter_mut(), block) {
-                *out =
-                    Complex::<f64>::new(x.re as f64 / ADC_FULL_SCALE, x.im as f64 / ADC_FULL_SCALE);
+                let (re, im): (f64, f64) = (x.re.into(), x.im.into());
+                *out = Complex::<f64>::new(re / full_scale, im / full_scale);
             }
             // Do the FFT
             self.fft.process(&mut self.fft_buffer);
@@ -904,22 +1040,46 @@ impl SpectrumProcessor {
 /// hangs up and the queue is drained. Hands sample buffers back through
 /// `spare` so the receiver can reuse them instead of allocating ~100 MB a
 /// second at 25 MHz.
-fn process_cycles(
-    cycles: std::sync::mpsc::Receiver<CycleSamples>,
-    spare: std::sync::mpsc::Sender<Vec<Complex<i16>>>,
+///
+/// Also counts I and Q values at the format's limits, which in 8-bit means the
+/// level was set too high for this part of the run: a reference half much
+/// louder than the signal half, or strong RFI turning up partway.
+#[allow(clippy::too_many_arguments)]
+fn process_cycles<T: RawSample>(
+    cycles: std::sync::mpsc::Receiver<CycleSamples<T>>,
+    spare: std::sync::mpsc::Sender<Vec<Complex<T>>>,
     measurements: Arc<Mutex<Vec<Measurement>>>,
     mut processor: SpectrumProcessor,
+    full_scale: f64,
     tsys: f64,
     tint: f64,
+    address: &str,
 ) {
     let mut n = 0.0;
+    let mut at_limit: usize = 0;
+    let mut values: usize = 0;
+    let mut warned = false;
     for cycle in cycles {
-        let sig = processor.spectrum(&cycle.sig);
+        let cycle_values = 2 * (cycle.sig.len() + cycle.reference.as_ref().map_or(0, Vec::len));
+        let cycle_at_limit =
+            count_at_limit(&cycle.sig) + cycle.reference.as_deref().map_or(0, count_at_limit);
+        at_limit += cycle_at_limit;
+        values += cycle_values;
+        if !warned && cycle_at_limit as f64 > CLIPPING_WARN_FRACTION * cycle_values as f64 {
+            warn!(
+                "Receiver at {address} is clipping: {cycle_at_limit} of {cycle_values} {}-bit \
+                 values in one cycle at the limit",
+                8 * size_of::<T>()
+            );
+            warned = true;
+        }
+
+        let sig = processor.spectrum(&cycle.sig, full_scale);
         // The receiver may already have gone; then the buffer is just freed.
         let _ = spare.send(cycle.sig);
         let spec: Vec<f64> = match cycle.reference {
             Some(reference) => {
-                let reference_spec = processor.spectrum(&reference);
+                let reference_spec = processor.spectrum(&reference, full_scale);
                 let _ = spare.send(reference);
                 // Form sig-ref difference and scale with Tsys
                 zip(&sig, &reference_spec)
@@ -943,7 +1103,18 @@ fn process_cycles(
         // overstate the integration.
         measurement.duration = Duration::from_secs_f64(n * tint);
     }
+    if warned {
+        warn!(
+            "Receiver at {address} clipped {at_limit} of {values} values over the run ({:.3} %)",
+            100.0 * at_limit as f64 / values.max(1) as f64
+        );
+    }
 }
+
+/// Fraction of values at the format's limit in one cycle above which the run
+/// is reported as clipping. Noise at the 8-bit target level reaches the limit
+/// about once in 10⁹ values, so this only trips on a real problem.
+const CLIPPING_WARN_FRACTION: f64 = 1e-4;
 
 /// Robust narrow-band RFI clipper for an averaged power spectrum.
 ///
@@ -1135,19 +1306,109 @@ fn measure(
         .max_duration
         .map(|target| ((target.as_secs_f64() / tint).ceil() as u64).max(1));
 
+    let settings = PipelineSettings {
+        sfreq,
+        rfreq,
+        srate,
+        tint,
+        tsys,
+        fft_pts,
+        avg_pts,
+        rfi_filter: config.rfi_filter,
+        switched,
+        max_cycles,
+    };
+    if sample_bits(srate) == 8 {
+        let level = auto_level(&mut usrp, &address, sfreq, srate)?;
+        run_pipeline::<i8>(
+            &mut usrp,
+            &address,
+            measurements,
+            &cancellation_token,
+            settings,
+            &level.stream_args,
+            level.full_scale,
+        )
+    } else {
+        run_pipeline::<i16>(
+            &mut usrp,
+            &address,
+            measurements,
+            &cancellation_token,
+            settings,
+            "",
+            32768.0,
+        )
+    }
+}
+
+/// What [`run_pipeline`] needs to know about the run.
+#[derive(Clone, Copy)]
+struct PipelineSettings {
+    sfreq: f64,
+    rfreq: f64,
+    srate: f64,
+    tint: f64,
+    tsys: f64,
+    fft_pts: usize,
+    avg_pts: usize,
+    rfi_filter: bool,
+    switched: bool,
+    max_cycles: Option<u64>,
+}
+
+/// Receive cycles of `T` samples until the run is done or stopped, while a
+/// second thread turns them into the averaged spectrum. `stream_args` and
+/// `full_scale` set and undo the 8-bit scaling; `""` and 32768 for 16-bit.
+fn run_pipeline<T: RawSample>(
+    usrp: &mut UhdDevice,
+    address: &str,
+    measurements: Arc<Mutex<Vec<Measurement>>>,
+    cancellation_token: &CancellationToken,
+    settings: PipelineSettings,
+    stream_args: &str,
+    full_scale: f64,
+) -> Result<(), TelescopeError>
+where
+    Complex<T>: uhd::Item,
+{
+    let PipelineSettings {
+        sfreq,
+        rfreq,
+        srate,
+        tint,
+        tsys,
+        fft_pts,
+        avg_pts,
+        rfi_filter,
+        switched,
+        max_cycles,
+    } = settings;
+
     // Receiving and processing run side by side: this thread only tunes and
     // records, and a second thread does the FFT, RFI filter and averaging.
     // Done in sequence, the receiver sat idle during processing, which grows
     // with the channel count — at 8192 channels with the RFI filter only 86 %
     // of wall-clock time became data (torre and vale, 2026-10-30).
-    let (cycle_tx, cycle_rx) = std::sync::mpsc::sync_channel::<CycleSamples>(PIPELINE_DEPTH);
-    let (spare_tx, spare_rx) = std::sync::mpsc::channel::<Vec<Complex<i16>>>();
+    let (cycle_tx, cycle_rx) = std::sync::mpsc::sync_channel::<CycleSamples<T>>(PIPELINE_DEPTH);
+    let (spare_tx, spare_rx) = std::sync::mpsc::channel::<Vec<Complex<T>>>();
     let processor_thread = {
-        let measurements = measurements.clone();
-        let processor = SpectrumProcessor::new(fft_pts, avg_pts, config.rfi_filter);
+        let processor = SpectrumProcessor::new(fft_pts, avg_pts, rfi_filter);
+        let address = address.to_string();
         std::thread::Builder::new()
             .name("salsa-spectrum".to_string())
-            .spawn(move || process_cycles(cycle_rx, spare_tx, measurements, processor, tsys, tint))
+            .spawn(move || {
+                process_cycles(
+                    cycle_rx,
+                    spare_tx,
+                    measurements,
+                    processor,
+                    full_scale,
+                    tsys,
+                    tint,
+                    &address,
+                )
+            })
             .map_err(|e| {
                 TelescopeError::ReceiverFailed(format!("start spectrum processing thread: {e}"))
             })?
@@ -1168,7 +1429,7 @@ fn measure(
     let received: Result<(), TelescopeError> = (|| {
         while !cancellation_token.is_cancelled() && !max_cycles.is_some_and(|max| queued >= max) {
             let mut sig = next_buffer();
-            receive_block(&mut usrp, sfreq, srate, &mut sig)?;
+            receive_block(usrp, sfreq, srate, stream_args, &mut sig)?;
             let reference = if switched {
                 // Bail between sig and ref if a stop has been requested, so the
                 // user does not wait out the rest of the cycle. The half cycle
@@ -1177,7 +1438,7 @@ fn measure(
                     break;
                 }
                 let mut reference = next_buffer();
-                receive_block(&mut usrp, rfreq, srate, &mut reference)?;
+                receive_block(usrp, rfreq, srate, stream_args, &mut reference)?;
                 Some(reference)
             } else {
                 None
@@ -1377,7 +1638,7 @@ mod test {
                 Complex::new((8000.0 * phase.cos()) as i16, (8000.0 * phase.sin()) as i16)
             })
             .collect();
-        let spectrum = SpectrumProcessor::new(fft_pts, avg_pts, false).spectrum(&samples);
+        let spectrum = SpectrumProcessor::new(fft_pts, avg_pts, false).spectrum(&samples, 32768.0);
         let peak = spectrum
             .iter()
             .enumerate()
@@ -1393,8 +1654,8 @@ mod test {
         let blocks = [noise_samples(256, 1), noise_samples(256, 2)];
         let mut reference = SpectrumProcessor::new(fft_pts, avg_pts, false);
         let expected: Vec<f64> = zip(
-            reference.spectrum(&blocks[0]),
-            reference.spectrum(&blocks[1]),
+            reference.spectrum(&blocks[0], 32768.0),
+            reference.spectrum(&blocks[1], 32768.0),
         )
         .map(|(a, b)| (a + b) / 2.0)
         .collect();
@@ -1417,8 +1678,10 @@ mod test {
             spare_tx,
             measurements.clone(),
             processor,
+            32768.0,
             300.0,
             tint,
+            "test",
         );
 
         let measurements = measurements.blocking_lock();
@@ -1439,7 +1702,10 @@ mod test {
         let (fft_pts, avg_pts, tsys) = (64, 8, 300.0);
         let (sig, reference) = (noise_samples(256, 3), noise_samples(256, 4));
         let mut direct = SpectrumProcessor::new(fft_pts, avg_pts, false);
-        let (s, r) = (direct.spectrum(&sig), direct.spectrum(&reference));
+        let (s, r) = (
+            direct.spectrum(&sig, 32768.0),
+            direct.spectrum(&reference, 32768.0),
+        );
         let expected: Vec<f64> = zip(&s, &r).map(|(s, r)| tsys * (s - r) / r).collect();
 
         let measurements = empty_measurement(avg_pts);
@@ -1458,14 +1724,68 @@ mod test {
             spare_tx,
             measurements.clone(),
             processor,
+            32768.0,
             tsys,
             1.0,
+            "test",
         );
 
         let measurements = measurements.blocking_lock();
         assert_eq!(measurements[0].amps, expected);
         assert_eq!(measurements[0].duration, Duration::from_secs(1));
         assert_eq!(spare_rx.try_iter().count(), 2);
+    }
+
+    // An 8-bit block scaled by k must give the same spectrum as the 16-bit
+    // block it stands for, so raw-mode power stays on one absolute scale
+    // whichever bit depth the bandwidth uses.
+    #[test]
+    fn an_eight_bit_block_gives_the_same_spectrum_as_sixteen_bits() {
+        let (fft_pts, avg_pts, scale) = (64, 8, 16.0);
+        let narrow: Vec<Complex<i8>> = noise_samples(256, 5)
+            .iter()
+            .map(|x| Complex::new((x.re / 64) as i8, (x.im / 64) as i8))
+            .collect();
+        let wide: Vec<Complex<i16>> = narrow
+            .iter()
+            .map(|x| Complex::new(x.re as i16 * scale as i16, x.im as i16 * scale as i16))
+            .collect();
+        let mut processor = SpectrumProcessor::new(fft_pts, avg_pts, false);
+        let from_wide = processor.spectrum(&wide, 32768.0);
+        let from_narrow = processor.spectrum(&narrow, 32768.0 / scale);
+        for (a, b) in zip(&from_wide, &from_narrow) {
+            assert!((a - b).abs() <= 1e-12 * a.abs(), "{a} != {b}");
+        }
+    }
+
+    // The 8-bit scaling puts the signal at the target level. Torre's GNSS
+    // reference spectra of 2026-11-01 sit at ~1060 counts RMS in 16-bit.
+    #[test]
+    fn the_eight_bit_scaling_puts_the_signal_at_the_target_level() {
+        let peak = eight_bit_peak(1060.0);
+        assert!((peak - 0.207).abs() < 0.001, "peak {peak}");
+        assert!((1060.0 / (peak * 256.0) - EIGHT_BIT_TARGET_RMS).abs() < 1e-9);
+        // UHD's limits: no finer than 1/256, no coarser than full scale.
+        assert_eq!(eight_bit_peak(0.0), 1.0 / 256.0);
+        assert_eq!(eight_bit_peak(32768.0), 1.0);
+    }
+
+    #[test]
+    fn values_at_the_format_limit_are_counted_as_clipped() {
+        let samples = [
+            Complex::new(127i8, 0),
+            Complex::new(-128, 3),
+            Complex::new(126, -127),
+            Complex::new(-128, 127),
+        ];
+        assert_eq!(count_at_limit(&samples), 4);
+        assert_eq!(count_at_limit(&[Complex::new(i16::MAX, 5)]), 1);
+    }
+
+    #[test]
+    fn component_rms_is_per_i_or_q() {
+        let samples = [Complex::new(3i16, 4), Complex::new(-3, -4)];
+        assert!((component_rms(&samples) - (12.5f64).sqrt()).abs() < 1e-12);
     }
 
     #[test]

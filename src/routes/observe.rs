@@ -13,7 +13,7 @@ use crate::models::observation::Observation;
 use crate::models::telescope::{Telescope, sort_by_preference};
 use crate::models::telescope_types::{
     ObservationMode, ObservedSpectra, ReceiverConfiguration, ReceiverError, TelescopeError,
-    TelescopeInfo, TelescopeStatus, TelescopeTarget,
+    TelescopeInfo, TelescopeStatus, TelescopeTarget, link_load_mbps,
 };
 use crate::models::user::User;
 use crate::routes::index::render_main;
@@ -1198,6 +1198,21 @@ async fn start_observe(
     if !VALID_SPECTRAL_CHANNELS.contains(&form.spectral_channels) {
         return Err(StatusCode::BAD_REQUEST);
     }
+    // This telescope's own previous run is stopped just below, so it does not
+    // count against the new one.
+    let in_use_mbps = link_load_in_use_mbps(&state.telescopes, &[telescope_id.as_str()]).await;
+    if !fits_link_budget(link_load_mbps(form.bandwidth_mhz * 1e6), in_use_mbps) {
+        return Ok(error_response(
+            match widest_bandwidth_that_fits_mhz(in_use_mbps) {
+                Some(available) => fl!(
+                    lang.loader(),
+                    "observe-error-link-budget",
+                    available = available
+                ),
+                None => fl!(lang.loader(), "observe-error-link-budget-full"),
+            },
+        ));
+    }
     if form.integration_mode.as_deref() == Some("fixed")
         && let Some(secs) = form.integration_time_secs
         && !(secs.is_finite() && secs > 0.0 && secs <= MAX_INTEGRATION_TIME_SECS)
@@ -1524,6 +1539,51 @@ const GAIN_MAX_DB: f64 = 88.0;
 // sizes the IQ sample buffer, an unbounded value can OOM-abort the process.
 const VALID_BANDWIDTH_MHZ: &[f64] = &[1.0, 2.5, 5.0, 12.5, 25.0];
 const VALID_SPECTRAL_CHANNELS: &[usize] = &[64, 128, 256, 512, 1024, 2048, 4096, 8192];
+
+/// Sample data all receivers together may stream, in Mbit/s. Every USRP, and
+/// the MD01 controllers too, sit on one switch with a single 1 Gbps link to
+/// the server. 800 Mbit/s is ~850 with packet overhead, leaving ~15 % of the
+/// link for controller traffic, which shares the switch's queue towards the
+/// server and would otherwise be squeezed out. With 8-bit samples at 12.5 and
+/// 25 MHz (see `link_load_mbps`) everything fits except two telescopes at
+/// 25 MHz alongside a third.
+pub(crate) const LINK_BUDGET_MBPS: f64 = 800.0;
+
+/// Link load from the receivers of all telescopes except `except`, in Mbit/s,
+/// single-dish and interferometry alike. A telescope whose info cannot be
+/// read is counted as idle, since there is no way to tell.
+pub(crate) async fn link_load_in_use_mbps(
+    telescopes: &crate::models::telescope::TelescopeCollectionHandle,
+    except: &[&str],
+) -> f64 {
+    let mut in_use = 0.0;
+    for telescope in telescopes.get_all().await {
+        if let Ok(info) = telescope.get_info().await
+            && info.receiver_configuration.integrate
+            && !except.contains(&info.id.as_str())
+        {
+            in_use += link_load_mbps(info.receiver_configuration.bandwidth_hz);
+        }
+    }
+    in_use
+}
+
+/// True if adding `load_mbps` to `in_use_mbps` stays within the link budget.
+/// The small tolerance keeps exact fits such as 400 + 400 from being refused
+/// by float rounding.
+pub(crate) fn fits_link_budget(load_mbps: f64, in_use_mbps: f64) -> bool {
+    load_mbps + in_use_mbps <= LINK_BUDGET_MBPS + 1e-6
+}
+
+/// Widest selectable bandwidth that still fits beside `in_use_mbps`, or `None`
+/// when not even the narrowest does.
+fn widest_bandwidth_that_fits_mhz(in_use_mbps: f64) -> Option<f64> {
+    VALID_BANDWIDTH_MHZ
+        .iter()
+        .copied()
+        .filter(|mhz| fits_link_budget(link_load_mbps(mhz * 1e6), in_use_mbps))
+        .reduce(f64::max)
+}
 /// Ceiling on a single integration, one booking slot long. Validates the
 /// fixed-duration form, fills that field's `max` (via `ObserveTemplate`, so the
 /// browser and the backend cannot disagree), and open-ended runs take it as
@@ -1903,6 +1963,39 @@ mod tests {
 
     fn dur(v: f64) -> std::time::Duration {
         std::time::Duration::from_secs_f64(v)
+    }
+
+    // All receivers share one 1 Gbps link. With 8-bit samples at 12.5 and
+    // 25 MHz, the budget refuses only two at 25 MHz alongside a third.
+    #[test]
+    fn the_link_budget_offers_the_widest_bandwidth_that_still_fits() {
+        let load = |mhz: &[f64]| mhz.iter().map(|m| link_load_mbps(m * 1e6)).sum::<f64>();
+        assert_eq!(widest_bandwidth_that_fits_mhz(0.0), Some(25.0));
+        // Any mix up to 12.5 MHz on the other two still leaves room for 25.
+        assert_eq!(
+            widest_bandwidth_that_fits_mhz(load(&[12.5, 12.5])),
+            Some(25.0)
+        );
+        assert_eq!(
+            widest_bandwidth_that_fits_mhz(load(&[25.0, 12.5])),
+            Some(12.5)
+        );
+        // Two at 25 MHz fill the budget exactly: allowed, but nothing more.
+        assert_eq!(widest_bandwidth_that_fits_mhz(load(&[25.0])), Some(25.0));
+        assert_eq!(widest_bandwidth_that_fits_mhz(load(&[25.0, 25.0])), None);
+    }
+
+    #[test]
+    fn wide_bandwidths_use_eight_bit_samples() {
+        use crate::models::telescope_types::sample_bits;
+        for mhz in [1.0, 2.5, 5.0] {
+            assert_eq!(sample_bits(mhz * 1e6), 16, "{mhz} MHz");
+        }
+        for mhz in [12.5, 25.0] {
+            assert_eq!(sample_bits(mhz * 1e6), 8, "{mhz} MHz");
+        }
+        assert_eq!(link_load_mbps(2.5e6), 80.0);
+        assert_eq!(link_load_mbps(25e6), 400.0);
     }
 
     #[test]

@@ -296,6 +296,31 @@ impl Default for ReceiverConfiguration {
     }
 }
 
+/// Narrowest bandwidth at which the receivers send 8-bit instead of 16-bit
+/// samples. All USRPs share one 1 Gbps link to the server: in 16-bit, one
+/// 25 MHz stream nearly fills it, and three at 12.5 MHz would not fit. Halving
+/// the sample size at these two bandwidths lets every combination of
+/// telescopes run at once, except two at 25 MHz alongside a third.
+/// Wide-band signals are noise-like, so 8 bits lose almost nothing once the
+/// level is set well (see `auto_level` in `salsa_telescope`).
+pub const EIGHT_BIT_MIN_BANDWIDTH_HZ: f64 = 12.5e6;
+
+/// Bits per I or Q component the receiver sends at `bandwidth_hz`.
+pub fn sample_bits(bandwidth_hz: f64) -> u32 {
+    // The tolerance keeps a 12.5 MHz request from missing by float rounding.
+    if bandwidth_hz >= EIGHT_BIT_MIN_BANDWIDTH_HZ - 1.0 {
+        8
+    } else {
+        16
+    }
+}
+
+/// Sample data a receiver streaming at `bandwidth_hz` puts on the shared
+/// network link, in Mbit/s: two components per complex sample.
+pub fn link_load_mbps(bandwidth_hz: f64) -> f64 {
+    bandwidth_hz / 1e6 * 2.0 * sample_bits(bandwidth_hz) as f64
+}
+
 /// Fixed block size, in complex samples, for raw IQ streams feeding the
 /// correlator. Both telescope backends produce blocks of this size so the
 /// correlator can assume matched FFT lengths.
