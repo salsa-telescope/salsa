@@ -114,6 +114,16 @@ impl ObservationFilter {
     }
 }
 
+/// The distinct values of `column` for the archive filter. Two query shapes
+/// rather than one `?1 IS NULL OR user_id = ?1`: SQLite cannot use an index
+/// for that OR, so every user's archive page would read the whole observation
+/// table. With a plain `user_id = ?1` it reads only that user's rows via
+/// idx_observation_user_start.
+fn filter_options_sql(column: &str, per_user: bool) -> String {
+    let where_clause = if per_user { "WHERE user_id = (?1)" } else { "" };
+    format!("SELECT DISTINCT {column} FROM observation {where_clause} ORDER BY {column}")
+}
+
 /// Every column of `observation`, in the order [`map_observation_row`] reads
 /// them. Kept next to the mapper so the two cannot drift apart.
 const OBSERVATION_COLUMNS: &str = "id, user_id, telescope_id, start_time, coordinate_system, \
@@ -268,11 +278,9 @@ impl Observation {
     ) -> Result<(Vec<String>, Vec<String>), InternalError> {
         let conn = connection.lock().await;
         let distinct = |column: &str| -> Result<Vec<String>, InternalError> {
-            let mut stmt = conn.prepare(&format!(
-                "SELECT DISTINCT {column} FROM observation
-                 WHERE (?1) IS NULL OR user_id = (?1) ORDER BY {column}"
-            ))?;
-            let values = stmt.query_map([user_id], |row| row.get(0))?;
+            let mut stmt = conn.prepare(&filter_options_sql(column, user_id.is_some()))?;
+            // Binds ?1 only when there is a user: an Option iterates as 0 or 1 values.
+            let values = stmt.query_map(rusqlite::params_from_iter(user_id), |row| row.get(0))?;
             values
                 .collect::<Result<Vec<_>, _>>()
                 .map_err(InternalError::from)
@@ -451,6 +459,61 @@ mod tests {
                 .unwrap(),
             2
         );
+    }
+
+    #[tokio::test]
+    async fn filter_options_are_per_user_unless_all() {
+        let mut connection = Connection::open_in_memory().unwrap();
+        crate::database::apply_migrations(&mut connection).unwrap();
+        let db = Arc::new(Mutex::new(connection));
+        let anna = User::create_from_external(db.clone(), "Anna".into(), "github".into(), "gh-1")
+            .await
+            .unwrap();
+        let bo = User::create_from_external(db.clone(), "Bo".into(), "github".into(), "gh-2")
+            .await
+            .unwrap();
+        for (user_id, telescope, coord) in [(anna.id, "brage", "sun"), (bo.id, "vale", "galactic")]
+        {
+            db.lock()
+                .await
+                .execute(
+                    "INSERT INTO observation (user_id, telescope_id, start_time, coordinate_system,
+                     target_x, target_y, integration_time_secs, frequencies_json, amplitudes_json)
+                     VALUES (?1, ?2, 0, ?3, 0, 0, 60, '[]', '[]')",
+                    rusqlite::params![user_id, telescope, coord],
+                )
+                .unwrap();
+        }
+        let (telescopes, coords) = Observation::filter_options(db.clone(), Some(anna.id))
+            .await
+            .unwrap();
+        assert_eq!(
+            (telescopes, coords),
+            (vec!["brage".into()], vec!["sun".into()])
+        );
+        let (telescopes, coords) = Observation::filter_options(db.clone(), None).await.unwrap();
+        assert_eq!(telescopes, ["brage", "vale"]);
+        assert_eq!(coords, ["galactic", "sun"]);
+    }
+
+    #[test]
+    fn per_user_filter_options_use_the_user_index() {
+        let mut connection = Connection::open_in_memory().unwrap();
+        crate::database::apply_migrations(&mut connection).unwrap();
+        for column in ["telescope_id", "coordinate_system"] {
+            let sql = format!("EXPLAIN QUERY PLAN {}", filter_options_sql(column, true));
+            let mut stmt = connection.prepare(&sql).unwrap();
+            let plan: Vec<String> = stmt
+                .query_map([1], |row| row.get(3))
+                .unwrap()
+                .collect::<Result<_, _>>()
+                .unwrap();
+            assert!(
+                plan.iter()
+                    .any(|p| p.contains("idx_observation_user_start")),
+                "{column}: {plan:?}"
+            );
+        }
     }
 
     #[test]
