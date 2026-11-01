@@ -230,6 +230,7 @@ observe-error-not-tracking = Teleskopet följer inte målet. Vänta tills det ha
 observe-error-receiver-unreachable = Mottagaren kan inte nås. Kontrollera mottagarens adress och nätverksanslutning.
 observe-error-link-budget = Alla mottagare delar på en nätverkslänk, och observationerna på andra teleskop lämnar just nu plats för högst { $available } MHz. Välj { $available } MHz eller mindre, eller försök igen senare.
 observe-error-link-budget-full = Alla mottagare delar på en nätverkslänk, och observationerna på andra teleskop lämnar just nu ingen plats för fler. Försök igen senare.
+observe-error-wide-band-busy = Bara ett teleskop åt gången kan observera vid { $widest } MHz, och ett annat gör det redan. Välj { $available } MHz eller mindre, eller försök igen senare.
 observe-error-center-freq = Centerfrekvensen måste vara mellan { $min } och { $max } MHz.
 observe-error-ref-freq = Referensfrekvensen måste vara mellan { $min } och { $max } MHz.
 observe-error-gain = Förstärkningen måste vara mellan { $min } och { $max } dB.

@@ -230,6 +230,7 @@ observe-error-not-tracking = Telescope is not tracking. Please wait until it has
 observe-error-receiver-unreachable = Receiver is not reachable. Check the receiver address and network connection.
 observe-error-link-budget = All receivers share one network link, and the observations running on other telescopes leave room for at most { $available } MHz right now. Choose { $available } MHz or less, or try again later.
 observe-error-link-budget-full = All receivers share one network link, and the observations running on other telescopes leave no room for another one right now. Please try again later.
+observe-error-wide-band-busy = Only one telescope at a time can observe at { $widest } MHz, and another one already is. Choose { $available } MHz or less, or try again later.
 observe-error-center-freq = Center frequency must be between { $min } and { $max } MHz.
 observe-error-ref-freq = Reference frequency must be between { $min } and { $max } MHz.
 observe-error-gain = Gain must be between { $min } and { $max } dB.

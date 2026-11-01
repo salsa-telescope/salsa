@@ -669,7 +669,7 @@ impl Telescope for SalsaTelescope {
         };
         // Keep the whole configuration, not just the flag, so `get_info`
         // reports the bandwidth this stream is using. The network-link budget
-        // (see `link_load_in_use_mbps`) counts it from there.
+        // (see `bandwidths_in_use_hz`) counts it from there.
         inner.receiver_configuration = ReceiverConfiguration {
             integrate: true,
             ..config

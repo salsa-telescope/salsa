@@ -1200,18 +1200,25 @@ async fn start_observe(
     }
     // This telescope's own previous run is stopped just below, so it does not
     // count against the new one.
-    let in_use_mbps = link_load_in_use_mbps(&state.telescopes, &[telescope_id.as_str()]).await;
-    if !fits_link_budget(link_load_mbps(form.bandwidth_mhz * 1e6), in_use_mbps) {
-        return Ok(error_response(
-            match widest_bandwidth_that_fits_mhz(in_use_mbps) {
-                Some(available) => fl!(
-                    lang.loader(),
-                    "observe-error-link-budget",
-                    available = available
-                ),
-                None => fl!(lang.loader(), "observe-error-link-budget-full"),
-            },
-        ));
+    let in_use_hz = bandwidths_in_use_hz(&state.telescopes, &[telescope_id.as_str()]).await;
+    let allowed = widest_bandwidth_allowed_mhz(&in_use_hz);
+    if allowed.is_none_or(|allowed| form.bandwidth_mhz > allowed) {
+        let second_widest = widest_bandwidth_in_use(&in_use_hz)
+            && widest_bandwidth_in_use(&[form.bandwidth_mhz * 1e6]);
+        return Ok(error_response(match allowed {
+            Some(available) if second_widest => fl!(
+                lang.loader(),
+                "observe-error-wide-band-busy",
+                widest = form.bandwidth_mhz,
+                available = available
+            ),
+            Some(available) => fl!(
+                lang.loader(),
+                "observe-error-link-budget",
+                available = available
+            ),
+            None => fl!(lang.loader(), "observe-error-link-budget-full"),
+        }));
     }
     if form.integration_mode.as_deref() == Some("fixed")
         && let Some(secs) = form.integration_time_secs
@@ -1545,27 +1552,40 @@ const VALID_SPECTRAL_CHANNELS: &[usize] = &[64, 128, 256, 512, 1024, 2048, 4096,
 /// the server. 800 Mbit/s is ~850 with packet overhead, leaving ~15 % of the
 /// link for controller traffic, which shares the switch's queue towards the
 /// server and would otherwise be squeezed out. With 8-bit samples at 12.5 and
-/// 25 MHz (see `link_load_mbps`) everything fits except two telescopes at
-/// 25 MHz alongside a third.
+/// 25 MHz (see `link_load_mbps`) and at most one telescope at 25 MHz (see
+/// [`widest_bandwidth_allowed_mhz`]), every combination fits: the worst is
+/// 25 + 12.5 + 12.5 MHz, exactly 800 Mbit/s.
 pub(crate) const LINK_BUDGET_MBPS: f64 = 800.0;
 
-/// Link load from the receivers of all telescopes except `except`, in Mbit/s,
-/// single-dish and interferometry alike. A telescope whose info cannot be
-/// read is counted as idle, since there is no way to tell.
-pub(crate) async fn link_load_in_use_mbps(
+/// Bandwidths, in Hz, the receivers of all telescopes except `except` are
+/// streaming right now, single-dish and interferometry alike. A telescope
+/// whose info cannot be read is counted as idle, since there is no way to
+/// tell.
+pub(crate) async fn bandwidths_in_use_hz(
     telescopes: &crate::models::telescope::TelescopeCollectionHandle,
     except: &[&str],
-) -> f64 {
-    let mut in_use = 0.0;
+) -> Vec<f64> {
+    let mut in_use = Vec::new();
     for telescope in telescopes.get_all().await {
         if let Ok(info) = telescope.get_info().await
             && info.receiver_configuration.integrate
             && !except.contains(&info.id.as_str())
         {
-            in_use += link_load_mbps(info.receiver_configuration.bandwidth_hz);
+            in_use.push(info.receiver_configuration.bandwidth_hz);
         }
     }
     in_use
+}
+
+/// Total link load of receivers streaming at `bandwidths_hz`, in Mbit/s.
+pub(crate) fn link_load_of(bandwidths_hz: &[f64]) -> f64 {
+    bandwidths_hz.iter().copied().map(link_load_mbps).sum()
+}
+
+/// True if one of `bandwidths_hz` is the widest selectable bandwidth.
+fn widest_bandwidth_in_use(bandwidths_hz: &[f64]) -> bool {
+    let widest_hz = VALID_BANDWIDTH_MHZ.iter().copied().fold(0.0, f64::max) * 1e6;
+    bandwidths_hz.iter().any(|hz| (hz - widest_hz).abs() < 1.0)
 }
 
 /// True if adding `load_mbps` to `in_use_mbps` stays within the link budget.
@@ -1575,12 +1595,21 @@ pub(crate) fn fits_link_budget(load_mbps: f64, in_use_mbps: f64) -> bool {
     load_mbps + in_use_mbps <= LINK_BUDGET_MBPS + 1e-6
 }
 
-/// Widest selectable bandwidth that still fits beside `in_use_mbps`, or `None`
-/// when not even the narrowest does.
-fn widest_bandwidth_that_fits_mhz(in_use_mbps: f64) -> Option<f64> {
+/// Widest bandwidth a new observation may use beside receivers already
+/// streaming at `in_use_hz`, or `None` when not even the narrowest fits.
+/// Every narrower bandwidth is allowed too.
+///
+/// Only one telescope at a time may use the widest bandwidth (25 MHz, for
+/// GNSS). Without that rule two of them would fill the link, and an ordinary
+/// 2.5 MHz observation on the third telescope would be refused; with it, the
+/// only observation ever turned away is a second one at 25 MHz.
+fn widest_bandwidth_allowed_mhz(in_use_hz: &[f64]) -> Option<f64> {
+    let in_use_mbps = link_load_of(in_use_hz);
+    let widest_taken = widest_bandwidth_in_use(in_use_hz);
     VALID_BANDWIDTH_MHZ
         .iter()
         .copied()
+        .filter(|mhz| !(widest_taken && widest_bandwidth_in_use(&[mhz * 1e6])))
         .filter(|mhz| fits_link_budget(link_load_mbps(mhz * 1e6), in_use_mbps))
         .reduce(f64::max)
 }
@@ -1966,23 +1995,22 @@ mod tests {
     }
 
     // All receivers share one 1 Gbps link. With 8-bit samples at 12.5 and
-    // 25 MHz, the budget refuses only two at 25 MHz alongside a third.
+    // 25 MHz and only one telescope at 25 MHz at a time, everything else fits.
     #[test]
-    fn the_link_budget_offers_the_widest_bandwidth_that_still_fits() {
-        let load = |mhz: &[f64]| mhz.iter().map(|m| link_load_mbps(m * 1e6)).sum::<f64>();
-        assert_eq!(widest_bandwidth_that_fits_mhz(0.0), Some(25.0));
-        // Any mix up to 12.5 MHz on the other two still leaves room for 25.
-        assert_eq!(
-            widest_bandwidth_that_fits_mhz(load(&[12.5, 12.5])),
-            Some(25.0)
-        );
-        assert_eq!(
-            widest_bandwidth_that_fits_mhz(load(&[25.0, 12.5])),
-            Some(12.5)
-        );
-        // Two at 25 MHz fill the budget exactly: allowed, but nothing more.
-        assert_eq!(widest_bandwidth_that_fits_mhz(load(&[25.0])), Some(25.0));
-        assert_eq!(widest_bandwidth_that_fits_mhz(load(&[25.0, 25.0])), None);
+    fn only_a_second_wide_band_observation_is_ever_refused() {
+        let hz = |mhz: &[f64]| mhz.iter().map(|m| m * 1e6).collect::<Vec<_>>();
+        assert_eq!(widest_bandwidth_allowed_mhz(&[]), Some(25.0));
+        assert_eq!(widest_bandwidth_allowed_mhz(&hz(&[12.5, 12.5])), Some(25.0));
+        // With 25 MHz taken, the third telescope gets anything else.
+        assert_eq!(widest_bandwidth_allowed_mhz(&hz(&[25.0])), Some(12.5));
+        assert_eq!(widest_bandwidth_allowed_mhz(&hz(&[25.0, 12.5])), Some(12.5));
+        // The worst case, 25 + 12.5 + 12.5, fills the budget exactly.
+        assert_eq!(link_load_of(&hz(&[25.0, 12.5, 12.5])), LINK_BUDGET_MBPS);
+        // Every ordinary bandwidth fits beside any mix the others can have.
+        for others in [[25.0, 12.5], [12.5, 12.5], [25.0, 5.0], [2.5, 2.5]] {
+            let allowed = widest_bandwidth_allowed_mhz(&hz(&others));
+            assert!(allowed >= Some(12.5), "{others:?} left only {allowed:?}");
+        }
     }
 
     #[test]
