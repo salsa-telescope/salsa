@@ -741,56 +741,19 @@ fn rot2prog_bytes_to_angle_documented(bytes: &[u8]) -> f64 {
     (rot2prog_bytes_to_int_documented(bytes) as f64 / 100.0 - 360.0).to_radians()
 }
 
-#[allow(clippy::too_many_arguments)]
-fn measure_switched(
-    usrp: &mut UhdDevice,
-    sfreq: f64,
-    rfreq: f64,
-    fft_pts: usize,
-    tint: f64,
-    avg_pts: usize,
-    srate: f64,
-    rfi_filter: bool,
-    tsys: f64,
-    cancellation_token: &CancellationToken,
-    spec: &mut Vec<f64>,
-) -> Result<(), TelescopeError> {
-    let mut spec_sig: Vec<f64> = vec![];
-    measure_single(
-        usrp,
-        sfreq,
-        fft_pts,
-        0.5 * tint,
-        avg_pts,
-        srate,
-        rfi_filter,
-        &mut spec_sig,
-    )?;
-    // Bail between sig and ref if a stop has been requested — otherwise the
-    // outer loop's only cancellation check is at the top, and the user waits
-    // out the full ~1 s iteration. Leaving `spec` empty signals the outer loop
-    // to skip the averaging update and exit cleanly. (Raw mode has no such
-    // halfway point, so it still has to wait one full block.)
-    if cancellation_token.is_cancelled() {
-        return Ok(());
-    }
-    let mut spec_ref: Vec<f64> = vec![];
-    measure_single(
-        usrp,
-        rfreq,
-        fft_pts,
-        0.5 * tint,
-        avg_pts,
-        srate,
-        rfi_filter,
-        &mut spec_ref,
-    )?;
-    // Form sig-ref difference and scale with Tsys
-    for i in 0..avg_pts {
-        spec.push(tsys * (spec_sig[i] - spec_ref[i]) / spec_ref[i]);
-    }
-    Ok(())
+/// One measurement cycle's raw samples, handed from the receiving thread to
+/// the processing thread: the signal block and, when frequency-switched, the
+/// reference block.
+struct CycleSamples {
+    sig: Vec<Complex<i16>>,
+    reference: Option<Vec<Complex<i16>>>,
 }
+
+/// How many received cycles may wait for processing. Processing normally keeps
+/// well ahead of the receiver, so the queue only fills if it falls behind; the
+/// receiver then skips whole cycles instead of waiting. At 25 MHz a cycle holds
+/// ~100 MB of samples, so this also bounds memory per telescope.
+const PIPELINE_DEPTH: usize = 2;
 
 /// Widest bandwidth that still gets LO-offset tuning. Sun spectra
 /// (2026-07-18) showed the MAX2112's intrinsic baseband response is flat
@@ -804,7 +767,7 @@ fn measure_switched(
 /// which engages both halfbands.)
 const LO_OFFSET_MAX_BW_HZ: f64 = 5e6;
 
-/// LO offset for direct-conversion tuning (see measure_single): exactly
+/// LO offset for direct-conversion tuning (see receive_block): exactly
 /// one bandwidth, i.e. one output sample rate. The DDC's decimation
 /// chain has a deep null there, so the LO leakage/DC artifact is
 /// annihilated rather than merely attenuated — a fractional offset
@@ -827,21 +790,15 @@ fn lo_offset_hz(bandwidth_hz: f64) -> f64 {
 /// worst case, 25 MHz, ends 27.5 MHz out — 12.5 MHz inside the corner).
 const DBSRX2_BANDWIDTH_HZ: f64 = 80e6;
 
-#[allow(clippy::too_many_arguments)]
-fn measure_single(
+/// Tune to `cfreq` and fill `buffer` with that many fresh samples. Runs on the
+/// receiving thread, which owns the device; the CPU work happens elsewhere
+/// (see [`SpectrumProcessor`]) so the receiver is never idle waiting for it.
+fn receive_block(
     usrp: &mut UhdDevice,
     cfreq: f64,
-    fft_pts: usize,
-    tint: f64,
-    avg_pts: usize,
     srate: f64,
-    rfi_filter: bool,
-    fft_avg: &mut Vec<f64>,
+    buffer: &mut [Complex<i16>],
 ) -> Result<(), TelescopeError> {
-    let nsamp: f64 = tint * srate; // total number of samples to request
-    let nstack: usize = (nsamp as usize) / fft_pts;
-    let navg: usize = fft_pts / avg_pts;
-
     // The N210 only has one input channel 0. Tune with an LO offset: the
     // DBSRX2 is direct-conversion, so tuning the LO exactly to cfreq puts
     // its leakage/DC artifact in the centre of the band (visible as a
@@ -861,8 +818,6 @@ fn measure_single(
         .with(|u| u.get_rx_stream(&uhd::StreamArgs::<Complex<i16>>::new("sc16")))
         .map_err(|e| TelescopeError::ReceiverFailed(format!("get_rx_stream: {e}")))?;
 
-    let mut buffer = vec![Complex::<i16>::default(); nsamp as usize];
-
     receiver
         .send_command(&StreamCommand {
             command_type: StreamCommandType::CountAndDone(buffer.len() as u64),
@@ -870,53 +825,124 @@ fn measure_single(
         })
         .map_err(|e| TelescopeError::ReceiverFailed(format!("stream CountAndDone command: {e}")))?;
     receiver
-        .receive_simple(buffer.as_mut())
+        .receive_simple(buffer)
         .map_err(|e| TelescopeError::ReceiverFailed(format!("receive_simple: {e}")))?;
+    Ok(())
+}
 
-    // Accumulate power spectrum (|FFT|^2) across stacked blocks
-    let mut fft_abs: Vec<f64> = Vec::with_capacity(fft_pts);
-    fft_abs.resize(fft_pts, 0.0);
-    // setup fft
-    let mut planner = FftPlanner::new();
-    let fft = planner.plan_fft_forward(fft_pts);
-    // Loop through the samples, taking fft_pts each time. Samples come from
-    // the USRP as i16 (sc16), so we rescale to ±1.0 (fraction of ADC full
-    // scale) before the FFT — otherwise |FFT|² lands in the 10⁹+ range purely
-    // from the digitiser's count scale, which is not a physical unit.
-    const ADC_FULL_SCALE: f64 = 32768.0;
-    for n in 0..nstack {
-        let mut fft_buffer: Vec<Complex<f64>> = buffer[n * fft_pts..(n + 1) * fft_pts]
-            .iter()
-            .copied()
-            .map(|x| {
-                Complex::<f64>::new(x.re as f64 / ADC_FULL_SCALE, x.im as f64 / ADC_FULL_SCALE)
-            })
-            .collect();
-        // Do the FFT
-        fft.process(&mut fft_buffer);
-        // Accumulate squared magnitudes (Welch's method).
-        // Seems the pos/neg halves of spectrum are flipped, so reflip them
-        // we want lowest frequency in element 0 and then increasing
-        for i in 0..fft_pts / 2 {
-            fft_abs[i + fft_pts / 2] += fft_buffer[i].norm_sqr();
-            fft_abs[i] += fft_buffer[i + fft_pts / 2].norm_sqr();
+/// Turns a block of raw samples into a power spectrum of `avg_pts` channels,
+/// RFI-clipped if asked. Pure CPU work, run on the processing thread. Keeps the
+/// FFT plan and work buffers between blocks rather than rebuilding them for
+/// every one.
+struct SpectrumProcessor {
+    fft: Arc<dyn rustfft::Fft<f64>>,
+    fft_pts: usize,
+    avg_pts: usize,
+    rfi_filter: bool,
+    fft_buffer: Vec<Complex<f64>>,
+    fft_abs: Vec<f64>,
+}
+
+impl SpectrumProcessor {
+    fn new(fft_pts: usize, avg_pts: usize, rfi_filter: bool) -> Self {
+        Self {
+            fft: FftPlanner::new().plan_fft_forward(fft_pts),
+            fft_pts,
+            avg_pts,
+            rfi_filter,
+            fft_buffer: vec![Complex::default(); fft_pts],
+            fft_abs: vec![0.0; fft_pts],
         }
     }
-    // Average over the stacked blocks
-    for val in fft_abs.iter_mut().take(fft_pts) {
-        *val /= nstack as f64;
-    }
 
-    // Average spectrum to save data
-    for i in 0..avg_pts {
-        let avg: f64 = fft_abs.iter().skip(navg * i).take(navg).sum();
-        fft_avg.push(avg / (navg as f64));
-    }
+    fn spectrum(&mut self, samples: &[Complex<i16>]) -> Vec<f64> {
+        let fft_pts = self.fft_pts;
+        let nstack: usize = samples.len() / fft_pts;
+        let navg: usize = fft_pts / self.avg_pts;
 
-    if rfi_filter {
-        clip_rfi_spikes(fft_avg);
+        // Accumulate power spectrum (|FFT|^2) across stacked blocks
+        self.fft_abs.fill(0.0);
+        // Loop through the samples, taking fft_pts each time. Samples come from
+        // the USRP as i16 (sc16), so we rescale to ±1.0 (fraction of ADC full
+        // scale) before the FFT — otherwise |FFT|² lands in the 10⁹+ range purely
+        // from the digitiser's count scale, which is not a physical unit.
+        const ADC_FULL_SCALE: f64 = 32768.0;
+        for block in samples.chunks_exact(fft_pts).take(nstack) {
+            for (out, x) in zip(self.fft_buffer.iter_mut(), block) {
+                *out =
+                    Complex::<f64>::new(x.re as f64 / ADC_FULL_SCALE, x.im as f64 / ADC_FULL_SCALE);
+            }
+            // Do the FFT
+            self.fft.process(&mut self.fft_buffer);
+            // Accumulate squared magnitudes (Welch's method).
+            // Seems the pos/neg halves of spectrum are flipped, so reflip them
+            // we want lowest frequency in element 0 and then increasing
+            for i in 0..fft_pts / 2 {
+                self.fft_abs[i + fft_pts / 2] += self.fft_buffer[i].norm_sqr();
+                self.fft_abs[i] += self.fft_buffer[i + fft_pts / 2].norm_sqr();
+            }
+        }
+        // Average over the stacked blocks
+        for val in self.fft_abs.iter_mut() {
+            *val /= nstack as f64;
+        }
+
+        // Average spectrum to save data
+        let mut fft_avg: Vec<f64> = (0..self.avg_pts)
+            .map(|i| self.fft_abs.iter().skip(navg * i).take(navg).sum::<f64>() / navg as f64)
+            .collect();
+
+        if self.rfi_filter {
+            clip_rfi_spikes(&mut fft_avg);
+        }
+        fft_avg
     }
-    Ok(())
+}
+
+/// The processing half of [`measure`]: turns each received cycle into a
+/// spectrum and folds it into the running average, until the receiving side
+/// hangs up and the queue is drained. Hands sample buffers back through
+/// `spare` so the receiver can reuse them instead of allocating ~100 MB a
+/// second at 25 MHz.
+fn process_cycles(
+    cycles: std::sync::mpsc::Receiver<CycleSamples>,
+    spare: std::sync::mpsc::Sender<Vec<Complex<i16>>>,
+    measurements: Arc<Mutex<Vec<Measurement>>>,
+    mut processor: SpectrumProcessor,
+    tsys: f64,
+    tint: f64,
+) {
+    let mut n = 0.0;
+    for cycle in cycles {
+        let sig = processor.spectrum(&cycle.sig);
+        // The receiver may already have gone; then the buffer is just freed.
+        let _ = spare.send(cycle.sig);
+        let spec: Vec<f64> = match cycle.reference {
+            Some(reference) => {
+                let reference_spec = processor.spectrum(&reference);
+                let _ = spare.send(reference);
+                // Form sig-ref difference and scale with Tsys
+                zip(&sig, &reference_spec)
+                    .map(|(s, r)| tsys * (s - r) / r)
+                    .collect()
+            }
+            None => sig,
+        };
+        n += 1.0;
+
+        let mut measurements = measurements.blocking_lock();
+        let Some(measurement) = measurements.last_mut() else {
+            break;
+        };
+        for (amp, spec_val) in zip(measurement.amps.iter_mut(), spec.iter()) {
+            *amp = (*amp * (n - 1.0) + spec_val) / n;
+        }
+        // Sample time integrated, not wall clock: `n` completed cycles of
+        // `tint` each. The wall-clock span also covers the retune and stream
+        // setup between blocks, which contribute no samples and so would
+        // overstate the integration.
+        measurement.duration = Duration::from_secs_f64(n * tint);
+    }
 }
 
 /// Robust narrow-band RFI clipper for an averaged power spectrum.
@@ -1062,7 +1088,7 @@ fn measure(
         .map_err(|e| TelescopeError::ReceiverFailed(format!("set_rx_dc_offset_enabled: {e}")))?;
     usrp.with(|u| u.set_rx_sample_rate(srate, 0))
         .map_err(|e| TelescopeError::ReceiverFailed(format!("set_rx_sample_rate: {e}")))?;
-    // LO-offset tuning (see measure_single) moves the wanted band away
+    // LO-offset tuning (see receive_block) moves the wanted band away
     // from the analog baseband centre; open the DBSRX2 filter fully so
     // the band sits on the flat part of its response.
     usrp.with(|u| u.set_rx_bandwidth(DBSRX2_BANDWIDTH_HZ, 0))
@@ -1093,74 +1119,94 @@ fn measure(
         measurements.push(measurement);
     }
 
+    let switched = match mode {
+        ObservationMode::FreqSwitched => true,
+        ObservationMode::Raw => false,
+        ObservationMode::Interferometry => return Ok(()),
+    };
+
     // Fixed-duration mode: run a whole number of cycles covering the request,
     // rounding up so the observer never gets less time than they asked for.
     // Enforced here rather than by cancelling from outside, because a cancel
     // landing mid-cycle cannot shorten the block: Raw mode has no abort point
-    // inside `measure_single`, so the block completes and is averaged in
-    // anyway, one full cycle past the target.
+    // inside a block, so the block completes and is averaged in anyway, one
+    // full cycle past the target.
     let max_cycles = config
         .max_duration
         .map(|target| ((target.as_secs_f64() / tint).ceil() as u64).max(1));
 
-    // start taking data until integrate is false
-    let mut n = 0.0;
-    while !cancellation_token.is_cancelled() {
-        let mut spec = vec![];
-        match mode {
-            ObservationMode::FreqSwitched => measure_switched(
-                &mut usrp,
-                sfreq,
-                rfreq,
-                fft_pts,
-                tint,
-                avg_pts,
-                srate,
-                config.rfi_filter,
-                tsys,
-                &cancellation_token,
-                &mut spec,
-            )?,
-            ObservationMode::Raw => measure_single(
-                &mut usrp,
-                sfreq,
-                fft_pts,
-                tint,
-                avg_pts,
-                srate,
-                config.rfi_filter,
-                &mut spec,
-            )?,
-            ObservationMode::Interferometry => break,
-        };
-        // measure_switched leaves spec empty when it bails on cancellation.
-        // Skip the averaging update; the outer while-condition re-checks the
-        // token next iteration.
-        if spec.is_empty() {
-            continue;
-        }
-        n += 1.0;
+    // Receiving and processing run side by side: this thread only tunes and
+    // records, and a second thread does the FFT, RFI filter and averaging.
+    // Done in sequence, the receiver sat idle during processing, which grows
+    // with the channel count — at 8192 channels with the RFI filter only 86 %
+    // of wall-clock time became data (torre and vale, 2026-10-30).
+    let (cycle_tx, cycle_rx) = std::sync::mpsc::sync_channel::<CycleSamples>(PIPELINE_DEPTH);
+    let (spare_tx, spare_rx) = std::sync::mpsc::channel::<Vec<Complex<i16>>>();
+    let processor_thread = {
+        let measurements = measurements.clone();
+        let processor = SpectrumProcessor::new(fft_pts, avg_pts, config.rfi_filter);
+        std::thread::Builder::new()
+            .name("salsa-spectrum".to_string())
+            .spawn(move || process_cycles(cycle_rx, spare_tx, measurements, processor, tsys, tint))
+            .map_err(|e| {
+                TelescopeError::ReceiverFailed(format!("start spectrum processing thread: {e}"))
+            })?
+    };
 
-        let mut measurements = measurements.blocking_lock();
-        let Some(measurement) = measurements.last_mut() else {
-            break;
-        };
-        for (amp, spec_val) in zip(measurement.amps.iter_mut(), spec.iter()).take(avg_pts) {
-            *amp = (*amp * (n - 1.0) + spec_val) / n;
-        }
-        // Sample time integrated, not wall clock: `n` completed cycles of
-        // `tint` each. The wall-clock span also covers the retune, stream
-        // setup and FFT work between blocks, which contribute no samples and
-        // so overstate the integration — badly at wide bandwidths, where the
-        // FFT stack is the larger cost.
-        measurement.duration = Duration::from_secs_f64(n * tint);
-        drop(measurements);
+    let block_secs = if switched { 0.5 * tint } else { tint };
+    let block_len = (block_secs * srate) as usize;
+    let next_buffer = || {
+        let mut buffer = spare_rx.try_recv().unwrap_or_default();
+        buffer.resize(block_len, Complex::default());
+        buffer
+    };
 
-        if max_cycles.is_some_and(|max| n as u64 >= max) {
-            break;
+    // Counts only cycles handed to the processor, so a skipped one never
+    // counts towards the requested duration.
+    let mut queued: u64 = 0;
+    let mut skipped: u64 = 0;
+    let received: Result<(), TelescopeError> = (|| {
+        while !cancellation_token.is_cancelled() && !max_cycles.is_some_and(|max| queued >= max) {
+            let mut sig = next_buffer();
+            receive_block(&mut usrp, sfreq, srate, &mut sig)?;
+            let reference = if switched {
+                // Bail between sig and ref if a stop has been requested, so the
+                // user does not wait out the rest of the cycle. The half cycle
+                // is dropped. (Raw mode has no such halfway point.)
+                if cancellation_token.is_cancelled() {
+                    break;
+                }
+                let mut reference = next_buffer();
+                receive_block(&mut usrp, rfreq, srate, &mut reference)?;
+                Some(reference)
+            } else {
+                None
+            };
+            match cycle_tx.try_send(CycleSamples { sig, reference }) {
+                Ok(()) => queued += 1,
+                // Processing has fallen behind. Dropping this cycle keeps the
+                // receiver going; the run just takes a little longer.
+                Err(std::sync::mpsc::TrySendError::Full(_)) => skipped += 1,
+                // The processing thread has died; the join below reports it.
+                Err(std::sync::mpsc::TrySendError::Disconnected(_)) => break,
+            }
         }
+        Ok(())
+    })();
+
+    // Hanging up lets the processor drain what is queued and finish.
+    drop(cycle_tx);
+    let processed = processor_thread.join();
+    if skipped > 0 {
+        warn!(
+            "Skipped {skipped} of {} received cycles because spectrum processing fell behind",
+            queued + skipped
+        );
     }
-    Ok(())
+    received?;
+    processed.map_err(|_| {
+        TelescopeError::ReceiverFailed("spectrum processing thread panicked".to_string())
+    })
 }
 
 /// Stream raw IQ blocks for interferometry cross-correlation.
@@ -1207,7 +1253,7 @@ fn measure_iq(
     usrp.with(|u| u.set_rx_sample_rate(config.bandwidth_hz, 0))
         .map_err(|e| TelescopeError::ReceiverFailed(format!("set_rx_sample_rate: {e}")))?;
     // Same LO-offset tuning and wide-open analog filter as the
-    // single-dish path (see measure_single): keeps the direct-conversion
+    // single-dish path (see receive_block): keeps the direct-conversion
     // DC artifact out of the correlated band. Both telescopes in a session
     // get the identical offset, so the inter-device phase relation is
     // unchanged.
@@ -1298,6 +1344,129 @@ fn measure_iq(
 #[cfg(test)]
 mod test {
     use super::*;
+
+    /// Deterministic pseudo-noise samples, so every spectral channel is nonzero.
+    fn noise_samples(len: usize, seed: u64) -> Vec<Complex<i16>> {
+        let mut state = seed;
+        let mut next = move || {
+            state = state
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
+            ((state >> 48) as i16) / 8
+        };
+        (0..len).map(|_| Complex::new(next(), next())).collect()
+    }
+
+    fn empty_measurement(avg_pts: usize) -> Arc<Mutex<Vec<Measurement>>> {
+        Arc::new(Mutex::new(vec![Measurement {
+            amps: vec![0.0; avg_pts],
+            freqs: vec![0.0; avg_pts],
+            start: Utc::now(),
+            duration: Duration::ZERO,
+        }]))
+    }
+
+    #[test]
+    fn a_tone_above_centre_lands_in_the_upper_half_of_the_spectrum() {
+        // Positive baseband frequency is above the tuned centre, so it must
+        // land above the middle channel: element 0 is the lowest frequency.
+        let (fft_pts, avg_pts, bin) = (8192, 512, 1000);
+        let samples: Vec<Complex<i16>> = (0..4 * fft_pts)
+            .map(|t| {
+                let phase = 2.0 * std::f64::consts::PI * (bin * t) as f64 / fft_pts as f64;
+                Complex::new((8000.0 * phase.cos()) as i16, (8000.0 * phase.sin()) as i16)
+            })
+            .collect();
+        let spectrum = SpectrumProcessor::new(fft_pts, avg_pts, false).spectrum(&samples);
+        let peak = spectrum
+            .iter()
+            .enumerate()
+            .max_by(|a, b| a.1.total_cmp(b.1))
+            .map(|(i, _)| i)
+            .unwrap();
+        assert_eq!(peak, (fft_pts / 2 + bin) / (fft_pts / avg_pts));
+    }
+
+    #[test]
+    fn processed_cycles_average_into_the_measurement() {
+        let (fft_pts, avg_pts, tint) = (64, 8, 1.0);
+        let blocks = [noise_samples(256, 1), noise_samples(256, 2)];
+        let mut reference = SpectrumProcessor::new(fft_pts, avg_pts, false);
+        let expected: Vec<f64> = zip(
+            reference.spectrum(&blocks[0]),
+            reference.spectrum(&blocks[1]),
+        )
+        .map(|(a, b)| (a + b) / 2.0)
+        .collect();
+
+        let measurements = empty_measurement(avg_pts);
+        let (cycle_tx, cycle_rx) = std::sync::mpsc::sync_channel(PIPELINE_DEPTH);
+        let (spare_tx, spare_rx) = std::sync::mpsc::channel();
+        for sig in blocks.clone() {
+            cycle_tx
+                .send(CycleSamples {
+                    sig,
+                    reference: None,
+                })
+                .unwrap();
+        }
+        drop(cycle_tx);
+        let processor = SpectrumProcessor::new(fft_pts, avg_pts, false);
+        process_cycles(
+            cycle_rx,
+            spare_tx,
+            measurements.clone(),
+            processor,
+            300.0,
+            tint,
+        );
+
+        let measurements = measurements.blocking_lock();
+        let measurement = &measurements[0];
+        assert_eq!(measurement.duration, Duration::from_secs(2));
+        for (got, want) in zip(&measurement.amps, &expected) {
+            assert!((got - want).abs() <= 1e-12 * want.abs(), "{got} != {want}");
+        }
+        assert_eq!(
+            spare_rx.try_iter().count(),
+            2,
+            "both sample buffers should be handed back for reuse"
+        );
+    }
+
+    #[test]
+    fn a_switched_cycle_is_scaled_against_its_reference() {
+        let (fft_pts, avg_pts, tsys) = (64, 8, 300.0);
+        let (sig, reference) = (noise_samples(256, 3), noise_samples(256, 4));
+        let mut direct = SpectrumProcessor::new(fft_pts, avg_pts, false);
+        let (s, r) = (direct.spectrum(&sig), direct.spectrum(&reference));
+        let expected: Vec<f64> = zip(&s, &r).map(|(s, r)| tsys * (s - r) / r).collect();
+
+        let measurements = empty_measurement(avg_pts);
+        let (cycle_tx, cycle_rx) = std::sync::mpsc::sync_channel(PIPELINE_DEPTH);
+        let (spare_tx, spare_rx) = std::sync::mpsc::channel();
+        cycle_tx
+            .send(CycleSamples {
+                sig,
+                reference: Some(reference),
+            })
+            .unwrap();
+        drop(cycle_tx);
+        let processor = SpectrumProcessor::new(fft_pts, avg_pts, false);
+        process_cycles(
+            cycle_rx,
+            spare_tx,
+            measurements.clone(),
+            processor,
+            tsys,
+            1.0,
+        );
+
+        let measurements = measurements.blocking_lock();
+        assert_eq!(measurements[0].amps, expected);
+        assert_eq!(measurements[0].duration, Duration::from_secs(1));
+        assert_eq!(spare_rx.try_iter().count(), 2);
+    }
 
     #[test]
     fn clip_rfi_keeps_broad_signal() {
