@@ -12,8 +12,8 @@ identical hardware, although there are differences in cable lengths and
 connections. The main exception is the LNA at the horn: Torre currently has an
 unfiltered wide-band LNA instead of the filtered AGO unit (see
 <a href="#signal-path">Signal path and sampler</a>). The diagrams to the right show the signal path from the sky to a
-spectrum (left column, top to bottom) and the control path from the webserver
-to the rotor (right column, bottom to top). The telescopes are located at
+spectrum (top) and the control path from the webserver
+to the rotor (below it). The telescopes are located at
 Onsala Space Observatory, 57°24'N, 11°55'E, approximately 5 m above sea level.
 </p>
 
@@ -272,80 +272,58 @@ below.</p>
 
     </div>
 
-    <div class="text-sm text-gray-700 w-fit ml-auto">
+    <div class="text-sm text-gray-700 w-fit ml-auto space-y-8">
 
-      <!-- Column headers -->
-      <div class="grid grid-cols-2 gap-x-8 mb-1">
-        <p class="text-center font-semibold text-gray-500">Signal path ↓</p>
-        <p class="text-center font-semibold text-gray-500">Control path ↑</p>
+      <!-- Signal path: from the sky through the webserver to the spectrum -->
+      <div class="flex flex-col items-center">
+        <p class="font-semibold text-gray-500 mb-1">Signal path ↓</p>
+        <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-sky-50 text-center">HI cloud / radio source</div>
+        <div class="text-gray-500 text-[1.4em] leading-tight">↓</div>
+        <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-white text-center">Parabolic dish<br><span class="text-[0.85em] text-gray-500">2.3 m diameter</span></div>
+        <div class="text-gray-500 text-[1.4em] leading-tight">↓</div>
+        <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-white text-center">Horn with probe</div>
+        <div class="text-gray-500 text-[1.4em] leading-tight">↓</div>
+        <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-white text-center">Coaxial cable CNT-400 (30 cm)</div>
+        <div class="text-gray-500 text-[1.4em] leading-tight">↓</div>
+        <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-white text-center">LNA at horn<br><span class="text-[0.85em] text-gray-500">AGO, filter 1350–1620 MHz<br>Torre: RAS 1–2.4 GHz, no filter<br>12 V via Bias-T</span></div>
+        <div class="text-gray-500 text-[1.4em] leading-tight">↓</div>
+        <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-white text-center">Coaxial cable RG-400 (10 m)</div>
+        <div class="text-gray-500 text-[1.4em] leading-tight">↓</div>
+        <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-white text-center">Junction box<br><span class="text-[0.85em] text-gray-500">12V supply to LNA</span></div>
+        <div class="text-gray-500 text-[1.4em] leading-tight">↓</div>
+        <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-white text-center">Coaxial cable CNT-400 (30 m)</div>
+        <div class="text-gray-500 text-[1.4em] leading-tight">↓</div>
+        <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-white text-center">LNA in rack<br><span class="text-[0.85em] text-gray-500">RAS wide band 1–2.4 GHz, 30 dB, 12 V</span></div>
+        <div class="text-gray-500 text-[1.4em] leading-tight">↓</div>
+        <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-white text-center">USRP N210<br><span class="text-[0.85em] text-gray-500">software-defined radio, with DBSRX2</span></div>
+        <div class="text-gray-500 text-[1.4em] leading-tight">↓</div>
+        <div class="border-2 border-link rounded-lg px-12 py-2.5 bg-brand-bg text-center font-semibold text-link">SALSA webserver</div>
+        <div class="text-gray-500 text-[1.4em] leading-tight">↓</div>
+        <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-white text-center">FFT<br><span class="text-[0.85em] text-gray-500">8192 points</span></div>
+        <div class="text-gray-500 text-[1.4em] leading-tight">↓</div>
+        <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-white text-center">Bandwidth &amp; resolution<br><span class="text-[0.85em] text-gray-500">selected by user</span></div>
+        <div class="text-gray-500 text-[1.4em] leading-tight">↓</div>
+        <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-emerald-50 text-center">Spectrum</div>
       </div>
 
-      <!-- Main grid: top rows, webserver, bottom rows -->
-      <div class="grid grid-cols-2 gap-x-8">
-
-        <!-- Top-left: signal path from HI cloud to USRP, bottom-aligned to touch webserver -->
-        <div class="flex flex-col items-center self-end">
-          <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-sky-50 text-center">HI cloud / radio source</div>
-          <div class="text-gray-500 text-[1.4em] leading-tight">↓</div>
-          <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-white text-center">Parabolic dish<br><span class="text-[0.85em] text-gray-500">2.3 m diameter</span></div>
-          <div class="text-gray-500 text-[1.4em] leading-tight">↓</div>
-          <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-white text-center">Horn with probe</div>
-          <div class="text-gray-500 text-[1.4em] leading-tight">↓</div>
-          <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-white text-center">Coaxial cable CNT-400 (30 cm)</div>
-          <div class="text-gray-500 text-[1.4em] leading-tight">↓</div>
-          <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-white text-center">LNA at horn<br><span class="text-[0.85em] text-gray-500">AGO, filter 1350–1620 MHz (Torre: RAS 1–2.4 GHz, no filter), 12V via Bias-T</span></div>
-          <div class="text-gray-500 text-[1.4em] leading-tight">↓</div>
-          <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-white text-center">Coaxial cable RG-400 (10 m)</div>
-          <div class="text-gray-500 text-[1.4em] leading-tight">↓</div>
-          <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-white text-center">Junction box<br><span class="text-[0.85em] text-gray-500">12V supply to LNA</span></div>
-          <div class="text-gray-500 text-[1.4em] leading-tight">↓</div>
-          <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-white text-center">Coaxial cable CNT-400 (30 m)</div>
-          <div class="text-gray-500 text-[1.4em] leading-tight">↓</div>
-          <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-white text-center">LNA in rack<br><span class="text-[0.85em] text-gray-500">RAS wide band 1–2.4 GHz, 30 dB, 12 V</span></div>
-          <div class="text-gray-500 text-[1.4em] leading-tight">↓</div>
-          <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-white text-center">USRP N210<br><span class="text-[0.85em] text-gray-500">software-defined radio, with DBSRX2</span></div>
-          <div class="text-gray-500 text-[1.4em] leading-tight">↓</div>
-        </div>
-
-        <!-- Top-right: control path from rotor down to MD01, bottom-aligned to touch webserver -->
-        <div class="flex flex-col items-center self-end">
-          <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-white text-center">Rotor BIG RAS/HR<br><span class="text-[0.85em] text-gray-500">→ moves parabolic dish</span></div>
-          <div class="text-gray-500 text-[1.4em] leading-tight">↑</div>
-          <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-white text-center">Cables (5 m)<br><span class="text-[0.85em] text-gray-500">motor current &amp; sensor readings</span></div>
-          <div class="text-gray-500 text-[1.4em] leading-tight">↑</div>
-          <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-white text-center">Junction box</div>
-          <div class="text-gray-500 text-[1.4em] leading-tight">↑</div>
-          <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-white text-center">Multi-core cable (30 m)</div>
-          <div class="text-gray-500 text-[1.4em] leading-tight">↑</div>
-          <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-white text-center">MD01 rotor controller</div>
-          <div class="text-gray-500 text-[1.4em] leading-tight">↑</div>
-        </div>
-
-        <!-- Webserver: one box per column -->
-        <div class="flex flex-col items-center">
-          <div class="border-2 border-link rounded-lg px-12 py-2.5 bg-brand-bg text-center font-semibold text-link">SALSA webserver</div>
-        </div>
-        <div class="flex flex-col items-center">
-          <div class="border-2 border-link rounded-lg px-12 py-2.5 bg-brand-bg text-center font-semibold text-link">SALSA webserver</div>
-        </div>
-
-        <!-- Bottom-left: FFT and Spectrum -->
-        <div class="flex flex-col items-center self-start">
-          <div class="text-gray-500 text-[1.4em] leading-tight">↓</div>
-          <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-white text-center">FFT<br><span class="text-[0.85em] text-gray-500">8192 points</span></div>
-          <div class="text-gray-500 text-[1.4em] leading-tight">↓</div>
-          <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-white text-center">Bandwidth &amp; resolution<br><span class="text-[0.85em] text-gray-500">selected by user</span></div>
-          <div class="text-gray-500 text-[1.4em] leading-tight">↓</div>
-          <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-emerald-50 text-center">Spectrum</div>
-        </div>
-
-        <!-- Bottom-right: Selected coordinates -->
-        <div class="flex flex-col items-center self-start">
-          <div class="text-gray-500 text-[1.4em] leading-tight">↑</div>
-          <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-sky-50 text-center">Selected coordinates</div>
-        </div>
-
+      <!-- Control path: from the user's coordinates through the webserver to the rotor -->
+      <div class="flex flex-col items-center">
+        <p class="font-semibold text-gray-500 mb-1">Control path ↓</p>
+        <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-sky-50 text-center">Selected coordinates</div>
+        <div class="text-gray-500 text-[1.4em] leading-tight">↓</div>
+        <div class="border-2 border-link rounded-lg px-12 py-2.5 bg-brand-bg text-center font-semibold text-link">SALSA webserver</div>
+        <div class="text-gray-500 text-[1.4em] leading-tight">↓</div>
+        <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-white text-center">MD01 rotor controller<br><span class="text-[0.85em] text-gray-500">with KrisTech KT-ETH-UART-1</span></div>
+        <div class="text-gray-500 text-[1.4em] leading-tight">↓</div>
+        <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-white text-center">Multi-core cable (30 m)</div>
+        <div class="text-gray-500 text-[1.4em] leading-tight">↓</div>
+        <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-white text-center">Junction box</div>
+        <div class="text-gray-500 text-[1.4em] leading-tight">↓</div>
+        <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-white text-center">Cables (5 m)<br><span class="text-[0.85em] text-gray-500">motor current &amp; sensor readings</span></div>
+        <div class="text-gray-500 text-[1.4em] leading-tight">↓</div>
+        <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-white text-center">Rotor BIG RAS/HR<br><span class="text-[0.85em] text-gray-500">→ moves parabolic dish</span></div>
       </div>
+
     </div>
 
   </div>

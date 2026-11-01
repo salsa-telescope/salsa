@@ -12,8 +12,8 @@ identisk hårdvara, även om det finns skillnader i kabellängder och
 anslutningar. Det viktigaste undantaget är LNA:n vid hornet: Torre har för
 närvarande en ofiltrerad bredbands-LNA i stället för den filtrerade AGO-enheten
 (se <a href="#signal-path">Signalväg och sampler</a>). Diagrammen till höger visar signalvägen från himlen till ett
-spektrum (vänster kolumn, uppifrån och ner) och styrvägen från webbservern
-till rotorn (höger kolumn, nerifrån och upp). Teleskopen står vid
+spektrum (överst) och styrvägen från webbservern
+till rotorn (under den). Teleskopen står vid
 Onsala rymdobservatorium, 57°24'N, 11°55'Ö, cirka 5 m över havet.
 </p>
 
@@ -277,80 +277,58 @@ nedan.</p>
 
     </div>
 
-    <div class="text-sm text-gray-700 w-fit ml-auto">
+    <div class="text-sm text-gray-700 w-fit ml-auto space-y-8">
 
-      <!-- Column headers -->
-      <div class="grid grid-cols-2 gap-x-8 mb-1">
-        <p class="text-center font-semibold text-gray-500">Signalväg ↓</p>
-        <p class="text-center font-semibold text-gray-500">Styrväg ↑</p>
+      <!-- Signal path: from the sky through the webserver to the spectrum -->
+      <div class="flex flex-col items-center">
+        <p class="font-semibold text-gray-500 mb-1">Signalväg ↓</p>
+        <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-sky-50 text-center">HI-moln / radiokälla</div>
+        <div class="text-gray-500 text-[1.4em] leading-tight">↓</div>
+        <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-white text-center">Parabol<br><span class="text-[0.85em] text-gray-500">2,3 m diameter</span></div>
+        <div class="text-gray-500 text-[1.4em] leading-tight">↓</div>
+        <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-white text-center">Horn med prob</div>
+        <div class="text-gray-500 text-[1.4em] leading-tight">↓</div>
+        <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-white text-center">Koaxialkabel CNT-400 (30 cm)</div>
+        <div class="text-gray-500 text-[1.4em] leading-tight">↓</div>
+        <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-white text-center">LNA vid hornet<br><span class="text-[0.85em] text-gray-500">AGO, filter 1350–1620 MHz<br>Torre: RAS 1–2,4 GHz, utan filter<br>12 V via Bias-T</span></div>
+        <div class="text-gray-500 text-[1.4em] leading-tight">↓</div>
+        <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-white text-center">Koaxialkabel RG-400 (10 m)</div>
+        <div class="text-gray-500 text-[1.4em] leading-tight">↓</div>
+        <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-white text-center">Kopplingsbox<br><span class="text-[0.85em] text-gray-500">12 V-matning till LNA</span></div>
+        <div class="text-gray-500 text-[1.4em] leading-tight">↓</div>
+        <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-white text-center">Koaxialkabel CNT-400 (30 m)</div>
+        <div class="text-gray-500 text-[1.4em] leading-tight">↓</div>
+        <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-white text-center">LNA i racket<br><span class="text-[0.85em] text-gray-500">RAS bredband 1–2,4 GHz, 30 dB, 12 V</span></div>
+        <div class="text-gray-500 text-[1.4em] leading-tight">↓</div>
+        <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-white text-center">USRP N210<br><span class="text-[0.85em] text-gray-500">mjukvarudefinierad radio, med DBSRX2</span></div>
+        <div class="text-gray-500 text-[1.4em] leading-tight">↓</div>
+        <div class="border-2 border-link rounded-lg px-12 py-2.5 bg-brand-bg text-center font-semibold text-link">SALSA:s webbserver</div>
+        <div class="text-gray-500 text-[1.4em] leading-tight">↓</div>
+        <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-white text-center">FFT<br><span class="text-[0.85em] text-gray-500">8192 punkter</span></div>
+        <div class="text-gray-500 text-[1.4em] leading-tight">↓</div>
+        <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-white text-center">Bandbredd &amp; upplösning<br><span class="text-[0.85em] text-gray-500">väljs av användaren</span></div>
+        <div class="text-gray-500 text-[1.4em] leading-tight">↓</div>
+        <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-emerald-50 text-center">Spektrum</div>
       </div>
 
-      <!-- Main grid: top rows, webserver, bottom rows -->
-      <div class="grid grid-cols-2 gap-x-8">
-
-        <!-- Top-left: signal path from HI cloud to USRP, bottom-aligned to touch webserver -->
-        <div class="flex flex-col items-center self-end">
-          <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-sky-50 text-center">HI-moln / radiokälla</div>
-          <div class="text-gray-500 text-[1.4em] leading-tight">↓</div>
-          <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-white text-center">Parabol<br><span class="text-[0.85em] text-gray-500">2,3 m diameter</span></div>
-          <div class="text-gray-500 text-[1.4em] leading-tight">↓</div>
-          <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-white text-center">Horn med prob</div>
-          <div class="text-gray-500 text-[1.4em] leading-tight">↓</div>
-          <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-white text-center">Koaxialkabel CNT-400 (30 cm)</div>
-          <div class="text-gray-500 text-[1.4em] leading-tight">↓</div>
-          <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-white text-center">LNA vid hornet<br><span class="text-[0.85em] text-gray-500">AGO, filter 1350–1620 MHz (Torre: RAS 1–2,4 GHz, utan filter), 12 V via Bias-T</span></div>
-          <div class="text-gray-500 text-[1.4em] leading-tight">↓</div>
-          <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-white text-center">Koaxialkabel RG-400 (10 m)</div>
-          <div class="text-gray-500 text-[1.4em] leading-tight">↓</div>
-          <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-white text-center">Kopplingsbox<br><span class="text-[0.85em] text-gray-500">12 V-matning till LNA</span></div>
-          <div class="text-gray-500 text-[1.4em] leading-tight">↓</div>
-          <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-white text-center">Koaxialkabel CNT-400 (30 m)</div>
-          <div class="text-gray-500 text-[1.4em] leading-tight">↓</div>
-          <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-white text-center">LNA i racket<br><span class="text-[0.85em] text-gray-500">RAS bredband 1–2,4 GHz, 30 dB, 12 V</span></div>
-          <div class="text-gray-500 text-[1.4em] leading-tight">↓</div>
-          <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-white text-center">USRP N210<br><span class="text-[0.85em] text-gray-500">mjukvarudefinierad radio, med DBSRX2</span></div>
-          <div class="text-gray-500 text-[1.4em] leading-tight">↓</div>
-        </div>
-
-        <!-- Top-right: control path from rotor down to MD01, bottom-aligned to touch webserver -->
-        <div class="flex flex-col items-center self-end">
-          <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-white text-center">Rotor BIG RAS/HR<br><span class="text-[0.85em] text-gray-500">→ rör parabolen</span></div>
-          <div class="text-gray-500 text-[1.4em] leading-tight">↑</div>
-          <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-white text-center">Kablar (5 m)<br><span class="text-[0.85em] text-gray-500">motorström &amp; sensoravläsningar</span></div>
-          <div class="text-gray-500 text-[1.4em] leading-tight">↑</div>
-          <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-white text-center">Kopplingsbox</div>
-          <div class="text-gray-500 text-[1.4em] leading-tight">↑</div>
-          <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-white text-center">Flerledarkabel (30 m)</div>
-          <div class="text-gray-500 text-[1.4em] leading-tight">↑</div>
-          <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-white text-center">MD01-rotorstyrenhet</div>
-          <div class="text-gray-500 text-[1.4em] leading-tight">↑</div>
-        </div>
-
-        <!-- Webserver: one box per column -->
-        <div class="flex flex-col items-center">
-          <div class="border-2 border-link rounded-lg px-12 py-2.5 bg-brand-bg text-center font-semibold text-link">SALSA:s webbserver</div>
-        </div>
-        <div class="flex flex-col items-center">
-          <div class="border-2 border-link rounded-lg px-12 py-2.5 bg-brand-bg text-center font-semibold text-link">SALSA:s webbserver</div>
-        </div>
-
-        <!-- Bottom-left: FFT and Spectrum -->
-        <div class="flex flex-col items-center self-start">
-          <div class="text-gray-500 text-[1.4em] leading-tight">↓</div>
-          <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-white text-center">FFT<br><span class="text-[0.85em] text-gray-500">8192 punkter</span></div>
-          <div class="text-gray-500 text-[1.4em] leading-tight">↓</div>
-          <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-white text-center">Bandbredd &amp; upplösning<br><span class="text-[0.85em] text-gray-500">väljs av användaren</span></div>
-          <div class="text-gray-500 text-[1.4em] leading-tight">↓</div>
-          <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-emerald-50 text-center">Spektrum</div>
-        </div>
-
-        <!-- Bottom-right: Selected coordinates -->
-        <div class="flex flex-col items-center self-start">
-          <div class="text-gray-500 text-[1.4em] leading-tight">↑</div>
-          <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-sky-50 text-center">Valda koordinater</div>
-        </div>
-
+      <!-- Control path: from the user's coordinates through the webserver to the rotor -->
+      <div class="flex flex-col items-center">
+        <p class="font-semibold text-gray-500 mb-1">Styrväg ↓</p>
+        <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-sky-50 text-center">Valda koordinater</div>
+        <div class="text-gray-500 text-[1.4em] leading-tight">↓</div>
+        <div class="border-2 border-link rounded-lg px-12 py-2.5 bg-brand-bg text-center font-semibold text-link">SALSA:s webbserver</div>
+        <div class="text-gray-500 text-[1.4em] leading-tight">↓</div>
+        <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-white text-center">MD01-rotorstyrenhet<br><span class="text-[0.85em] text-gray-500">med KrisTech KT-ETH-UART-1</span></div>
+        <div class="text-gray-500 text-[1.4em] leading-tight">↓</div>
+        <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-white text-center">Flerledarkabel (30 m)</div>
+        <div class="text-gray-500 text-[1.4em] leading-tight">↓</div>
+        <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-white text-center">Kopplingsbox</div>
+        <div class="text-gray-500 text-[1.4em] leading-tight">↓</div>
+        <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-white text-center">Kablar (5 m)<br><span class="text-[0.85em] text-gray-500">motorström &amp; sensoravläsningar</span></div>
+        <div class="text-gray-500 text-[1.4em] leading-tight">↓</div>
+        <div class="border border-gray-400 rounded-md px-5 py-1.5 bg-white text-center">Rotor BIG RAS/HR<br><span class="text-[0.85em] text-gray-500">→ rör parabolen</span></div>
       </div>
+
     </div>
 
   </div>
