@@ -923,43 +923,30 @@ struct EightBitLevel {
 /// Set the 8-bit scaling from the signal itself. The level varies far too much
 /// between targets for one fixed scaling: a strong GNSS satellite at 25 MHz
 /// sits ~16× higher than blank sky. Takes a short 16-bit snapshot at the
-/// signal frequency to measure the level, picks the scaling, then a short
-/// 8-bit snapshot to measure what it actually gives. The ratio of the two is
-/// the scale back to 16-bit units, measured rather than taken from UHD's
-/// documentation. The reference half of a frequency-switched run uses the
-/// same scaling, so any error in it cancels in the sig/ref ratio.
+/// signal frequency to measure the level and picks the scaling from it. The
+/// scale back to 16-bit units is UHD's documented `peak · 256`: measured
+/// against a second, 8-bit snapshot on torre (2026-11-01), it agreed to
+/// 0.03 %. The reference half of a frequency-switched run uses the same
+/// scaling, so it cancels in the sig/ref ratio anyway.
 fn auto_level(
     usrp: &mut UhdDevice,
     address: &str,
     sfreq: f64,
     srate: f64,
 ) -> Result<EightBitLevel, TelescopeError> {
-    let len = (AUTO_LEVEL_SECS * srate) as usize;
-    let mut wide = vec![Complex::<i16>::default(); len];
-    receive_block(usrp, sfreq, srate, "", &mut wide)?;
-    let rms16 = component_rms(&wide);
+    let mut snapshot = vec![Complex::<i16>::default(); (AUTO_LEVEL_SECS * srate) as usize];
+    receive_block(usrp, sfreq, srate, "", &mut snapshot)?;
+    let rms16 = component_rms(&snapshot);
 
     let peak = eight_bit_peak(rms16);
-    let stream_args = format!("peak={peak}");
-    let mut narrow = vec![Complex::<i8>::default(); len];
-    receive_block(usrp, sfreq, srate, &stream_args, &mut narrow)?;
-    let rms8 = component_rms(&narrow);
-
-    // UHD's documented relation, used only if the measurement cannot be:
-    // no signal at all in the 8-bit snapshot.
-    let expected_scale = peak * 256.0;
-    let scale = if rms8 > 0.0 && rms16 > 0.0 {
-        rms16 / rms8
-    } else {
-        warn!("8-bit level at {address}: no signal to measure, assuming UHD's scaling");
-        expected_scale
-    };
+    let scale = peak * 256.0;
     info!(
         "8-bit level at {address}: {rms16:.0} counts RMS in 16-bit, peak {peak:.4}, \
-         {rms8:.1} counts RMS in 8-bit; scale {scale:.2} (UHD's {expected_scale:.2})"
+         so {:.1} counts RMS in 8-bit",
+        rms16 / scale
     );
     Ok(EightBitLevel {
-        stream_args,
+        stream_args: format!("peak={peak}"),
         full_scale: 32768.0 / scale,
     })
 }
@@ -990,7 +977,7 @@ impl SpectrumProcessor {
     }
 
     /// `full_scale` is the count value corresponding to ADC full scale:
-    /// 32768 for 16-bit samples, and the measured equivalent for 8-bit ones
+    /// 32768 for 16-bit samples, and 128 / peak for 8-bit ones
     /// (see [`auto_level`]).
     fn spectrum<T: RawSample>(&mut self, samples: &[Complex<T>], full_scale: f64) -> Vec<f64> {
         let fft_pts = self.fft_pts;
