@@ -411,9 +411,8 @@ async fn save_announcement_handler(
         Some(trimmed.as_str())
     };
     info!(
-        "Admin {} ({}) updated support announcement (cleared: {})",
-        admin.name,
-        admin.provider,
+        "Admin user_id={} updated support announcement (cleared: {})",
+        admin.id,
         stored.is_none()
     );
     set_support_announcement(state.database_connection, stored)
@@ -569,10 +568,9 @@ async fn calibrate_handler(
     match result {
         Ok(calibration) => {
             info!(
-                "Admin {} ({}) adjusted MD01 pointing for {}: offsets az {:.2}°, el {:.2}°; \
+                "Admin user_id={} adjusted MD01 pointing for {}: offsets az {:.2}°, el {:.2}°; \
                  position az {} -> {}°, el {} -> {}°",
-                admin.name,
-                admin.provider,
+                admin.id,
                 name,
                 form.az_offset_deg,
                 form.el_offset_deg,
@@ -595,8 +593,8 @@ async fn calibrate_handler(
         }
         Err(err) => {
             info!(
-                "Admin {} ({}) failed to adjust MD01 pointing for {}: {}",
-                admin.name, admin.provider, name, err
+                "Admin user_id={} failed to adjust MD01 pointing for {}: {}",
+                admin.id, name, err
             );
             Ok(calibrate_error_response(&name, err.to_string()))
         }
@@ -618,8 +616,8 @@ async fn toggle_maintenance(
     let currently_in_maintenance = maintenance.contains(&name);
     let new_state = !currently_in_maintenance;
     info!(
-        "Admin {} ({}) set telescope {} maintenance: {}",
-        user.name, user.provider, name, new_state
+        "Admin user_id={} set telescope {} maintenance: {}",
+        user.id, name, new_state
     );
     set_maintenance(state.database_connection, &name, new_state)
         .await
