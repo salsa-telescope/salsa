@@ -345,6 +345,28 @@ mod tests {
         }
     }
 
+    /// State errors use the same danger callout as the page's other errors,
+    /// and keep the data-error-kind the observe-page script reads.
+    #[tokio::test]
+    async fn stall_error_is_shown_as_a_danger_callout() {
+        let telescope = MockTelescope::returning(Ok(info_with(
+            Some(TelescopeError::TelescopeNotMoving { seconds: 10 }),
+            false,
+            Duration::from_secs(0),
+        )));
+        let rendered = telescope_state("vale", telescope.as_ref(), Language::default(), None).await;
+        assert!(
+            rendered.contains(
+                r#"<div class="callout bg-danger-bg border-danger-border font-semibold text-danger" data-error-kind="not-moving">"#
+            ),
+            "stall error should render as a danger callout, got: {rendered}"
+        );
+        assert!(
+            rendered.contains("has not moved for 10 s"),
+            "got: {rendered}"
+        );
+    }
+
     #[tokio::test]
     async fn controller_offline_reports_an_idle_receiver_as_idle() {
         let telescope = MockTelescope::returning(Ok(info_with(

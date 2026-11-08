@@ -807,7 +807,7 @@
   // elevation-range error means the target sank below the horizon.
   function maybeNotifyOffTargetStop() {
       const status = currentTelescopeStatus();
-      const errEl = document.querySelector('#telescope-status p.text-danger');
+      const errEl = document.querySelector('#telescope-status [data-error-kind]');
       const elevationLost = status === 'Idle' && errEl && errEl.dataset.errorKind === 'elevation';
       if (status === 'Slewing' || elevationLost) {
           document.getElementById('errors').innerHTML =

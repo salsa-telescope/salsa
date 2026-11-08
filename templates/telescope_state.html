@@ -29,7 +29,7 @@
 </h2>
 
 {% if !error.is_empty() %}
-<p class="text-danger text-sm mb-2" data-error-kind="{{ error_kind }}">{{ error }}</p>
+<div class="callout bg-danger-bg border-danger-border font-semibold text-danger" data-error-kind="{{ error_kind }}">{{ error }}</div>
 {% endif %}
 
 {% if let Some(el) = low_elevation_deg %}
