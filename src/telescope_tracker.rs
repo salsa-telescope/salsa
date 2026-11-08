@@ -270,6 +270,9 @@ async fn tracker_task_function(
     // is not driven against the jam over and over.
     let mut auto_restart_armed = true;
     let mut auto_restarted = false;
+    // Set by any restart, manual or automatic, so the log shows whether the
+    // antenna reached its target afterwards.
+    let mut restarted_awaiting_target = false;
     // The MD01 controller closes the TCP connection after responding to Stop.
     // So we send Stop once on first startup on its own connection, then reconnect
     // for all subsequent communication. On later reconnects we skip Stop.
@@ -343,6 +346,7 @@ async fn tracker_task_function(
             let result = send_restart(ctrl, &controller_address);
             // The requester may have timed out and dropped the receiver.
             let _ = responder.send(result);
+            restarted_awaiting_target = true;
             controller = None;
             wait_after_restart(&state).await;
             continue;
@@ -383,15 +387,19 @@ async fn tracker_task_function(
             info!("Antenna at {} is moving again", &controller_address);
         }
         let newly_stalled = stall.is_stalled() && !was_stalled;
-        if res.is_ok() && reached_target(&state) && !auto_restart_armed {
-            if auto_restarted {
+        if res.is_ok()
+            && (restarted_awaiting_target || !auto_restart_armed)
+            && reached_target(&state)
+        {
+            if restarted_awaiting_target {
                 info!(
-                    "Antenna at {} reached its target after the automatic controller restart",
+                    "Antenna at {} reached its target after the controller restart",
                     &controller_address
                 );
             }
             auto_restart_armed = true;
             auto_restarted = false;
+            restarted_awaiting_target = false;
         }
         match res {
             Ok(()) => {
@@ -417,6 +425,7 @@ async fn tracker_task_function(
                 );
                 auto_restart_armed = false;
                 auto_restarted = true;
+                restarted_awaiting_target = true;
                 let _ = send_restart(ctrl, &controller_address);
                 controller = None;
                 wait_after_restart(&state).await;

@@ -731,17 +731,25 @@ impl Inner {
                 }
             }
         }
+        let controller_error = match self.controller.info() {
+            Ok(info) => info.most_recent_error,
+            Err(err) => Some(err),
+        };
         let connected = !matches!(
-            self.controller.info().map(|i| i.most_recent_error),
-            Ok(Some(
-                TelescopeError::TelescopeIOError(_) | TelescopeError::TelescopeNotConnected
-            )) | Err(TelescopeError::TelescopeIOError(_) | TelescopeError::TelescopeNotConnected)
+            controller_error,
+            Some(TelescopeError::TelescopeIOError(_) | TelescopeError::TelescopeNotConnected)
         );
         if connected != self.controller_connected {
             if connected {
                 info!("Controller for {} is now connected", self.name);
             } else {
-                warn!("Controller for {} is no longer connected", self.name);
+                // Say why: a timeout and a garbled reply point to different
+                // causes (e.g. a controller still booting after a restart).
+                warn!(
+                    "Controller for {} is no longer connected: {}",
+                    self.name,
+                    controller_error.map(|e| e.to_string()).unwrap_or_default()
+                );
             }
             self.controller_connected = connected;
         }
