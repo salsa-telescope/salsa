@@ -16,7 +16,18 @@ use tracing::{debug, error, info, warn};
 /// normally even when the motors do not run (no power, manual mode, a limit
 /// or a mechanical fault), so without this check a stuck antenna would just
 /// show "Slewing" forever with no error.
-const STALL_TIMEOUT: Duration = Duration::from_secs(10);
+const STALL_TIMEOUT: Duration = if cfg!(test) {
+    Duration::from_secs(2)
+} else {
+    Duration::from_secs(10)
+};
+/// How long to leave the controller alone after a restart command. It
+/// restarts 5 s after acknowledging.
+const RESTART_SETTLE: Duration = if cfg!(test) {
+    Duration::from_secs(2)
+} else {
+    Duration::from_secs(10)
+};
 /// Smaller position changes do not count as movement. The rotor resolution
 /// is 0.1°, so this is a couple of encoder steps.
 const STALL_MIN_MOVEMENT_DEG: f64 = 0.2;
@@ -253,6 +264,12 @@ async fn tracker_task_function(
     let mut controller: Option<TelescopeController> = None;
     let mut prev_target: Option<TelescopeTarget> = None;
     let mut stall = StallDetector::default();
+    // A stall is answered with one automatic controller restart, which
+    // clears the MD-01's latched TIME OUT. It is re-armed only once the
+    // antenna has reached a target again, so a rotor that is really jammed
+    // is not driven against the jam over and over.
+    let mut auto_restart_armed = true;
+    let mut auto_restarted = false;
     // The MD01 controller closes the TCP connection after responding to Stop.
     // So we send Stop once on first startup on its own connection, then reconnect
     // for all subsequent communication. On later reconnects we skip Stop.
@@ -323,29 +340,11 @@ async fn tracker_task_function(
 
         let pending_restart = state.lock().unwrap().pending_restart.take();
         if let Some(responder) = pending_restart {
-            let result = ctrl.execute(TelescopeCommand::Restart).map(|_| ());
-            match &result {
-                Ok(()) => info!(
-                    "Restart command acknowledged by controller at {}",
-                    &controller_address
-                ),
-                Err(err) => warn!(
-                    "Restart command to controller at {} failed: {}",
-                    &controller_address, err
-                ),
-            }
+            let result = send_restart(ctrl, &controller_address);
             // The requester may have timed out and dropped the receiver.
             let _ = responder.send(result);
-            // The controller restarts 5 s after acknowledging. Drop the
-            // connection and give it time to come back before talking to it
-            // again; the reconnect also resets the stall detector.
             controller = None;
-            for _ in 0..10 {
-                if state.lock().unwrap().quit {
-                    break;
-                }
-                sleep_until(Instant::now() + Duration::from_secs(1)).await;
-            }
+            wait_after_restart(&state).await;
             continue;
         }
 
@@ -383,6 +382,17 @@ async fn tracker_task_function(
         } else if was_stalled && !stall.is_stalled() {
             info!("Antenna at {} is moving again", &controller_address);
         }
+        let newly_stalled = stall.is_stalled() && !was_stalled;
+        if res.is_ok() && reached_target(&state) && !auto_restart_armed {
+            if auto_restarted {
+                info!(
+                    "Antenna at {} reached its target after the automatic controller restart",
+                    &controller_address
+                );
+            }
+            auto_restart_armed = true;
+            auto_restarted = false;
+        }
         match res {
             Ok(()) => {
                 state.lock().unwrap().most_recent_error = None;
@@ -397,6 +407,61 @@ async fn tracker_task_function(
                 state.lock().unwrap().most_recent_error = Some(err);
             }
         }
+
+        if newly_stalled && let Some(ctrl) = controller.as_mut() {
+            if auto_restart_armed {
+                warn!(
+                    "Restarting controller at {} automatically to clear a possible latched \
+                     error; not repeated until the antenna has reached a target",
+                    &controller_address
+                );
+                auto_restart_armed = false;
+                auto_restarted = true;
+                let _ = send_restart(ctrl, &controller_address);
+                controller = None;
+                wait_after_restart(&state).await;
+            } else if auto_restarted {
+                warn!(
+                    "Antenna at {} is still not moving after the automatic controller restart; \
+                     it needs to be checked",
+                    &controller_address
+                );
+            }
+        }
+    }
+}
+
+/// Send the controller restart command and log the outcome.
+fn send_restart(
+    controller: &mut TelescopeController,
+    controller_address: &str,
+) -> Result<(), TelescopeError> {
+    let result = controller.execute(TelescopeCommand::Restart).map(|_| ());
+    match &result {
+        Ok(()) => info!("Restart command acknowledged by controller at {controller_address}"),
+        Err(err) => warn!("Restart command to controller at {controller_address} failed: {err}"),
+    }
+    result
+}
+
+/// Give a restarting controller time to come back before talking to it
+/// again, waking each second so a server shutdown is not held up. The
+/// caller drops the connection; the reconnect also resets the stall detector.
+async fn wait_after_restart(state: &Arc<Mutex<TelescopeTrackerState>>) {
+    for _ in 0..RESTART_SETTLE.as_secs() {
+        if state.lock().unwrap().quit {
+            return;
+        }
+        sleep_until(Instant::now() + Duration::from_secs(1)).await;
+    }
+}
+
+/// Whether the antenna is on its commanded position (the Tracking status).
+fn reached_target(state: &Arc<Mutex<TelescopeTrackerState>>) -> bool {
+    let state = state.lock().unwrap();
+    match (state.commanded_horizontal, state.current_direction) {
+        (Some(commanded), Some(current)) => directions_are_close(commanded, current, 2.0),
+        _ => false,
     }
 }
 
@@ -616,6 +681,13 @@ mod tests {
     /// A minimal MD01 on a local TCP port: answers every 13-byte command with
     /// a position frame and records the commands it received.
     fn fake_md01() -> (String, Arc<Mutex<Vec<Vec<u8>>>>) {
+        fake_md01_with(false)
+    }
+
+    /// Like `fake_md01`, but if `moves_after_restart` is set, the rotor
+    /// "works" once a restart command has been received: it then reports the
+    /// most recently commanded position.
+    fn fake_md01_with(moves_after_restart: bool) -> (String, Arc<Mutex<Vec<Vec<u8>>>>) {
         use std::io::{Read, Write};
         let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
         let address = listener.local_addr().unwrap().to_string();
@@ -628,8 +700,22 @@ mod tests {
                 std::thread::spawn(move || {
                     let mut command = [0u8; 13];
                     while stream.read_exact(&mut command).is_ok() {
-                        log.lock().unwrap().push(command.to_vec());
-                        let position = [0x58, 3, 6, 0, 0, 0, 3, 6, 0, 0, 0, 0x20];
+                        let mut position = [0x58, 3, 6, 0, 0, 0, 3, 6, 0, 0, 0, 0x20];
+                        {
+                            let mut log = log.lock().unwrap();
+                            log.push(command.to_vec());
+                            let restarted = log.iter().any(|c| is_restart(c));
+                            // Last set-direction command: ASCII digits of
+                            // (angle + 360) × 100 for az and el.
+                            let last_set = log.iter().rev().find(|c| c[11] == 0x5F);
+                            if let (true, true, Some(set)) =
+                                (moves_after_restart, restarted, last_set)
+                            {
+                                for i in 1..=10 {
+                                    position[i] = set[i] - 0x30;
+                                }
+                            }
+                        }
                         if stream.write_all(&position).is_err() {
                             return;
                         }
@@ -671,18 +757,106 @@ mod tests {
         tracker.shutdown().await;
     }
 
+    fn is_restart(command: &[u8]) -> bool {
+        command.get(11) == Some(&0xEE)
+    }
+
+    #[tokio::test]
+    async fn stuck_antenna_gets_one_automatic_restart_only() {
+        // The fake MD01 always reports az 0°, el 0° and never moves.
+        let (address, received) = fake_md01();
+        let mut tracker = TelescopeTracker::new(
+            address,
+            Location {
+                longitude: 0.0,
+                latitude: 0.0,
+            },
+            0.0,
+            std::f64::consts::PI,
+            TleCacheHandle::new(),
+        );
+        tracker
+            .set_target(
+                TelescopeTarget::Horizontal {
+                    azimuth: 90.0_f64.to_radians(),
+                    elevation: 45.0_f64.to_radians(),
+                },
+                0.0,
+                0.0,
+            )
+            .unwrap();
+        // Long enough for stall, restart, reconnect and a second stall.
+        let enough = STALL_TIMEOUT * 3 + RESTART_SETTLE + Duration::from_secs(4);
+        tokio::time::sleep(enough).await;
+        let restarts = received
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|c| is_restart(c))
+            .count();
+        assert_eq!(restarts, 1);
+        assert!(matches!(
+            tracker.info().unwrap().most_recent_error,
+            Some(TelescopeError::TelescopeNotMoving { .. })
+        ));
+        tracker.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn automatic_restart_brings_a_stuck_antenna_back_to_tracking() {
+        let (address, received) = fake_md01_with(true);
+        let mut tracker = TelescopeTracker::new(
+            address,
+            Location {
+                longitude: 0.0,
+                latitude: 0.0,
+            },
+            0.0,
+            std::f64::consts::PI,
+            TleCacheHandle::new(),
+        );
+        tracker
+            .set_target(
+                TelescopeTarget::Horizontal {
+                    azimuth: 90.0_f64.to_radians(),
+                    elevation: 45.0_f64.to_radians(),
+                },
+                0.0,
+                0.0,
+            )
+            .unwrap();
+        let enough = STALL_TIMEOUT * 2 + RESTART_SETTLE + Duration::from_secs(4);
+        tokio::time::sleep(enough).await;
+        let info = tracker.info().unwrap();
+        assert_eq!(info.status, TelescopeStatus::Tracking);
+        assert_eq!(info.most_recent_error, None);
+        let restarts = received
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|c| is_restart(c))
+            .count();
+        assert_eq!(restarts, 1);
+        tracker.shutdown().await;
+    }
+
     #[test]
     fn stall_reported_when_antenna_does_not_move_towards_far_target() {
         let start = std::time::Instant::now();
         let mut stall = StallDetector::default();
-        for s in 0..10 {
+        let timeout = STALL_TIMEOUT.as_secs();
+        for s in 0..timeout {
             stall.update(deg(100.0, 30.0), true, start + Duration::from_secs(s));
             assert!(!stall.is_stalled(), "too early at {s} s");
         }
-        stall.update(deg(100.0, 30.0), true, start + Duration::from_secs(10));
+        stall.update(deg(100.0, 30.0), true, start + STALL_TIMEOUT);
         assert!(stall.is_stalled());
         // Movement clears it.
-        stall.update(deg(101.0, 30.0), true, start + Duration::from_secs(11));
+        stall.update(
+            deg(101.0, 30.0),
+            true,
+            start + STALL_TIMEOUT + Duration::from_secs(1),
+        );
         assert!(!stall.is_stalled());
     }
 

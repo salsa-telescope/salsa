@@ -70,7 +70,11 @@
       </tr>
       {% if !error.is_empty() %}
       <tr class="border-b last:border-0">
-        <td colspan="6" class="pb-2 text-xs text-danger break-words">{{ error }}</td>
+        <td colspan="6" class="pb-2">
+          <div class="callout bg-danger-bg border-danger-border text-danger text-sm break-words">
+            <span class="font-semibold">Error on {{ name }}:</span> {{ error }}
+          </div>
+        </td>
       </tr>
       {% endif %}
       {% endfor %}
@@ -122,7 +126,9 @@
     when a telescope does not move although the controller answers, for example
     after the MD01 has stopped its motors with a TIME OUT error. Any target is
     kept and tracking resumes after about 10 s. The telescope must be in
-    maintenance mode.
+    maintenance mode. SALSA already does this once by itself when a telescope
+    stops moving; it does not repeat it until the telescope has reached a
+    target again, so a telescope that is still stuck needs checking.
   </p>
   {% for (name, in_maintenance, is_booked_now, is_connected, receiver_connected, error) in telescopes %}
   <div class="mb-4">
