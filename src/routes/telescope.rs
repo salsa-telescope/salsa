@@ -215,6 +215,13 @@ pub fn translate_error(lang: &Language, err: &TelescopeError) -> String {
         TelescopeError::TelescopeNotConnected => {
             fl!(lang.loader(), "state-error-not-connected")
         }
+        TelescopeError::TelescopeNotMoving { seconds } => {
+            fl!(
+                lang.loader(),
+                "state-error-not-moving",
+                seconds = seconds.to_string()
+            )
+        }
         TelescopeError::ReceiverFailed(msg) => {
             fl!(lang.loader(), "state-error-receiver", msg = msg.as_str())
         }
@@ -274,6 +281,7 @@ pub async fn telescope_state(
                 Some(TelescopeError::TelescopeNotConnected) => "not-connected",
                 Some(TelescopeError::ReceiverFailed(_)) => "receiver",
                 Some(TelescopeError::TelescopeBusy) => "busy",
+                Some(TelescopeError::TelescopeNotMoving { .. }) => "not-moving",
                 None => "",
             },
         }

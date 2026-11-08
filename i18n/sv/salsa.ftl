@@ -251,6 +251,7 @@ state-low-elevation-2 = över horisonten — brus från marken och omgivande byg
 state-error-elevation-range = målet är utanför elevationsområdet ({ $min }–{ $max }°)
 state-error-io = IO-fel i kommunikationen med teleskopet
 state-error-not-connected = teleskopet är inte anslutet
+state-error-not-moving = teleskopet har inte rört sig på { $seconds } s trots att det fått en ny position; det kan ha fastnat eller sakna ström
 state-error-receiver = mottagaren misslyckades: { $msg }
 
 ## Observe landing / no-booking / maintenance pages

@@ -118,11 +118,20 @@ pub struct TelescopesConfig {
 
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub enum TelescopeError {
-    TargetOutOfElevationRange { min_deg: f64, max_deg: f64 },
+    TargetOutOfElevationRange {
+        min_deg: f64,
+        max_deg: f64,
+    },
     TelescopeIOError(String),
     TelescopeNotConnected,
     ReceiverFailed(String),
     TelescopeBusy,
+    /// The controller answers, but the reported position has not changed
+    /// for this many seconds although the antenna is far from its commanded
+    /// position.
+    TelescopeNotMoving {
+        seconds: u64,
+    },
 }
 
 /// Outcome of a pointing calibration: the controller's reported position
@@ -182,6 +191,9 @@ impl Display for TelescopeError {
             TelescopeError::TelescopeBusy => {
                 f.write_str("Telescope is busy tracking a target. Stop it first.")
             }
+            TelescopeError::TelescopeNotMoving { seconds } => f.write_str(&format!(
+                "Telescope has not moved for {seconds} s although commanded to a new position."
+            )),
             TelescopeError::ReceiverFailed(message) => f.write_str(&format!(
                 "Receiver failed: {}",
                 message

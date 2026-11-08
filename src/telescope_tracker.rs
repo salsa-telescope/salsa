@@ -11,6 +11,20 @@ use std::time::Duration;
 use tokio::time::{Instant, sleep_until};
 use tracing::{debug, error, info, warn};
 
+/// How long the antenna may sit still while commanded somewhere else before
+/// it is reported as not moving. The controller answers position requests
+/// normally even when the motors do not run (no power, manual mode, a limit
+/// or a mechanical fault), so without this check a stuck antenna would just
+/// show "Slewing" forever with no error.
+const STALL_TIMEOUT: Duration = Duration::from_secs(10);
+/// Smaller position changes do not count as movement. The rotor resolution
+/// is 0.1°, so this is a couple of encoder steps.
+const STALL_MIN_MOVEMENT_DEG: f64 = 0.2;
+/// Only check for a stall while the antenna is at least this far from the
+/// commanded position. Closer than that it is tracking, and the rotor may
+/// legitimately stay put on small errors.
+const STALL_MIN_ERROR_DEG: f64 = 1.0;
+
 pub struct TelescopeTrackerInfo {
     pub target: Option<TelescopeTarget>,
     pub commanded_horizontal: Option<Direction>,
@@ -224,6 +238,7 @@ async fn tracker_task_function(
 ) {
     let mut controller: Option<TelescopeController> = None;
     let mut prev_target: Option<TelescopeTarget> = None;
+    let mut stall = StallDetector::default();
     // The MD01 controller closes the TCP connection after responding to Stop.
     // So we send Stop once on first startup on its own connection, then reconnect
     // for all subsequent communication. On later reconnects we skip Stop.
@@ -274,6 +289,7 @@ async fn tracker_task_function(
             }
 
             state.lock().unwrap().commanded_horizontal = None;
+            stall = StallDetector::default();
         }
 
         let ctrl = controller.as_mut().unwrap();
@@ -324,7 +340,18 @@ async fn tracker_task_function(
             continue;
         }
 
-        let res = update_direction(&state, Utc::now(), ctrl);
+        let was_stalled = stall.is_stalled();
+        let res = update_direction(&state, Utc::now(), ctrl, &mut stall);
+        if stall.is_stalled() && !was_stalled {
+            warn!(
+                "Antenna at {} has not moved for {} s although commanded to a new position; \
+                 the controller answers but the rotor does not turn",
+                &controller_address,
+                STALL_TIMEOUT.as_secs()
+            );
+        } else if was_stalled && !stall.is_stalled() {
+            info!("Antenna at {} is moving again", &controller_address);
+        }
         match res {
             Ok(()) => {
                 state.lock().unwrap().most_recent_error = None;
@@ -372,6 +399,7 @@ fn update_direction(
     state: &Arc<Mutex<TelescopeTrackerState>>,
     when: DateTime<Utc>,
     controller: &mut TelescopeController,
+    stall: &mut StallDetector,
 ) -> Result<(), TelescopeError> {
     // Read target, offsets, location, elevation limits, and tle_cache from state, then release the lock
     let (
@@ -403,6 +431,7 @@ fn update_direction(
     }?;
 
     let Some(target) = target else {
+        *stall = StallDetector::default();
         state.lock().unwrap().current_direction = Some(current_horizontal);
         return Ok(());
     };
@@ -410,6 +439,7 @@ fn update_direction(
     let Some(raw_horizontal) = calculate_target_horizontal(target, location, when, &tle_cache)
     else {
         // Satellite not yet in TLE cache — skip this update cycle
+        *stall = StallDetector::default();
         state.lock().unwrap().current_direction = Some(current_horizontal);
         return Ok(());
     };
@@ -422,6 +452,7 @@ fn update_direction(
             min_deg: min_elevation_rad.to_degrees(),
             max_deg: max_elevation_rad.to_degrees(),
         };
+        *stall = StallDetector::default();
         let mut state_guard = state.lock().unwrap();
         state_guard.current_direction = Some(current_horizontal);
         state_guard.most_recent_error = Some(err.clone());
@@ -434,11 +465,63 @@ fn update_direction(
         controller.execute(TelescopeCommand::SetDirection(target_horizontal))?;
     }
 
+    let far_from_target = !directions_are_close(
+        target_horizontal,
+        current_horizontal,
+        STALL_MIN_ERROR_DEG / 0.1,
+    );
+    stall.update(
+        current_horizontal,
+        far_from_target,
+        std::time::Instant::now(),
+    );
+
     let mut state_guard = state.lock().unwrap();
     state_guard.current_direction = Some(current_horizontal);
     state_guard.commanded_horizontal = Some(target_horizontal);
+    drop(state_guard);
 
+    if stall.is_stalled() {
+        return Err(TelescopeError::TelescopeNotMoving {
+            seconds: STALL_TIMEOUT.as_secs(),
+        });
+    }
     Ok(())
+}
+
+/// Notices an antenna that does not move although it is far from where it
+/// has been told to go. Fed the reported position once per tracker cycle.
+#[derive(Default)]
+struct StallDetector {
+    /// Position at the last observed movement, and when it was seen.
+    anchor: Option<(Direction, std::time::Instant)>,
+    stalled: bool,
+}
+
+impl StallDetector {
+    fn update(&mut self, current: Direction, far_from_target: bool, now: std::time::Instant) {
+        if !far_from_target {
+            *self = StallDetector::default();
+            return;
+        }
+        let min_movement = STALL_MIN_MOVEMENT_DEG.to_radians();
+        match self.anchor {
+            Some((position, since))
+                if (current.azimuth - position.azimuth).abs() < min_movement
+                    && (current.elevation - position.elevation).abs() < min_movement =>
+            {
+                self.stalled = now.duration_since(since) >= STALL_TIMEOUT;
+            }
+            _ => {
+                self.anchor = Some((current, now));
+                self.stalled = false;
+            }
+        }
+    }
+
+    fn is_stalled(&self) -> bool {
+        self.stalled
+    }
 }
 
 fn calculate_target_horizontal(
@@ -491,6 +574,48 @@ fn directions_are_close(a: Direction, b: Direction, tol: f64) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn deg(az: f64, el: f64) -> Direction {
+        Direction {
+            azimuth: az.to_radians(),
+            elevation: el.to_radians(),
+        }
+    }
+
+    #[test]
+    fn stall_reported_when_antenna_does_not_move_towards_far_target() {
+        let start = std::time::Instant::now();
+        let mut stall = StallDetector::default();
+        for s in 0..10 {
+            stall.update(deg(100.0, 30.0), true, start + Duration::from_secs(s));
+            assert!(!stall.is_stalled(), "too early at {s} s");
+        }
+        stall.update(deg(100.0, 30.0), true, start + Duration::from_secs(10));
+        assert!(stall.is_stalled());
+        // Movement clears it.
+        stall.update(deg(101.0, 30.0), true, start + Duration::from_secs(11));
+        assert!(!stall.is_stalled());
+    }
+
+    #[test]
+    fn no_stall_while_slewing_or_tracking() {
+        let start = std::time::Instant::now();
+        let mut stall = StallDetector::default();
+        // Slewing: position changes every second.
+        for s in 0..30 {
+            stall.update(
+                deg(100.0 + s as f64, 30.0),
+                true,
+                start + Duration::from_secs(s),
+            );
+            assert!(!stall.is_stalled());
+        }
+        // Tracking: close to target, standing still is fine.
+        for s in 30..60 {
+            stall.update(deg(130.0, 30.0), false, start + Duration::from_secs(s));
+            assert!(!stall.is_stalled());
+        }
+    }
 
     // Past behaviour: route handlers racing teardown would call into the
     // tracker after shutdown set state.quit=true and the four entry points

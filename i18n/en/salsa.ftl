@@ -251,6 +251,7 @@ state-low-elevation-2 = above the horizon — noise from the ground and surround
 state-error-elevation-range = target is out of elevation range ({ $min }–{ $max }°)
 state-error-io = io error in communication with telescope
 state-error-not-connected = telescope is not connected
+state-error-not-moving = telescope has not moved for { $seconds } s although commanded to a new position; it may be stuck or without power
 state-error-receiver = receiver failed: { $msg }
 
 ## Observe landing / no-booking / maintenance pages
