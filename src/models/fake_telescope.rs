@@ -194,6 +194,12 @@ impl Telescope for FakeTelescope {
         Ok(CalibrationResult { previous, adjusted })
     }
 
+    async fn restart_controller(&self) -> Result<(), TelescopeError> {
+        let inner = self.inner.lock().await;
+        info!("Restarted fake controller for {}", inner.name);
+        Ok(())
+    }
+
     async fn set_receiver_configuration(
         &self,
         receiver_configuration: ReceiverConfiguration,

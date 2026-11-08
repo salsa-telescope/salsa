@@ -29,6 +29,10 @@ pub fn routes(state: AppState) -> Router {
             post(calibrate_preview_handler),
         )
         .route("/telescope/{name}/calibrate", post(calibrate_handler))
+        .route(
+            "/telescope/{name}/restart-controller",
+            post(restart_controller_handler),
+        )
         .route("/announcement", post(save_announcement_handler))
         .route("/local-users", post(create_local_user_handler))
         .route("/local-users/{id}/delete", post(delete_local_user_handler))
@@ -787,4 +791,58 @@ mod test {
         let kept = without_admin_bookings(rows, &[7]);
         assert_eq!(count_booking_segments(&kept), 2);
     }
+}
+
+#[derive(Template)]
+#[template(path = "admin_restart_result.html")]
+struct RestartResultTemplate {
+    name: String,
+    error: Option<String>,
+    /// Whether the restart command was attempted, so a failure may still
+    /// have restarted the controller.
+    attempted: bool,
+}
+
+/// Restart a telescope's MD01 rotor controller. Clears a latched controller
+/// error (e.g. TIME OUT after the motor ran without position pulses), which
+/// otherwise leaves the antenna still while the controller keeps answering.
+/// Only allowed in maintenance mode, since it interrupts any slew or tracking.
+async fn restart_controller_handler(
+    Extension(user): Extension<Option<User>>,
+    State(state): State<AppState>,
+    Path(name): Path<String>,
+) -> Result<Response, StatusCode> {
+    let admin = require_admin(user)?;
+    let telescope = state
+        .telescopes
+        .get(&name)
+        .await
+        .ok_or(StatusCode::NOT_FOUND)?;
+    let maintenance = fetch_maintenance_set(state.database_connection.clone())
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let attempted = maintenance.contains(&name);
+    let error = if !attempted {
+        Some("Telescope must be in maintenance mode before restarting its controller.".to_string())
+    } else {
+        let result = telescope.restart_controller().await;
+        info!(
+            "Admin user_id={} restarted MD01 controller for {}: {}",
+            admin.id,
+            name,
+            match &result {
+                Ok(()) => "acknowledged".to_string(),
+                Err(err) => err.to_string(),
+            }
+        );
+        result.err().map(|err| err.to_string())
+    };
+    let content = RestartResultTemplate {
+        name,
+        error,
+        attempted,
+    }
+    .render()
+    .expect("Template rendering should always succeed");
+    Ok(Html(content).into_response())
 }

@@ -206,6 +206,10 @@ impl Telescope for MockTelescope {
         })
     }
 
+    async fn restart_controller(&self) -> Result<(), TelescopeError> {
+        Ok(())
+    }
+
     async fn set_receiver_configuration(
         &self,
         receiver_configuration: ReceiverConfiguration,

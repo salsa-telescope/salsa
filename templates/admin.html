@@ -116,6 +116,34 @@
   </div>
   {% endfor %}
 
+  <h3 class="font-semibold mt-12 mb-2">Restart MD01 controller</h3>
+  <p class="text-gray-500 text-sm mb-4">
+    Restarts the rotor controller remotely, like switching it off and on. Use it
+    when a telescope does not move although the controller answers, for example
+    after the MD01 has stopped its motors with a TIME OUT error. Any target is
+    kept and tracking resumes after about 10 s. The telescope must be in
+    maintenance mode.
+  </p>
+  {% for (name, in_maintenance, is_booked_now, is_connected, receiver_connected, error) in telescopes %}
+  <div class="mb-4">
+    <div class="flex items-center gap-3 flex-wrap text-sm">
+      <span class="font-medium w-24">{{ name }}</span>
+      {% if in_maintenance %}
+      <button
+        hx-post="/admin/telescope/{{ name }}/restart-controller"
+        hx-target="#restart-panel-{{ name }}"
+        hx-confirm="Restart the MD01 controller for {{ name }}?"
+        class="btn bg-danger hover:bg-danger-hover">Restart MD01</button>
+      {% else %}
+      <button type="button" class="btn bg-danger hover:bg-danger-hover" disabled
+        title="Put the telescope into maintenance mode first">Restart MD01</button>
+      <span class="text-gray-400">requires maintenance mode</span>
+      {% endif %}
+    </div>
+    <div id="restart-panel-{{ name }}"></div>
+  </div>
+  {% endfor %}
+
   <h3 class="font-semibold mt-12 mb-2">Support page announcement</h3>
   <p class="text-gray-500 text-sm mb-4">Shown as a banner at the top of the <a href="/support">Support</a> page. Use this to flag known issues (e.g. "Vale telescope down", "Webcam offline") so users don't email about them. Leave empty and save to remove the banner.</p>
   <form method="post" action="/admin/announcement" class="flex flex-col gap-2 max-w-xl">

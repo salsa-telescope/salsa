@@ -59,7 +59,7 @@ impl TelescopeTracker {
             // so startup logged the controller as connected before the first
             // attempt had even been made — and then immediately as lost.
             most_recent_error: Some(TelescopeError::TelescopeNotConnected),
-            should_restart: false,
+            pending_restart: None,
             pending_calibration: None,
             quit: false,
             tle_cache: tle_cache.clone(),
@@ -159,13 +159,25 @@ impl TelescopeTracker {
         Ok(receiver)
     }
 
-    #[allow(dead_code)]
-    pub fn restart(&self) {
+    /// Request a restart of the rotor controller (ROTn_CMD_RESTART_DEVICE).
+    /// This clears a latched controller error such as the MD-01's TIME OUT,
+    /// which stops the motors while position queries keep working. The
+    /// command is sent by the tracker task on its next cycle; await the
+    /// returned receiver for whether the controller acknowledged it. Any
+    /// target is kept, so tracking resumes once the controller is back.
+    pub fn request_restart(
+        &self,
+    ) -> Result<tokio::sync::oneshot::Receiver<Result<(), TelescopeError>>, TelescopeError> {
         let mut state = self.state.lock().unwrap();
         if state.quit {
-            return;
+            return Err(TelescopeError::TelescopeNotConnected);
         }
-        state.should_restart = true;
+        if state.pending_restart.is_some() {
+            return Err(TelescopeError::TelescopeBusy);
+        }
+        let (responder, receiver) = tokio::sync::oneshot::channel();
+        state.pending_restart = Some(responder);
+        Ok(receiver)
     }
 
     pub fn info(&self) -> Result<TelescopeTrackerInfo, TelescopeError> {
@@ -217,7 +229,9 @@ struct TelescopeTrackerState {
     commanded_horizontal: Option<Direction>,
     current_direction: Option<Direction>,
     most_recent_error: Option<TelescopeError>,
-    should_restart: bool,
+    /// Set while a restart is requested and not yet sent; answered with the
+    /// outcome of sending the command.
+    pending_restart: Option<tokio::sync::oneshot::Sender<Result<(), TelescopeError>>>,
     pending_calibration: Option<PendingCalibration>,
     quit: bool,
     tle_cache: TleCacheHandle,
@@ -307,14 +321,31 @@ async fn tracker_task_function(
             continue;
         }
 
-        if state.lock().unwrap().should_restart {
-            info!("Restarting controller");
-            if let Err(err) = ctrl.execute(TelescopeCommand::Restart) {
-                state.lock().unwrap().most_recent_error = Some(err);
+        let pending_restart = state.lock().unwrap().pending_restart.take();
+        if let Some(responder) = pending_restart {
+            let result = ctrl.execute(TelescopeCommand::Restart).map(|_| ());
+            match &result {
+                Ok(()) => info!(
+                    "Restart command acknowledged by controller at {}",
+                    &controller_address
+                ),
+                Err(err) => warn!(
+                    "Restart command to controller at {} failed: {}",
+                    &controller_address, err
+                ),
             }
+            // The requester may have timed out and dropped the receiver.
+            let _ = responder.send(result);
+            // The controller restarts 5 s after acknowledging. Drop the
+            // connection and give it time to come back before talking to it
+            // again; the reconnect also resets the stall detector.
             controller = None;
-            sleep_until(Instant::now() + Duration::from_secs(10)).await;
-            state.lock().unwrap().should_restart = false;
+            for _ in 0..10 {
+                if state.lock().unwrap().quit {
+                    break;
+                }
+                sleep_until(Instant::now() + Duration::from_secs(1)).await;
+            }
             continue;
         }
 
@@ -582,6 +613,64 @@ mod tests {
         }
     }
 
+    /// A minimal MD01 on a local TCP port: answers every 13-byte command with
+    /// a position frame and records the commands it received.
+    fn fake_md01() -> (String, Arc<Mutex<Vec<Vec<u8>>>>) {
+        use std::io::{Read, Write};
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap().to_string();
+        let received = Arc::new(Mutex::new(Vec::new()));
+        let log = received.clone();
+        std::thread::spawn(move || {
+            for stream in listener.incoming() {
+                let Ok(mut stream) = stream else { return };
+                let log = log.clone();
+                std::thread::spawn(move || {
+                    let mut command = [0u8; 13];
+                    while stream.read_exact(&mut command).is_ok() {
+                        log.lock().unwrap().push(command.to_vec());
+                        let position = [0x58, 3, 6, 0, 0, 0, 3, 6, 0, 0, 0, 0x20];
+                        if stream.write_all(&position).is_err() {
+                            return;
+                        }
+                    }
+                });
+            }
+        });
+        (address, received)
+    }
+
+    #[tokio::test]
+    async fn restart_request_sends_restart_command_and_reports_ack() {
+        let (address, received) = fake_md01();
+        let tracker = TelescopeTracker::new(
+            address,
+            Location {
+                longitude: 0.0,
+                latitude: 0.0,
+            },
+            0.0,
+            std::f64::consts::PI,
+            TleCacheHandle::new(),
+        );
+        let receiver = tracker.request_restart().unwrap();
+        // A second request while one is pending is refused.
+        assert!(matches!(
+            tracker.request_restart(),
+            Err(TelescopeError::TelescopeBusy)
+        ));
+        let result = tokio::time::timeout(Duration::from_secs(10), receiver)
+            .await
+            .expect("restart should be sent within a few tracker cycles")
+            .unwrap();
+        assert_eq!(result, Ok(()));
+        let restart = [
+            0x57, 0xEF, 0xBE, 0xAD, 0xDE, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xEE, 0x20,
+        ];
+        assert!(received.lock().unwrap().iter().any(|c| c == &restart));
+        tracker.shutdown().await;
+    }
+
     #[test]
     fn stall_reported_when_antenna_does_not_move_towards_far_target() {
         let start = std::time::Instant::now();
@@ -650,7 +739,9 @@ mod tests {
             tracker.set_target(TelescopeTarget::Sun, 0.0, 0.0),
             Err(TelescopeError::TelescopeNotConnected)
         ));
-        // restart() returns nothing; just ensure it doesn't panic.
-        tracker.restart();
+        assert!(matches!(
+            tracker.request_restart(),
+            Err(TelescopeError::TelescopeNotConnected)
+        ));
     }
 }

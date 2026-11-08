@@ -1,0 +1,15 @@
+{% if let Some(error) = error %}
+<div class="border border-danger-border bg-danger-bg rounded p-4 mt-3 max-w-xl text-sm">
+  <p class="font-semibold text-danger">Restart of the {{ name }} controller failed</p>
+  <p>{{ error }}</p>
+  {% if attempted %}
+  <p class="text-gray-500">The controller may have restarted anyway. Check whether the reported position and the antenna move in a minute.</p>
+  {% endif %}
+</div>
+{% else %}
+<div class="border border-success-border bg-success-bg rounded p-4 mt-3 max-w-xl space-y-1 text-sm">
+  <p class="font-semibold text-success">MD01 controller for {{ name }} is restarting</p>
+  <p>The controller acknowledged the command and restarts in about 5 s. SALSA reconnects after 10 s and resumes any target.</p>
+  <p class="text-gray-500">Compare the reported position with the one before the restart, and check that the antenna moves when given a target.</p>
+</div>
+{% endif %}

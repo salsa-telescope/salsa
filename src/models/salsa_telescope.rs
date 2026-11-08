@@ -405,6 +405,23 @@ impl Telescope for SalsaTelescope {
         }
     }
 
+    async fn restart_controller(&self) -> Result<(), TelescopeError> {
+        // Same shape as calibrate: request under the lock, await outside it.
+        let receiver = {
+            let inner = self.inner.lock().await;
+            inner.controller.request_restart()?
+        };
+        match tokio::time::timeout(Duration::from_secs(10), receiver).await {
+            Ok(Ok(result)) => result,
+            Ok(Err(_)) => Err(TelescopeError::TelescopeIOError(
+                "Restart task ended without reporting a result".to_string(),
+            )),
+            Err(_) => Err(TelescopeError::TelescopeIOError(
+                "Restart timed out".to_string(),
+            )),
+        }
+    }
+
     async fn set_receiver_configuration(
         &self,
         receiver_configuration: ReceiverConfiguration,

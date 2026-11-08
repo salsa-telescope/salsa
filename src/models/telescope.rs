@@ -35,6 +35,10 @@ pub trait Telescope: Send + Sync {
         az_offset_rad: f64,
         el_offset_rad: f64,
     ) -> Result<CalibrationResult, TelescopeError>;
+    /// Restart the rotor controller (ROTn_CMD_RESTART_DEVICE), clearing a
+    /// latched error such as the MD-01's TIME OUT. Returns once the
+    /// controller has acknowledged the command; it restarts 5 s later.
+    async fn restart_controller(&self) -> Result<(), TelescopeError>;
     async fn set_receiver_configuration(
         &self,
         receiver_configuration: ReceiverConfiguration,

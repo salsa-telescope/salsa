@@ -94,7 +94,9 @@ impl TelescopeCommand {
             // (0x57) when actively stopping a moving rotor.
             TelescopeCommand::Stop => parse_direction_response(bytes, "stop")
                 .or_else(|_| parse_ack_response(bytes, "stop")),
-            TelescopeCommand::Restart => parse_ack_response(bytes, "restart"),
+            // The protocol document does not give the start byte of the
+            // restart response, so accept any well-formed 12-byte frame.
+            TelescopeCommand::Restart => parse_any_frame(bytes, "restart"),
             TelescopeCommand::GetDirection => parse_direction_response(bytes, "get direction"),
             TelescopeCommand::SetDirection(_) => parse_direction_response(bytes, "set direction"),
             TelescopeCommand::Calibrate(_) => parse_legacy_direction_response(bytes, "calibrate"),
@@ -107,6 +109,17 @@ fn parse_ack_response(
     command_name: &str,
 ) -> Result<TelescopeResponse, TelescopeError> {
     if bytes.len() == 12 && bytes[0] == 0x57 && bytes[11] == 0x20 {
+        Ok(TelescopeResponse::Ack)
+    } else {
+        Err(TelescopeError::TelescopeIOError(format!(
+            "Unexpected response to {} command: {:?}",
+            command_name, bytes,
+        )))
+    }
+}
+
+fn parse_any_frame(bytes: &[u8], command_name: &str) -> Result<TelescopeResponse, TelescopeError> {
+    if bytes.len() == 12 && bytes[11] == 0x20 {
         Ok(TelescopeResponse::Ack)
     } else {
         Err(TelescopeError::TelescopeIOError(format!(
