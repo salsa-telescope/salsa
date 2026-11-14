@@ -851,13 +851,22 @@ const DBSRX2_BANDWIDTH_HZ: f64 = 80e6;
 /// (see [`SpectrumProcessor`]) so the receiver is never idle waiting for it.
 /// `stream_args` carries extra UHD stream arguments, such as the 8-bit
 /// scaling `peak=…`; empty for 16-bit.
+///
+/// UHD reports dropped packets, overflows and timeouts in the receive
+/// metadata rather than as an error, and returns early with the buffer only
+/// partly written. The rest then holds whatever was there before — zeros in
+/// a fresh buffer, an older cycle's samples in a reused one — so a short
+/// read comes back as [`BlockRead::Short`] for the caller to discard. Ignoring
+/// it made the 8-bit auto-level read a mostly-zero snapshot as a quiet sky
+/// and set the scaling up to 30× too high, clipping 30–78 % of the run
+/// (all three receivers, 2026-11-11 to 14, under three-telescope load).
 fn receive_block<T: RawSample>(
     usrp: &mut UhdDevice,
     cfreq: f64,
     srate: f64,
     stream_args: &str,
     buffer: &mut [Complex<T>],
-) -> Result<(), TelescopeError>
+) -> Result<BlockRead, TelescopeError>
 where
     Complex<T>: uhd::Item,
 {
@@ -890,10 +899,58 @@ where
             time: StreamTime::Now,
         })
         .map_err(|e| TelescopeError::ReceiverFailed(format!("stream CountAndDone command: {e}")))?;
-    receiver
+    let metadata = receiver
         .receive_simple(buffer)
         .map_err(|e| TelescopeError::ReceiverFailed(format!("receive_simple: {e}")))?;
-    Ok(())
+    let received = metadata.samples();
+    if received >= buffer.len() {
+        return Ok(BlockRead::Complete);
+    }
+    // Stop whatever is left of the CountAndDone burst, so its late packets
+    // do not land in the next block's stream as out-of-sequence data.
+    let _ = receiver.send_command(&StreamCommand {
+        command_type: StreamCommandType::StopContinuous,
+        time: StreamTime::Now,
+    });
+    let reason = match metadata.last_error() {
+        Some(e) => format!(
+            "{:?}{}",
+            e.kind(),
+            e.message().map(|m| format!(" ({m})")).unwrap_or_default()
+        ),
+        None => "no error reported".to_string(),
+    };
+    Ok(BlockRead::Short {
+        received,
+        expected: buffer.len(),
+        reason,
+    })
+}
+
+/// How a [`receive_block`] call went, when the receiver itself did not fail.
+#[derive(Debug)]
+enum BlockRead {
+    /// Every sample of the buffer is fresh.
+    Complete,
+    /// Only the first `received` samples are; the block must not be used.
+    Short {
+        received: usize,
+        expected: usize,
+        reason: String,
+    },
+}
+
+impl std::fmt::Display for BlockRead {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            BlockRead::Complete => write!(f, "complete"),
+            BlockRead::Short {
+                received,
+                expected,
+                reason,
+            } => write!(f, "{received} of {expected} samples: {reason}"),
+        }
+    }
 }
 
 /// RMS of one I or Q component, in the sample's own counts.
@@ -911,6 +968,10 @@ fn component_rms<T: RawSample>(samples: &[Complex<T>]) -> f64 {
     (power / (2 * samples.len()) as f64).sqrt()
 }
 
+/// Incomplete blocks in a row after which a run gives up: by then the
+/// receiver is not dropping the odd packet but has stopped delivering.
+const MAX_INCOMPLETE_IN_A_ROW: u32 = 10;
+
 /// How many I and Q values in `samples` sit at the format's limits.
 fn count_at_limit<T: RawSample>(samples: &[Complex<T>]) -> usize {
     samples
@@ -927,6 +988,10 @@ const EIGHT_BIT_TARGET_RMS: f64 = 20.0;
 
 /// Length of each level-measuring snapshot taken before an 8-bit run.
 const AUTO_LEVEL_SECS: f64 = 0.1;
+
+/// Snapshots tried before giving up on setting the 8-bit level. Packet drops
+/// come in short bursts, so a retry or two normally gets a clean one.
+const AUTO_LEVEL_ATTEMPTS: u32 = 3;
 
 /// UHD's 8-bit scaling, `peak`: the fraction of 16-bit full scale that maps to
 /// 8-bit full scale, so 8-bit counts are 16-bit counts / (peak · 256). Chosen
@@ -960,7 +1025,21 @@ fn auto_level(
     srate: f64,
 ) -> Result<EightBitLevel, TelescopeError> {
     let mut snapshot = vec![Complex::<i16>::default(); (AUTO_LEVEL_SECS * srate) as usize];
-    receive_block(usrp, sfreq, srate, "", &mut snapshot)?;
+    let mut attempt = 1;
+    loop {
+        match receive_block(usrp, sfreq, srate, "", &mut snapshot)? {
+            BlockRead::Complete => break,
+            short if attempt < AUTO_LEVEL_ATTEMPTS => {
+                warn!("8-bit level snapshot at {address} was incomplete ({short}); retrying");
+                attempt += 1;
+            }
+            short => {
+                return Err(TelescopeError::ReceiverFailed(format!(
+                    "8-bit level snapshot incomplete after {AUTO_LEVEL_ATTEMPTS} attempts ({short})"
+                )));
+            }
+        }
+    }
     let rms16 = component_rms(&snapshot);
 
     let peak = eight_bit_peak(rms16);
@@ -1444,11 +1523,16 @@ where
     // counts towards the requested duration.
     let mut queued: u64 = 0;
     let mut skipped: u64 = 0;
+    // Cycles dropped because a block came back incomplete, and the latest
+    // reason, reported once at the end rather than per cycle.
+    let mut incomplete: u64 = 0;
+    let mut incomplete_in_a_row: u32 = 0;
+    let mut last_short: Option<BlockRead> = None;
     let received: Result<(), TelescopeError> = (|| {
         while !cancellation_token.is_cancelled() && !max_cycles.is_some_and(|max| queued >= max) {
             let mut sig = next_buffer();
-            receive_block(usrp, sfreq, srate, stream_args, &mut sig)?;
-            let reference = if switched {
+            let mut read = receive_block(usrp, sfreq, srate, stream_args, &mut sig)?;
+            let reference = if switched && matches!(read, BlockRead::Complete) {
                 // Bail between sig and ref if a stop has been requested, so the
                 // user does not wait out the rest of the cycle. The half cycle
                 // is dropped. (Raw mode has no such halfway point.)
@@ -1456,11 +1540,23 @@ where
                     break;
                 }
                 let mut reference = next_buffer();
-                receive_block(usrp, rfreq, srate, stream_args, &mut reference)?;
+                read = receive_block(usrp, rfreq, srate, stream_args, &mut reference)?;
                 Some(reference)
             } else {
                 None
             };
+            if let BlockRead::Short { .. } = read {
+                incomplete += 1;
+                incomplete_in_a_row += 1;
+                if incomplete_in_a_row >= MAX_INCOMPLETE_IN_A_ROW {
+                    return Err(TelescopeError::ReceiverFailed(format!(
+                        "{incomplete_in_a_row} incomplete blocks in a row ({read})"
+                    )));
+                }
+                last_short = Some(read);
+                continue;
+            }
+            incomplete_in_a_row = 0;
             match cycle_tx.try_send(CycleSamples { sig, reference }) {
                 Ok(()) => queued += 1,
                 // Processing has fallen behind. Dropping this cycle keeps the
@@ -1480,6 +1576,12 @@ where
         warn!(
             "Skipped {skipped} of {} received cycles because spectrum processing fell behind",
             queued + skipped
+        );
+    }
+    if let Some(last) = last_short {
+        warn!(
+            "Dropped {incomplete} cycles at {address} because the receiver delivered incomplete \
+             blocks (last: {last})"
         );
     }
     received?;
