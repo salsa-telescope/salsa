@@ -9,6 +9,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
+use tower_http::classify::ServerErrorsFailureClass;
 use tower_http::services::ServeDir;
 use tower_http::set_header::SetResponseHeader;
 use tower_http::trace::TraceLayer;
@@ -306,19 +307,34 @@ pub async fn create_app(config_dir: &Path, database_dir: &Path) -> (Router, AppS
             HeaderValue::from_static("no-cache"),
         ))
         .layer(
-            TraceLayer::new_for_http().make_span_with(|request: &Request<_>| {
-                let matched_path = request
-                    .extensions()
-                    .get::<MatchedPath>()
-                    .map(MatchedPath::as_str);
-                let requested_path = request.uri().to_string();
-                debug_span!(
-                    "http_request",
-                    method = ?request.method(),
-                    matched_path,
-                    requested_path,
-                )
-            }),
+            TraceLayer::new_for_http()
+                .make_span_with(|request: &Request<_>| {
+                    let matched_path = request
+                        .extensions()
+                        .get::<MatchedPath>()
+                        .map(MatchedPath::as_str);
+                    let requested_path = request.uri().to_string();
+                    debug_span!(
+                        "http_request",
+                        method = ?request.method(),
+                        matched_path,
+                        requested_path,
+                    )
+                })
+                // TraceLayer's own "response failed" line carries no path at the
+                // default level (its span is debug), which left 120 of them
+                // unattributable on 2026-11-13/14. 5xx statuses are now logged with
+                // their path by `slow_request_middleware`; only body errors, which
+                // that middleware cannot see, are left to log here.
+                .on_failure(
+                    |class: ServerErrorsFailureClass,
+                     latency: std::time::Duration,
+                     _: &tracing::Span| {
+                        if let ServerErrorsFailureClass::Error(e) = class {
+                            warn!("response body failed after {} ms: {e}", latency.as_millis());
+                        }
+                    },
+                ),
         )
         // Layers run outermost-last: cookies → session → language, so the
         // language resolution sees both the parsed cookies and the user.
@@ -503,13 +519,24 @@ async fn security_headers_middleware(req: Request<axum::body::Body>, next: Next)
 /// FFI work in `measure()` starves the runtime, and the symptom would be
 /// otherwise-trivial requests (HTMX polls, asset fetches) ballooning into
 /// multi-second waits. Pair with the heartbeat task in main.rs.
+///
+/// Also logs every 5xx response with its method and path (no query string,
+/// which could carry personal data), so a failing route can be identified.
 async fn slow_request_middleware(req: Request<axum::body::Body>, next: Next) -> Response {
     let method = req.method().clone();
     let path = req.uri().path().to_string();
     let start = std::time::Instant::now();
     let response = next.run(req).await;
     let elapsed = start.elapsed();
-    if elapsed > std::time::Duration::from_millis(1000) {
+    if response.status().is_server_error() {
+        warn!(
+            "server error: {} {} returned {} after {} ms",
+            method,
+            path,
+            response.status(),
+            elapsed.as_millis()
+        );
+    } else if elapsed > std::time::Duration::from_millis(1000) {
         warn!(
             "slow request: {} {} took {} ms (status {})",
             method,
