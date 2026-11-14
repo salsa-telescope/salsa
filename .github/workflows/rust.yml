@@ -19,7 +19,12 @@ env:
 jobs:
   build:
 
-    runs-on: ubuntu-latest
+    # Pinned to the production host's base (Mint 22 = Ubuntu 24.04): the
+    # binary links against the runner's libuhd and glibc, so it must be built
+    # on the same release it runs on. ubuntu-latest moved to 26.04 in
+    # November 2026, whose Boost 1.90 no longer ships libboost_system (the
+    # v1.5.38 build failed to link) and whose UHD 4.9 production lacks.
+    runs-on: ubuntu-24.04
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
