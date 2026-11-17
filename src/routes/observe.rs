@@ -1017,6 +1017,18 @@ async fn monitor_integration(
                         stop_and_save_observation(telescope.as_ref(), db.clone(), &user, &tle_cache).await;
                         break;
                     }
+                    // The measurement task has died (e.g. the 8-bit level
+                    // snapshot never completed). Nothing more will arrive, so
+                    // end the run now and keep what it has, rather than
+                    // leaving the telescope busy until PROGRESS_TIMEOUT.
+                    Ok(TelescopeInfo {
+                        most_recent_error: Some(TelescopeError::ReceiverFailed(reason)),
+                        ..
+                    }) => {
+                        warn!("Stopping integration on {telescope_id}: the receiver failed: {reason}");
+                        stop_and_save_observation(telescope.as_ref(), db.clone(), &user, &tle_cache).await;
+                        break;
+                    }
                     Ok(info) => {
                         let now_integrated = info
                             .latest_observation
@@ -1958,6 +1970,9 @@ mod tests {
         StallsAfter(u64),
         /// `get_info` always fails, as when the controller connection drops.
         Nothing,
+        /// Integrates normally until `after` seconds, then reports a receiver
+        /// failure, as when the measurement task dies.
+        ReceiverFailsAfter(u64),
     }
 
     /// A telescope whose reported integration time grows by one second per
@@ -1973,10 +1988,19 @@ mod tests {
             // before poll N + 1.
             let integrated = match reports {
                 Reports::SlowTracking => polls / 2,
-                Reports::StallsAfter(after) => polls.min(after),
+                Reports::StallsAfter(after) | Reports::ReceiverFailsAfter(after) => {
+                    polls.min(after)
+                }
                 _ => polls,
             };
+            let most_recent_error = match reports {
+                Reports::ReceiverFailsAfter(after) if polls >= after => Some(
+                    TelescopeError::ReceiverFailed("level snapshot incomplete".to_string()),
+                ),
+                _ => None,
+            };
             Ok(TelescopeInfo {
+                most_recent_error,
                 status: match reports {
                     Reports::Slewing => TelescopeStatus::Slewing,
                     _ => TelescopeStatus::Tracking,
@@ -2465,6 +2489,24 @@ mod tests {
         assert!(
             polls_at_stop > 100 + PROGRESS_TIMEOUT.as_secs() - 5,
             "monitor gave up after {polls_at_stop} polls, before the progress timeout ran out"
+        );
+    }
+
+    // A dead measurement task will never add time, so the run must end at
+    // once rather than sit out the progress timeout (three times on
+    // 2026-11-17, each holding torre for a minute).
+    #[tokio::test(start_paused = true)]
+    async fn monitor_stops_integration_when_the_receiver_fails() {
+        let telescope = reporting(Reports::ReceiverFailsAfter(10));
+        assert!(run_monitor(telescope.clone(), std::time::Duration::from_secs(600)).await);
+        assert!(
+            telescope.stopped(),
+            "monitor should have called stop_integration"
+        );
+        let polls_at_stop = telescope.polls_at_stop();
+        assert!(
+            polls_at_stop <= 12,
+            "monitor took {polls_at_stop} polls to notice the receiver failure"
         );
     }
 }
