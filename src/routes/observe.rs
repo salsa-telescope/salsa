@@ -1300,6 +1300,17 @@ async fn start_observe(
         max_duration: Some(max_duration),
     };
 
+    // The model logs "Starting integration on …" without knowing who asked.
+    // The user id (never a name: see the privacy page) makes a run, or a
+    // burst of them, traceable to a booking from the log alone.
+    info!(
+        "User {} requested an integration on {telescope_id}: {:?}, {} MHz, {} channels, {} s",
+        user.id,
+        form.mode,
+        form.bandwidth_mhz,
+        form.spectral_channels,
+        max_duration.as_secs_f64()
+    );
     telescope
         .set_receiver_configuration(receiver_configuration)
         .await
@@ -1364,7 +1375,8 @@ async fn start_observe(
             next_start_unix_ms,
         ));
         info!(
-            "Started a repeat series on {telescope_id}: {} s integration every {} s",
+            "User {} started a repeat series on {telescope_id}: {} s integration every {} s",
+            user.id,
             max_duration.as_secs_f64(),
             interval.as_secs_f64()
         );
