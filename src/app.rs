@@ -301,11 +301,7 @@ pub async fn create_app(config_dir: &Path, database_dir: &Path) -> (Router, AppS
         // then ran the new templates against the old JS until they cleared
         // their cache. no-cache still lets the browser keep its copy, but it
         // asks first, and ServeDir answers an unchanged file with a 304.
-        .fallback_service(SetResponseHeader::if_not_present(
-            ServeDir::new(assets_path),
-            header::CACHE_CONTROL,
-            HeaderValue::from_static("no-cache"),
-        ))
+        .fallback_service(static_files(assets_path))
         .layer(
             TraceLayer::new_for_http()
                 .make_span_with(|request: &Request<_>| {
@@ -442,6 +438,76 @@ async fn shutdown_telescopes(
                  {TELESCOPE_SHUTDOWN_TIMEOUT:?}; abandoning it and continuing"
             ),
         }
+    }
+}
+
+/// The assets directory, served for any path no route claims.
+fn static_files(assets_path: impl AsRef<Path>) -> Router {
+    Router::new()
+        .fallback_service(SetResponseHeader::if_not_present(
+            ServeDir::new(assets_path),
+            header::CACHE_CONTROL,
+            HeaderValue::from_static("no-cache"),
+        ))
+        .layer(middleware::from_fn(reject_overlong_path_segments))
+}
+
+/// Longest file name the filesystem accepts (Linux NAME_MAX, in bytes).
+const MAX_PATH_SEGMENT_BYTES: usize = 255;
+
+/// No asset has a name this long, but ServeDir still asks the filesystem,
+/// which refuses with ENAMETOOLONG, and ServeDir answers that with a 500.
+/// Scanner probes (an Apache Struts OGNL payload, 2026-11-17) then showed up
+/// as server errors. Checked on the raw, still percent-encoded path, which is
+/// never shorter than the decoded name the filesystem would see.
+async fn reject_overlong_path_segments(request: Request<axum::body::Body>, next: Next) -> Response {
+    if request
+        .uri()
+        .path()
+        .split('/')
+        .any(|segment| segment.len() > MAX_PATH_SEGMENT_BYTES)
+    {
+        return axum::http::StatusCode::NOT_FOUND.into_response();
+    }
+    next.run(request).await
+}
+
+#[cfg(test)]
+mod static_files_tests {
+    use super::*;
+    use axum::body::Body;
+    use axum::http::StatusCode;
+    use tower::ServiceExt;
+
+    async fn status(path: &str) -> StatusCode {
+        let dir = tempfile::tempdir().expect("tempdir");
+        std::fs::write(dir.path().join("style.css"), "body {}").expect("write asset");
+        static_files(dir.path())
+            .oneshot(
+                Request::builder()
+                    .uri(path)
+                    .body(Body::empty())
+                    .expect("request"),
+            )
+            .await
+            .expect("router should respond")
+            .status()
+    }
+
+    #[tokio::test]
+    async fn an_overlong_path_is_not_found_rather_than_a_server_error() {
+        let long = "a".repeat(MAX_PATH_SEGMENT_BYTES + 1);
+        assert_eq!(
+            status(&format!("/{long}/x.action")).await,
+            StatusCode::NOT_FOUND
+        );
+        assert_eq!(status(&format!("/{long}")).await, StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn assets_are_still_served() {
+        assert_eq!(status("/style.css").await, StatusCode::OK);
+        assert_eq!(status("/missing.css").await, StatusCode::NOT_FOUND);
     }
 }
 
