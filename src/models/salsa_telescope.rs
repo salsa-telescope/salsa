@@ -1154,6 +1154,7 @@ fn process_cycles<T: RawSample>(
     let mut at_limit: usize = 0;
     let mut values: usize = 0;
     let mut warned = false;
+    let mut non_finite_cycles: usize = 0;
     for cycle in cycles {
         let cycle_values = 2 * (cycle.sig.len() + cycle.reference.as_ref().map_or(0, Vec::len));
         let cycle_at_limit =
@@ -1183,6 +1184,15 @@ fn process_cycles<T: RawSample>(
             }
             None => sig,
         };
+        // One non-finite channel would stay NaN in the running average for
+        // the rest of the run, so a single bad cycle cost the whole spectrum:
+        // an all-zero reference block made every channel 0/0 (10 runs before
+        // v1.5.38). Short blocks are now dropped before they get here, but
+        // keep the average safe from any other source of a zero reference.
+        if spec.iter().any(|v| !v.is_finite()) {
+            non_finite_cycles += 1;
+            continue;
+        }
         n += 1.0;
 
         let mut measurements = measurements.blocking_lock();
@@ -1202,6 +1212,12 @@ fn process_cycles<T: RawSample>(
         warn!(
             "Receiver at {address} clipped {at_limit} of {values} values over the run ({:.3} %)",
             100.0 * at_limit as f64 / values.max(1) as f64
+        );
+    }
+    if non_finite_cycles > 0 {
+        warn!(
+            "Receiver at {address}: dropped {non_finite_cycles} cycle(s) whose spectrum had \
+             non-finite values, keeping {n} good one(s)"
         );
     }
 }
@@ -1854,6 +1870,53 @@ mod test {
         assert_eq!(measurements[0].amps, expected);
         assert_eq!(measurements[0].duration, Duration::from_secs(1));
         assert_eq!(spare_rx.try_iter().count(), 2);
+    }
+
+    // A zero reference block gives 0/0 in every channel. That cycle must be
+    // dropped, not averaged in, or the whole run's spectrum becomes NaN.
+    #[test]
+    fn a_cycle_with_a_zero_reference_is_dropped_not_averaged() {
+        let (fft_pts, avg_pts, tsys) = (64, 8, 300.0);
+        let (sig, reference) = (noise_samples(256, 3), noise_samples(256, 4));
+        let mut direct = SpectrumProcessor::new(fft_pts, avg_pts, false);
+        let (s, r) = (
+            direct.spectrum(&sig, 32768.0),
+            direct.spectrum(&reference, 32768.0),
+        );
+        let expected: Vec<f64> = zip(&s, &r).map(|(s, r)| tsys * (s - r) / r).collect();
+
+        let measurements = empty_measurement(avg_pts);
+        let (cycle_tx, cycle_rx) = std::sync::mpsc::sync_channel(PIPELINE_DEPTH);
+        let (spare_tx, spare_rx) = std::sync::mpsc::channel();
+        cycle_tx
+            .send(CycleSamples {
+                sig: vec![Complex::default(); 256],
+                reference: Some(vec![Complex::default(); 256]),
+            })
+            .unwrap();
+        cycle_tx
+            .send(CycleSamples {
+                sig,
+                reference: Some(reference),
+            })
+            .unwrap();
+        drop(cycle_tx);
+        let processor = SpectrumProcessor::new(fft_pts, avg_pts, false);
+        process_cycles(
+            cycle_rx,
+            spare_tx,
+            measurements.clone(),
+            processor,
+            32768.0,
+            tsys,
+            1.0,
+            "test",
+        );
+
+        let measurements = measurements.blocking_lock();
+        assert_eq!(measurements[0].amps, expected);
+        assert_eq!(measurements[0].duration, Duration::from_secs(1));
+        assert_eq!(spare_rx.try_iter().count(), 4);
     }
 
     // An 8-bit block scaled by k must give the same spectrum as the 16-bit
