@@ -15,6 +15,7 @@ use axum::{Extension, Router, routing::get};
 use chrono::{DateTime, NaiveDate, NaiveTime, TimeZone, Utc};
 use chrono_tz::Tz;
 use serde::{Deserialize, Serialize};
+use tracing::error;
 
 const PAGE_SIZE: i64 = 10;
 /// How many pages the « and » buttons skip.
@@ -426,10 +427,10 @@ async fn get_observation_data(
             .await?
             .ok_or(StatusCode::NOT_FOUND)?;
 
-    let frequencies: Vec<f64> = serde_json::from_str(&observation.frequencies_json)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    let amplitudes: Vec<f64> = serde_json::from_str(&observation.amplitudes_json)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let frequencies =
+        parse_stored_values(&observation.frequencies_json, observation_id, "frequencies")?;
+    let amplitudes =
+        parse_stored_values(&observation.amplitudes_json, observation_id, "amplitudes")?;
 
     let horizontal = observation.horizontal();
     Ok(Json(ObservationData {
@@ -462,10 +463,10 @@ async fn get_observation_csv(
             .await?
             .ok_or(StatusCode::NOT_FOUND)?;
 
-    let frequencies: Vec<f64> = serde_json::from_str(&observation.frequencies_json)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    let amplitudes: Vec<f64> = serde_json::from_str(&observation.amplitudes_json)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let frequencies =
+        parse_stored_values(&observation.frequencies_json, observation_id, "frequencies")?;
+    let amplitudes =
+        parse_stored_values(&observation.amplitudes_json, observation_id, "amplitudes")?;
 
     let has_vlsr = observation.vlsr_correction_mps.is_some();
     let vlsr_mps = observation.vlsr_correction_mps.unwrap_or(0.0);
@@ -565,10 +566,10 @@ async fn get_observation_fits(
             .await?
             .ok_or(StatusCode::NOT_FOUND)?;
 
-    let frequencies: Vec<f64> = serde_json::from_str(&observation.frequencies_json)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    let amplitudes: Vec<f64> = serde_json::from_str(&observation.amplitudes_json)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let frequencies =
+        parse_stored_values(&observation.frequencies_json, observation_id, "frequencies")?;
+    let amplitudes =
+        parse_stored_values(&observation.amplitudes_json, observation_id, "amplitudes")?;
 
     let tag = observation.start_time.format("%Y%m%dT%H%M%S").to_string();
     let filename = format!("SALSA-{}-{}.fits", observation.telescope_id, tag);
@@ -602,6 +603,26 @@ async fn get_observation_fits(
         fits_bytes,
     )
         .into_response())
+}
+
+/// Parse a stored spectrum column back into numbers.
+///
+/// serde_json writes a non-finite `f64` as `null`, and before v1.5.38 a
+/// dropped reference block could turn a whole frequency-switched spectrum into
+/// NaN (10 runs, 2026-10-16 to 11-14). Reading into `Vec<f64>` rejected those
+/// rows, so the observation could not be opened or downloaded at all. `null`
+/// is read back as NaN instead; the chart says the spectrum is empty, and
+/// the CSV and FITS files carry NaN, which both formats can express.
+fn parse_stored_values(
+    json: &str,
+    observation_id: i64,
+    column: &str,
+) -> Result<Vec<f64>, StatusCode> {
+    let values: Vec<Option<f64>> = serde_json::from_str(json).map_err(|err| {
+        error!("Observation {observation_id}: stored {column} are not valid JSON: {err}");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+    Ok(values.into_iter().map(|v| v.unwrap_or(f64::NAN)).collect())
 }
 
 #[cfg(test)]

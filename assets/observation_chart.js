@@ -741,6 +741,29 @@ function loadObservation(id) {
       const existing = container.querySelector("svg");
       if (existing) existing.remove();
 
+      // A spectrum with no finite values cannot be drawn (before v1.5.38 a
+      // dropped receiver block could leave every channel NaN, stored as
+      // null). Say so instead of drawing an empty frame; the downloads still
+      // work and carry the NaNs.
+      const oldEmpty = container.querySelector(".observation-empty");
+      if (oldEmpty) oldEmpty.remove();
+      const chartButtons = document.getElementById("observation-chart-buttons");
+      const chartHint = document.getElementById("chart-hint");
+      const drawable = data.amplitudes.some((v) => Number.isFinite(v));
+      if (chartButtons) chartButtons.classList.toggle("hidden", !drawable);
+      if (chartHint) chartHint.classList.toggle("hidden", !drawable);
+      if (dlPng) dlPng.classList.toggle("hidden", !drawable);
+      if (!drawable) {
+        const msg = document.createElement("p");
+        msg.className = "observation-empty my-6 rounded border border-danger-border bg-danger-bg p-3 text-sm text-danger";
+        msg.textContent = chartT(
+          "emptySpectrum",
+          "This spectrum has no data: the receiver dropped data during the run."
+        );
+        container.insertBefore(msg, chartButtons || container.querySelector("#observation-downloads"));
+        return;
+      }
+
       const width = 640;
       const height = 420;
       const margin = 60;

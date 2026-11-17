@@ -417,6 +417,7 @@ chart-picking = (väljer…)
 chart-sun-azel = Solen az/el
 chart-gaussian-total = Summa av anpassade komponenter
 chart-at-limit = vid gräns
+chart-empty-spectrum = Spektrumet saknar data: mottagaren tappade data under mätningen.
 
 ## Login page
 
