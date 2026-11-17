@@ -912,6 +912,12 @@ where
         command_type: StreamCommandType::StopContinuous,
         time: StreamTime::Now,
     });
+    // Stopping is not enough: packets of the burst already on their way, or
+    // queued in the socket buffer, are still delivered to the next read. A
+    // retried level snapshot then failed at once with 0 samples and
+    // OutOfSequence (torre, three times on 2026-11-17), so the three
+    // attempts were really one. Read and discard until the stream is quiet.
+    drain_stale_packets(&mut receiver);
     let reason = match metadata.last_error() {
         Some(e) => format!(
             "{:?}{}",
@@ -925,6 +931,27 @@ where
         expected: buffer.len(),
         reason,
     })
+}
+
+/// Longest a drain may run: generous against a 0.1 s burst, but bounded so a
+/// receiver that keeps sending cannot hold the measurement thread.
+const DRAIN_MAX_SECS: f64 = 0.5;
+
+/// Read and discard whatever the receiver still delivers after a stopped
+/// burst, until a read waits [`DRAIN_QUIET_SECS`] and gets nothing.
+fn drain_stale_packets<T>(receiver: &mut uhd::ReceiveStreamer<'_, Complex<T>>)
+where
+    Complex<T>: uhd::Item + Default + Clone,
+{
+    const DRAIN_QUIET_SECS: f64 = 0.02;
+    let mut scratch = vec![Complex::<T>::default(); 4096];
+    let started = std::time::Instant::now();
+    while started.elapsed().as_secs_f64() < DRAIN_MAX_SECS {
+        match receiver.receive(&mut [&mut scratch[..]], DRAIN_QUIET_SECS, true) {
+            Ok(metadata) if metadata.samples() > 0 => {}
+            _ => break,
+        }
+    }
 }
 
 /// How a [`receive_block`] call went, when the receiver itself did not fail.
@@ -989,16 +1016,103 @@ const EIGHT_BIT_TARGET_RMS: f64 = 20.0;
 /// Length of each level-measuring snapshot taken before an 8-bit run.
 const AUTO_LEVEL_SECS: f64 = 0.1;
 
-/// Snapshots tried before giving up on setting the 8-bit level. Packet drops
-/// come in short bursts, so a retry or two normally gets a clean one.
+/// Incomplete snapshots tolerated before giving up on setting the 8-bit level.
+/// Packet drops come in short bursts, so a retry or two normally gets a clean
+/// one, now that the leftovers of a failed one are drained first.
 const AUTO_LEVEL_ATTEMPTS: u32 = 3;
+
+/// Complete snapshots taken at most while homing in on the level. From the
+/// receiver's previous scaling the first one nearly always settles; moving
+/// from blank sky to the brightest GNSS satellite on record (~3× at 25 MHz)
+/// needs one rescale.
+const AUTO_LEVEL_SHOTS: u32 = 4;
+
+/// Smallest `peak` UHD accepts.
+const MIN_PEAK: f64 = 1.0 / 256.0;
+
+/// Starting scaling for a receiver with no previous 8-bit run since start-up.
+/// Blank sky has measured at peak 0.12 (torre) to 0.50 (vale), and this
+/// lands both inside the trusted range on the first snapshot.
+const DEFAULT_PEAK: f64 = 0.25;
+
+/// An 8-bit snapshot is trusted to measure the level when its RMS is in this
+/// range, in counts. Below it quantisation is too coarse to rely on; above
+/// it, and with more than [`LEVEL_MAX_CLIPPED`] of values at the limit,
+/// clipping pulls the RMS down.
+const LEVEL_MIN_RMS8: f64 = 4.0;
+const LEVEL_MAX_RMS8: f64 = 40.0;
+const LEVEL_MAX_CLIPPED: f64 = 1e-3;
 
 /// UHD's 8-bit scaling, `peak`: the fraction of 16-bit full scale that maps to
 /// 8-bit full scale, so 8-bit counts are 16-bit counts / (peak · 256). Chosen
 /// to put a signal of `rms16` counts (16-bit) at [`EIGHT_BIT_TARGET_RMS`].
 /// UHD refuses anything below 1/256.
 fn eight_bit_peak(rms16: f64) -> f64 {
-    (rms16 / (256.0 * EIGHT_BIT_TARGET_RMS)).clamp(1.0 / 256.0, 1.0)
+    (rms16 / (256.0 * EIGHT_BIT_TARGET_RMS)).clamp(MIN_PEAK, 1.0)
+}
+
+/// What one 8-bit level snapshot says to do next.
+#[derive(Debug, PartialEq)]
+enum LevelStep {
+    /// The level is known: run at this `peak`.
+    Settled { peak: f64, rms16: f64 },
+    /// Out of the trusted range: take another snapshot at this `peak`.
+    Retry(f64),
+}
+
+/// Decide from a snapshot taken at `peak`, with RMS `rms8` (8-bit counts) and
+/// `clipped` the fraction of I and Q values at the limit.
+fn level_step(peak: f64, rms8: f64, clipped: f64) -> LevelStep {
+    let rms16 = rms8 * peak * 256.0;
+    if clipped > LEVEL_MAX_CLIPPED || rms8 > LEVEL_MAX_RMS8 {
+        if peak >= 1.0 {
+            // As coarse as UHD goes; the run's own clipping warning reports it.
+            return LevelStep::Settled { peak: 1.0, rms16 };
+        }
+        // Clipping hides how loud it really is, so step up by at least 4×.
+        let factor = (rms8 / EIGHT_BIT_TARGET_RMS).max(4.0);
+        return LevelStep::Retry((peak * factor).min(1.0));
+    }
+    if rms8 < LEVEL_MIN_RMS8 {
+        if peak <= MIN_PEAK {
+            return LevelStep::Settled {
+                peak: MIN_PEAK,
+                rms16,
+            };
+        }
+        // A rough estimate still points the right way; with nothing at all
+        // measured, step down 16×.
+        let next = if rms8 > 0.0 {
+            eight_bit_peak(rms16)
+        } else {
+            (peak / 16.0).max(MIN_PEAK)
+        };
+        return LevelStep::Retry(next);
+    }
+    LevelStep::Settled {
+        peak: eight_bit_peak(rms16),
+        rms16,
+    }
+}
+
+/// The scaling each receiver last settled on, per sample rate, used as the
+/// next snapshot's starting point. Lost on restart, which only costs a rescale.
+static LAST_PEAK: std::sync::LazyLock<
+    std::sync::Mutex<std::collections::HashMap<(String, u64), f64>>,
+> = std::sync::LazyLock::new(Default::default);
+
+fn starting_peak(address: &str, srate: f64) -> f64 {
+    LAST_PEAK
+        .lock()
+        .ok()
+        .and_then(|peaks| peaks.get(&(address.to_string(), srate as u64)).copied())
+        .unwrap_or(DEFAULT_PEAK)
+}
+
+fn remember_peak(address: &str, srate: f64, peak: f64) {
+    if let Ok(mut peaks) = LAST_PEAK.lock() {
+        peaks.insert((address.to_string(), srate as u64), peak);
+    }
 }
 
 /// How an 8-bit run is received and scaled back.
@@ -1010,28 +1124,40 @@ struct EightBitLevel {
     full_scale: f64,
 }
 
-/// Set the 8-bit scaling from the signal itself. The level varies far too much
-/// between targets for one fixed scaling: a strong GNSS satellite at 25 MHz
-/// sits ~16× higher than blank sky. Takes a short 16-bit snapshot at the
-/// signal frequency to measure the level and picks the scaling from it. The
-/// scale back to 16-bit units is UHD's documented `peak · 256`: measured
-/// against a second, 8-bit snapshot on torre (2026-11-01), it agreed to
-/// 0.03 %. The reference half of a frequency-switched run uses the same
-/// scaling, so it cancels in the sig/ref ratio anyway.
+/// Set the 8-bit scaling from the signal itself. The level varies too much
+/// for one fixed scaling: between receivers (blank sky at peak ~0.09 on torre,
+/// ~0.2 on brage and vale), and with the target (GNSS at 25 MHz up to ~3×
+/// blank sky; the brightest on record, BeiDou on vale, needed peak 0.54).
+///
+/// The snapshot is taken in 8-bit, at the run's own scaling-to-be and so at
+/// exactly the link load the run was admitted with. It used to be 16-bit,
+/// twice that load: a 25 MHz snapshot needed 800 Mbit/s for 0.1 s on the
+/// shared 1 Gbit/s link, and with the other two telescopes streaming it lost
+/// packets (torre, 2026-11-17; before v1.5.38 the short snapshot was used as
+/// is and set the scaling up to 30× too high). An 8-bit snapshot only
+/// measures well within [`LEVEL_MIN_RMS8`]..[`LEVEL_MAX_RMS8`], so it starts
+/// from this receiver's previous scaling and rescales until it lands there
+/// (see [`level_step`]). The scale back to 16-bit units is UHD's documented
+/// `peak · 256`: measured against a 16-bit snapshot on torre (2026-11-01), it
+/// agreed to 0.03 %. The reference half of a frequency-switched run uses the
+/// same scaling, so it cancels in the sig/ref ratio anyway.
 fn auto_level(
     usrp: &mut UhdDevice,
     address: &str,
     sfreq: f64,
     srate: f64,
 ) -> Result<EightBitLevel, TelescopeError> {
-    let mut snapshot = vec![Complex::<i16>::default(); (AUTO_LEVEL_SECS * srate) as usize];
-    let mut attempt = 1;
-    loop {
-        match receive_block(usrp, sfreq, srate, "", &mut snapshot)? {
-            BlockRead::Complete => break,
-            short if attempt < AUTO_LEVEL_ATTEMPTS => {
+    let mut snapshot = vec![Complex::<i8>::default(); (AUTO_LEVEL_SECS * srate) as usize];
+    let mut peak = starting_peak(address, srate);
+    let mut incomplete = 0;
+    let mut shots = 0;
+    let (peak, rms16) = loop {
+        match receive_block(usrp, sfreq, srate, &format!("peak={peak}"), &mut snapshot)? {
+            BlockRead::Complete => {}
+            short if incomplete + 1 < AUTO_LEVEL_ATTEMPTS => {
                 warn!("8-bit level snapshot at {address} was incomplete ({short}); retrying");
-                attempt += 1;
+                incomplete += 1;
+                continue;
             }
             short => {
                 return Err(TelescopeError::ReceiverFailed(format!(
@@ -1039,10 +1165,30 @@ fn auto_level(
                 )));
             }
         }
-    }
-    let rms16 = component_rms(&snapshot);
+        shots += 1;
+        let rms8 = component_rms(&snapshot);
+        let clipped = count_at_limit(&snapshot) as f64 / (2 * snapshot.len()).max(1) as f64;
+        match level_step(peak, rms8, clipped) {
+            LevelStep::Settled { peak, rms16 } => break (peak, rms16),
+            LevelStep::Retry(next) if shots < AUTO_LEVEL_SHOTS => {
+                info!(
+                    "8-bit level snapshot at {address}: {rms8:.1} counts RMS at peak {peak:.4} \
+                     ({:.3} % at the limit); rescaling to peak {next:.4}",
+                    100.0 * clipped
+                );
+                peak = next;
+            }
+            LevelStep::Retry(next) => {
+                warn!(
+                    "8-bit level at {address} did not settle in {shots} snapshots \
+                     ({rms8:.1} counts RMS at peak {peak:.4}); using peak {next:.4}"
+                );
+                break (next, rms8 * peak * 256.0);
+            }
+        }
+    };
+    remember_peak(address, srate, peak);
 
-    let peak = eight_bit_peak(rms16);
     let scale = peak * 256.0;
     info!(
         "8-bit level at {address}: {rms16:.0} counts RMS in 16-bit, peak {peak:.4}, \
@@ -1963,6 +2109,77 @@ mod test {
         ];
         assert_eq!(count_at_limit(&samples), 4);
         assert_eq!(count_at_limit(&[Complex::new(i16::MAX, 5)]), 1);
+    }
+
+    #[test]
+    fn level_settles_in_range_and_aims_for_the_target() {
+        // 10 counts at peak 0.25 is 640 in 16-bit: half the target, so the
+        // peak halves and the run lands at 20 counts.
+        match level_step(0.25, 10.0, 0.0) {
+            LevelStep::Settled { peak, rms16 } => {
+                assert!((rms16 - 640.0).abs() < 1e-9);
+                assert!((peak - 0.125).abs() < 1e-12);
+                assert!((rms16 / (peak * 256.0) - EIGHT_BIT_TARGET_RMS).abs() < 1e-9);
+            }
+            other => panic!("expected to settle, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn level_steps_up_when_clipping_and_down_when_too_quiet() {
+        // Clipped: at least 4× coarser, even when the RMS itself looks fine.
+        assert_eq!(level_step(0.1, 30.0, 0.01), LevelStep::Retry(0.4));
+        // Far too loud: by the measured excess.
+        assert_eq!(
+            level_step(0.1, 120.0, 0.2),
+            LevelStep::Retry(0.6000000000000001)
+        );
+        // Already at UHD's coarsest: settle and let the run report clipping.
+        assert!(matches!(
+            level_step(1.0, 120.0, 0.2),
+            LevelStep::Settled { peak: 1.0, .. }
+        ));
+        // Too quiet: straight to the estimate.
+        assert_eq!(level_step(0.5, 2.0, 0.0), LevelStep::Retry(0.05));
+        // Nothing measured at all: 16× finer, never below UHD's minimum.
+        assert_eq!(level_step(0.5, 0.0, 0.0), LevelStep::Retry(0.5 / 16.0));
+        assert_eq!(level_step(0.01, 0.0, 0.0), LevelStep::Retry(MIN_PEAK));
+        assert!(matches!(
+            level_step(MIN_PEAK, 0.0, 0.0),
+            LevelStep::Settled { .. }
+        ));
+    }
+
+    // A source far brighter than any GNSS satellite on record (8× torre's
+    // blank sky, peak 0.12 → 0.96; the brightest measured was ~3×), starting
+    // from the blank-sky scaling: one rescale up, then it settles on target.
+    #[test]
+    fn a_strong_source_settles_within_the_allowed_snapshots() {
+        let rms16_true = 8.0 * 0.12 * 256.0 * EIGHT_BIT_TARGET_RMS;
+        let mut peak = 0.12;
+        for shot in 1..=AUTO_LEVEL_SHOTS {
+            let scale = peak * 256.0;
+            let rms8 = (rms16_true / scale).min(127.0 / 3.0 + 10.0);
+            let clipped = if rms16_true / scale > 40.0 { 0.05 } else { 0.0 };
+            match level_step(peak, rms8, clipped) {
+                LevelStep::Settled { peak: settled, .. } => {
+                    assert!(shot <= 3, "took {shot} snapshots");
+                    assert!((rms16_true / (settled * 256.0) - EIGHT_BIT_TARGET_RMS).abs() < 0.5);
+                    return;
+                }
+                LevelStep::Retry(next) => peak = next,
+            }
+        }
+        panic!("did not settle in {AUTO_LEVEL_SHOTS} snapshots");
+    }
+
+    #[test]
+    fn the_last_scaling_is_remembered_per_receiver_and_rate() {
+        let address = "test-remember-peak";
+        assert_eq!(starting_peak(address, 25e6), DEFAULT_PEAK);
+        remember_peak(address, 25e6, 0.4);
+        assert_eq!(starting_peak(address, 25e6), 0.4);
+        assert_eq!(starting_peak(address, 12.5e6), DEFAULT_PEAK);
     }
 
     #[test]
