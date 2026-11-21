@@ -777,6 +777,9 @@ figure img {
     max-width: 960px;
 }
 .stats h3 {
+    @apply text-2xl font-semibold text-gray-800 mt-12 mb-1;
+}
+.stats h4:not(.stats-card *) {
     @apply text-lg font-semibold text-gray-800 mt-10 mb-1;
 }
 .stats-help {

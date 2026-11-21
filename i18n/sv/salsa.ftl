@@ -434,7 +434,7 @@ login-submit = Logga in
 ## Statistiksidan (/stats). %n% fylls i av servern.
 
 stats-heading = SALSA i siffror
-stats-intro = Hur teleskopen används. Alla siffror är summor för hela kalendermånader; inga enskilda användare visas. Bokningar och observationer av systemadministratörer, som oftast är tester eller underhåll, ingår inte i siffrorna nedan.
+stats-intro = Hur teleskopen används. Summorna sedan starten är aktuella; siffrorna för en vald period gäller hela kalendermånader. Inga enskilda användare visas. Bokningar och observationer av systemadministratörer, som oftast är tester eller underhåll, ingår inte i siffrorna nedan.
 stats-since-start = Sedan starten
 stats-since-start-help = SALSA har funnits sedan början av 2000-talet. Siffrorna nedan visar användningen sedan starten av det nya webbaserade styrsystemet, som lanserades i maj 2026.
 stats-registered-users = Registrerade användare
@@ -446,6 +446,8 @@ stats-guest-sessions-sub = h totalt, via ”Observera nu”
 stats-observations-saved = Sparade observationer
 stats-observations-sub = av inloggade användare
 stats-no-months-yet = Månadssiffror visas här när den första hela månaden är slut.
+stats-monthly-heading = Månadsvis uppdelning
+stats-monthly-help = Välj en period för att se siffrorna per månad, med länder och fler detaljer. Bara hela kalendermånader ingår.
 stats-period = Period
 stats-last-month = Senaste månaden
 stats-last-6-months = Senaste 6 månaderna

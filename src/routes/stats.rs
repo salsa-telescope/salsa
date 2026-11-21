@@ -1,9 +1,10 @@
 //! Public usage statistics: totals per calendar month, never per user.
 //!
 //! Figures are computed live from the database on each request; the tables
-//! are small enough that this takes a few milliseconds. Only completed
-//! months are shown, and bookings and observations by admins (tests and
-//! maintenance) are left out everywhere.
+//! are small enough that this takes a few milliseconds. The "since the
+//! start" totals run up to the moment of the request; the per-period
+//! figures cover completed months only. Bookings and observations by admins
+//! (tests and maintenance) are left out everywhere.
 
 use std::collections::{HashMap, HashSet};
 
@@ -202,6 +203,58 @@ fn bucket(raw: RawStats, admin_ids: &[i64], months: &[Month]) -> HashMap<Month, 
         }
     }
     data
+}
+
+/// The "since the start" totals: everything from the launch up to `now`.
+/// Only booked time that has already passed counts, so the hours grow as
+/// bookings are used rather than when they are made. Guest time counts
+/// finished sessions only, as in the monthly figures.
+struct Totals {
+    observations: usize,
+    booked_seconds: i64,
+    elapsed_seconds: i64,
+    guest_sessions: usize,
+    guest_seconds: i64,
+}
+
+impl Totals {
+    fn of(raw: &RawStats, admin_ids: &[i64], now: i64) -> Totals {
+        let start = FIRST_MONTH.start_timestamp();
+        let booked_seconds = raw
+            .bookings
+            .iter()
+            .filter(|b| !admin_ids.contains(&b.user_id))
+            .map(|b| {
+                let from = b.start_time.timestamp().max(start);
+                let to = b.end_time.timestamp().min(now);
+                (to - from).max(0)
+            })
+            .sum();
+        let started = |t: i64| (start..=now).contains(&t);
+        let guests = raw.guests.iter().filter(|g| started(g.started_at));
+        Totals {
+            observations: raw
+                .observations
+                .iter()
+                .filter(|o| !admin_ids.contains(&o.user_id) && started(o.start_time))
+                .count(),
+            booked_seconds,
+            elapsed_seconds: (now - start).max(0),
+            guest_sessions: guests.clone().count(),
+            guest_seconds: guests
+                .filter_map(|g| g.ended_at.map(|end| (g.started_at, end)))
+                .map(|(s, e)| (e - s).clamp(0, GUEST_SESSION_HARD_CEILING_SECS))
+                .sum(),
+        }
+    }
+
+    fn hours_per_week(&self) -> f64 {
+        let weeks = self.elapsed_seconds as f64 / (7.0 * 86400.0);
+        if weeks <= 0.0 {
+            return 0.0;
+        }
+        self.booked_seconds as f64 / 3600.0 / weeks
+    }
 }
 
 /// Figures for a set of months, ready to print.
@@ -427,7 +480,8 @@ async fn get_stats(
     Query(query): Query<StatsQuery>,
     headers: HeaderMap,
 ) -> Result<impl IntoResponse, StatusCode> {
-    let months = completed_months(Utc::now().date_naive());
+    let now = Utc::now();
+    let months = completed_months(now.date_naive());
     let raw = fetch(
         state.database_connection.clone(),
         FIRST_MONTH.start_timestamp(),
@@ -440,9 +494,10 @@ async fn get_stats(
         .iter()
         .filter(|id| !admin_ids.contains(id))
         .count();
+    let totals = Totals::of(&raw, admin_ids, now.timestamp());
     let data = bucket(raw, admin_ids, &months);
 
-    let content = render(lang, &months, &data, registered_users, &query);
+    let content = render(lang, &months, &data, registered_users, &totals, &query);
     let content = if headers.get("hx-request").is_some() {
         content
     } else {
@@ -470,9 +525,9 @@ fn render(
     months: &[Month],
     data: &HashMap<Month, MonthData>,
     registered_users: usize,
+    totals: &Totals,
     query: &StatsQuery,
 ) -> String {
-    let all = Figures::of(months, data);
     let (a, b) = selected_range(months, query);
     let selected: &[Month] = if months.is_empty() {
         &[]
@@ -600,11 +655,14 @@ fn render(
         lang,
         has_data: !months.is_empty(),
         registered_users: fmt_int(registered_users as i64, lang),
-        total_hours: fmt_int(all.hours(), lang),
-        total_hours_per_week: fmt_dec(all.hours_per_week(), lang),
-        total_guest_sessions: fmt_int(all.guest_sessions as i64, lang),
-        total_guest_hours: fmt_dec(all.guest_seconds as f64 / 3600.0, lang),
-        total_observations: fmt_int(all.observations as i64, lang),
+        total_hours: fmt_int(
+            (totals.booked_seconds as f64 / 3600.0).round() as i64,
+            lang,
+        ),
+        total_hours_per_week: fmt_dec(totals.hours_per_week(), lang),
+        total_guest_sessions: fmt_int(totals.guest_sessions as i64, lang),
+        total_guest_hours: fmt_dec(totals.guest_seconds as f64 / 3600.0, lang),
+        total_observations: fmt_int(totals.observations as i64, lang),
         shortcuts,
         month_options,
         from: selected.first().map(|m| m.param()).unwrap_or_default(),
@@ -721,6 +779,50 @@ mod test {
     }
 
     #[test]
+    fn totals_count_only_time_already_passed() {
+        let start = FIRST_MONTH.start_timestamp();
+        let booking = |from: i64, to: i64| Booking {
+            id: 0,
+            start_time: chrono::DateTime::from_timestamp(from, 0).unwrap(),
+            end_time: chrono::DateTime::from_timestamp(to, 0).unwrap(),
+            telescope_name: "vale".into(),
+            user_id: 1,
+            user_name: String::new(),
+            user_provider: String::new(),
+            description: None,
+            country: None,
+        };
+        let now = start + 14 * 86400;
+        let raw = RawStats {
+            // Done, under way (half passed), and not yet started.
+            bookings: vec![
+                booking(start, start + 3600),
+                booking(now - 1800, now + 1800),
+                booking(now + 3600, now + 7200),
+            ],
+            guests: vec![
+                crate::models::stats::GuestRow {
+                    started_at: now - 600,
+                    ended_at: Some(now - 300),
+                    country: None,
+                },
+                crate::models::stats::GuestRow {
+                    started_at: now - 60,
+                    ended_at: None,
+                    country: None,
+                },
+            ],
+            observations: vec![],
+            registered_user_ids: vec![1],
+        };
+        let t = Totals::of(&raw, &[], now);
+        assert_eq!(t.booked_seconds, 3600 + 1800);
+        assert_eq!(t.guest_sessions, 2);
+        assert_eq!(t.guest_seconds, 300);
+        assert_eq!(fmt_dec(t.hours_per_week(), Language::English), "0.8");
+    }
+
+    #[test]
     fn admin_bookings_and_observations_are_left_out() {
         let at = |m: Month, hour: i64| m.start_timestamp() + hour * 3600;
         let may = month(2026, 5);
@@ -750,6 +852,9 @@ mod test {
             ],
             registered_user_ids: vec![1, 2],
         };
+        let totals = Totals::of(&raw, &[2], at(may, 24 * 40));
+        assert_eq!(totals.observations, 1);
+        assert_eq!(totals.booked_seconds, 3600);
         let data = bucket(raw, &[2], &[may]);
         let f = Figures::of(&[may], &data);
         assert_eq!(f.bookings, 1);

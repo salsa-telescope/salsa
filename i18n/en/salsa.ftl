@@ -434,7 +434,7 @@ login-submit = Log in
 ## Statistics page (/stats). %n% is filled in by the server.
 
 stats-heading = SALSA in numbers
-stats-intro = How the telescopes are used. Every figure is a total for whole calendar months; no individual users are shown. Bookings and observations by system admins, commonly used for tests or maintenance, are not included in the figures below.
+stats-intro = How the telescopes are used. The totals since the start are up to date; the figures for a chosen period cover whole calendar months. No individual users are shown. Bookings and observations by system admins, commonly used for tests or maintenance, are not included in the figures below.
 stats-since-start = Since the start
 stats-since-start-help = SALSA has existed since the early 2000s. The numbers below reflect the use since the start of this new web-based control system, launched in May 2026.
 stats-registered-users = Registered users
@@ -446,6 +446,8 @@ stats-guest-sessions-sub = h in total, via “Observe now”
 stats-observations-saved = Observations saved
 stats-observations-sub = by logged-in users
 stats-no-months-yet = Monthly figures appear here once the first full month has ended.
+stats-monthly-heading = Monthly breakdown
+stats-monthly-help = Pick a period to see the figures per month, with countries and more details. Only whole calendar months are included.
 stats-period = Period
 stats-last-month = Last month
 stats-last-6-months = Last 6 months
