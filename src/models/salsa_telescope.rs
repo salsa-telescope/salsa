@@ -1543,8 +1543,8 @@ fn measure(
             start: Utc::now(),
             duration: Duration::from_secs(0),
         };
-        for i in 0..avg_pts {
-            measurement.freqs[i] = sfreq - 0.5 * srate + srate * (i as f64 / avg_pts as f64);
+        for (i, freq) in measurement.freqs.iter_mut().enumerate() {
+            *freq = sfreq - 0.5 * srate + srate * (i as f64 / avg_pts as f64);
         }
         measurements.push(measurement);
     }
