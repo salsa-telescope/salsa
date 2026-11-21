@@ -655,10 +655,7 @@ fn render(
         lang,
         has_data: !months.is_empty(),
         registered_users: fmt_int(registered_users as i64, lang),
-        total_hours: fmt_int(
-            (totals.booked_seconds as f64 / 3600.0).round() as i64,
-            lang,
-        ),
+        total_hours: fmt_int((totals.booked_seconds as f64 / 3600.0).round() as i64, lang),
         total_hours_per_week: fmt_dec(totals.hours_per_week(), lang),
         total_guest_sessions: fmt_int(totals.guest_sessions as i64, lang),
         total_guest_hours: fmt_dec(totals.guest_seconds as f64 / 3600.0, lang),
