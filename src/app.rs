@@ -449,21 +449,31 @@ fn static_files(assets_path: impl AsRef<Path>) -> Router {
             header::CACHE_CONTROL,
             HeaderValue::from_static("no-cache"),
         ))
-        .layer(middleware::from_fn(reject_overlong_path_segments))
+        .layer(middleware::from_fn(reject_unservable_paths))
 }
 
 /// Longest file name the filesystem accepts (Linux NAME_MAX, in bytes).
 const MAX_PATH_SEGMENT_BYTES: usize = 255;
 
-/// No asset has a name this long, but ServeDir still asks the filesystem,
-/// which refuses with ENAMETOOLONG, and ServeDir answers that with a 500.
-/// Scanner probes (an Apache Struts OGNL payload, 2026-11-17) then showed up
-/// as server errors. Checked on the raw, still percent-encoded path, which is
-/// never shorter than the decoded name the filesystem would see.
-async fn reject_overlong_path_segments(request: Request<axum::body::Body>, next: Next) -> Response {
-    if request
-        .uri()
-        .path()
+/// Paths ServeDir would answer with a 500, refused before it sees them.
+/// Scanner probes otherwise show up as server errors.
+///
+/// - No path at all: an authority-form target (`HEAD host:443`, valid only
+///   for CONNECT, used by proxy probes, 2026-11-20). ServeDir takes the empty
+///   path for the assets directory itself and redirects to add a slash, but
+///   cannot build that URL from a host without a scheme. A malformed
+///   request, so 400.
+/// - A segment longer than any file name: no asset has one, but ServeDir
+///   still asks the filesystem, which refuses with ENAMETOOLONG (an Apache
+///   Struts OGNL payload, 2026-11-17). Checked on the raw, still
+///   percent-encoded path, which is never shorter than the decoded name the
+///   filesystem would see. Simply not found, so 404.
+async fn reject_unservable_paths(request: Request<axum::body::Body>, next: Next) -> Response {
+    let path = request.uri().path();
+    if !path.starts_with('/') {
+        return axum::http::StatusCode::BAD_REQUEST.into_response();
+    }
+    if path
         .split('/')
         .any(|segment| segment.len() > MAX_PATH_SEGMENT_BYTES)
     {
@@ -502,6 +512,12 @@ mod static_files_tests {
             StatusCode::NOT_FOUND
         );
         assert_eq!(status(&format!("/{long}")).await, StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn a_request_without_a_path_is_a_bad_request() {
+        // Authority-form, as a proxy probe sends it.
+        assert_eq!(status("salsa.example:443").await, StatusCode::BAD_REQUEST);
     }
 
     #[tokio::test]
